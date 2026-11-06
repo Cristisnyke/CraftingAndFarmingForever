@@ -716,7 +716,25 @@ local function ShownButtons()
 	end
 	return table.concat(names, ", ")
 end
+local box = ns.Advertise.box
+check("one small box to start", box:IsShown(), true)
+check("nothing else shown until opened", ShownButtons(), "")
+check("picker closed until opened", ns.Advertise.destinationButton:IsShown(), false)
+local function OpenAds()
+	if not ns.Advertise.destinationButton:IsShown() then box.scripts.OnClick(box) end
+end
+OpenAds()
+check("box opens picker", ns.Advertise.destinationButton:IsShown(), true)
+box.scripts.OnClick(box)
+check("box closes again", ShownButtons(), "")
+inCombat = true
+box.scripts.OnClick(box)
+inCombat = false
+check("box doesn't open in combat", ShownButtons(), "")
+OpenAds()
+
 -- A click as the client does it: the macro runs on the direction matching the setting, and PostClick fires on both.
+-- Posting closes the list, so the helper opens it again for the checks that follow.
 local function Click(button, keyDown)
 	useKeyDown = keyDown or false
 	local ranDown = useKeyDown
@@ -724,23 +742,26 @@ local function Click(button, keyDown)
 	button.scripts.PostClick(button, "LeftButton", true)
 	if not ranDown then macroRan = button.attributes.macrotext end
 	button.scripts.PostClick(button, "LeftButton", false)
-	return macroRan
+	local closedAfter = not ns.Advertise.destinationButton:IsShown()
+	OpenAds()
+	return macroRan, closedAfter
 end
-check("a button per crafting profession", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+check("a button per crafting profession", ShownButtons(), "Alchemy, Tailoring")
 check("buttons are macro buttons", adButtons[2].attributes.type, "macro")
 check("macro posts to Trade with the link", adButtons[2].attributes.macrotext, "/2 " .. AD_MESSAGE)
 check("placed on the screen, not on the chat frame", adButtons[1].lastPoint[2], UIParent)
-local posted = Click(adButtons[2])
+local posted, closedAfterPost = Click(adButtons[2])
 check("one click posts", posted, "/2 " .. AD_MESSAGE)
+check("posting closes the list", closedAfterPost, true)
 check("cooldown shown on buttons", ShownButtons():find("Alchemy %(%d+%)") ~= nil, true)
 time = function() return realNow() + 600 end
 RunTimers()
-check("buttons return after the cooldown", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+check("buttons return after the cooldown", ShownButtons(), "Alchemy, Tailoring")
 
 -- The cooldown starts on the click direction that really ran the macro, whichever the setting is.
 useKeyDown = false
 adButtons[2].scripts.PostClick(adButtons[2], "LeftButton", true)
-check("press alone starts no cooldown when macros run on release", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+check("press alone starts no cooldown when macros run on release", ShownButtons(), "Alchemy, Tailoring")
 Click(adButtons[2], true)
 check("key-down setting starts cooldown", ShownButtons():find("%(%d+%)") ~= nil, true)
 useKeyDown = false
@@ -751,18 +772,18 @@ RunTimers()
 inCombat = true
 channelList = { 1, "General - Barrens", false }
 Fire("ZONE_CHANGED_NEW_AREA")
-check("no changes in combat", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+check("no changes in combat", ShownButtons(), "Alchemy, Tailoring")
 inCombat = false
 Fire("PLAYER_REGEN_ENABLED")
 check("hidden outside Trade chat once combat ends", ShownButtons(), "")
 channelList = { 2, "Trade - City", false }
 Fire("CHAT_MSG_CHANNEL_NOTICE")
-check("back in Trade chat", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+check("back in Trade chat", ShownButtons(), "Alchemy, Tailoring")
 
 -- The picker: each destination gets its own command, and shows its buttons even outside Trade chat.
 local picker = ns.Advertise.destinationButton
 local menu = ns.Advertise.destinationMenu
-check("picker starts on Trade", picker.text, "Post to: Trade")
+check("picker starts on Trade", picker.text, "To: Trade")
 picker.scripts.OnClick(picker)
 check("picker opens its menu", menu:IsShown(), true)
 menu:Hide()
@@ -776,9 +797,9 @@ check("no buttons for Trade outside it", ShownButtons(), "")
 check("picker stays available", picker:IsShown(), true)
 for _, case in ipairs({ { "GUILD", "Guild", "/g " }, { "SAY", "Say", "/s " }, { "YELL", "Yell", "/y " } }) do
 	Pick(case[1])
-	check("picker shows " .. case[2], picker.text, "Post to: " .. case[2])
+	check("picker shows " .. case[2], picker.text, "To: " .. case[2])
 	check("menu closes after picking " .. case[2], menu:IsShown(), false)
-	check("buttons shown for " .. case[2], ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+	check("buttons shown for " .. case[2], ShownButtons(), "Alchemy, Tailoring")
 	check("command for " .. case[2], Click(adButtons[2]), case[3] .. AD_MESSAGE)
 end
 check("destination saved", ns.db.ui.adDestination, "YELL")

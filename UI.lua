@@ -1243,31 +1243,49 @@ function Advertise.Send(professionID)
 	OpenChatWith(command)
 end
 
--- Beside the chat frame: a destination picker, and above it a button per crafting profession of this character. They
--- work with no profession window open, using the link saved when the profession was last opened, and show whenever
--- the chosen destination can take a post.
-local AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT = 170, 22
+-- Beside the chat frame: one small box that opens a destination picker and a button per crafting profession of this
+-- character. They work with no profession window open, using the link saved when the profession was last opened, and
+-- show whenever the chosen destination can take a post. Posting closes them again.
+local AD_BOX_WIDTH, AD_BOX_HEIGHT = 26, 20
+local AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT = 130, 20
 local adButtons = {}
 Advertise.buttons = adButtons
 local cooldownTimerRunning = false
-local destinationButton, destinationMenu
+local adBox, destinationButton, destinationMenu
+local adOpen = false
 
 local function CreateDestinationPicker()
+	adBox = CreateFrame("Button", "CraftLedgerAdBox", UIParent, "UIPanelButtonTemplate")
+	adBox:SetSize(AD_BOX_WIDTH, AD_BOX_HEIGHT)
+	-- Past the chat frame's own scroll bar.
+	adBox:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, 0)
+	adBox:SetText("Ad")
+	adBox:SetScript("OnClick", function()
+		-- The profession buttons are secure, so they can't appear or hide during combat.
+		if InCombatLockdown() then
+			ns.Print("Advertising buttons can't open during combat.")
+			return
+		end
+		adOpen = not adOpen
+		Advertise.UpdateButtons()
+	end)
+	Advertise.box = adBox
+
 	destinationButton = CreateFrame("Button", "CraftLedgerAdDestination", UIParent, "UIPanelButtonTemplate")
 	destinationButton:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
-	-- Past the chat frame's own scroll bar.
-	destinationButton:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, 0)
+	destinationButton:SetPoint("BOTTOMLEFT", adBox, "TOPLEFT", 0, 2)
+	destinationButton:Hide()
 	Advertise.destinationButton = destinationButton
 
 	destinationMenu = CreateFrame("Frame", nil, destinationButton)
-	destinationMenu:SetSize(90, #DESTINATIONS * AD_BUTTON_HEIGHT)
+	destinationMenu:SetSize(60, #DESTINATIONS * AD_BUTTON_HEIGHT)
 	destinationMenu:SetPoint("BOTTOMLEFT", destinationButton, "BOTTOMRIGHT", 2, 0)
 	destinationMenu:Hide()
 	Advertise.destinationMenu = destinationMenu
 	destinationMenu.options = {}
 	for index, destination in ipairs(DESTINATIONS) do
 		local option = CreateFrame("Button", nil, destinationMenu, "UIPanelButtonTemplate")
-		option:SetSize(90, AD_BUTTON_HEIGHT)
+		option:SetSize(60, AD_BUTTON_HEIGHT)
 		option:SetPoint("BOTTOMLEFT", 0, (index - 1) * AD_BUTTON_HEIGHT)
 		option:SetText(destination.label)
 		option:SetScript("OnClick", function()
@@ -1285,7 +1303,7 @@ local function CreateDestinationPicker()
 
 	-- The ad buttons aren't anchored to this one, so move them when the chat window moves.
 	local lastLeft, lastTop, elapsedSinceCheck = nil, nil, 0
-	destinationButton:SetScript("OnUpdate", function(self, elapsed)
+	adBox:SetScript("OnUpdate", function(self, elapsed)
 		elapsedSinceCheck = elapsedSinceCheck + elapsed
 		if elapsedSinceCheck < 0.5 then return end
 		elapsedSinceCheck = 0
@@ -1312,6 +1330,7 @@ local function AdButton(index)
 			if (down and true or false) ~= (GetCVarBool("ActionButtonUseKeyDown") and true or false) then return end
 			if not self.hasLink then ns.Print(NO_LINK_NOTE) end
 			lastAdvertised[self.destinationKey] = time()
+			adOpen = false
 			Advertise.UpdateButtons()
 		end)
 		adButtons[index] = button
@@ -1328,17 +1347,20 @@ function Advertise.UpdateButtons()
 
 	if #crafting > 0 and not destinationButton then CreateDestinationPicker() end
 	local destination = CurrentDestination()
-	if destinationButton then
-		destinationButton:SetText("Post to: " .. destination.label)
-		destinationButton:SetShown(#crafting > 0)
+	if adBox then
+		adBox:SetShown(#crafting > 0)
+		destinationButton:SetText("To: " .. destination.label)
+		destinationButton:SetShown(adOpen and #crafting > 0)
+		if not adOpen then destinationMenu:Hide() end
 	end
 
-	local left = destinationButton and destinationButton:GetLeft()
-	local top = destinationButton and destinationButton:GetTop()
+	-- The profession buttons stack above the picker, which sits above the box.
+	local left = adBox and adBox:GetLeft()
+	local top = adBox and adBox:GetTop() and (adBox:GetTop() + AD_BUTTON_HEIGHT + 2)
 	local available = DestinationState(destination)
 	local wait = CooldownLeft(destination)
 	local shown = 0
-	if available and left and top then
+	if adOpen and available and left and top then
 		for _, profession in ipairs(crafting) do
 			local command, _, hasLink = AdCommand(profession.id, destination)
 			if command then
@@ -1349,7 +1371,7 @@ function Advertise.UpdateButtons()
 				button:SetAttribute("macrotext", command)
 				button:ClearAllPoints()
 				button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left, top + 2 + (shown - 1) * (AD_BUTTON_HEIGHT + 2))
-				button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or ("Advertise " .. profession.name))
+				button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or profession.name)
 				button:SetEnabled(wait <= 0)
 				button:Show()
 			end
