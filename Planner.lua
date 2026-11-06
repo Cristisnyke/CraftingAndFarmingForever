@@ -11,6 +11,7 @@
 --   ownStock(itemID)   -> count on the current character (bags + bank)
 --   altStock(itemID)   -> { { name = label, count = n }, ... }
 --   crafter(recipeID, preferredChar) -> character key
+--   smelting[itemID]   = { yield, { count, itemID }, ... }   only used by a farming plan
 
 local _, ns = ...
 ns = ns or {}
@@ -174,9 +175,11 @@ function Planner.RestockRows(ctx, opts)
 	return rows
 end
 
--- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups.
-function Planner.BuildPlan(ctx, queue)
-	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, cost = 0 }
+-- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups. With farming
+-- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
+-- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.
+function Planner.BuildPlan(ctx, queue, farming)
+	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = {}, cost = 0 }
 	local own, alts = {}, {}
 	local craftIndex = {}
 	local active = {}
@@ -214,9 +217,50 @@ function Planner.BuildPlan(ctx, queue)
 		return count
 	end
 
-	local Require
+	local Require, Acquire
 
-	local function Acquire(itemID, count)
+	-- The known recipe to farm for, the cheapest when prices can tell. Nil when none can be used right now.
+	local function FarmRecipe(itemID)
+		local _, kind, cheapest = Planner.ItemCost(ctx, itemID)
+		if kind == "craft" and not active[cheapest] then return cheapest end
+		for _, candidate in ipairs(ctx.known[itemID] or {}) do
+			local recipe = ctx.recipes[candidate]
+			if recipe and not recipe.x and not active[candidate] then return candidate end
+		end
+		return nil
+	end
+
+	local function AcquireByFarming(itemID, count)
+		local recipeID = FarmRecipe(itemID)
+		if recipeID then
+			local yield = MinimumYield(ctx.recipes[recipeID])
+			local crafts = math.ceil(count / yield)
+			Require(recipeID, crafts, nil, true)
+			own[itemID] = OwnLeft(itemID) + crafts * yield - count
+			return
+		end
+		local smelt = ctx.smelting and ctx.smelting[itemID]
+		if smelt then
+			local smelts = math.ceil(count / smelt.yield)
+			plan.smelt[itemID] = (plan.smelt[itemID] or 0) + smelts * smelt.yield
+			for _, material in ipairs(smelt) do
+				local missing = TakeFromStock(material[2], material[1] * smelts)
+				if missing > 0 then Acquire(material[2], missing) end
+			end
+			own[itemID] = OwnLeft(itemID) + smelts * smelt.yield - count
+			return
+		end
+		local vendor = ctx.vendorPrice(itemID)
+		if vendor then
+			plan.vendor[itemID] = (plan.vendor[itemID] or 0) + count
+			plan.cost = plan.cost + vendor * count
+		else
+			plan.farm[itemID] = (plan.farm[itemID] or 0) + count
+		end
+	end
+
+	Acquire = function(itemID, count)
+		if farming then return AcquireByFarming(itemID, count) end
 		local _, kind, recipeID = Planner.ItemCost(ctx, itemID)
 		local ah, vendor = ctx.ahPrice(itemID), ctx.vendorPrice(itemID)
 		local useVendor = vendor and (not ah or vendor < ah)

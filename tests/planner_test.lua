@@ -223,5 +223,59 @@ check("restock best recipe", restockRows[2].recipeID, 1)
 check("empty plan", #Planner.BuildPlan(Context(), {}).crafts, 0)
 check("zero qty", #Planner.BuildPlan(Context(), { { recipeID = 300, qty = 0 } }).crafts, 0)
 
+-- Farming: nothing from the AH, makes what it can, vendor items stay on the vendor list.
+do
+	local recipes = {
+		[100] = { o = BAR, qmin = 1, qmax = 1, r = { { 2, ORE } } },
+		[300] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 2, BAR }, { 1, THREAD }, { 3, CLOTH } } },
+	}
+	local function FarmContext(over)
+		over = over or {}
+		return Planner.NewContext({
+			recipes = recipes,
+			known = over.known or { [BAR] = { 100 }, [SHIRT] = { 300 } },
+			ahPrice = function(id) return ({ [ORE] = 1, [BAR] = 1, [CLOTH] = 5 })[id] end,
+			vendorPrice = function(id) return id == THREAD and 10 or nil end,
+			ownStock = function(id) return (over.own or {})[id] or 0 end,
+			altStock = function() return {} end,
+			crafter = function() return "me" end,
+			smelting = over.smelting,
+		})
+	end
+	local queue = { { recipeID = 300, qty = 2 } }
+
+	local plan = Planner.BuildPlan(FarmContext(), queue, true)
+	check("farm: nothing to buy at AH", next(plan.buy), nil)
+	check("farm: crafts bar even when buying is cheaper", plan.crafts[1].recipeID, 100)
+	check("farm: bar quantity", plan.crafts[1].count, 4)
+	check("farm: raw ore listed", plan.farm[ORE], 8)
+	check("farm: cloth listed", plan.farm[CLOTH], 6)
+	check("farm: vendor item stays vendor", plan.vendor[THREAD], 2)
+	check("farm: only vendor costs gold", plan.cost, 20)
+	check("buy plan unchanged by the option", Planner.BuildPlan(FarmContext(), queue).buy[CLOTH], 6)
+
+	plan = Planner.BuildPlan(FarmContext({ own = { [CLOTH] = 4, [ORE] = 3 } }), queue, true)
+	check("farm: owned materials not farmed", plan.farm[CLOTH], 2)
+	check("farm: owned ore not farmed", plan.farm[ORE], 5)
+
+	-- A bar with no known recipe is smelted from ore, in whole smelts.
+	local smelting = { [BAR] = { yield = 2, { 3, ORE } } }
+	plan = Planner.BuildPlan(FarmContext({ known = { [SHIRT] = { 300 } }, smelting = smelting }), { { recipeID = 300, qty = 1 } }, true)
+	check("smelt: bars listed", plan.smelt[BAR], 2)
+	check("smelt: ore from the formula", plan.farm[ORE], 3)
+	plan = Planner.BuildPlan(FarmContext({ known = { [SHIRT] = { 300 } }, smelting = smelting }), { { recipeID = 300, qty = 3 } }, true)
+	check("smelt: rounds up to whole smelts", plan.smelt[BAR], 6)
+
+	-- Two recipes that make each other's material must not loop.
+	local cycle = {
+		[1] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, GEM } } },
+		[2] = { o = GEM, qmin = 1, qmax = 1, r = { { 1, BAR } } },
+	}
+	local ctx = FarmContext({ known = { [BAR] = { 1 }, [GEM] = { 2 } } })
+	ctx.recipes = cycle
+	plan = Planner.BuildPlan(ctx, { { recipeID = 1, qty = 1 } }, true)
+	check("farm: cycle ends in a farm entry", plan.farm[BAR], 1)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

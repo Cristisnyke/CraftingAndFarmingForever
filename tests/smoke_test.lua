@@ -868,5 +868,67 @@ Fire("PLAYER_LOGOUT")
 check("late data adopted", ns.db, CraftLedgerDB)
 check("session queue merged", #ns.db.queue, 2)
 
+-- Source data and instructions, on real entries of the generated table.
+local realMaps = { [1411] = "Durotar", [1426] = "Dun Morogh", [1429] = "Elwynn Forest", [1412] = "Mulgore", [1420] = "Tirisfal Glades" }
+local playerMap
+C_Map = {
+	GetMapInfo = function(id) return realMaps[id] and { name = realMaps[id] } or nil end,
+	GetBestMapForUnit = function() return playerMap end,
+}
+check("source table loaded", ns.SourceData[2770].k, "mine")
+local group, line, details = ns.Farm.Describe(2770)
+check("ore grouped under mining", group, "mine")
+check("ore names the vein", line:find("Mine Copper Vein", 1, true) ~= nil, true)
+check("ore names a zone", line:find("Dun Morogh", 1, true) ~= nil, true)
+check("ore lists every zone in the tooltip", details[#details]:find("Tirisfal Glades", 1, true) ~= nil, true)
+check("not here by default", line:find("you are here", 1, true), nil)
+playerMap = 1429
+group, line = ns.Farm.Describe(2770)
+check("own zone first", line:find("Mine Copper Vein: Elwynn Forest", 1, true) ~= nil, true)
+check("own zone marked", line:find("you are here", 1, true) ~= nil, true)
+check("leather is skinned", (ns.Farm.Describe(2318)), "skin")
+check("herbs are picked", (select(2, ns.Farm.Describe(2447))):find("Pick Peacebloom", 1, true) ~= nil, true)
+check("cloth is a drop", (ns.Farm.Describe(2589)), "drop")
+check("dust is disenchanted", (ns.Farm.Describe(10940)), "disenchant")
+check("unknown item admitted", (ns.Farm.Describe(5503)), "unknown")
+-- The Farm It button switches the Queue window and Craft Next to the farm plan and leaves the shopping list alone.
+do
+	local function QueueRows(kind)
+		local found = {}
+		for _, row in ipairs(ns.UI.windows.queue.rows) do
+			if row.data and row:IsShown() and row.data.kind == kind then table.insert(found, row.data) end
+		end
+		return found
+	end
+	ns.Queue.Clear()
+	ns.Queue.Add(20, 2)
+	RunTimers()
+	ns.UI.Show("queue")
+	local buyList = ns.plan.buy[1]
+	check("farm mode starts off", ns.ActivePlan(), ns.plan)
+	ns.ToggleFarmMode()
+	check("toggle uses the farm plan", ns.ActivePlan(), ns.farmPlan)
+	check("toggle keeps the buy plan", ns.plan.buy[1], buyList)
+	check("farm plan buys nothing at AH", next(ns.farmPlan.buy), nil)
+	local farmed = next(ns.farmPlan.farm)
+	check("farm plan lists what to gather", farmed ~= nil, true)
+	local how = QueueRows("how")
+	check("each item says how to get it", #how, (function() local n = 0 for _ in pairs(ns.farmPlan.farm) do n = n + 1 end return n end)())
+	check("how row names the item", how[1].itemID ~= nil, true)
+	ns.UI.windows.queue.rows[1].scripts.OnEnter(ns.UI.windows.queue.rows[1])
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "how" then row.scripts.OnEnter(row) break end
+	end
+	check("farm choice is remembered", ns.db.ui.farmMode, true)
+	ns.ToggleFarmMode()
+	check("toggles back to buying", ns.ActivePlan(), ns.plan)
+	check("how rows gone when buying", #QueueRows("how"), 0)
+	ns.Queue.Clear()
+	RunTimers()
+end
+for barID, smelt in pairs(ns.Farm.Smelting) do
+	check("smelt yield set for " .. barID, smelt.yield >= 1 and #smelt >= 1, true)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

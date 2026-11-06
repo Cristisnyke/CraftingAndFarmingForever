@@ -113,9 +113,32 @@ local function AddItemRows(list, title, items, priceLabel, priceOf)
 	for _, row in ipairs(sorted) do table.insert(list, row) end
 end
 
+-- What's left to get yourself, grouped by how: one row for the item, one saying where to get it.
+local function AddFarmRows(list, plan)
+	local groups = {}
+	for itemID, count in pairs(plan.farm) do
+		local group, line = ns.Farm.Describe(itemID)
+		groups[group] = groups[group] or {}
+		table.insert(groups[group], { itemID = itemID, count = count, line = line })
+	end
+	for _, group in ipairs(ns.Farm.GROUPS) do
+		local rows = groups[group.key]
+		if rows then
+			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
+			table.insert(list, { kind = "header", text = group.title })
+			for _, row in ipairs(rows) do
+				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
+				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
+			end
+		end
+	end
+	AddItemRows(list, "Smelt with Mining", plan.smelt)
+end
+
 local function BuildQueueList()
 	local list = {}
-	local plan = ns.plan
+	local farming = ns.db.ui.farmMode
+	local plan = ns.ActivePlan()
 	if #ns.db.queue > 0 then
 		local ctx = ns.NewContext()
 		table.insert(list, { kind = "header", text = "Queue (mats: material cost of one craft, Quote: reply with it + 10%)" })
@@ -129,11 +152,12 @@ local function BuildQueueList()
 		if craft.auto then
 			if not autoHeader then
 				autoHeader = true
-				table.insert(list, { kind = "header", text = "Sub-crafts (cheaper than buying)" })
+				table.insert(list, { kind = "header", text = farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)" })
 			end
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
+	if farming then AddFarmRows(list, plan) end
 	AddItemRows(list, "Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
 	AddItemRows(list, "Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	local names = {}
@@ -249,6 +273,14 @@ local function RowOnEnter(row)
 	if not data then return end
 	if data.kind == "profit" then
 		ShowProfitTooltip(row, data.result)
+	elseif data.kind == "how" or data.farm then
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetItemByID(data.itemID)
+		local _, line, details = ns.Farm.Describe(data.itemID)
+		GameTooltip:AddLine(" ")
+		if #details == 0 then GameTooltip:AddLine(line, 1, 1, 1, true) end
+		for _, detail in ipairs(details) do GameTooltip:AddLine(detail, 1, 1, 1, true) end
+		GameTooltip:Show()
 	elseif data.kind == "item" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
@@ -471,6 +503,9 @@ local function SetRow(row, data)
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
 		row.left:SetText(RecipeName(data.craft.recipeID) .. " x" .. data.craft.count)
 		row.right:SetText(Color(COLOR_MUTED, ns.CharLabel(data.craft.char)))
+	elseif data.kind == "how" then
+		row.icon:Hide()
+		row.left:SetText(Color(COLOR_MUTED, data.text))
 	elseif data.kind == "item" then
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
 		row.left:SetText(ItemLabel(data.itemID))
@@ -774,9 +809,10 @@ end
 
 -- What's left to spend, against the gold this character is carrying.
 function UI.StillToBuyText()
-	local cost = ns.plan.cost
-	local text = "Still to buy: " .. (ns.plan.unpriced and "at least " or "") .. ns.Money(cost) .. "."
-	if cost <= 0 and not ns.plan.unpriced then return text end
+	local plan = ns.ActivePlan()
+	local cost = plan.cost
+	local text = "Still to buy: " .. (plan.unpriced and "at least " or "") .. ns.Money(cost) .. "."
+	if cost <= 0 and not plan.unpriced then return text end
 	local money = GetMoney()
 	if money >= cost then
 		return text .. " " .. Color(COLOR_PROFIT, "You have " .. ns.Money(money) .. ".")
@@ -790,6 +826,9 @@ local function CreateQueueWindow()
 
 	local clear = HeaderButton(window.frame, "Clear", 70, function() ns.Queue.Clear() end)
 	clear:SetPoint("TOPLEFT", 10, -30)
+
+	local farmButton = HeaderButton(window.frame, "Farm It", 70, function() ns.ToggleFarmMode() end)
+	farmButton:SetPoint("LEFT", clear, "RIGHT", 4, 0)
 
 	local openProfit = HeaderButton(window.frame, "Profit", 70, function() UI.Toggle("profit") end)
 	openProfit:SetPoint("TOPRIGHT", -12, -30)
@@ -824,7 +863,15 @@ local function CreateQueueWindow()
 
 	window.update = function()
 		local totals = ns.totals
-		if totals.counted > 0 then
+		local farming = ns.db.ui.farmMode
+		farmButton:SetText(farming and "Buy It" or "Farm It")
+		if farming and totals.counted > 0 then
+			-- Farmed materials cost no gold, so this is what the batch leaves in your pocket.
+			local keeps = totals.revenue - ns.farmPlan.cost
+			total:SetText("Gold if farmed: " .. Color(keeps >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(keeps)))
+			detail:SetText(("Sells for %s after AH cut. Materials would cost %s at AH prices.\n%s"):format(
+				ns.Money(totals.revenue), ns.Money(totals.cost), UI.StillToBuyText()))
+		elseif totals.counted > 0 then
 			local hex = totals.net >= 0 and COLOR_PROFIT or COLOR_LOSS
 			total:SetText("Total profit: " .. Color(hex, ns.Money(totals.net)))
 			detail:SetText(("Sells for %s after AH cut, materials %s.\n%s"):format(

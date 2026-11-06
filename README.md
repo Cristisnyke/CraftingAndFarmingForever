@@ -34,6 +34,8 @@ Open a profession on each character once so CraftLedger can record its recipes. 
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |
 
+In the Queue window, **Farm It** turns the list into what to gather yourself and how: which vein or herb, which zones, which creatures, what to disenchant. Your own zone comes first, and hovering a row shows everything known. Press **Buy It** to go back. The Auctionator list stays the same either way.
+
 ## Development
 
 ```sh
@@ -44,5 +46,7 @@ tools/deploy.sh   # copy the add-on into the AddOns folder
 `Planner.lua` has no game dependencies. Everything that reads the client is in `Data.lua`. `tests/smoke_test.lua` runs the add-on against a stubbed client, so it catches runtime errors but can't prove in-game behaviour.
 
 ## Credits
+
+- Item sources are generated from [AllTheThings](https://github.com/ATTWoWAddon/AllTheThings) data (MIT License, see the notice in `Sources.lua`).
 
 Vendor reagent seed prices come from CraftProfit by Vystery (MIT).

@@ -25,12 +25,15 @@ ns.NewContext = NewContext
 -- Plan
 ---------------------------------------------------------------------------
 
-ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, cost = 0 }
+ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = {}, cost = 0 }
+ns.farmPlan = ns.plan
 ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {} }
 
 local function RebuildPlan()
 	local ctx = NewContext()
 	ns.plan = ns.Planner.BuildPlan(ctx, ns.db.queue)
+	ctx.smelting = ns.Farm.Smelting
+	ns.farmPlan = ns.Planner.BuildPlan(ctx, ns.db.queue, true)
 	ns.totals = ns.Planner.QueueTotals(ctx, ns.db.queue, ns.Items.CanSellOnAH)
 	if ns.Shopping then ns.Shopping.Sync() end
 	if ns.UI then ns.UI.RefreshQueue() end
@@ -48,6 +51,16 @@ function ns.RefreshEverything()
 	ns.InvalidateProfit()
 	RebuildPlan()
 	ns.UI.RefreshAll()
+end
+
+-- The plan the Queue window and Craft Next follow. The shopping list always uses the buying plan.
+function ns.ActivePlan()
+	return ns.db.ui.farmMode and ns.farmPlan or ns.plan
+end
+
+function ns.ToggleFarmMode()
+	ns.db.ui.farmMode = not ns.db.ui.farmMode or nil
+	ns.UI.RefreshQueue()
 end
 
 function ns.RequestPlan()
@@ -249,11 +262,12 @@ end)
 
 -- Returns the next craft this character can do now, with its batch size; or nil and the reason why not.
 function Queue.NextCraft()
-	if #ns.plan.crafts == 0 then return nil, nil, "The queue is empty." end
+	local plan = ns.ActivePlan()
+	if #plan.crafts == 0 then return nil, nil, "The queue is empty." end
 	local me = ns.CharKey()
 	local openRecipes = Recipes.OpenRecipes()
 	local reason
-	for _, craft in ipairs(ns.plan.crafts) do
+	for _, craft in ipairs(plan.crafts) do
 		local recipe = ns.db.recipes[craft.recipeID]
 		if craft.char ~= me then
 			reason = reason or ("Next craft is on " .. ns.CharLabel(craft.char) .. ".")
