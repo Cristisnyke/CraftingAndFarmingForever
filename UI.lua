@@ -110,9 +110,11 @@ local function BuildQueueList()
 	local list = {}
 	local plan = ns.plan
 	if #ns.db.queue > 0 then
-		table.insert(list, { kind = "header", text = "Queue" })
+		local ctx = ns.NewContext()
+		table.insert(list, { kind = "header", text = "Queue (mats: material cost of one craft, Quote: reply with it + 10%)" })
 		for index, entry in ipairs(ns.db.queue) do
-			table.insert(list, { kind = "queue", index = index, entry = entry })
+			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
+			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
 		end
 	end
 	local autoHeader = false
@@ -357,6 +359,20 @@ local function CreateRow(parent)
 	end)
 	row.remove:SetPoint("RIGHT", row.minus, "LEFT", -1, 0)
 
+	row.quote = SmallButton(row, "Quote", function(self)
+		local data = self:GetParent().data
+		if data and data.kind == "queue" then ns.Advertise.QuoteInWhisper(data.entry.recipeID) end
+	end)
+	row.quote:SetWidth(46)
+	row.quote:SetPoint("RIGHT", row.remove, "LEFT", -1, 0)
+	row.quote:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Quote this price")
+		GameTooltip:AddLine("Fills in a reply to your last whisper with the material cost plus 10%. You press Enter to send it.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	row.quote:SetScript("OnLeave", GameTooltip_Hide)
+
 	row.right = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	row.right:SetJustifyH("RIGHT")
 	row.right:SetWordWrap(false)
@@ -374,6 +390,7 @@ local function SetRow(row, data)
 	row.plus:Hide()
 	row.minus:Hide()
 	row.remove:Hide()
+	row.quote:Hide()
 	row.icon:Show()
 	row.right:ClearAllPoints()
 	row.right:SetPoint("RIGHT", row, "RIGHT", -4, 0)
@@ -404,12 +421,14 @@ local function SetRow(row, data)
 		row.plus:Show()
 		row.minus:Show()
 		row.remove:Show()
+		row.quote:Show()
 		row.right:ClearAllPoints()
-		row.right:SetPoint("RIGHT", row.remove, "LEFT", -4, 0)
+		row.right:SetPoint("RIGHT", row.quote, "LEFT", -4, 0)
 		local net = ns.totals.entries[data.index]
 		local netText = net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)) or Color(COLOR_MUTED, "no price")
 		local change = recipe and recipe.o and PriceChangeText(recipe.o, false)
-		row.right:SetText((change and ("sells " .. change .. "   ") or "") .. netText)
+		local mats = Color(COLOR_MUTED, "mats " .. (data.matCost and ns.Money(data.matCost) or "?"))
+		row.right:SetText(mats .. "   " .. (change and ("sells " .. change .. "   ") or "") .. netText)
 	elseif data.kind == "restock" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
@@ -746,7 +765,7 @@ local function CreateProfitWindow()
 end
 
 local function CreateQueueWindow()
-	local window = CreateWindow("queue", "Queue", 128, false, 120)
+	local window = CreateWindow("queue", "Queue", 128, false, 240)
 	window.build = BuildQueueList
 
 	local clear = HeaderButton(window.frame, "Clear", 70, function() ns.Queue.Clear() end)
@@ -1135,13 +1154,32 @@ local function TradeChannel()
 	return fallback
 end
 
--- Puts the message in the chat box, so only Enter is left to press.
-local function PrefillChat(channel, message)
-	local text = "/" .. channel .. " " .. message
+local function OpenChatWith(text)
 	if ChatFrameUtil and ChatFrameUtil.OpenChat then
 		ChatFrameUtil.OpenChat(text)
 	else
 		ChatFrame_OpenChat(text)
+	end
+end
+
+-- Puts the message in the chat box, so only Enter is left to press.
+local function PrefillChat(channel, message)
+	OpenChatWith("/" .. channel .. " " .. message)
+end
+
+-- A reply to whoever whispered last. Never sent automatically: the user checks it and presses Enter.
+function Advertise.QuoteInWhisper(recipeID)
+	local text = ns.Queue.QuoteText(recipeID)
+	if not text then
+		ns.Print("A material has no price yet, so there's nothing to quote. Scan the auction house first.")
+		return
+	end
+	local getTarget = (ChatFrameUtil and ChatFrameUtil.GetLastTellTarget) or ChatEdit_GetLastTellTarget
+	local target = getTarget and getTarget()
+	if target and target ~= "" then
+		OpenChatWith("/w " .. target .. " " .. text)
+	else
+		OpenChatWith("/r " .. text)
 	end
 end
 

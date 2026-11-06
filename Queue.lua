@@ -127,6 +127,33 @@ function Queue.Clear()
 end
 
 ---------------------------------------------------------------------------
+-- Price quotes
+---------------------------------------------------------------------------
+
+local QUOTE_CUT = 0.10
+
+-- What a craft is called in a whisper: a clickable link where the client has one, otherwise the name.
+local function QuoteLabel(recipeID, recipe)
+	if recipe.o then
+		local name, link = C_Item.GetItemInfo(recipe.o)
+		return link or name or recipe.n or "Item"
+	end
+	local link = C_TradeSkillUI.GetRecipeLink and C_TradeSkillUI.GetRecipeLink(recipeID)
+	return link or recipe.n or "Craft"
+end
+
+-- "[Bronze Bar]: materials 5s 10c + 10% = 5s 61c", at current prices. Nil if a material has no price.
+function Queue.QuoteText(recipeID)
+	local recipe = ns.db.recipes[recipeID]
+	if not recipe then return nil end
+	local cost = ns.Planner.RecipeCost(NewContext(), recipeID)
+	if not cost then return nil end
+	local yield = (recipe.qmin or 1) > 1 and (" (makes " .. recipe.qmin .. ")") or ""
+	return ("%s%s: materials %s + %d%% = %s"):format(QuoteLabel(recipeID, recipe), yield, ns.Money(cost),
+		QUOTE_CUT * 100, ns.Money(cost * (1 + QUOTE_CUT)))
+end
+
+---------------------------------------------------------------------------
 -- Restock
 ---------------------------------------------------------------------------
 

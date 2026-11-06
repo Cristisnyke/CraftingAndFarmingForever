@@ -10,6 +10,7 @@ A World of Warcraft: Forever add-on for profitable crafting.
 - **Restock window:** keeps the AH stocked. Each profitable item gets a goal (separate defaults for stackable and single items, adjustable per item). What's on the AH (through Syndicator) and what you hold count towards it, and one button queues the difference.
 - **Sales window:** records what you sell and what expires per day, week, month and all time, read from your auction house mail, and shows each item's chance of selling within 24 hours. The more data it gathers, the better the estimate.
 - **Advertise:** one button posts your profession's link in Trade chat, offering your materials or a price based on material cost. Crafting professions only, with a 60-second limit between posts.
+- **Quotes:** each queued item shows its material cost, and its Quote button fills in a reply to your last whisper with the materials plus 10%.
 - **Fresh prices:** asks for a new scan when Auctionator's data is more than 24 hours old.
 
 ## Requirements

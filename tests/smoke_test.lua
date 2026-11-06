@@ -379,6 +379,35 @@ check("queue total profit", ns.totals.net, 2 * (950 - 70))
 check("queue total revenue", ns.totals.revenue, 1900)
 check("per-entry profit", ns.totals.entries[1], 1760)
 
+-- Quote: material cost of one craft plus 10%, filled into a reply, never sent. 3 bolts at 20c + thread 10c = 70c.
+check("quote text", ns.Queue.QuoteText(20), "link: materials 70c + 10% = 77c")
+local function QueueRow()
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "queue" then return row end
+	end
+end
+ns.UI.Refresh("queue")
+check("material cost on the row", QueueRow().right.text:find("mats 70c", 1, true) ~= nil, true)
+check("quote button shown", QueueRow().quote:IsShown(), true)
+local chatBefore = #sentChat
+function ChatEdit_GetLastTellTarget() return "Customer-Realm" end
+QueueRow().quote.scripts.OnClick(QueueRow().quote)
+check("quote fills a whisper to the last sender", chatBoxText, "/w Customer-Realm link: materials 70c + 10% = 77c")
+check("quote isn't sent", #sentChat, chatBefore)
+ChatEdit_GetLastTellTarget = function() return nil end
+QueueRow().quote.scripts.OnClick(QueueRow().quote)
+check("quote with no known sender uses reply", chatBoxText, "/r link: materials 70c + 10% = 77c")
+ChatEdit_GetLastTellTarget = nil
+
+-- A recipe with no item, such as an enchant, can still be quoted; a missing price isn't.
+ns.db.recipes[600] = { n = "Enchant Boots", qmin = 1, qmax = 1, r = { { 1, 1 } } }
+check("no-item recipe quote", ns.Queue.QuoteText(600), "Enchant Boots: materials 10c + 10% = 11c")
+ns.db.recipes[601] = { n = "Unpriced", qmin = 1, qmax = 1, r = { { 1, 77777 } } }
+check("no price no quote", ns.Queue.QuoteText(601), nil)
+ns.db.recipes[602] = { n = "Batch", qmin = 5, qmax = 5, r = { { 1, 1 } } }
+check("batch recipe says how many", ns.Queue.QuoteText(602), "Batch (makes 5): materials 10c + 10% = 11c")
+ns.db.recipes[600], ns.db.recipes[601], ns.db.recipes[602] = nil, nil, nil
+
 local craft, count = ns.Queue.NextCraft()
 check("next craft is the sub-craft", craft.recipeID, 10)
 check("batch limited by materials", count, 5)
