@@ -1108,6 +1108,7 @@ end)
 
 function ns.OnProfessionScanned()
 	FollowOpenProfession()
+	ns.Advertise.UpdateButtons()
 	ns.InvalidateProfit()
 	UI.RefreshQueue()
 end
@@ -1207,6 +1208,7 @@ function Advertise.Send(professionID)
 	end
 	local message = AD_TEXT:format(link or ns.Recipes.ProfessionName(professionID) or "Crafting")
 	lastAdvertised = time()
+	Advertise.UpdateButtons()
 
 	-- The game can refuse chat from add-ons. Once it has, go straight to the chat box.
 	if ns.db.ui.advertiseManually then
@@ -1226,12 +1228,70 @@ local function OnChatBlocked(addon, blockedFunction)
 	pendingAdText = nil
 	ns.db.ui.advertiseManually = true
 	lastAdvertised = 0
+	Advertise.UpdateButtons()
 	PrefillChat(ad.channel, ad.message)
 	ns.Print("The game won't let add-ons post in Trade chat, so your message is in the chat box. Press Enter to send it.")
 end
 
 ns.On("ADDON_ACTION_BLOCKED", OnChatBlocked)
 ns.On("ADDON_ACTION_FORBIDDEN", OnChatBlocked)
+
+-- Buttons beside the chat frame, one per crafting profession of this character. They work with no profession window
+-- open, using the link saved when the profession was last opened, and show whenever this character is in Trade chat.
+local AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT = 170, 22
+local adButtons = {}
+Advertise.buttons = adButtons
+local cooldownTimerRunning = false
+
+local function AdButton(index)
+	local button = adButtons[index]
+	if not button then
+		button = CreateFrame("Button", "CraftLedgerAdvertiseButton" .. index, UIParent, "UIPanelButtonTemplate")
+		button:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
+		-- Past the chat frame's own scroll bar.
+		button:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, (index - 1) * (AD_BUTTON_HEIGHT + 2))
+		button:SetScript("OnClick", function(self) Advertise.Send(self.professionID) end)
+		adButtons[index] = button
+	end
+	return button
+end
+
+function Advertise.UpdateButtons()
+	local me = ns.CharKey()
+	local inTrade = me and TradeChannel()
+	local shown = 0
+	local wait = math.max(0, AD_COOLDOWN_SECONDS - (time() - lastAdvertised))
+	if inTrade then
+		for _, profession in ipairs(ns.Recipes.KnownProfessions()) do
+			if Advertise.Reason(profession.id) == nil then
+				shown = shown + 1
+				local button = AdButton(shown)
+				button.professionID = profession.id
+				button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or ("Advertise " .. profession.name))
+				button:SetEnabled(wait <= 0)
+				button:Show()
+			end
+		end
+	end
+	for index = shown + 1, #adButtons do adButtons[index]:Hide() end
+
+	if wait > 0 and shown > 0 and not cooldownTimerRunning then
+		cooldownTimerRunning = true
+		C_Timer.After(1, function()
+			cooldownTimerRunning = false
+			Advertise.UpdateButtons()
+		end)
+	end
+end
+
+local function RequestAdButtonUpdate()
+	-- Channel changes can land just after these events.
+	ns.Debounce("adbuttons", 1, Advertise.UpdateButtons)
+end
+
+for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE" }) do
+	ns.On(event, RequestAdButtonUpdate)
+end
 
 ---------------------------------------------------------------------------
 -- Scan prompt

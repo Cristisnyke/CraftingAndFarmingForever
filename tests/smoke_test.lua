@@ -59,6 +59,7 @@ function CreateFrame(_, _, parent)
 end
 
 UIParent = NewFrame()
+ChatFrame1 = NewFrame()
 function geterrorhandler() return function(err) error(err, 0) end end
 wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 time = os.time
@@ -704,6 +705,49 @@ ns.Advertise.Send(197)
 check("later ads use the chat box", chatBoxText ~= nil, true)
 check("later ads don't send directly", #sentChat, before)
 ns.db.ui.advertiseManually = nil
+time = realNow
+
+-- Buttons beside the chat: one per crafting profession of this character, with no profession window open.
+time = realNow
+ProfessionsFrame:Hide()
+channelList = { 2, "Trade - City", false }
+ns.db.recipes[700] = { n = "Smelt", o = 2, p = 186, pn = "Mining", r = {} }
+ns.db.recipes[701] = { n = "Potion", o = 2, p = 171, pn = "Alchemy", r = {} }
+ns.db.recipes[702] = { n = "Alt Only", o = 2, p = 164, pn = "Blacksmithing", r = {} }
+ns.db.chars[me].recipes[700], ns.db.chars[me].recipes[701] = true, true
+ns.db.chars["Player-2-ALT"] = { name = "Alt", class = "Mage", recipes = { [702] = true } }
+time = function() return realNow() + 480 end
+Fire("CHANNEL_UI_UPDATE")
+local adButtons = ns.Advertise.buttons
+local function ShownButtons()
+	local names = {}
+	for _, button in ipairs(adButtons) do
+		if button:IsShown() then table.insert(names, button.text) end
+	end
+	return table.concat(names, ", ")
+end
+check("a button per crafting profession", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+local beforeClick = #sentChat
+adButtons[2].scripts.OnClick(adButtons[2])
+check("button posts with no profession open", #sentChat, beforeClick + 1)
+check("button posts its profession's link", sentChat[#sentChat].message:find("[Tailoring]", 1, true) ~= nil, true)
+check("cooldown shown on buttons", ShownButtons():find("Alchemy %(%d+%)") ~= nil, true)
+time = function() return realNow() + 600 end
+RunTimers()
+check("buttons return after the cooldown", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+
+-- Outside Trade chat they can't be pressed, so they hide.
+channelList = { 1, "General - Barrens", false }
+Fire("ZONE_CHANGED_NEW_AREA")
+check("hidden outside Trade chat", ShownButtons(), "")
+channelList = { 2, "Trade - City", false }
+Fire("CHAT_MSG_CHANNEL_NOTICE")
+check("back in Trade chat", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+
+ns.db.chars["Player-2-ALT"] = nil
+ns.db.chars[me].recipes[700], ns.db.chars[me].recipes[701] = nil, nil
+ns.db.recipes[700], ns.db.recipes[701], ns.db.recipes[702] = nil, nil, nil
+ProfessionsFrame:Show()
 time = realNow
 
 -- The button's name follows the tab.
