@@ -1123,7 +1123,6 @@ ns.Advertise = Advertise
 local AD_TEXT = "%s available for hire! Your materials, or I'll give you a price based on material cost."
 local AD_COOLDOWN_SECONDS = 60
 local lastAdvertised = {} -- by destination
-local pendingAd
 
 -- Where an ad can go. The slash command is for the chat box fallback; Trade's depends on its channel number.
 local DESTINATIONS = {
@@ -1210,15 +1209,26 @@ local function CooldownLeft(destination)
 	return math.max(0, AD_COOLDOWN_SECONDS - (time() - (lastAdvertised[destination.key] or 0)))
 end
 
-function Advertise.Send(professionID)
+-- The chat command for an ad, or nil and the reason there can't be one right now.
+local function AdCommand(professionID, destination)
 	local reason = Advertise.Reason(professionID)
-	if reason then
-		ns.Print(reason)
-		return
-	end
-	local destination = CurrentDestination()
+	if reason then return nil, reason end
 	local available, channel, why = DestinationState(destination)
-	if not available then
+	if not available then return nil, why end
+	local char = ns.db.chars[ns.CharKey()]
+	local link = char.links and char.links[professionID]
+	local message = AD_TEXT:format(link or ns.Recipes.ProfessionName(professionID) or "Crafting")
+	return (destination.slash or ("/" .. tostring(channel))) .. " " .. message, nil, link ~= nil
+end
+
+local NO_LINK_NOTE = "No profession link saved yet, so this uses its name. Open the profession once to get the link."
+
+-- For the Profit window button and the slash command. The game blocks add-ons from sending chat, and only the secure
+-- buttons beside the chat window can post on one click, so this fills in the chat box for Enter to send.
+function Advertise.Send(professionID)
+	local destination = CurrentDestination()
+	local command, why, hasLink = AdCommand(professionID, destination)
+	if not command then
 		ns.Print(why)
 		return
 	end
@@ -1227,43 +1237,11 @@ function Advertise.Send(professionID)
 		ns.Print(("Please wait %d more seconds, so %s doesn't get spammed."):format(wait, destination.label))
 		return
 	end
-
-	local char = ns.db.chars[ns.CharKey()]
-	local link = char.links and char.links[professionID]
-	if not link then
-		ns.Print("No profession link available yet, so this uses its name. Open the profession once to get the link.")
-	end
-	local message = AD_TEXT:format(link or ns.Recipes.ProfessionName(professionID) or "Crafting")
+	if not hasLink then ns.Print(NO_LINK_NOTE) end
 	lastAdvertised[destination.key] = time()
 	Advertise.UpdateButtons()
-
-	-- The game can refuse chat from add-ons. Once it has for a destination, go straight to the chat box.
-	local slash = destination.slash or ("/" .. tostring(channel))
-	ns.db.ui.manualChat = ns.db.ui.manualChat or {}
-	if ns.db.ui.manualChat[destination.key] then
-		OpenChatWith(slash .. " " .. message)
-		return
-	end
-	pendingAd = { destination = destination, text = slash .. " " .. message }
-	local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-	send(message, destination.chatType, nil, channel)
-	C_Timer.After(0.5, function() pendingAd = nil end)
+	OpenChatWith(command)
 end
-
-local function OnChatBlocked(addon, blockedFunction)
-	if addon ~= ns.name or not pendingAd then return end
-	if type(blockedFunction) == "string" and not blockedFunction:find("SendChatMessage", 1, true) then return end
-	local ad = pendingAd
-	pendingAd = nil
-	ns.db.ui.manualChat[ad.destination.key] = true
-	lastAdvertised[ad.destination.key] = nil
-	Advertise.UpdateButtons()
-	OpenChatWith(ad.text)
-	ns.Print(("The game won't let add-ons post in %s, so your message is in the chat box. Press Enter to send it."):format(ad.destination.label))
-end
-
-ns.On("ADDON_ACTION_BLOCKED", OnChatBlocked)
-ns.On("ADDON_ACTION_FORBIDDEN", OnChatBlocked)
 
 -- Beside the chat frame: a destination picker, and above it a button per crafting profession of this character. They
 -- work with no profession window open, using the link saved when the profession was last opened, and show whenever
@@ -1304,22 +1282,45 @@ local function CreateDestinationPicker()
 	destinationButton:SetScript("OnClick", function()
 		destinationMenu:SetShown(not destinationMenu:IsShown())
 	end)
+
+	-- The ad buttons aren't anchored to this one, so move them when the chat window moves.
+	local lastLeft, lastTop, elapsedSinceCheck = nil, nil, 0
+	destinationButton:SetScript("OnUpdate", function(self, elapsed)
+		elapsedSinceCheck = elapsedSinceCheck + elapsed
+		if elapsedSinceCheck < 0.5 then return end
+		elapsedSinceCheck = 0
+		local left, top = self:GetLeft(), self:GetTop()
+		if left ~= lastLeft or top ~= lastTop then
+			lastLeft, lastTop = left, top
+			Advertise.UpdateButtons()
+		end
+	end)
 end
 
+-- A secure macro button: the game itself runs the chat command from the click, which add-on code isn't allowed to do.
+-- These can't be changed during combat, so UpdateButtons waits until it ends, and they're placed on the screen rather
+-- than anchored to the chat frame, which would restrict the chat frame in combat too.
 local function AdButton(index)
 	local button = adButtons[index]
 	if not button then
-		button = CreateFrame("Button", "CraftLedgerAdvertiseButton" .. index, UIParent, "UIPanelButtonTemplate")
+		button = CreateFrame("Button", "CraftLedgerAdvertiseButton" .. index, UIParent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
 		button:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
-		button:SetPoint("BOTTOMLEFT", destinationButton, "TOPLEFT", 0, 2 + (index - 1) * (AD_BUTTON_HEIGHT + 2))
-		button:SetScript("OnClick", function(self) Advertise.Send(self.professionID) end)
+		button:RegisterForClicks("AnyUp", "AnyDown")
+		button:SetAttribute("type", "macro")
+		button:SetScript("PostClick", function(self, _, down)
+			-- With both directions registered, the macro only runs on the one matching this setting.
+			if (down and true or false) ~= (GetCVarBool("ActionButtonUseKeyDown") and true or false) then return end
+			if not self.hasLink then ns.Print(NO_LINK_NOTE) end
+			lastAdvertised[self.destinationKey] = time()
+			Advertise.UpdateButtons()
+		end)
 		adButtons[index] = button
 	end
 	return button
 end
 
 function Advertise.UpdateButtons()
-	if not ns.CharKey() then return end
+	if not ns.CharKey() or InCombatLockdown() then return end
 	local crafting = {}
 	for _, profession in ipairs(ns.Recipes.KnownProfessions()) do
 		if Advertise.Reason(profession.id) == nil then table.insert(crafting, profession) end
@@ -1332,17 +1333,26 @@ function Advertise.UpdateButtons()
 		destinationButton:SetShown(#crafting > 0)
 	end
 
+	local left = destinationButton and destinationButton:GetLeft()
+	local top = destinationButton and destinationButton:GetTop()
 	local available = DestinationState(destination)
 	local wait = CooldownLeft(destination)
 	local shown = 0
-	if available then
+	if available and left and top then
 		for _, profession in ipairs(crafting) do
-			shown = shown + 1
-			local button = AdButton(shown)
-			button.professionID = profession.id
-			button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or ("Advertise " .. profession.name))
-			button:SetEnabled(wait <= 0)
-			button:Show()
+			local command, _, hasLink = AdCommand(profession.id, destination)
+			if command then
+				shown = shown + 1
+				local button = AdButton(shown)
+				button.hasLink = hasLink
+				button.destinationKey = destination.key
+				button:SetAttribute("macrotext", command)
+				button:ClearAllPoints()
+				button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left, top + 2 + (shown - 1) * (AD_BUTTON_HEIGHT + 2))
+				button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or ("Advertise " .. profession.name))
+				button:SetEnabled(wait <= 0)
+				button:Show()
+			end
 		end
 	end
 	for index = shown + 1, #adButtons do adButtons[index]:Hide() end
@@ -1361,7 +1371,7 @@ local function RequestAdButtonUpdate()
 	ns.Debounce("adbuttons", 1, Advertise.UpdateButtons)
 end
 
-for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE", "PLAYER_GUILD_UPDATE" }) do
+for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE", "PLAYER_GUILD_UPDATE", "PLAYER_REGEN_ENABLED" }) do
 	ns.On(event, RequestAdButtonUpdate)
 end
 

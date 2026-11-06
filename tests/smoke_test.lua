@@ -43,6 +43,11 @@ local function NewFrame()
 			GetRight = function() return 480 end,
 			GetTop = function() return 900 end,
 			SetText = function(self, text) self.text = text end,
+			SetAttribute = function(self, name, value)
+				rawset(self, "attributes", rawget(self, "attributes") or {})
+				self.attributes[name] = value
+			end,
+			SetPoint = function(self, ...) self.lastPoint = { ... } end,
 			GetText = function(self) return self.text end,
 			GetParent = function(self) return self.parent end,
 			CreateTexture = function(self) return NewFrame() end,
@@ -83,6 +88,10 @@ channelList = { 1, "General - City", false, 2, "Trade - City", false, 4, "LocalD
 function GetChannelList() return unpack(channelList) end
 inGuild = true
 function IsInGuild() return inGuild end
+inCombat = false
+function InCombatLockdown() return inCombat end
+useKeyDown = false
+function GetCVarBool() return useKeyDown end
 sentChat = {}
 function SendChatMessage(message, chatType, _, target) table.insert(sentChat, { message = message, chatType = chatType, target = target }) end
 function ChatFrame_OpenChat(text) chatBoxText = text end
@@ -665,52 +674,31 @@ ns.db.sales.lots = {}
 ns.UI.Refresh("sales")
 ns.UI.windows.sales.frame:Hide()
 
--- Advertising: one call posts the link in Trade chat.
+-- Advertising: who may advertise, and the chat box path used by the Profit window button and slash command.
 check("link kept per profession", ns.db.chars[me].links[197], "|ctrade|Htrade:197|h[Tailoring]|h|r")
 check("crafting profession can advertise", ns.Advertise.Reason(197), nil)
 check("gathering not advertised", ns.Advertise.Reason(186) ~= nil, true)
 check("other character's profession not advertised", ns.Advertise.Reason(164) ~= nil, true)
 check("nothing selected", ns.Advertise.Reason(nil) ~= nil, true)
-ns.Advertise.Send(197)
-check("posted once", #sentChat, 1)
-check("posted to Trade", sentChat[1].target, 2)
-check("posted as channel", sentChat[1].chatType, "CHANNEL")
-check("message has link and offer", sentChat[1].message,
-	"|ctrade|Htrade:197|h[Tailoring]|h|r available for hire! Your materials, or I'll give you a price based on material cost.")
-ns.Advertise.Send(197)
-check("cooldown stops repeats", #sentChat, 1)
-
--- Not in Trade chat: nothing is sent.
+local AD_MESSAGE = "|ctrade|Htrade:197|h[Tailoring]|h|r available for hire! Your materials, or I'll give you a price based on material cost."
 local realNow = time
+chatBoxText = nil
+ns.Advertise.Send(197)
+check("fills the chat box with the Trade command", chatBoxText, "/2 " .. AD_MESSAGE)
+check("add-on never sends chat itself", #sentChat, 0)
+chatBoxText = nil
+ns.Advertise.Send(197)
+check("cooldown stops repeats", chatBoxText, nil)
+
 time = function() return realNow() + 120 end
 channelList = { 1, "General - City", false }
 ns.Advertise.Send(197)
-check("no Trade channel, no post", #sentChat, 1)
-channelList = { 1, "General - City", false, 2, "Trade (Services)", false, 5, "Trade - City", false }
+check("no Trade channel, no ad", chatBoxText, nil)
+channelList = { 1, "General", false, 2, "Trade (Services)", false, 5, "Trade - City", false }
 ns.Advertise.Send(197)
-check("plain Trade preferred", sentChat[2].target, 5)
+check("plain Trade preferred", chatBoxText, "/5 " .. AD_MESSAGE)
 
--- Blocked by the game: the message moves to the chat box, and stays that way.
-time = function() return realNow() + 240 end
-channelList = { 2, "Trade - City", false }
-local realSend = SendChatMessage
-SendChatMessage = function() Fire("ADDON_ACTION_BLOCKED", "CraftLedger", "SendChatMessage()") end
-ns.Advertise.Send(197)
-check("blocked message goes to chat box", chatBoxText:sub(1, 3), "/2 ")
-check("chat box has the link", chatBoxText:find("[Tailoring]", 1, true) ~= nil, true)
-check("remembers the block", ns.db.ui.manualChat.TRADE, true)
-SendChatMessage = realSend
-time = function() return realNow() + 360 end
-chatBoxText = nil
-local before = #sentChat
-ns.Advertise.Send(197)
-check("later ads use the chat box", chatBoxText ~= nil, true)
-check("later ads don't send directly", #sentChat, before)
-ns.db.ui.manualChat.TRADE = nil
-time = realNow
-
--- Buttons beside the chat: one per crafting profession of this character, with no profession window open.
-time = realNow
+-- Buttons beside the chat: secure macro buttons, one per crafting profession, with no profession window open.
 ProfessionsFrame:Hide()
 channelList = { 2, "Trade - City", false }
 ns.db.recipes[700] = { n = "Smelt", o = 2, p = 186, pn = "Mining", r = {} }
@@ -728,78 +716,83 @@ local function ShownButtons()
 	end
 	return table.concat(names, ", ")
 end
+-- A click as the client does it: the macro runs on the direction matching the setting, and PostClick fires on both.
+local function Click(button, keyDown)
+	useKeyDown = keyDown or false
+	local ranDown = useKeyDown
+	macroRan = ranDown and button.attributes.macrotext or nil
+	button.scripts.PostClick(button, "LeftButton", true)
+	if not ranDown then macroRan = button.attributes.macrotext end
+	button.scripts.PostClick(button, "LeftButton", false)
+	return macroRan
+end
 check("a button per crafting profession", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
-local beforeClick = #sentChat
-adButtons[2].scripts.OnClick(adButtons[2])
-check("button posts with no profession open", #sentChat, beforeClick + 1)
-check("button posts its profession's link", sentChat[#sentChat].message:find("[Tailoring]", 1, true) ~= nil, true)
+check("buttons are macro buttons", adButtons[2].attributes.type, "macro")
+check("macro posts to Trade with the link", adButtons[2].attributes.macrotext, "/2 " .. AD_MESSAGE)
+check("placed on the screen, not on the chat frame", adButtons[1].lastPoint[2], UIParent)
+local posted = Click(adButtons[2])
+check("one click posts", posted, "/2 " .. AD_MESSAGE)
 check("cooldown shown on buttons", ShownButtons():find("Alchemy %(%d+%)") ~= nil, true)
 time = function() return realNow() + 600 end
 RunTimers()
 check("buttons return after the cooldown", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
 
--- Outside Trade chat they can't be pressed, so they hide.
+-- The cooldown starts on the click direction that really ran the macro, whichever the setting is.
+useKeyDown = false
+adButtons[2].scripts.PostClick(adButtons[2], "LeftButton", true)
+check("press alone starts no cooldown when macros run on release", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+Click(adButtons[2], true)
+check("key-down setting starts cooldown", ShownButtons():find("%(%d+%)") ~= nil, true)
+useKeyDown = false
+time = function() return realNow() + 700 end
+RunTimers()
+
+-- In combat secure buttons can't change, so updates wait until combat ends.
+inCombat = true
 channelList = { 1, "General - Barrens", false }
 Fire("ZONE_CHANGED_NEW_AREA")
-check("hidden outside Trade chat", ShownButtons(), "")
+check("no changes in combat", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+inCombat = false
+Fire("PLAYER_REGEN_ENABLED")
+check("hidden outside Trade chat once combat ends", ShownButtons(), "")
 channelList = { 2, "Trade - City", false }
 Fire("CHAT_MSG_CHANNEL_NOTICE")
 check("back in Trade chat", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
 
--- The picker: each destination posts there, and shows its buttons even outside Trade chat.
+-- The picker: each destination gets its own command, and shows its buttons even outside Trade chat.
 local picker = ns.Advertise.destinationButton
 local menu = ns.Advertise.destinationMenu
 check("picker starts on Trade", picker.text, "Post to: Trade")
 picker.scripts.OnClick(picker)
 check("picker opens its menu", menu:IsShown(), true)
+menu:Hide()
 local function Pick(key)
 	picker.scripts.OnClick(picker)
 	menu.options[key].scripts.OnClick(menu.options[key])
 end
-if menu:IsShown() then menu:Hide() end
 channelList = { 1, "General - Barrens", false }
 Fire("ZONE_CHANGED_NEW_AREA")
 check("no buttons for Trade outside it", ShownButtons(), "")
 check("picker stays available", picker:IsShown(), true)
-for _, case in ipairs({ { "GUILD", "Guild" }, { "SAY", "Say" }, { "YELL", "Yell" } }) do
+for _, case in ipairs({ { "GUILD", "Guild", "/g " }, { "SAY", "Say", "/s " }, { "YELL", "Yell", "/y " } }) do
 	Pick(case[1])
 	check("picker shows " .. case[2], picker.text, "Post to: " .. case[2])
 	check("menu closes after picking " .. case[2], menu:IsShown(), false)
 	check("buttons shown for " .. case[2], ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
-	local sentBefore = #sentChat
-	adButtons[2].scripts.OnClick(adButtons[2])
-	check("posted once to " .. case[2], #sentChat, sentBefore + 1)
-	check("posted as " .. case[2], sentChat[#sentChat].chatType, case[1])
-	check("no channel number for " .. case[2], sentChat[#sentChat].target, nil)
+	check("command for " .. case[2], Click(adButtons[2]), case[3] .. AD_MESSAGE)
 end
 check("destination saved", ns.db.ui.adDestination, "YELL")
 
--- Timers are per destination: Yell is cooling down, and a fresh destination isn't.
-adButtons[2].scripts.OnClick(adButtons[2])
-local afterYell = #sentChat
-adButtons[2].scripts.OnClick(adButtons[2])
-check("same destination waits", #sentChat, afterYell)
-
--- A character with no guild can't pick its way into posting there.
+-- Timers are per destination: Yell is cooling down, Say cooled down separately.
+check("Yell waits", ShownButtons():find("%(%d+%)") ~= nil, true)
 time = function() return realNow() + 1200 end
 inGuild = false
 Pick("GUILD")
 check("no buttons without a guild", ShownButtons(), "")
-local noGuildBefore = #sentChat
-ns.Advertise.Send(197)
-check("no guild, no post", #sentChat, noGuildBefore)
-inGuild = true
-
--- Blocked Say goes to the chat box with its own command, and doesn't affect other destinations.
-Pick("SAY")
-local realSend2 = SendChatMessage
-SendChatMessage = function() Fire("ADDON_ACTION_BLOCKED", "CraftLedger", "SendChatMessage()") end
 chatBoxText = nil
 ns.Advertise.Send(197)
-check("blocked Say uses /s", chatBoxText:sub(1, 3), "/s ")
-check("block remembered for Say only", ns.db.ui.manualChat.SAY == true and ns.db.ui.manualChat.YELL == nil, true)
-SendChatMessage = realSend2
-ns.db.ui.manualChat.SAY = nil
+check("no guild, no ad", chatBoxText, nil)
+inGuild = true
 ns.db.ui.adDestination = nil
 time = function() return realNow() + 1800 end
 channelList = { 2, "Trade - City", false }
