@@ -531,6 +531,10 @@ local function CreateWindow(key, title, footerHeight, withTabs)
 	close:SetPoint("TOPRIGHT", 0, 0)
 	close:SetScript("OnClick", function() frame:Hide() end)
 
+	local refresh = HeaderButton(frame, "Refresh", 70, function() ns.RefreshEverything() end)
+	refresh:SetHeight(20)
+	refresh:SetPoint("RIGHT", close, "LEFT", -2, 0)
+
 	local banner = CreateFrame("Frame", nil, frame)
 	banner:SetPoint("TOPLEFT", 10, -56)
 	banner:SetPoint("TOPRIGHT", -10, -56)
@@ -1001,6 +1005,8 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
 	if command == "queue" or command == "profit" or command == "restock" then
 		UI.Toggle(command)
+	elseif command == "refresh" then
+		ns.RefreshEverything()
 	elseif command == "clear" then
 		ns.Queue.Clear()
 	elseif command == "auto" then
@@ -1011,6 +1017,6 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "" then
 		UI.ToggleBoth()
 	else
-		ns.Print("/craftledger [queue | profit | restock | clear | auto | diag]")
+		ns.Print("/craftledger [queue | profit | restock | refresh | clear | auto | diag]")
 	end
 end

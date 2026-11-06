@@ -400,13 +400,38 @@ ns.db.recipes[500] = nil
 ns.UI.SelectProfession("profit", nil)
 RunTimers()
 
+-- Refresh: picks up changed prices, stock and recipes right away, without being asked to wait for an event.
+ns.Queue.Add(10, 1)
+RunTimers()
+prices[2] = 777
+ns.db.recipes[10].n = "Stale name"
+C_Item.GetItemCount = function() return 0 end
+local queriedAuctions = 0
+C_AuctionHouse = {
+	IsThrottledMessageSystemReady = function() return true end,
+	QueryOwnedAuctions = function() queriedAuctions = queriedAuctions + 1 end,
+}
+ns.RefreshEverything()
+check("refresh rebuilds plan at once", ns.plan.buy[1], 2)
+check("refresh rebuilds totals at once", ns.totals.revenue, 777 * 0.95)
+check("no auction query away from the AH", queriedAuctions, 0)
+RunTimers()
+check("refresh re-reads recipes", ns.db.recipes[10].n, "Recipe10")
+AuctionHouseFrame:Show()
+ns.RefreshEverything()
+check("auction query at the AH", queriedAuctions, 1)
+AuctionHouseFrame:Hide()
+RunTimers()
+wipe(ns.db.queue)
+RunTimers()
+
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()
 Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CRAFTLEDGER_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "auto", "auto", "clear", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "refresh", "auto", "auto", "clear", "diag", "bogus" }) do
 	SlashCmdList.CRAFTLEDGER(command)
 end
 RunTimers()

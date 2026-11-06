@@ -23,6 +23,12 @@ local function Request(itemID)
 	C_Item.RequestLoadItemDataByID(itemID)
 end
 
+-- Forgets pending and failed requests, so every item still missing gets asked for again.
+function Items.Retry()
+	wipe(requested)
+	wipe(failed)
+end
+
 -- True when the client answered that the item does not exist, so its name will never arrive.
 function Items.IsMissing(itemID)
 	return failed[itemID] == true
@@ -366,6 +372,12 @@ end
 
 local function RequestScan()
 	ns.Debounce("recipescan", 0.3, ScanOpenProfession)
+end
+
+-- Reads every recipe of the open profession again, even those already read this session.
+function Recipes.Rescan()
+	wipe(readThisSession)
+	if ProfessionsFrame and ProfessionsFrame:IsShown() then RequestScan() end
 end
 
 ns.On("TRADE_SKILL_LIST_UPDATE", RequestScan)

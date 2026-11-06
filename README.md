@@ -23,6 +23,7 @@ Open a profession on each character once so CraftLedger can record its recipes. 
 | `/craftledger` or `/cledger` | Show or hide both windows |
 | `/craftledger queue` / `profit` | Show or hide one window |
 | `/craftledger restock` | Show or hide the Restock window |
+| `/craftledger refresh` | Re-read everything, same as the Refresh button |
 | `/craftledger clear` | Empty the queue |
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |

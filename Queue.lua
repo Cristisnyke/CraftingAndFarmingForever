@@ -36,6 +36,20 @@ local function RebuildPlan()
 	if ns.UI then ns.UI.RefreshQueue() end
 end
 
+-- The Refresh button: re-reads recipes, item data, prices and stock, rebuilds the plan and the shopping list and
+-- redraws the windows. Your auctions can only be re-read at the auction house. Doesn't start a price scan, which
+-- takes a while and is limited by the server, so that stays a separate choice.
+function ns.RefreshEverything()
+	ns.Items.Retry()
+	Recipes.Rescan()
+	if AuctionHouseFrame and AuctionHouseFrame:IsShown() and C_AuctionHouse.IsThrottledMessageSystemReady() then
+		C_AuctionHouse.QueryOwnedAuctions({})
+	end
+	ns.InvalidateProfit()
+	RebuildPlan()
+	ns.UI.RefreshAll()
+end
+
 function ns.RequestPlan()
 	ns.Debounce("plan", 0.2, RebuildPlan)
 end
@@ -50,14 +64,16 @@ ns.On("BANKFRAME_OPENED", ns.RequestPlan)
 ns.On("PLAYERBANKSLOTS_CHANGED", ns.RequestPlan)
 ns.On("PLAYER_LOGIN", function()
 	ns.CharRecord()
-	-- Prices change when a scan finishes; stock on alts changes when Syndicator refreshes its cache.
+	-- Prices change when a scan finishes; stock on alts and auctions change when Syndicator refreshes its caches.
 	Auctionator.API.v1.RegisterForDBUpdate(ns.name, function()
 		ns.InvalidateProfit()
 		ns.RequestPlan()
 	end)
 	local registry = _G.Syndicator and _G.Syndicator.CallbackRegistry
 	if registry and registry.RegisterCallback then
-		pcall(registry.RegisterCallback, registry, "BagCacheUpdate", ns.RequestPlan, ns)
+		for _, event in ipairs({ "BagCacheUpdate", "MailCacheUpdate", "AuctionsCacheUpdate" }) do
+			pcall(registry.RegisterCallback, registry, event, ns.RequestPlan, ns)
+		end
 	end
 	ns.RequestPlan()
 end)
