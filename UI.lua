@@ -102,6 +102,13 @@ local function AddItemRows(list, title, items, priceLabel, priceOf)
 	end
 	if #sorted == 0 then return end
 	table.sort(sorted, function(a, b) return a.itemID < b.itemID end)
+	if priceOf then
+		local subtotal, allPriced = 0, true
+		for _, row in ipairs(sorted) do
+			if row.price then subtotal = subtotal + row.price * row.count else allPriced = false end
+		end
+		title = title:format((allPriced and "" or "at least ") .. ns.Money(subtotal))
+	end
 	table.insert(list, { kind = "header", text = title })
 	for _, row in ipairs(sorted) do table.insert(list, row) end
 end
@@ -127,8 +134,8 @@ local function BuildQueueList()
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
-	AddItemRows(list, "Buy at auction house (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
-	AddItemRows(list, "Buy from vendor", plan.vendor, "at", ns.Prices.Vendor)
+	AddItemRows(list, "Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
+	AddItemRows(list, "Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
@@ -471,7 +478,8 @@ local function SetRow(row, data)
 			local price = data.priceLabel == "max" and PriceChangeText(data.itemID, true)
 				or (data.price and (data.priceLabel .. " " .. ns.Money(data.price)))
 				or Color(COLOR_LOSS, "no price")
-			row.right:SetText("x" .. data.count .. ", " .. price)
+			local total = data.price and (", total " .. ns.Money(data.price * data.count)) or ""
+			row.right:SetText("x" .. data.count .. ", " .. price .. total)
 		else
 			row.right:SetText("x" .. data.count)
 		end
@@ -764,6 +772,18 @@ local function CreateProfitWindow()
 	end
 end
 
+-- What's left to spend, against the gold this character is carrying.
+function UI.StillToBuyText()
+	local cost = ns.plan.cost
+	local text = "Still to buy: " .. (ns.plan.unpriced and "at least " or "") .. ns.Money(cost) .. "."
+	if cost <= 0 and not ns.plan.unpriced then return text end
+	local money = GetMoney()
+	if money >= cost then
+		return text .. " " .. Color(COLOR_PROFIT, "You have " .. ns.Money(money) .. ".")
+	end
+	return text .. " " .. Color(COLOR_LOSS, ("You have %s, %s short."):format(ns.Money(money), ns.Money(cost - money)))
+end
+
 local function CreateQueueWindow()
 	local window = CreateWindow("queue", "Queue", 128, false, 240)
 	window.build = BuildQueueList
@@ -807,11 +827,11 @@ local function CreateQueueWindow()
 		if totals.counted > 0 then
 			local hex = totals.net >= 0 and COLOR_PROFIT or COLOR_LOSS
 			total:SetText("Total profit: " .. Color(hex, ns.Money(totals.net)))
-			detail:SetText(("Sells for %s after AH cut, materials %s.\nStill to buy: %s."):format(
-				ns.Money(totals.revenue), ns.Money(totals.cost), ns.Money(ns.plan.cost)))
+			detail:SetText(("Sells for %s after AH cut, materials %s.\n%s"):format(
+				ns.Money(totals.revenue), ns.Money(totals.cost), UI.StillToBuyText()))
 		elseif totals.excluded > 0 then
 			total:SetText("Total profit: " .. Color(COLOR_MUTED, "no price data"))
-			detail:SetText(("Still to buy: %s."):format(ns.Money(ns.plan.cost)))
+			detail:SetText(UI.StillToBuyText())
 		else
 			total:SetText("Total profit: " .. Color(COLOR_MUTED, "nothing queued"))
 			detail:SetText("")
@@ -1420,6 +1440,8 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 		UI.RefreshAll()
 	end)
 end)
+
+ns.On("PLAYER_MONEY", UI.RefreshQueue)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
 	StaticPopup_Hide("CRAFTLEDGER_SCAN")

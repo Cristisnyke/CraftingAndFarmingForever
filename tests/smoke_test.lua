@@ -21,7 +21,7 @@ local timers = {}
 local function NewFrame()
 	local frame = { scripts = {}, shown = false, height = 400 }
 	return setmetatable(frame, { __index = function(_, key)
-		if key == "professionID" then return nil end -- add-on data on a frame, not a method
+		if key == "professionID" or key == "data" then return nil end -- add-on data on a frame, not a method
 		local methods = {
 			SetScript = function(self, name, fn) self.scripts[name] = fn end,
 			HookScript = function(self, name, fn) self.scripts[name] = fn end,
@@ -88,6 +88,8 @@ channelList = { 1, "General - City", false, 2, "Trade - City", false, 4, "LocalD
 function GetChannelList() return unpack(channelList) end
 inGuild = true
 function IsInGuild() return inGuild end
+playerMoney = 0
+function GetMoney() return playerMoney end
 inCombat = false
 function InCombatLockdown() return inCombat end
 useKeyDown = false
@@ -305,8 +307,25 @@ local function QueueRowText(itemID)
 		if row.data and row.data.kind == "item" and row.data.itemID == itemID then return row.right.text end
 	end
 end
-check("AH row shows max price", QueueRowText(1), "x9, max 10c")
-check("vendor row shows price", QueueRowText(3), "x2, at 10c")
+check("AH row shows price and total", QueueRowText(1), "x9, max 10c, total 90c")
+check("vendor row shows price and total", QueueRowText(3), "x2, at 10c, total 20c")
+local function QueueHeaders()
+	local headers = {}
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "header" then table.insert(headers, row.left.text) end
+	end
+	return table.concat(headers, "\n")
+end
+check("AH section subtotal", QueueHeaders():find("Buy at auction house: 90c", 1, true) ~= nil, true)
+check("vendor section subtotal", QueueHeaders():find("Buy from vendor: 20c", 1, true) ~= nil, true)
+
+-- Still to buy against the gold carried: 90c AH + 20c vendor = 1s 10c.
+check("plan cost", ns.plan.cost, 110)
+playerMoney = 200
+check("enough gold", ns.UI.StillToBuyText(), "Still to buy: 1s 10c. |cff55dd55You have 2s 00c.|r")
+playerMoney = 50
+check("not enough gold", ns.UI.StillToBuyText(), "Still to buy: 1s 10c. |cffff6655You have 50c, 60c short.|r")
+Fire("PLAYER_MONEY")
 ns.UI.windows.queue.frame:Hide()
 
 -- Price changes: a whole-list scan starts a comparison. Dearer materials are red, cheaper green, old and new shown.
@@ -324,27 +343,27 @@ local function QueueEntryText()
 	end
 end
 Rescan({ [1] = 15 })
-check("dearer material is red", QueueRowText(1), "x9, " .. RED .. "was 10c, now 15c|r")
+check("dearer material is red", QueueRowText(1), "x9, " .. RED .. "was 10c, now 15c|r, total 1s 35c")
 Rescan({ [1] = 12 })
-check("cheaper material is green", QueueRowText(1), "x9, " .. GREEN .. "was 15c, now 12c|r")
+check("cheaper material is green", QueueRowText(1), "x9, " .. GREEN .. "was 15c, now 12c|r, total 1s 08c")
 Rescan({})
-check("unchanged after next scan shows no colour", QueueRowText(1), "x9, max 12c")
+check("unchanged after next scan shows no colour", QueueRowText(1), "x9, max 12c, total 1s 08c")
 
 -- A single-item search while buying keeps the colours, and later changes in a scan keep the pre-scan price.
 Rescan({ [1] = 20 })
 busListener:ReceiveEvent("shopping start", { "one item" })
 ns.RefreshEverything()
-check("single search keeps colours", QueueRowText(1), "x9, " .. RED .. "was 12c, now 20c|r")
+check("single search keeps colours", QueueRowText(1), "x9, " .. RED .. "was 12c, now 20c|r, total 1s 80c")
 prices[1] = 25
 ns.RefreshEverything()
-check("old stays the pre-scan price", QueueRowText(1), "x9, " .. RED .. "was 12c, now 25c|r")
+check("old stays the pre-scan price", QueueRowText(1), "x9, " .. RED .. "was 12c, now 25c|r, total 2s 25c")
 
 -- Another list's scan is ignored; a full scan starts a comparison.
 busListener:ReceiveEvent("shopping start", { "a", "b", "c", "d", "e" })
-check("other list keeps colours", QueueRowText(1), "x9, " .. RED .. "was 12c, now 25c|r")
+check("other list keeps colours", QueueRowText(1), "x9, " .. RED .. "was 12c, now 25c|r, total 2s 25c")
 busListener:ReceiveEvent("full start")
 ns.RefreshEverything()
-check("full scan starts a comparison", QueueRowText(1), "x9, max 25c")
+check("full scan starts a comparison", QueueRowText(1), "x9, max 25c, total 2s 25c")
 
 -- What you're crafting: a lower sale price is bad, so it's red, and profit follows.
 Rescan({ [4] = 200, [1] = 10 })

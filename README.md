@@ -5,7 +5,7 @@ A World of Warcraft: Forever add-on for profitable crafting.
 - **Profit window:** every recipe known by any of your characters, ranked by profit using Auctionator prices. Results that can't be sold on the auction house are left out.
 - **Cheapest path:** each material is costed as the cheapest of AH, vendor or crafting it yourself.
 - **Queue window:** one queue shared across your characters, filled from the profession window, with total profit and a Craft Next button.
-- **Price check:** the buy list shows each material's price at the last scan, the price the profit assumes, so you can stop buying if the shopping list shows it has gone up.
+- **Price check:** the buy list shows each material's price at the last scan, the price the profit assumes, so you can stop buying if the shopping list shows it has gone up. Each material and section also shows its total, and the Queue window compares what's left to buy with the gold you're carrying.
 - **Live shopping list:** one Auctionator list, `CraftLedger Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks.
 - **Restock window:** keeps the AH stocked. Each profitable item gets a goal (separate defaults for stackable and single items, adjustable per item). What's on the AH (through Syndicator) and what you hold count towards it, and one button queues the difference.
 - **Sales window:** records what you sell and what expires per day, week, month and all time, read from your auction house mail, and shows each item's chance of selling within 24 hours. The more data it gathers, the better the estimate.
