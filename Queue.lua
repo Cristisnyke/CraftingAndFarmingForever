@@ -156,11 +156,15 @@ function Restock.Rows()
 	})
 end
 
--- Replaces the previous restock entries with what these rows need now. Hand-queued entries aren't touched.
-function Restock.Apply(rows)
+-- Replaces the previous restock entries of a profession (nil for all) with what these rows need now. Other
+-- professions' restock entries and hand-queued entries aren't touched.
+function Restock.Apply(rows, profession)
 	local queue = ns.db.queue
 	for index = #queue, 1, -1 do
-		if queue[index].restock then table.remove(queue, index) end
+		local recipe = ns.db.recipes[queue[index].recipeID]
+		if queue[index].restock and (not profession or (recipe and recipe.p == profession)) then
+			table.remove(queue, index)
+		end
 	end
 	local added = 0
 	for _, row in ipairs(rows) do

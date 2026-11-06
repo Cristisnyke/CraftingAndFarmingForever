@@ -21,6 +21,7 @@ local timers = {}
 local function NewFrame()
 	local frame = { scripts = {}, shown = false, height = 400 }
 	return setmetatable(frame, { __index = function(_, key)
+		if key == "professionID" then return nil end -- add-on data on a frame, not a method
 		local methods = {
 			SetScript = function(self, name, fn) self.scripts[name] = fn end,
 			HookScript = function(self, name, fn) self.scripts[name] = fn end,
@@ -363,6 +364,41 @@ wipe(ns.db.queue)
 RunTimers()
 ns.UI.Refresh("restock")
 Syndicator = nil
+
+-- Profession tabs: one per profession across characters, each showing only its items.
+ns.db.recipes[500] = { n = "Bronze Bar", o = 2, qmin = 1, qmax = 1, p = 186, pn = "Mining", r = { { 1, 1 } } }
+ns.db.chars["Player-2-ALT"] = { name = "Alt", class = "Mage", recipes = { [500] = true } }
+ns.InvalidateProfit()
+local professions = ns.Recipes.KnownProfessions()
+check("tabs from all characters", #professions, 2)
+check("tabs sorted by name", professions[1].name, "Mining")
+ns.UI.Show("profit")
+local tabs = ns.UI.windows.profit.tabs
+check("All tab first", tabs[1].professionID, nil)
+check("profession tab", tabs[2].professionID, 186)
+check("second profession tab", tabs[3].professionID, 197)
+check("unused tab hidden", tabs[4]:IsShown(), false)
+ns.UI.SelectProfession("profit", 186)
+local list = ns.UI.windows.profit.list
+check("tab filters to its profession", #list, 1)
+check("tab shows its item", list[1].result.recipeID, 500)
+tabs[1].scripts.OnClick(tabs[1])
+check("All tab shows everything", #ns.UI.windows.profit.list > 1, true)
+Fire("TRADE_SKILL_LIST_UPDATE")
+check("clicked tab stays selected", #ns.UI.windows.profit.list > 1, true)
+
+-- Restock on one tab leaves the other profession's restock entries alone.
+ns.db.queue[1] = { recipeID = 500, qty = 2, char = "Player-2-ALT", restock = true }
+ns.db.queue[2] = { recipeID = 20, qty = 2, char = me, restock = true }
+ns.Restock.Apply({ { recipeID = 10, crafts = 1 } }, 197)
+check("other profession's restock kept", ns.db.queue[1].recipeID, 500)
+check("this profession's restock replaced", ns.db.queue[2].recipeID, 10)
+check("restock entry count", #ns.db.queue, 2)
+wipe(ns.db.queue)
+ns.db.chars["Player-2-ALT"] = nil
+ns.db.recipes[500] = nil
+ns.UI.SelectProfession("profit", nil)
+RunTimers()
 
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()

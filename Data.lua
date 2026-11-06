@@ -388,6 +388,21 @@ function Recipes.KnownMap()
 	return known
 end
 
+-- Every profession known on any character: { { id, name }, ... } by name.
+function Recipes.KnownProfessions()
+	local names = {}
+	for _, char in pairs(ns.db.chars) do
+		for recipeID in pairs(char.recipes) do
+			local recipe = ns.db.recipes[recipeID]
+			if recipe and recipe.p then names[recipe.p] = recipe.pn or tostring(recipe.p) end
+		end
+	end
+	local list = {}
+	for id, name in pairs(names) do table.insert(list, { id = id, name = name }) end
+	table.sort(list, function(a, b) return a.name < b.name end)
+	return list
+end
+
 function Recipes.Knows(charKey, recipeID)
 	local char = charKey and ns.db.chars[charKey]
 	return char ~= nil and char.recipes[recipeID] == true

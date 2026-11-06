@@ -11,6 +11,8 @@ local ROW_HEIGHT = 22
 local ROW_COUNT = 40
 local WINDOW_WIDTH = 380
 local WINDOW_HEIGHT = 560
+local TAB_WIDTH = 112
+local TAB_COUNT = 16
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED = "ff55dd55", "ffff6655", "ff999999"
 
 local function Color(hex, text)
@@ -18,9 +20,10 @@ local function Color(hex, text)
 end
 
 local windows = {}
-local restockAllProfessions = true
+-- Selected profession tab per window; nil is the All tab.
+local selectedProfession = {}
+local lastOpenProfession
 UI.windows = windows
-local allProfessions = false
 local profitCache
 local scanNotified = false
 
@@ -70,11 +73,10 @@ UI.ComputeProfit = ComputeProfit
 
 local function BuildProfitList()
 	profitCache = profitCache or ComputeProfit()
-	local openProfession = ns.Recipes.OpenProfession()
-	local openRecipes = ns.Recipes.OpenRecipes()
+	local selected = selectedProfession.profit
 	local list = {}
 	for _, result in ipairs(profitCache) do
-		if allProfessions or not openProfession or openRecipes[result.recipeID] or result.profession == openProfession then
+		if not selected or result.profession == selected then
 			table.insert(list, { kind = "profit", result = result })
 		end
 	end
@@ -140,10 +142,11 @@ local function ItemLabel(itemID)
 end
 
 local function BuildRestockList()
-	local openRecipes = ns.Recipes.OpenRecipes()
+	local selected = selectedProfession.restock
 	local list = {}
 	for _, row in ipairs(ns.Restock.Rows()) do
-		if restockAllProfessions or not next(openRecipes) or openRecipes[row.recipeID] then
+		local recipe = ns.db.recipes[row.recipeID]
+		if not selected or (recipe and recipe.p == selected) then
 			table.insert(list, { kind = "restock", row = row })
 		end
 	end
@@ -390,9 +393,48 @@ local function UpdateBanner(window)
 	window.scanButton:SetShown(atAH and true or false)
 end
 
+local function RenderTabs(window)
+	local professions = ns.Recipes.KnownProfessions()
+	local selected = selectedProfession[window.key]
+	local stillExists = selected == nil
+	for _, profession in ipairs(professions) do
+		stillExists = stillExists or profession.id == selected
+	end
+	if not stillExists then
+		selected = nil
+		selectedProfession[window.key] = nil
+	end
+	for i = 1, TAB_COUNT do
+		local tab = window.tabs[i]
+		local profession = professions[i - 1]
+		if i == 1 or profession then
+			local id = profession and profession.id or nil
+			local name = profession and profession.name or "All"
+			tab.professionID = id
+			if id == selected then
+				tab:SetText("|cffffffff" .. name .. "|r")
+				tab:LockHighlight()
+			else
+				tab:SetText(name)
+				tab:UnlockHighlight()
+			end
+			tab:Show()
+		else
+			tab:Hide()
+		end
+	end
+end
+
+function UI.SelectProfession(key, professionID)
+	selectedProfession[key] = professionID
+	if windows[key] then windows[key].offset = 0 end
+	UI.Refresh(key)
+end
+
 function UI.Refresh(key)
 	local window = windows[key]
 	if not window or not window.frame:IsShown() then return end
+	if window.tabs then RenderTabs(window) end
 	window.list = window.build()
 	RenderRows(window)
 	UpdateBanner(window)
@@ -422,7 +464,7 @@ local function PlaceWindow(window)
 		if ProfessionsFrame and ProfessionsFrame:IsShown() then
 			frame:SetPoint("TOPLEFT", ProfessionsFrame, "TOPRIGHT", 2, 0)
 		else
-			frame:SetPoint("CENTER", UIParent, "CENTER", -WINDOW_WIDTH / 2 - 2, 0)
+			frame:SetPoint("CENTER", UIParent, "CENTER", -frame:GetWidth() / 2 - 2, 0)
 		end
 	elseif window.key == "restock" then
 		frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
@@ -452,13 +494,15 @@ local function HeaderButton(frame, text, width, onClick)
 	return button
 end
 
--- footerHeight is the room kept below the list for the window's own controls.
-local function CreateWindow(key, title, footerHeight)
+-- footerHeight is the room kept below the list for the window's own controls. withTabs adds the column of
+-- profession tabs on the left.
+local function CreateWindow(key, title, footerHeight, withTabs)
 	local frame = CreateFrame("Frame", "CraftLedger" .. title .. "Window", UIParent, "BackdropTemplate")
 	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {} }
 	windows[key] = window
 
-	frame:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+	local listLeft = withTabs and (10 + TAB_WIDTH) or 10
+	frame:SetSize(WINDOW_WIDTH + (withTabs and TAB_WIDTH or 0), WINDOW_HEIGHT)
 	frame:SetFrameStrata("HIGH")
 	frame:SetToplevel(true)
 	frame:SetClampedToScreen(true)
@@ -499,7 +543,7 @@ local function CreateWindow(key, title, footerHeight)
 	window.scanButton:SetPoint("RIGHT")
 
 	local container = CreateFrame("Frame", nil, frame)
-	container:SetPoint("TOPLEFT", 10, -84)
+	container:SetPoint("TOPLEFT", listLeft, -84)
 	container:SetPoint("BOTTOMRIGHT", -24, footerHeight)
 	container:EnableMouseWheel(true)
 	container:SetScript("OnSizeChanged", function() if frame:IsShown() then RenderRows(window) end end)
@@ -515,6 +559,18 @@ local function CreateWindow(key, title, footerHeight)
 		row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
 		row:Hide()
 		window.rows[i] = row
+	end
+
+	if withTabs then
+		window.tabs = {}
+		for i = 1, TAB_COUNT do
+			local tab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+			tab:SetSize(TAB_WIDTH - 6, 24)
+			tab:SetPoint("TOPLEFT", 10, -84 - (i - 1) * 26)
+			tab:SetScript("OnClick", function(self) UI.SelectProfession(key, self.professionID) end)
+			tab:Hide()
+			window.tabs[i] = tab
+		end
 	end
 
 	local slider = CreateFrame("Slider", nil, frame)
@@ -542,15 +598,8 @@ local function CreateWindow(key, title, footerHeight)
 end
 
 local function CreateProfitWindow()
-	local window = CreateWindow("profit", "Profit", 34)
+	local window = CreateWindow("profit", "Profit", 34, true)
 	window.build = BuildProfitList
-
-	local filter = HeaderButton(window.frame, "", 120, function()
-		allProfessions = not allProfessions
-		windows.profit.offset = 0
-		UI.Refresh("profit")
-	end)
-	filter:SetPoint("TOPLEFT", 10, -30)
 
 	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
 	openQueue:SetPoint("TOPRIGHT", -12, -30)
@@ -564,7 +613,6 @@ local function CreateProfitWindow()
 	status:SetJustifyH("LEFT")
 
 	window.update = function(self)
-		filter:SetText(allProfessions and "All professions" or "This profession")
 		if #self.list == 0 then
 			status:SetText("Open a profession to record its recipes.")
 		else
@@ -686,15 +734,8 @@ local function NumberBox(parent, labelText, previous, read, write)
 end
 
 local function CreateRestockWindow()
-	local window = CreateWindow("restock", "Restock", 96)
+	local window = CreateWindow("restock", "Restock", 96, true)
 	window.build = BuildRestockList
-
-	local filter = HeaderButton(window.frame, "", 120, function()
-		restockAllProfessions = not restockAllProfessions
-		windows.restock.offset = 0
-		UI.Refresh("restock")
-	end)
-	filter:SetPoint("TOPLEFT", 10, -30)
 
 	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
 	openQueue:SetPoint("TOPRIGHT", -12, -30)
@@ -716,7 +757,7 @@ local function CreateRestockWindow()
 	local apply = HeaderButton(window.frame, "Queue restock", 100, function()
 		local rows = {}
 		for _, data in ipairs(window.list) do table.insert(rows, data.row) end
-		local added = ns.Restock.Apply(rows)
+		local added = ns.Restock.Apply(rows, selectedProfession.restock)
 		ns.Print(("Restock: %d item(s) added to the queue."):format(added))
 		UI.Show("queue")
 	end)
@@ -726,7 +767,6 @@ local function CreateRestockWindow()
 	apply:SetPoint("BOTTOMRIGHT", -10, 10)
 
 	window.update = function(self)
-		filter:SetText(restockAllProfessions and "All professions" or "This profession")
 		stack:Sync()
 		single:Sync()
 		minProfit:Sync()
@@ -818,7 +858,17 @@ local function CraftCountFromInput()
 	return type(value) == "number" and value >= 1 and value or 1
 end
 
+-- When a different profession opens, the Profit window moves to its tab. A tab clicked after that stays selected.
+local function FollowOpenProfession()
+	local openKey = ns.Recipes.OpenProfession()
+	if openKey and openKey ~= lastOpenProfession then
+		lastOpenProfession = openKey
+		UI.SelectProfession("profit", openKey)
+	end
+end
+
 local function OpenWithProfession()
+	FollowOpenProfession()
 	if not ns.db.ui.autoOpen then return end
 	UI.Show("profit", true)
 	if #ns.db.queue > 0 then UI.Show("queue", true) end
@@ -857,6 +907,7 @@ local function HookProfessionWindow()
 
 	ProfessionsFrame:HookScript("OnShow", OpenWithProfession)
 	ProfessionsFrame:HookScript("OnHide", function()
+		lastOpenProfession = nil
 		for _, window in pairs(windows) do
 			if window.withProfession then window.frame:Hide() end
 		end
@@ -881,6 +932,7 @@ ns.On("TRADE_SKILL_SHOW", function()
 end)
 
 function ns.OnProfessionScanned()
+	FollowOpenProfession()
 	ns.InvalidateProfit()
 	UI.RefreshQueue()
 end
