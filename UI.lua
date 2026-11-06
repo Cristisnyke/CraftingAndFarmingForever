@@ -1,5 +1,5 @@
 -- CraftLedger :: UI
--- Three independent movable windows (Profit, Queue, Restock), the Queue button on the crafting page, the stale-price
+-- Four independent movable windows (Profit, Queue, Restock, Sales), the Queue button on the crafting page, the stale-price
 -- prompts and the slash command.
 
 local _, ns = ...
@@ -158,6 +158,45 @@ local function BuildRestockList()
 	return list
 end
 
+local function BuildSalesList()
+	local list = {}
+	for _, item in ipairs(ns.Sales.AllItems()) do table.insert(list, { kind = "sales", item = item }) end
+	return list
+end
+
+-- "62%" coloured by how likely it is. Grey "~62%" until there's enough data to rely on. Empty with no data.
+local function ChanceText(name)
+	local chance, samples = ns.Sales.Chance(name)
+	if not chance then return "" end
+	local percent = ("%d%%"):format(math.floor(chance * 100 + 0.5))
+	if samples < ns.Sales.CONFIDENT_SAMPLES then return Color(COLOR_MUTED, "~" .. percent) end
+	if chance >= 0.5 then return Color(COLOR_PROFIT, percent) end
+	if chance >= 0.2 then return Color("ffffb040", percent) end
+	return Color(COLOR_LOSS, percent)
+end
+
+-- The sales history block of a tooltip: chance to sell, then sold and expired per period.
+local function AddSalesLines(name)
+	local item = ns.Sales.Item(name)
+	GameTooltip:AddLine(" ")
+	if not item or item.sold + item.expired == 0 then
+		GameTooltip:AddLine("No sales or expiries recorded yet.", 0.6, 0.6, 0.6)
+		return
+	end
+	local chance, samples = ns.Sales.Chance(name)
+	if chance then
+		GameTooltip:AddDoubleLine("Chance to sell in 24 hours", ChanceText(name), 1, 0.82, 0)
+		GameTooltip:AddLine(("Based on %d unit(s). More data makes this more accurate."):format(samples), 0.6, 0.6, 0.6, true)
+	end
+	GameTooltip:AddDoubleLine(" ", "sold / expired", 1, 1, 1, 0.6, 0.6, 0.6)
+	for _, period in ipairs({ { "Today", 1 }, { "Last 7 days", 7 }, { "Last 30 days", 30 }, { "All time", nil } }) do
+		local sold, expired = ns.Sales.Counts(item, period[2])
+		GameTooltip:AddDoubleLine(period[1], sold .. " / " .. expired, 1, 1, 1, 1, 1, 1)
+	end
+	local _, _, gold = ns.Sales.Counts(item, nil)
+	GameTooltip:AddDoubleLine("Earned, all time", ns.Money(gold), 1, 1, 1, 1, 1, 1)
+end
+
 local KIND_LABEL = { ah = "AH", vendor = "vendor", craft = "craft" }
 
 local function ShowProfitTooltip(row, result)
@@ -183,6 +222,7 @@ local function ShowProfitTooltip(row, result)
 	end
 	table.sort(crafters)
 	if #crafters > 0 then GameTooltip:AddLine("Known by: " .. table.concat(crafters, ", "), 0.6, 0.8, 1, true) end
+	AddSalesLines(ns.Items.Name(result.itemID))
 	GameTooltip:AddLine("Click to open the recipe. + queues one, Shift + queues ten.", 0.6, 0.6, 0.6, true)
 	GameTooltip:Show()
 end
@@ -221,12 +261,20 @@ local function RowOnEnter(row)
 		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("Goal", tostring(item.goal), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.crafts), 1, 1, 1, 1, 1, 1)
+		AddSalesLines(ns.Items.Name(item.itemID))
 		GameTooltip:AddLine("+ and - change this item's goal (Shift for 10). A goal of 0 skips the item.", 0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	elseif data.kind == "sales" then
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetText(data.item.name)
+		AddSalesLines(data.item.name)
 		GameTooltip:Show()
 	elseif data.kind == "queue" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetText(RecipeName(data.entry.recipeID))
 		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
+		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
+		if queuedRecipe and queuedRecipe.o then AddSalesLines(ns.Items.Name(queuedRecipe.o)) end
 		GameTooltip:AddLine("+ adds one, Shift + adds ten, - removes one, x removes the entry.", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
 	end
@@ -325,7 +373,9 @@ local function SetRow(row, data)
 		row.right:ClearAllPoints()
 		row.right:SetPoint("RIGHT", row.plus, "LEFT", -4, 0)
 		if result.net then
-			row.right:SetText(Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
+			local chance = ChanceText(ns.Items.Name(result.itemID))
+			row.right:SetText((chance ~= "" and (chance .. "   ") or "")
+				.. Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
 		else
 			row.right:SetText(Color(COLOR_MUTED, "no data"))
 		end
@@ -354,13 +404,27 @@ local function SetRow(row, data)
 		row.right:ClearAllPoints()
 		row.right:SetPoint("RIGHT", row.minus, "LEFT", -4, 0)
 		local text = ("AH %s, have %d, goal %d"):format(item.onAH and tostring(item.onAH) or "?", item.owned, item.goal)
+		local chance = ChanceText(ns.Items.Name(item.itemID))
+		local prefix = chance ~= "" and (chance .. "   ") or ""
 		if item.goal == 0 then
-			row.right:SetText(Color(COLOR_MUTED, "skipped"))
+			row.right:SetText(prefix .. Color(COLOR_MUTED, "skipped"))
 		elseif item.crafts > 0 then
-			row.right:SetText(Color("ffffb040", text))
+			row.right:SetText(prefix .. Color("ffffb040", text))
 		else
-			row.right:SetText(Color(COLOR_PROFIT, text))
+			row.right:SetText(prefix .. Color(COLOR_PROFIT, text))
 		end
+	elseif data.kind == "sales" then
+		local item = data.item
+		if item.itemID then
+			row.icon:SetTexture(ns.Items.Icon(item.itemID))
+			row.left:SetText(ItemLabel(item.itemID))
+		else
+			row.icon:Hide()
+			row.left:SetText(item.name)
+		end
+		local sold, expired = ns.Sales.Counts(item, 7)
+		local chance = ChanceText(item.name)
+		row.right:SetText((chance ~= "" and (chance .. "   ") or "") .. ("7 days: %d sold, %d expired"):format(sold, expired))
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
@@ -471,6 +535,7 @@ function UI.RefreshAll()
 	UI.Refresh("profit")
 	UI.Refresh("queue")
 	UI.Refresh("restock")
+	UI.Refresh("sales")
 end
 
 -- Queue, bags or bank changed: both windows that count stock need redrawing.
@@ -492,7 +557,7 @@ local function PlaceWindow(window)
 		else
 			frame:SetPoint("CENTER", UIParent, "CENTER", -frame:GetWidth() / 2 - 2, 0)
 		end
-	elseif window.key == "restock" then
+	elseif window.key == "restock" or window.key == "sales" then
 		frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	elseif windows.profit and windows.profit.frame:IsShown() and windows.profit.frame:GetRight() then
 		-- A fixed spot beside Profit, not an anchor to it: moving Profit must not drag this window along.
@@ -636,6 +701,9 @@ local function CreateProfitWindow()
 
 	local openRestock = HeaderButton(window.frame, "Restock", 70, function() UI.Toggle("restock") end)
 	openRestock:SetPoint("RIGHT", openQueue, "LEFT", -4, 0)
+
+	local openSales = HeaderButton(window.frame, "Sales", 70, function() UI.Toggle("sales") end)
+	openSales:SetPoint("RIGHT", openRestock, "LEFT", -4, 0)
 
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	status:SetPoint("BOTTOMLEFT", 12, 12)
@@ -825,10 +893,37 @@ local function CreateRestockWindow()
 	end
 end
 
+local function CreateSalesWindow()
+	local window = CreateWindow("sales", "Sales", 76)
+	window.build = BuildSalesList
+
+	local totals = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	totals:SetPoint("BOTTOMLEFT", 12, 12)
+	totals:SetPoint("BOTTOMRIGHT", -12, 12)
+	totals:SetHeight(56)
+	totals:SetJustifyH("LEFT")
+	totals:SetJustifyV("BOTTOM")
+
+	window.update = function(self)
+		local lines = {}
+		if #self.list == 0 then
+			table.insert(lines, "Nothing recorded yet. Sales and expiries are read from your mailbox, so open it on each character.")
+		else
+			for _, period in ipairs({ { "Today", 1 }, { "Last 7 days", 7 }, { "Last 30 days", 30 } }) do
+				local sold, expired, gold = ns.Sales.Totals(period[2])
+				table.insert(lines, ("%s: %d sold, %d expired, earned %s"):format(period[1], sold, expired, ns.Money(gold)))
+			end
+		end
+		totals:SetText(table.concat(lines, "\n"))
+	end
+end
+
 local function GetWindow(key)
 	if not windows[key] then
 		if key == "profit" then
 			CreateProfitWindow()
+		elseif key == "sales" then
+			CreateSalesWindow()
 		elseif key == "restock" then
 			CreateRestockWindow()
 		else
@@ -1017,6 +1112,8 @@ local function Diagnostics()
 	Add("queue entries: " .. #ns.db.queue .. ", crafts planned: " .. #ns.plan.crafts)
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
 	local status = ns.Shopping.status
+	local soldTotal, expiredTotal = ns.Sales.Totals(nil)
+	Add(("sales recorded: %d sold, %d expired; open posts tracked: %d"):format(soldTotal, expiredTotal, #ns.db.sales.lots))
 	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.LIST_NAME, status.items, status.loading, tostring(status.error)))
 	Add(("queue profit: %s from %d entries, %d without a price"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded))
 	local openKey = ns.Recipes.OpenProfession()
@@ -1029,7 +1126,7 @@ SLASH_CRAFTLEDGER1 = "/craftledger"
 SLASH_CRAFTLEDGER2 = "/cledger"
 SlashCmdList.CRAFTLEDGER = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
-	if command == "queue" or command == "profit" or command == "restock" then
+	if command == "queue" or command == "profit" or command == "restock" or command == "sales" then
 		UI.Toggle(command)
 	elseif command == "refresh" then
 		ns.RefreshEverything()
@@ -1043,6 +1140,6 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "" then
 		UI.ToggleBoth()
 	else
-		ns.Print("/craftledger [queue | profit | restock | refresh | clear | auto | diag]")
+		ns.Print("/craftledger [queue | profit | restock | sales | refresh | clear | auto | diag]")
 	end
 end

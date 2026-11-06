@@ -13,5 +13,6 @@ Core.lua
 Planner.lua
 Data.lua
 Queue.lua
+Sales.lua
 Shopping.lua
 UI.lua

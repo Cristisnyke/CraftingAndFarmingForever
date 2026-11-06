@@ -65,6 +65,10 @@ local function Normalize(db)
 	db.queue = db.queue or {}
 	db.ui = db.ui or {}
 	if db.ui.autoOpen == nil then db.ui.autoOpen = true end
+	db.sales = db.sales or {}
+	db.sales.items = db.sales.items or {}
+	db.sales.lots = db.sales.lots or {}
+	db.sales.seen = db.sales.seen or {}
 	db.restock = db.restock or {}
 	db.restock.stackGoal = db.restock.stackGoal or 10
 	db.restock.singleGoal = db.restock.singleGoal or 1
@@ -85,6 +89,8 @@ local function Merge(loaded, session)
 		end
 	end
 	for _, entry in ipairs(session.queue) do table.insert(loaded.queue, entry) end
+	-- Mail results aren't merged: they get read again on the next mailbox visit, since no mail is marked as seen.
+	for _, lot in ipairs(session.sales.lots) do table.insert(loaded.sales.lots, lot) end
 end
 
 ns.db = Normalize({})

@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ADDON_FILES=(Core.lua Planner.lua Data.lua Queue.lua Shopping.lua UI.lua)
+ADDON_FILES=(Core.lua Planner.lua Data.lua Queue.lua Sales.lua Shopping.lua UI.lua)
 
 for f in "${ADDON_FILES[@]}" tests/*.lua; do luac -p "$f"; done
 

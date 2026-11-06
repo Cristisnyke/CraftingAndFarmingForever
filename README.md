@@ -8,6 +8,7 @@ A World of Warcraft: Forever add-on for profitable crafting.
 - **Price check:** the buy list shows each material's price at the last scan, the price the profit assumes, so you can stop buying if the shopping list shows it has gone up.
 - **Live shopping list:** one Auctionator list, `CraftLedger Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks.
 - **Restock window:** keeps the AH stocked. Each profitable item gets a goal (separate defaults for stackable and single items, adjustable per item). What's on the AH (through Syndicator) and what you hold count towards it, and one button queues the difference.
+- **Sales window:** records what you sell and what expires per day, week, month and all time, read from your auction house mail, and shows each item's chance of selling within 24 hours. The more data it gathers, the better the estimate.
 - **Fresh prices:** asks for a new scan when Auctionator's data is more than 24 hours old.
 
 ## Requirements
@@ -25,6 +26,7 @@ Open a profession on each character once so CraftLedger can record its recipes. 
 | `/craftledger queue` / `profit` | Show or hide one window |
 | `/craftledger restock` | Show or hide the Restock window |
 | `/craftledger refresh` | Re-read everything, same as the Refresh button |
+| `/craftledger sales` | Show or hide the Sales window |
 | `/craftledger clear` | Empty the queue |
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |

@@ -77,9 +77,35 @@ StaticPopupDialogs = {}
 function StaticPopup_Show(name) ns_popup = name end
 function StaticPopup_Hide() end
 SlashCmdList = {}
+date = os.date
+hooksecurefunc = function(target, name, fn)
+	local original = target[name]
+	target[name] = function(...)
+		local a, b, c, d, e = original(...)
+		fn(...)
+		return a, b, c, d, e
+	end
+end
+inbox = {}
+function GetInboxNumItems() return #inbox end
+function GetInboxHeaderInfo(i)
+	local m = inbox[i]
+	return nil, nil, "Auction House", m.subject, m.money, 0, m.daysLeft, m.itemID ~= nil
+end
+function GetInboxItem(i)
+	local m = inbox[i]
+	return "Item", m.itemID, 1, m.count
+end
+AUCTION_SOLD_MAIL_SUBJECT = "Auction successful: %s"
+AUCTION_EXPIRED_MAIL_SUBJECT = "Auction expired: %s"
+AUCTION_REMOVED_MAIL_SUBJECT = "Auction cancelled: %s"
 Enum = { CraftingReagentType = { Basic = 0 } }
 print = print
 
+C_AuctionHouse = {
+	PostItem = function() end,
+	PostCommodity = function() end,
+}
 C_Timer = { After = function(_, fn) table.insert(timers, fn) end }
 local function RunTimers()
 	for _ = 1, 20 do
@@ -104,6 +130,7 @@ C_Item = {
 	end,
 	GetItemQualityColor = function() return 1, 1, 1, "ffffffff" end,
 	GetItemCount = function(id) return id == 1 and 3 or 0 end,
+	GetItemID = function(location) return location.itemID end,
 }
 
 local crafted = {}
@@ -419,10 +446,8 @@ prices[2] = 777
 ns.db.recipes[10].n = "Stale name"
 C_Item.GetItemCount = function() return 0 end
 local queriedAuctions = 0
-C_AuctionHouse = {
-	IsThrottledMessageSystemReady = function() return true end,
-	QueryOwnedAuctions = function() queriedAuctions = queriedAuctions + 1 end,
-}
+C_AuctionHouse.IsThrottledMessageSystemReady = function() return true end
+C_AuctionHouse.QueryOwnedAuctions = function() queriedAuctions = queriedAuctions + 1 end
 ns.RefreshEverything()
 check("refresh rebuilds plan at once", ns.plan.buy[1], 2)
 check("refresh rebuilds totals at once", ns.totals.revenue, 777 * 0.95)
@@ -437,13 +462,114 @@ RunTimers()
 wipe(ns.db.queue)
 RunTimers()
 
+-- Sales: a post is only recorded once the server confirms it.
+C_AuctionHouse.PostCommodity({ itemID = 2 }, 2, 10)
+check("unconfirmed post not recorded", #ns.db.sales.lots, 0)
+Fire("AUCTION_HOUSE_AUCTION_CREATED", 1)
+check("confirmed post recorded", #ns.db.sales.lots, 1)
+check("post quantity", ns.db.sales.lots[1].qty, 10)
+check("post duration", ns.db.sales.lots[1].dur, 86400)
+Fire("AUCTION_HOUSE_AUCTION_CREATED", 2)
+check("a second event doesn't record twice", #ns.db.sales.lots, 1)
+
+-- Mail: sold and expired are counted, other mail and pending sales aren't. Quantities come from subject or attachment.
+ns.db.sales.lots[1].at = os.time() - 3600 * 6
+inbox = {
+	{ subject = "Auction successful: Bolt of Linen (4)", money = 950, daysLeft = 30 },
+	{ subject = "Auction successful: Bolt of Linen (4)", money = 950, daysLeft = 30 },
+	{ subject = "Auction expired: Bolt of Linen", itemID = 2, count = 2, daysLeft = 29.5 },
+	{ subject = "Sale Pending: Bolt of Linen (4)", money = 0, daysLeft = 30 },
+	{ subject = "Hello from a friend", money = 0, daysLeft = 3 },
+}
+Fire("MAIL_SHOW")
+local bolt = ns.Sales.Item("Bolt of Linen")
+check("sold units", bolt.sold, 8)
+check("identical mails both counted", bolt.gold, 1900)
+check("expired units", bolt.expired, 2)
+check("expired item ID from attachment", bolt.itemID, 2)
+
+-- The same mail seen again doesn't count again, and a slightly different expiry is still the same mail.
+inbox[1].daysLeft = 29.999
+Fire("MAIL_INBOX_UPDATE")
+Fire("MAIL_INBOX_UPDATE")
+check("rescan doesn't double count", ns.Sales.Item("Bolt of Linen").sold, 8)
+table.remove(inbox, 1)
+Fire("MAIL_INBOX_UPDATE")
+check("collected mail doesn't change totals", ns.Sales.Item("Bolt of Linen").sold, 8)
+
+-- A sale whose subject states no quantity uses the invoice.
+function GetInboxInvoiceInfo() return "seller", "Plain Item", "Buyer", 0, 0, 0, 0, 0, 0, 0, 7 end
+inbox = { { subject = "Auction successful: Plain Item", money = 10, daysLeft = 30 } }
+Fire("MAIL_SHOW")
+check("quantity from invoice", ns.Sales.Item("Plain Item").sold, 7)
+GetInboxInvoiceInfo = nil
+inbox = { { subject = "Auction successful: Plain Item Two", money = 10, daysLeft = 30 } }
+Fire("MAIL_SHOW")
+check("quantity defaults to one", ns.Sales.Item("Plain Item Two").sold, 1)
+inbox = {}
+
+-- A new identical sale is a new result.
+table.insert(inbox, 1, { subject = "Auction successful: Bolt of Linen (4)", money = 950, daysLeft = 29.9 })
+Fire("MAIL_INBOX_UPDATE")
+check("new identical sale counted", ns.Sales.Item("Bolt of Linen").sold, 12)
+inbox = {}
+
+-- Periods and chance. Direct records with known time on the AH make the arithmetic checkable.
+local now = os.time()
+ns.db.sales.items = {}
+ns.db.sales.lots = {}
+ns.Sales.Record("sold", "Test Sword", 1, 5000, now, me, 4)
+ns.Sales.Record("sold", "Test Sword", 1, 5000, now - 3 * 86400, me, 4)
+ns.Sales.Record("expired", "Test Sword", 1, 0, now - 10 * 86400, me, 4)
+local sword = ns.Sales.Item("test sword")
+local s1 = ns.Sales.Counts(sword, 1)
+local s7, e7 = ns.Sales.Counts(sword, 7)
+local s30, e30, g30 = ns.Sales.Counts(sword, 30)
+check("sold today", s1, 1)
+check("sold 7 days", s7, 2)
+check("expired not in 7 days", e7, 0)
+check("expired in 30 days", e30, 1)
+check("earned 30 days", g30, 10000)
+-- 2 sold at an assumed half day each + 1 expired at an assumed day + the 1 unit-day prior = 3 unit-days: rate 2/3.
+local chance, samples = ns.Sales.Chance("Test Sword")
+check("chance from rate", math.floor(chance * 1000 + 0.5), math.floor((1 - math.exp(-2 / 3)) * 1000 + 0.5))
+check("chance samples", samples, 3)
+check("no data no chance", ns.Sales.Chance("Never Sold"), nil)
+
+-- Time on the AH from a real post lowers the rate compared with a shorter listing.
+ns.db.sales.lots = { { itemID = 9, name = "Slow Item", qty = 1, at = now - 2 * 86400, dur = 2 * 86400, char = me } }
+ns.Sales.Record("sold", "Slow Item", 1, 1, now, me, 9)
+check("real time on AH used", ns.Sales.Item("Slow Item").exposure, 2)
+check("post consumed", #ns.db.sales.lots, 0)
+
+-- Results before a post don't consume it; other characters' posts aren't matched.
+ns.db.sales.lots = {
+	{ name = "Later", qty = 1, at = now, dur = 86400, char = me },
+	{ name = "Alt Item", qty = 1, at = now - 60, dur = 86400, char = "other" },
+}
+ns.Sales.Record("sold", "Later", 1, 1, now - 3600, me)
+ns.Sales.Record("sold", "Alt Item", 1, 1, now, me)
+check("later post not consumed", #ns.db.sales.lots, 2)
+ns.Sales.Record("cancelled", "Alt Item", 1, 0, now, "other")
+check("cancel consumes post", #ns.db.sales.lots, 1)
+check("cancel isn't a result", ns.Sales.Item("Alt Item").expired, 0)
+
+-- The window and row text.
+ns.UI.Show("sales")
+check("sales window lists items", #ns.UI.windows.sales.list >= 1, true)
+check("best seller first", ns.UI.windows.sales.list[1].item.name, "Test Sword")
+ns.db.sales.items = {}
+ns.db.sales.lots = {}
+ns.UI.Refresh("sales")
+ns.UI.windows.sales.frame:Hide()
+
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()
 Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CRAFTLEDGER_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "refresh", "auto", "auto", "clear", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "auto", "auto", "clear", "diag", "bogus" }) do
 	SlashCmdList.CRAFTLEDGER(command)
 end
 RunTimers()
