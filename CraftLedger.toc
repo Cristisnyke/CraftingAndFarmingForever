@@ -1,0 +1,17 @@
+## Interface: 16001
+## Title: CraftLedger
+## Notes: Profit for every recipe your characters know, a shared craft queue, and a live Auctionator shopping list that accounts for what you own.
+## Author: Cristisnyke
+## Version: 0.1.0
+## Dependencies: Auctionator
+## OptionalDeps: Syndicator
+## SavedVariables: CraftLedgerDB
+## IconTexture: Interface\Icons\INV_Misc_Note_05
+## Category: Professions
+
+Core.lua
+Planner.lua
+Data.lua
+Queue.lua
+Shopping.lua
+UI.lua
