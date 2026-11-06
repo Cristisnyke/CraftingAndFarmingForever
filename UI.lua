@@ -92,9 +92,14 @@ local function RecipeName(recipeID)
 	return recipe and recipe.n or ("Recipe " .. tostring(recipeID))
 end
 
-local function AddItemRows(list, title, items)
+-- priceLabel and priceOf are for lists bought with gold: the price each row's quantity was costed at.
+local function AddItemRows(list, title, items, priceLabel, priceOf)
 	local sorted = {}
-	for itemID, count in pairs(items) do table.insert(sorted, { kind = "item", itemID = itemID, count = count }) end
+	for itemID, count in pairs(items) do
+		table.insert(sorted, {
+			kind = "item", itemID = itemID, count = count, priceLabel = priceLabel, price = priceOf and priceOf(itemID),
+		})
+	end
 	if #sorted == 0 then return end
 	table.sort(sorted, function(a, b) return a.itemID < b.itemID end)
 	table.insert(list, { kind = "header", text = title })
@@ -120,8 +125,8 @@ local function BuildQueueList()
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
-	AddItemRows(list, "Buy at auction house", plan.buy)
-	AddItemRows(list, "Buy from vendor", plan.vendor)
+	AddItemRows(list, "Buy at auction house (max = price at last scan)", plan.buy, "max", ns.Prices.AH)
+	AddItemRows(list, "Buy from vendor", plan.vendor, "at", ns.Prices.Vendor)
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
@@ -190,6 +195,22 @@ local function RowOnEnter(row)
 	elseif data.kind == "item" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
+		if data.priceLabel == "max" then
+			GameTooltip:AddLine(" ")
+			if data.price then
+				GameTooltip:AddDoubleLine("Profit assumes each costs", ns.Money(data.price), 1, 1, 1, 1, 1, 1)
+				local age = ns.Prices.ItemAgeDays(data.itemID)
+				if age and age > 0 then
+					GameTooltip:AddLine(("That price is %d day(s) old."):format(age), 1, 0.6, 0.2)
+				end
+				if ns.totals.counted > 0 and ns.totals.net > 0 then
+					GameTooltip:AddDoubleLine("Queue profit gone at", ns.Money(data.price + ns.totals.net / data.count), 1, 1, 1, 1, 0.6, 0.2)
+					GameTooltip:AddLine("If you paid this for all of them and everything else stayed at its scan price.", 0.6, 0.6, 0.6, true)
+				end
+			else
+				GameTooltip:AddLine("No price known, so this isn't in the total.", 1, 0.6, 0.2, true)
+			end
+		end
 		GameTooltip:Show()
 	elseif data.kind == "restock" then
 		local item = data.row
@@ -348,7 +369,12 @@ local function SetRow(row, data)
 	elseif data.kind == "item" then
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
 		row.left:SetText(ItemLabel(data.itemID))
-		row.right:SetText("x" .. data.count)
+		if data.priceLabel then
+			local price = data.price and (data.priceLabel .. " " .. ns.Money(data.price)) or Color(COLOR_LOSS, "no price")
+			row.right:SetText("x" .. data.count .. ", " .. price)
+		else
+			row.right:SetText("x" .. data.count)
+		end
 	end
 	row:Show()
 end

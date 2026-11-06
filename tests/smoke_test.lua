@@ -239,6 +239,18 @@ check("list created once", createCalls, 1)
 check("list has one AH item", #lists[ns.LIST_NAME], 1)
 check("list search string", lists[ns.LIST_NAME][1], '"Linen Cloth";;;;;;;;;;;#;;9')
 
+-- The buy list shows the price the profit assumes; the vendor list shows its fixed price.
+ns.UI.Show("queue")
+RunTimers()
+local function QueueRowText(itemID)
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "item" and row.data.itemID == itemID then return row.right.text end
+	end
+end
+check("AH row shows max price", QueueRowText(1), "x9, max 10c")
+check("vendor row shows price", QueueRowText(3), "x2, at 10c")
+ns.UI.windows.queue.frame:Hide()
+
 -- Bought 4 cloth: same row is altered, list isn't recreated.
 C_Item.GetItemCount = function(id) return id == 1 and 7 or 0 end
 Fire("BAG_UPDATE_DELAYED")
