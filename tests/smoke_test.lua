@@ -81,6 +81,8 @@ SlashCmdList = {}
 TRADE = "Trade"
 channelList = { 1, "General - City", false, 2, "Trade - City", false, 4, "LocalDefense - City", false }
 function GetChannelList() return unpack(channelList) end
+inGuild = true
+function IsInGuild() return inGuild end
 sentChat = {}
 function SendChatMessage(message, chatType, _, target) table.insert(sentChat, { message = message, chatType = chatType, target = target }) end
 function ChatFrame_OpenChat(text) chatBoxText = text end
@@ -696,7 +698,7 @@ SendChatMessage = function() Fire("ADDON_ACTION_BLOCKED", "CraftLedger", "SendCh
 ns.Advertise.Send(197)
 check("blocked message goes to chat box", chatBoxText:sub(1, 3), "/2 ")
 check("chat box has the link", chatBoxText:find("[Tailoring]", 1, true) ~= nil, true)
-check("remembers the block", ns.db.ui.advertiseManually, true)
+check("remembers the block", ns.db.ui.manualChat.TRADE, true)
 SendChatMessage = realSend
 time = function() return realNow() + 360 end
 chatBoxText = nil
@@ -704,7 +706,7 @@ local before = #sentChat
 ns.Advertise.Send(197)
 check("later ads use the chat box", chatBoxText ~= nil, true)
 check("later ads don't send directly", #sentChat, before)
-ns.db.ui.advertiseManually = nil
+ns.db.ui.manualChat.TRADE = nil
 time = realNow
 
 -- Buttons beside the chat: one per crafting profession of this character, with no profession window open.
@@ -743,6 +745,65 @@ check("hidden outside Trade chat", ShownButtons(), "")
 channelList = { 2, "Trade - City", false }
 Fire("CHAT_MSG_CHANNEL_NOTICE")
 check("back in Trade chat", ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+
+-- The picker: each destination posts there, and shows its buttons even outside Trade chat.
+local picker = ns.Advertise.destinationButton
+local menu = ns.Advertise.destinationMenu
+check("picker starts on Trade", picker.text, "Post to: Trade")
+picker.scripts.OnClick(picker)
+check("picker opens its menu", menu:IsShown(), true)
+local function Pick(key)
+	picker.scripts.OnClick(picker)
+	menu.options[key].scripts.OnClick(menu.options[key])
+end
+if menu:IsShown() then menu:Hide() end
+channelList = { 1, "General - Barrens", false }
+Fire("ZONE_CHANGED_NEW_AREA")
+check("no buttons for Trade outside it", ShownButtons(), "")
+check("picker stays available", picker:IsShown(), true)
+for _, case in ipairs({ { "GUILD", "Guild" }, { "SAY", "Say" }, { "YELL", "Yell" } }) do
+	Pick(case[1])
+	check("picker shows " .. case[2], picker.text, "Post to: " .. case[2])
+	check("menu closes after picking " .. case[2], menu:IsShown(), false)
+	check("buttons shown for " .. case[2], ShownButtons(), "Advertise Alchemy, Advertise Tailoring")
+	local sentBefore = #sentChat
+	adButtons[2].scripts.OnClick(adButtons[2])
+	check("posted once to " .. case[2], #sentChat, sentBefore + 1)
+	check("posted as " .. case[2], sentChat[#sentChat].chatType, case[1])
+	check("no channel number for " .. case[2], sentChat[#sentChat].target, nil)
+end
+check("destination saved", ns.db.ui.adDestination, "YELL")
+
+-- Timers are per destination: Yell is cooling down, and a fresh destination isn't.
+adButtons[2].scripts.OnClick(adButtons[2])
+local afterYell = #sentChat
+adButtons[2].scripts.OnClick(adButtons[2])
+check("same destination waits", #sentChat, afterYell)
+
+-- A character with no guild can't pick its way into posting there.
+time = function() return realNow() + 1200 end
+inGuild = false
+Pick("GUILD")
+check("no buttons without a guild", ShownButtons(), "")
+local noGuildBefore = #sentChat
+ns.Advertise.Send(197)
+check("no guild, no post", #sentChat, noGuildBefore)
+inGuild = true
+
+-- Blocked Say goes to the chat box with its own command, and doesn't affect other destinations.
+Pick("SAY")
+local realSend2 = SendChatMessage
+SendChatMessage = function() Fire("ADDON_ACTION_BLOCKED", "CraftLedger", "SendChatMessage()") end
+chatBoxText = nil
+ns.Advertise.Send(197)
+check("blocked Say uses /s", chatBoxText:sub(1, 3), "/s ")
+check("block remembered for Say only", ns.db.ui.manualChat.SAY == true and ns.db.ui.manualChat.YELL == nil, true)
+SendChatMessage = realSend2
+ns.db.ui.manualChat.SAY = nil
+ns.db.ui.adDestination = nil
+time = function() return realNow() + 1800 end
+channelList = { 2, "Trade - City", false }
+ns.Advertise.UpdateButtons()
 
 ns.db.chars["Player-2-ALT"] = nil
 ns.db.chars[me].recipes[700], ns.db.chars[me].recipes[701] = nil, nil

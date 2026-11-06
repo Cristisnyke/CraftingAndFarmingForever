@@ -1122,8 +1122,24 @@ ns.Advertise = Advertise
 
 local AD_TEXT = "%s available for hire! Your materials, or I'll give you a price based on material cost."
 local AD_COOLDOWN_SECONDS = 60
-local lastAdvertised = 0
-local pendingAdText
+local lastAdvertised = {} -- by destination
+local pendingAd
+
+-- Where an ad can go. The slash command is for the chat box fallback; Trade's depends on its channel number.
+local DESTINATIONS = {
+	{ key = "TRADE", label = "Trade", chatType = "CHANNEL" },
+	{ key = "GUILD", label = "Guild", chatType = "GUILD", slash = "/g" },
+	{ key = "SAY", label = "Say", chatType = "SAY", slash = "/s" },
+	{ key = "YELL", label = "Yell", chatType = "YELL", slash = "/y" },
+}
+
+local function CurrentDestination()
+	local selected = ns.db.ui.adDestination
+	for _, destination in ipairs(DESTINATIONS) do
+		if destination.key == selected then return destination end
+	end
+	return DESTINATIONS[1]
+end
 
 -- The tab's profession, or on the All tab the one that's open.
 function UI.AdvertisedProfession()
@@ -1163,11 +1179,6 @@ local function OpenChatWith(text)
 	end
 end
 
--- Puts the message in the chat box, so only Enter is left to press.
-local function PrefillChat(channel, message)
-	OpenChatWith("/" .. channel .. " " .. message)
-end
-
 -- A reply to whoever whispered last. Never sent automatically: the user checks it and presses Enter.
 function Advertise.QuoteInWhisper(recipeID)
 	local text = ns.Queue.QuoteText(recipeID)
@@ -1184,20 +1195,36 @@ function Advertise.QuoteInWhisper(recipeID)
 	end
 end
 
+-- Whether the current destination can take an ad right now, its Trade channel number if any, and why not if not.
+local function DestinationState(destination)
+	if destination.key == "TRADE" then
+		local channel = TradeChannel()
+		if not channel then return false, nil, "You're not in Trade chat. Go to a city and try again." end
+		return true, channel
+	end
+	if destination.key == "GUILD" and not IsInGuild() then return false, nil, "This character isn't in a guild." end
+	return true
+end
+
+local function CooldownLeft(destination)
+	return math.max(0, AD_COOLDOWN_SECONDS - (time() - (lastAdvertised[destination.key] or 0)))
+end
+
 function Advertise.Send(professionID)
 	local reason = Advertise.Reason(professionID)
 	if reason then
 		ns.Print(reason)
 		return
 	end
-	local channel = TradeChannel()
-	if not channel then
-		ns.Print("You're not in Trade chat. Go to a city and try again.")
+	local destination = CurrentDestination()
+	local available, channel, why = DestinationState(destination)
+	if not available then
+		ns.Print(why)
 		return
 	end
-	local wait = AD_COOLDOWN_SECONDS - (time() - lastAdvertised)
+	local wait = CooldownLeft(destination)
 	if wait > 0 then
-		ns.Print(("Please wait %d more seconds, so Trade chat doesn't get spammed."):format(wait))
+		ns.Print(("Please wait %d more seconds, so %s doesn't get spammed."):format(wait, destination.label))
 		return
 	end
 
@@ -1207,49 +1234,84 @@ function Advertise.Send(professionID)
 		ns.Print("No profession link available yet, so this uses its name. Open the profession once to get the link.")
 	end
 	local message = AD_TEXT:format(link or ns.Recipes.ProfessionName(professionID) or "Crafting")
-	lastAdvertised = time()
+	lastAdvertised[destination.key] = time()
 	Advertise.UpdateButtons()
 
-	-- The game can refuse chat from add-ons. Once it has, go straight to the chat box.
-	if ns.db.ui.advertiseManually then
-		PrefillChat(channel, message)
+	-- The game can refuse chat from add-ons. Once it has for a destination, go straight to the chat box.
+	local slash = destination.slash or ("/" .. tostring(channel))
+	ns.db.ui.manualChat = ns.db.ui.manualChat or {}
+	if ns.db.ui.manualChat[destination.key] then
+		OpenChatWith(slash .. " " .. message)
 		return
 	end
-	pendingAdText = { channel = channel, message = message }
+	pendingAd = { destination = destination, text = slash .. " " .. message }
 	local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-	send(message, "CHANNEL", nil, channel)
-	C_Timer.After(0.5, function() pendingAdText = nil end)
+	send(message, destination.chatType, nil, channel)
+	C_Timer.After(0.5, function() pendingAd = nil end)
 end
 
 local function OnChatBlocked(addon, blockedFunction)
-	if addon ~= ns.name or not pendingAdText then return end
+	if addon ~= ns.name or not pendingAd then return end
 	if type(blockedFunction) == "string" and not blockedFunction:find("SendChatMessage", 1, true) then return end
-	local ad = pendingAdText
-	pendingAdText = nil
-	ns.db.ui.advertiseManually = true
-	lastAdvertised = 0
+	local ad = pendingAd
+	pendingAd = nil
+	ns.db.ui.manualChat[ad.destination.key] = true
+	lastAdvertised[ad.destination.key] = nil
 	Advertise.UpdateButtons()
-	PrefillChat(ad.channel, ad.message)
-	ns.Print("The game won't let add-ons post in Trade chat, so your message is in the chat box. Press Enter to send it.")
+	OpenChatWith(ad.text)
+	ns.Print(("The game won't let add-ons post in %s, so your message is in the chat box. Press Enter to send it."):format(ad.destination.label))
 end
 
 ns.On("ADDON_ACTION_BLOCKED", OnChatBlocked)
 ns.On("ADDON_ACTION_FORBIDDEN", OnChatBlocked)
 
--- Buttons beside the chat frame, one per crafting profession of this character. They work with no profession window
--- open, using the link saved when the profession was last opened, and show whenever this character is in Trade chat.
+-- Beside the chat frame: a destination picker, and above it a button per crafting profession of this character. They
+-- work with no profession window open, using the link saved when the profession was last opened, and show whenever
+-- the chosen destination can take a post.
 local AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT = 170, 22
 local adButtons = {}
 Advertise.buttons = adButtons
 local cooldownTimerRunning = false
+local destinationButton, destinationMenu
+
+local function CreateDestinationPicker()
+	destinationButton = CreateFrame("Button", "CraftLedgerAdDestination", UIParent, "UIPanelButtonTemplate")
+	destinationButton:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
+	-- Past the chat frame's own scroll bar.
+	destinationButton:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, 0)
+	Advertise.destinationButton = destinationButton
+
+	destinationMenu = CreateFrame("Frame", nil, destinationButton)
+	destinationMenu:SetSize(90, #DESTINATIONS * AD_BUTTON_HEIGHT)
+	destinationMenu:SetPoint("BOTTOMLEFT", destinationButton, "BOTTOMRIGHT", 2, 0)
+	destinationMenu:Hide()
+	Advertise.destinationMenu = destinationMenu
+	destinationMenu.options = {}
+	for index, destination in ipairs(DESTINATIONS) do
+		local option = CreateFrame("Button", nil, destinationMenu, "UIPanelButtonTemplate")
+		option:SetSize(90, AD_BUTTON_HEIGHT)
+		option:SetPoint("BOTTOMLEFT", 0, (index - 1) * AD_BUTTON_HEIGHT)
+		option:SetText(destination.label)
+		option:SetScript("OnClick", function()
+			ns.db.ui.adDestination = destination.key
+			destinationMenu:Hide()
+			Advertise.UpdateButtons()
+			ns.UI.Refresh("profit")
+		end)
+		destinationMenu.options[destination.key] = option
+	end
+
+	destinationButton:SetScript("OnClick", function()
+		destinationMenu:SetShown(not destinationMenu:IsShown())
+	end)
+end
 
 local function AdButton(index)
 	local button = adButtons[index]
 	if not button then
 		button = CreateFrame("Button", "CraftLedgerAdvertiseButton" .. index, UIParent, "UIPanelButtonTemplate")
 		button:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
-		-- Past the chat frame's own scroll bar.
-		button:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, (index - 1) * (AD_BUTTON_HEIGHT + 2))
+		button:SetPoint("BOTTOMLEFT", destinationButton, "TOPLEFT", 0, 2 + (index - 1) * (AD_BUTTON_HEIGHT + 2))
 		button:SetScript("OnClick", function(self) Advertise.Send(self.professionID) end)
 		adButtons[index] = button
 	end
@@ -1257,20 +1319,30 @@ local function AdButton(index)
 end
 
 function Advertise.UpdateButtons()
-	local me = ns.CharKey()
-	local inTrade = me and TradeChannel()
+	if not ns.CharKey() then return end
+	local crafting = {}
+	for _, profession in ipairs(ns.Recipes.KnownProfessions()) do
+		if Advertise.Reason(profession.id) == nil then table.insert(crafting, profession) end
+	end
+
+	if #crafting > 0 and not destinationButton then CreateDestinationPicker() end
+	local destination = CurrentDestination()
+	if destinationButton then
+		destinationButton:SetText("Post to: " .. destination.label)
+		destinationButton:SetShown(#crafting > 0)
+	end
+
+	local available = DestinationState(destination)
+	local wait = CooldownLeft(destination)
 	local shown = 0
-	local wait = math.max(0, AD_COOLDOWN_SECONDS - (time() - lastAdvertised))
-	if inTrade then
-		for _, profession in ipairs(ns.Recipes.KnownProfessions()) do
-			if Advertise.Reason(profession.id) == nil then
-				shown = shown + 1
-				local button = AdButton(shown)
-				button.professionID = profession.id
-				button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or ("Advertise " .. profession.name))
-				button:SetEnabled(wait <= 0)
-				button:Show()
-			end
+	if available then
+		for _, profession in ipairs(crafting) do
+			shown = shown + 1
+			local button = AdButton(shown)
+			button.professionID = profession.id
+			button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or ("Advertise " .. profession.name))
+			button:SetEnabled(wait <= 0)
+			button:Show()
 		end
 	end
 	for index = shown + 1, #adButtons do adButtons[index]:Hide() end
@@ -1289,7 +1361,7 @@ local function RequestAdButtonUpdate()
 	ns.Debounce("adbuttons", 1, Advertise.UpdateButtons)
 end
 
-for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE" }) do
+for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE", "PLAYER_GUILD_UPDATE" }) do
 	ns.On(event, RequestAdButtonUpdate)
 end
 
@@ -1351,7 +1423,7 @@ local function Diagnostics()
 	Add("open profession: " .. tostring(openKey) .. ", recipes in window: " .. CountKeys(ns.Recipes.OpenRecipes()))
 	Add("Queue button on crafting page: " .. tostring(queueButton ~= nil))
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
-		.. ", advertise through chat box: " .. tostring(ns.db.ui.advertiseManually == true))
+		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	ns.db.lastDiag = lines
 end
 
