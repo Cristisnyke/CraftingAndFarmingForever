@@ -143,8 +143,7 @@ function Queue.NextCraft()
 		elseif openProfession ~= recipe.p then
 			reason = reason or ("Open " .. (recipe.pn or "the profession") .. " to continue.")
 		else
-			local info = C_TradeSkillUI.GetRecipeInfo(craft.recipeID)
-			local available = info and info.numAvailable or 0
+			local available = C_TradeSkillUI.GetCraftableCount(craft.recipeID) or 0
 			if available > 0 then
 				return craft, math.min(craft.count, available)
 			end

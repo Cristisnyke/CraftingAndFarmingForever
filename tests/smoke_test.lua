@@ -103,14 +103,17 @@ C_Item = {
 }
 
 local crafted = {}
+local tradeSkillReady = false
 C_TradeSkillUI = {
+	IsTradeSkillReady = function() return tradeSkillReady end,
+	GetCraftableCount = function(id) return id == 10 and 5 or 0 end,
 	IsTradeSkillLinked = function() return false end,
 	IsTradeSkillGuild = function() return false end,
 	IsNPCCrafting = function() return false end,
 	GetBaseProfessionInfo = function() return { professionID = 197, professionName = "Tailoring" } end,
 	GetChildProfessionInfo = function() return nil end,
 	GetAllRecipeIDs = function() return { 10, 20, 30, 40 } end,
-	GetRecipeInfo = function(id) return { recipeID = id, learned = id ~= 40, name = "Recipe" .. id, numAvailable = id == 10 and 5 or 0 } end,
+	GetRecipeInfo = function(id) return { recipeID = id, learned = id ~= 40, name = "Recipe" .. id } end,
 	GetRecipeSchematic = function(id)
 		local s = {
 			[10] = { outputItemID = 2, quantityMin = 1, quantityMax = 1, reagentSlotSchematics = { { reagentType = 0, quantityRequired = 2, reagents = { { itemID = 1 } } } } },
@@ -169,6 +172,7 @@ page.CreateAllButton = NewFrame()
 page.CreateMultipleInputBox = NewFrame()
 page.CreateMultipleInputBox.GetValue = function() return 2 end
 ProfessionsFrame = NewFrame()
+ProfessionsFrame.GetProfessionInfo = function() return { professionID = 197, professionName = "Tailoring" } end
 ProfessionsFrame.CraftingPage = page
 AuctionHouseFrame = NewFrame()
 
@@ -202,6 +206,9 @@ check("no list before anything is queued", lists[ns.LIST_NAME], nil)
 ProfessionsFrame:Show()
 Fire("ADDON_LOADED", "Blizzard_Professions")
 Fire("TRADE_SKILL_SHOW")
+Fire("TRADE_SKILL_LIST_UPDATE")
+check("nothing recorded before the list is ready", next(ns.db.recipes), nil)
+tradeSkillReady = true
 Fire("TRADE_SKILL_LIST_UPDATE")
 
 local me = ns.CharKey()

@@ -127,6 +127,43 @@ local surplusCtx = Context({
 plan = Planner.BuildPlan(surplusCtx, { { recipeID = 2, qty = 1 }, { recipeID = 3, qty = 1 } })
 check("surplus used", plan.buy[ORE], 1)
 
+-- Whole-batch crafting that costs more than buying the small amount needed: buy instead.
+local batchCtx = Context({
+	recipes = {
+		[1] = { o = BAR, qmin = 5, qmax = 5, r = { { 5, ORE } } },
+		[2] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, BAR } } },
+	},
+	known = { [BAR] = { 1 }, [SHIRT] = { 2 } },
+	ah = { [ORE] = 5, [BAR] = 10, [SHIRT] = 1000 },
+})
+plan = Planner.BuildPlan(batchCtx, { { recipeID = 2, qty = 1 } })
+check("small need buys", plan.buy[BAR], 1)
+check("small need no batch", plan.buy[ORE], nil)
+plan = Planner.BuildPlan(batchCtx, { { recipeID = 2, qty = 5 } })
+check("full batch crafts", plan.buy[ORE], 5)
+check("full batch skips buying", plan.buy[BAR], nil)
+
+-- A recipe that also costs a currency has an unknown cost, not a free slot.
+local currencyCtx = Context({
+	recipes = { [1] = { o = SHIRT, qmin = 1, qmax = 1, x = true, r = { { 1, ORE } } } },
+	known = { [SHIRT] = { 1 } },
+})
+check("currency cost unknown", Planner.Profit(currencyCtx, 1).net, nil)
+
+-- Cycle fallback still prefers a vendor over the AH.
+local vendorCycle = Context({
+	recipes = {
+		[1] = { o = ORE, qmin = 1, qmax = 1, r = { { 1, BAR } } },
+		[2] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+	},
+	known = { [ORE] = { 1 }, [BAR] = { 2 } },
+	ah = {},
+	vendor = { [ORE] = 4 },
+})
+plan = Planner.BuildPlan(vendorCycle, { { recipeID = 2, qty = 1 } })
+check("cycle vendor", plan.vendor[ORE], 1)
+check("cycle not on AH", plan.buy[ORE], nil)
+
 -- Zero-quantity entries are ignored; empty queue gives an empty plan.
 check("empty plan", #Planner.BuildPlan(Context(), {}).crafts, 0)
 check("zero qty", #Planner.BuildPlan(Context(), { { recipeID = 300, qty = 0 } }).crafts, 0)

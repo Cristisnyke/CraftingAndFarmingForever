@@ -49,7 +49,7 @@ end
 -- Saved data
 ---------------------------------------------------------------------------
 -- db.recipes[recipeID] = { n = name, o = outputItemID, qmin, qmax, p = professionID, pn = professionName,
---                          r = { { qty, itemID, altItemID, ... }, ... } }
+--                          r = { { qty, itemID, altItemID, ... }, ... }, x = true if it also costs a currency }
 -- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true } }
 -- db.queue[i]          = { recipeID, qty, char = guid }
 --

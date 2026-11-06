@@ -180,11 +180,19 @@ local Recipes = {}
 ns.Recipes = Recipes
 local readThisSession = {}
 
--- The profession the client currently has open: base info, or child info where the base has no ID.
+-- The profession the client currently has open. The window's own answer is what other Forever add-ons rely on;
+-- the API calls are fallbacks. An ID of 0 means no profession.
 local function ProfessionInfo()
-	local info = C_TradeSkillUI.GetBaseProfessionInfo()
-	if info and info.professionID then return info end
-	return C_TradeSkillUI.GetChildProfessionInfo()
+	local sources = {
+		ProfessionsFrame and ProfessionsFrame.GetProfessionInfo and function() return ProfessionsFrame:GetProfessionInfo() end,
+		C_TradeSkillUI.GetBaseProfessionInfo,
+		C_TradeSkillUI.GetChildProfessionInfo,
+	}
+	for i = 1, 3 do
+		local info = sources[i] and sources[i]()
+		if info and info.professionID and info.professionID ~= 0 then return info end
+	end
+	return nil
 end
 Recipes.ProfessionInfo = ProfessionInfo
 
@@ -207,14 +215,23 @@ function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
 	local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
 	if type(schematic) ~= "table" then return nil end
 	local slots = {}
+	local usesCurrency = false
 	local basic = BasicReagentType()
 	for _, slot in ipairs(schematic.reagentSlotSchematics or {}) do
 		if slot.reagentType == basic and slot.required ~= false then
 			local entry = { slot.quantityRequired or 1 }
+			local hasCurrency = false
 			for _, reagent in ipairs(slot.reagents or {}) do
 				if reagent.itemID then table.insert(entry, reagent.itemID) end
+				if reagent.currencyID then hasCurrency = true end
 			end
-			if #entry > 1 then table.insert(slots, entry) end
+			if #entry > 1 then
+				table.insert(slots, entry)
+			elseif hasCurrency then
+				usesCurrency = true
+			else
+				return nil -- a required slot with no contents: the data isn't complete yet, so don't keep it
+			end
 		end
 	end
 	local output = schematic.outputItemID
@@ -229,12 +246,15 @@ function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
 		p = professionID,
 		pn = professionName,
 		r = slots,
+		x = usesCurrency or nil,
 	}
 	ns.db.recipes[recipeID] = recipe
 	return recipe
 end
 
 local function ScanOpenProfession()
+	-- Reagents can be missing from recipes until the list is ready; the list-update event comes again when it is.
+	if not C_TradeSkillUI.IsTradeSkillReady() then return end
 	-- Only the player's own professions, not linked, guild or NPC views.
 	for _, check in ipairs({ "IsTradeSkillLinked", "IsTradeSkillGuild", "IsNPCCrafting" }) do
 		local fn = C_TradeSkillUI[check]
@@ -243,7 +263,7 @@ local function ScanOpenProfession()
 	local char = ns.CharRecord()
 	local base = ProfessionInfo()
 	local ids = C_TradeSkillUI.GetAllRecipeIDs()
-	if not char or not base or not base.professionID or type(ids) ~= "table" then return end
+	if not char or not base or type(ids) ~= "table" then return end
 
 	local learned = {}
 	for _, recipeID in ipairs(ids) do

@@ -2,7 +2,7 @@
 -- Game-independent cost, profit and queue logic, so it can be tested outside the client.
 --
 -- A context supplies:
---   recipes[recipeID]  = { o, qmin, qmax, r = { { qty, itemID, altItemID, ... }, ... } }
+--   recipes[recipeID]  = { o, qmin, qmax, r = { { qty, itemID, altItemID, ... }, ... }, x = uses a currency }
 --   known[itemID]      = { recipeID, ... }   learned recipes that make the item, on any character
 --   ahPrice(itemID)    -> copper or nil
 --   vendorPrice(itemID)-> copper or nil
@@ -93,6 +93,8 @@ function Planner.RecipeCost(ctx, recipeID)
 		end
 	end
 	ctx.visiting[recipeID] = nil
+	-- A currency has no gold price, so the true cost is unknown rather than free.
+	if recipe.x then total = nil end
 	return total, parts
 end
 
@@ -154,25 +156,30 @@ function Planner.BuildPlan(ctx, queue)
 	local Require
 
 	local function Acquire(itemID, count)
-		local unit, kind, recipeID = Planner.ItemCost(ctx, itemID)
+		local _, kind, recipeID = Planner.ItemCost(ctx, itemID)
+		local ah, vendor = ctx.ahPrice(itemID), ctx.vendorPrice(itemID)
+		local useVendor = vendor and (not ah or vendor < ah)
+		local buyUnit = useVendor and vendor or ah
+
 		if kind == "craft" and not active[recipeID] then
+			-- Crafting comes in whole batches, so a small need can cost more than buying even when the unit
+			-- cost is lower. Compare what this purchase would actually cost.
 			local yield = MinimumYield(ctx.recipes[recipeID])
 			local crafts = math.ceil(count / yield)
-			Require(recipeID, crafts, nil, true)
-			own[itemID] = OwnLeft(itemID) + crafts * yield - count
-		elseif kind == "vendor" then
-			plan.vendor[itemID] = (plan.vendor[itemID] or 0) + count
-			plan.cost = plan.cost + unit * count
-		else
-			plan.buy[itemID] = (plan.buy[itemID] or 0) + count
-			if kind == "ah" then
-				plan.cost = plan.cost + unit * count
-			else
-				-- Cycle fallback or no price at all: still bought on the AH, at the known price if any.
-				local ah = ctx.ahPrice(itemID)
-				if ah then plan.cost = plan.cost + ah * count else plan.unpriced = true end
+			local craftTotal = crafts * (Planner.RecipeCost(ctx, recipeID) or 0)
+			if not buyUnit or craftTotal <= buyUnit * count then
+				Require(recipeID, crafts, nil, true)
+				own[itemID] = OwnLeft(itemID) + crafts * yield - count
+				return
 			end
 		end
+
+		if useVendor then
+			plan.vendor[itemID] = (plan.vendor[itemID] or 0) + count
+		else
+			plan.buy[itemID] = (plan.buy[itemID] or 0) + count
+		end
+		if buyUnit then plan.cost = plan.cost + buyUnit * count else plan.unpriced = true end
 	end
 
 	Require = function(recipeID, count, preferredChar, isAuto)

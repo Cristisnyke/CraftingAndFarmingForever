@@ -24,6 +24,7 @@ local scrollOffset = 0
 local profitCache
 local attached = false
 local scanNotified = false
+local updatingSlider = false
 
 ---------------------------------------------------------------------------
 -- Profit data
@@ -303,8 +304,11 @@ local function RenderRows()
 		local data = i <= visible and listData[scrollOffset + i]
 		if data then SetRow(rows[i], data) else rows[i].data = nil; rows[i]:Hide() end
 	end
+	-- These can fire OnValueChanged while clamping; that must not overwrite the offset being rendered.
+	updatingSlider = true
 	slider:SetMinMaxValues(0, maxOffset)
 	slider:SetValue(scrollOffset)
+	updatingSlider = false
 	slider:SetShown(maxOffset > 0)
 end
 
@@ -501,7 +505,7 @@ local function CreatePanel()
 	slider:SetThumbTexture(thumb)
 	slider:SetScript("OnValueChanged", function(_, value)
 		local offset = math.floor(value + 0.5)
-		if offset ~= scrollOffset then
+		if not updatingSlider and offset ~= scrollOffset then
 			scrollOffset = offset
 			RenderRows()
 		end

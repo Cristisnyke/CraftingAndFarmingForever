@@ -23,20 +23,27 @@ end
 -- Search strings wanted right now, by lowercase name, plus the number of items whose names are still loading.
 local function DesiredStrings()
 	local api = Auctionator.API.v1
-	local wanted, loading = {}, 0
+	local byName, loading = {}, 0
 	for itemID, count in pairs(ns.plan.buy) do
 		local name = ns.Items.Name(itemID)
 		if name then
+			-- Different item IDs can share a name, and an exact-name search finds them all, so add them up.
 			local clean = Sanitize(name)
-			wanted[clean:lower()] = api.ConvertToSearchString(ns.name, {
-				searchString = clean,
-				isExact = true,
-				categoryKey = "",
-				quantity = count,
-			})
+			local key = clean:lower()
+			byName[key] = byName[key] or { name = clean, count = 0 }
+			byName[key].count = byName[key].count + count
 		elseif not ns.Items.IsMissing(itemID) then
 			loading = loading + 1
 		end
+	end
+	local wanted = {}
+	for key, item in pairs(byName) do
+		wanted[key] = api.ConvertToSearchString(ns.name, {
+			searchString = item.name,
+			isExact = true,
+			categoryKey = "",
+			quantity = item.count,
+		})
 	end
 	return wanted, loading
 end
