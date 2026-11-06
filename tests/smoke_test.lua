@@ -170,21 +170,32 @@ local prices = { [1] = 10, [2] = 100, [4] = 1000, [5] = 500 }
 local listManager = {
 	GetIndexForName = function(_, name) return lists[name] and 1 or nil end,
 	GetByName = function(_, name)
-		return { InsertItem = function(_, s) table.insert(lists[name], s) end }
+		return {
+			InsertItem = function(_, s) table.insert(lists[name], s) end,
+			GetAllItems = function() return lists[name] end,
+		}
 	end,
 }
+local busListener
 Auctionator = {
+	EventBus = { Register = function(_, listener, events) busListener = listener; busEvents = events end },
+	FullScan = { Events = { ScanStart = "full start" } },
+	IncrementalScan = { Events = { ScanStart = "incremental start" } },
 	SavedState = { TimeOfLastBrowseScan = os.time() - 90000 },
 	State = {},
 	Config = { Options = { REPLICATE_SCAN = "r" }, Get = function() return false end },
-	Shopping = { ListManager = listManager },
+	Shopping = { ListManager = listManager, Tab = { Events = { SearchStart = "shopping start" } } },
 	API = { v1 = {
 		GetAuctionPriceByItemID = function(_, id) return prices[id] end,
 		GetVendorPriceByItemID = function(_, id) return id == 3 and 10 or nil end,
 		GetAuctionAgeByItemID = function() return 0 end,
 		RegisterForDBUpdate = function() end,
-		ConvertToSearchString = function(_, t) return ('"%s";;;;;;;;;;;#;;%d'):format(t.searchString, t.quantity) end,
-		GetShoppingListItems = function(_, name) return lists[name] end,
+		ConvertToSearchString = function(_, t) return ('"%s";;;;;;;;;;;#;;%s'):format(t.searchString, tostring(t.quantity or "")) end,
+		GetShoppingListItems = function(_, name) -- a copy, as the real API returns
+			local copy = {}
+			for i, v in ipairs(lists[name]) do copy[i] = v end
+			return copy
+		end,
 		CreateShoppingList = function(_, name, strings) createCalls = createCalls + 1; lists[name] = strings end,
 		DeleteShoppingListItem = function(_, name, s)
 			for i, v in ipairs(lists[name]) do if v == s then table.remove(lists[name], i) return end end
@@ -263,7 +274,8 @@ Fire("GET_ITEM_INFO_RECEIVED", 5, true)
 check("plan buys remaining cloth", ns.plan.buy[1], 9)
 check("thread on vendor list", ns.plan.vendor[3], 2)
 check("list created once", createCalls, 1)
-check("list has one AH item", #lists[ns.LIST_NAME], 1)
+check("list has the material and the queued item", #lists[ns.LIST_NAME], 2)
+check("queued item listed with no quantity", lists[ns.LIST_NAME][2], '"Linen Shirt";;;;;;;;;;;#;;')
 check("list search string", lists[ns.LIST_NAME][1], '"Linen Cloth";;;;;;;;;;;#;;9')
 
 -- The buy list shows the price the profit assumes; the vendor list shows its fixed price.
@@ -277,6 +289,57 @@ end
 check("AH row shows max price", QueueRowText(1), "x9, max 10c")
 check("vendor row shows price", QueueRowText(3), "x2, at 10c")
 ns.UI.windows.queue.frame:Hide()
+
+-- Price changes: a whole-list scan starts a comparison. Dearer materials are red, cheaper green, old and new shown.
+local RED, GREEN = "|cffff6655", "|cff55dd55"
+ns.UI.Show("queue")
+local function Rescan(changes)
+	busListener:ReceiveEvent("shopping start", lists[ns.LIST_NAME])
+	for id, price in pairs(changes) do prices[id] = price end
+	ns.RefreshEverything()
+	RunTimers()
+end
+local function QueueEntryText()
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "queue" then return row.right.text end
+	end
+end
+Rescan({ [1] = 15 })
+check("dearer material is red", QueueRowText(1), "x9, " .. RED .. "was 10c, now 15c|r")
+Rescan({ [1] = 12 })
+check("cheaper material is green", QueueRowText(1), "x9, " .. GREEN .. "was 15c, now 12c|r")
+Rescan({})
+check("unchanged after next scan shows no colour", QueueRowText(1), "x9, max 12c")
+
+-- A single-item search while buying keeps the colours, and later changes in a scan keep the pre-scan price.
+Rescan({ [1] = 20 })
+busListener:ReceiveEvent("shopping start", { "one item" })
+ns.RefreshEverything()
+check("single search keeps colours", QueueRowText(1), "x9, " .. RED .. "was 12c, now 20c|r")
+prices[1] = 25
+ns.RefreshEverything()
+check("old stays the pre-scan price", QueueRowText(1), "x9, " .. RED .. "was 12c, now 25c|r")
+
+-- Another list's scan is ignored; a full scan starts a comparison.
+busListener:ReceiveEvent("shopping start", { "a", "b", "c", "d", "e" })
+check("other list keeps colours", QueueRowText(1), "x9, " .. RED .. "was 12c, now 25c|r")
+busListener:ReceiveEvent("full start")
+ns.RefreshEverything()
+check("full scan starts a comparison", QueueRowText(1), "x9, max 25c")
+
+-- What you're crafting: a lower sale price is bad, so it's red, and profit follows.
+Rescan({ [4] = 200, [1] = 10 })
+local entryText = QueueEntryText()
+check("sale drop is red", entryText:find("sells " .. RED .. "was 10s 00c, now 2s 00c|r", 1, true) ~= nil, true)
+Rescan({ [4] = 300 })
+check("sale rise is green", QueueEntryText():find("sells " .. GREEN, 1, true) ~= nil, true)
+check("profit uses the new sale price", ns.totals.revenue, 2 * 300 * 0.95)
+Rescan({ [4] = 1000, [1] = 10 })
+Rescan({})
+ns.UI.windows.queue.frame:Hide()
+
+-- A new item has nothing to compare with.
+check("no change for unknown item", ns.Prices.Change(12345), nil)
 
 -- Bought 4 cloth: same row is altered, list isn't recreated.
 C_Item.GetItemCount = function(id) return id == 1 and 7 or 0 end

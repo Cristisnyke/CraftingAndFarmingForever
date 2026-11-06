@@ -125,7 +125,7 @@ local function BuildQueueList()
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
-	AddItemRows(list, "Buy at auction house (max = price at last scan)", plan.buy, "max", ns.Prices.AH)
+	AddItemRows(list, "Buy at auction house (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
 	AddItemRows(list, "Buy from vendor", plan.vendor, "at", ns.Prices.Vendor)
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
@@ -197,6 +197,14 @@ local function AddSalesLines(name)
 	GameTooltip:AddDoubleLine("Earned, all time", ns.Money(gold), 1, 1, 1, 1, 1, 1)
 end
 
+-- "was 30c, now 40c". dearerIsBad: materials cost more (bad); for things you sell, a lower price is bad.
+local function PriceChangeText(itemID, dearerIsBad)
+	local old, new = ns.Prices.Change(itemID)
+	if not old then return nil end
+	local bad = dearerIsBad == (new > old)
+	return Color(bad and COLOR_LOSS or COLOR_PROFIT, ("was %s, now %s"):format(ns.Money(old), ns.Money(new)))
+end
+
 local KIND_LABEL = { ah = "AH", vendor = "vendor", craft = "craft" }
 
 local function ShowProfitTooltip(row, result)
@@ -238,6 +246,8 @@ local function RowOnEnter(row)
 		if data.priceLabel == "max" then
 			GameTooltip:AddLine(" ")
 			if data.price then
+				local old = ns.Prices.Change(data.itemID)
+				if old then GameTooltip:AddDoubleLine("Price before this scan", ns.Money(old), 1, 1, 1, 1, 1, 1) end
 				GameTooltip:AddDoubleLine("Profit assumes each costs", ns.Money(data.price), 1, 1, 1, 1, 1, 1)
 				local age = ns.Prices.ItemAgeDays(data.itemID)
 				if age and age > 0 then
@@ -274,7 +284,14 @@ local function RowOnEnter(row)
 		GameTooltip:SetText(RecipeName(data.entry.recipeID))
 		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
 		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
-		if queuedRecipe and queuedRecipe.o then AddSalesLines(ns.Items.Name(queuedRecipe.o)) end
+		if queuedRecipe and queuedRecipe.o then
+			local old, new = ns.Prices.Change(queuedRecipe.o)
+			if old then
+				GameTooltip:AddDoubleLine("Sale price before this scan", ns.Money(old), 1, 1, 1, 1, 1, 1)
+				GameTooltip:AddDoubleLine("Sale price now", ns.Money(new), 1, 1, 1, 1, 1, 1)
+			end
+			AddSalesLines(ns.Items.Name(queuedRecipe.o))
+		end
 		GameTooltip:AddLine("+ adds one, Shift + adds ten, - removes one, x removes the entry.", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
 	end
@@ -390,11 +407,9 @@ local function SetRow(row, data)
 		row.right:ClearAllPoints()
 		row.right:SetPoint("RIGHT", row.remove, "LEFT", -4, 0)
 		local net = ns.totals.entries[data.index]
-		if net then
-			row.right:SetText(Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
-		else
-			row.right:SetText(Color(COLOR_MUTED, "no price"))
-		end
+		local netText = net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)) or Color(COLOR_MUTED, "no price")
+		local change = recipe and recipe.o and PriceChangeText(recipe.o, false)
+		row.right:SetText((change and ("sells " .. change .. "   ") or "") .. netText)
 	elseif data.kind == "restock" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
@@ -434,7 +449,9 @@ local function SetRow(row, data)
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
 		row.left:SetText(ItemLabel(data.itemID))
 		if data.priceLabel then
-			local price = data.price and (data.priceLabel .. " " .. ns.Money(data.price)) or Color(COLOR_LOSS, "no price")
+			local price = data.priceLabel == "max" and PriceChangeText(data.itemID, true)
+				or (data.price and (data.priceLabel .. " " .. ns.Money(data.price)))
+				or Color(COLOR_LOSS, "no price")
 			row.right:SetText("x" .. data.count .. ", " .. price)
 		else
 			row.right:SetText("x" .. data.count)
@@ -586,14 +603,14 @@ local function HeaderButton(frame, text, width, onClick)
 end
 
 -- footerHeight is the room kept below the list for the window's own controls. withTabs adds the column of
--- profession tabs on the left.
-local function CreateWindow(key, title, footerHeight, withTabs)
+-- profession tabs on the left. extraWidth is for windows whose rows need more room.
+local function CreateWindow(key, title, footerHeight, withTabs, extraWidth)
 	local frame = CreateFrame("Frame", "CraftLedger" .. title .. "Window", UIParent, "BackdropTemplate")
 	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {} }
 	windows[key] = window
 
 	local listLeft = withTabs and (10 + TAB_WIDTH) or 10
-	frame:SetSize(WINDOW_WIDTH + (withTabs and TAB_WIDTH or 0), WINDOW_HEIGHT)
+	frame:SetSize(WINDOW_WIDTH + (withTabs and TAB_WIDTH or 0) + (extraWidth or 0), WINDOW_HEIGHT)
 	frame:SetFrameStrata("HIGH")
 	frame:SetToplevel(true)
 	frame:SetClampedToScreen(true)
@@ -720,7 +737,7 @@ local function CreateProfitWindow()
 end
 
 local function CreateQueueWindow()
-	local window = CreateWindow("queue", "Queue", 128)
+	local window = CreateWindow("queue", "Queue", 128, false, 120)
 	window.build = BuildQueueList
 
 	local clear = HeaderButton(window.frame, "Clear", 70, function() ns.Queue.Clear() end)
@@ -783,6 +800,11 @@ local function CreateQueueWindow()
 
 		local notes = {}
 		if reason then table.insert(notes, reason) end
+		local losing = 0
+		for _, net in pairs(totals.entries) do
+			if net < 0 then losing = losing + 1 end
+		end
+		if losing > 0 then table.insert(notes, losing .. " queued item(s) would now lose money.") end
 		if totals.excluded > 0 and totals.counted > 0 then
 			table.insert(notes, totals.excluded .. " queued recipe(s) have no price and aren't in the total.")
 		end

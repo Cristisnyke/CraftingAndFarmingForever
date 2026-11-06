@@ -52,6 +52,8 @@ end
 --                          r = { { qty, itemID, altItemID, ... }, ... }, x = true if it also costs a currency }
 -- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true } }
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
+-- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
+-- db.priceRound        = number of the latest full scan or scan of our shopping list
 -- db.restock           = { stackGoal, singleGoal, minProfitSilver, goals = { [itemID] = per-item goal } }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
@@ -65,6 +67,8 @@ local function Normalize(db)
 	db.queue = db.queue or {}
 	db.ui = db.ui or {}
 	if db.ui.autoOpen == nil then db.ui.autoOpen = true end
+	db.prices = db.prices or {}
+	db.priceRound = db.priceRound or 1
 	db.sales = db.sales or {}
 	db.sales.items = db.sales.items or {}
 	db.sales.lots = db.sales.lots or {}

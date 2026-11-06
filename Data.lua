@@ -100,8 +100,36 @@ local VENDOR_SEED = {
 	[4289] = 5, [4470] = 38,
 }
 
+-- Auctionator's price, noting any change since we last looked. Everything that costs or sells goes through here, so
+-- this sees every item that matters, whichever scan updated it.
 function Prices.AH(itemID)
-	return Auctionator.API.v1.GetAuctionPriceByItemID(ADDON, itemID)
+	local price = Auctionator.API.v1.GetAuctionPriceByItemID(ADDON, itemID)
+	if not price then return nil end
+	local record = ns.db.prices[itemID]
+	if not record then
+		ns.db.prices[itemID] = { cur = price }
+	elseif record.cur ~= price then
+		-- Within one scan the old price stays the one from before that scan.
+		if record.round ~= ns.db.priceRound then
+			record.old = record.cur
+			record.round = ns.db.priceRound
+		end
+		record.cur = price
+	end
+	return price
+end
+
+-- The price before the latest scan, and now. Nil when the latest scan didn't change it.
+function Prices.Change(itemID)
+	local record = ns.db.prices[itemID]
+	if not record or record.round ~= ns.db.priceRound or not record.old or record.old == record.cur then return nil end
+	return record.old, record.cur
+end
+
+-- Starts a new comparison: colours from the previous scan clear, and this scan's changes get coloured.
+function Prices.NewRound()
+	ns.db.priceRound = ns.db.priceRound + 1
+	if ns.UI then ns.UI.RefreshAll() end
 end
 
 function Prices.Vendor(itemID)
@@ -142,6 +170,36 @@ function Prices.StartScan()
 	end
 	if frame then frame:InitiateScan() else ns.Print("Auctionator's scanner is not ready yet. Try again in a moment.") end
 end
+
+-- A scan of our whole list, or a full scan, starts a comparison. Searching one item, as happens while buying, doesn't,
+-- or the colours would vanish just as they're needed.
+local function WatchScans()
+	local bus = Auctionator.EventBus
+	local shoppingStart = Auctionator.Shopping.Tab.Events.SearchStart
+	local listener = {
+		ReceiveEvent = function(_, eventName, terms)
+			if eventName ~= shoppingStart then
+				Prices.NewRound()
+			elseif type(terms) == "table" and #terms > 1 then
+				local manager = Auctionator.Shopping.ListManager
+				if manager:GetIndexForName(ns.LIST_NAME)
+					and #manager:GetByName(ns.LIST_NAME):GetAllItems() == #terms then
+					Prices.NewRound()
+				end
+			end
+		end,
+	}
+	local events = { shoppingStart }
+	if Auctionator.FullScan and Auctionator.FullScan.Events then
+		table.insert(events, Auctionator.FullScan.Events.ScanStart)
+	end
+	if Auctionator.IncrementalScan and Auctionator.IncrementalScan.Events then
+		table.insert(events, Auctionator.IncrementalScan.Events.ScanStart)
+	end
+	bus:Register(listener, events)
+end
+
+ns.On("PLAYER_LOGIN", WatchScans)
 
 ---------------------------------------------------------------------------
 -- Stock

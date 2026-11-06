@@ -36,13 +36,29 @@ local function DesiredStrings()
 			loading = loading + 1
 		end
 	end
+	-- What the queue will make goes on the list too, with no quantity to buy, so scanning the list also refreshes
+	-- the sale prices the profit depends on.
+	for _, entry in ipairs(ns.db.queue) do
+		local recipe = ns.db.recipes[entry.recipeID]
+		if recipe and recipe.o then
+			local name = ns.Items.Name(recipe.o)
+			if name then
+				local clean = Sanitize(name)
+				local key = clean:lower()
+				byName[key] = byName[key] or { name = clean, count = 0 }
+			elseif not ns.Items.IsMissing(recipe.o) then
+				loading = loading + 1
+			end
+		end
+	end
+
 	local wanted = {}
 	for key, item in pairs(byName) do
 		wanted[key] = api.ConvertToSearchString(ns.name, {
 			searchString = item.name,
 			isExact = true,
 			categoryKey = "",
-			quantity = item.count,
+			quantity = item.count > 0 and item.count or nil,
 		})
 	end
 	return wanted, loading
