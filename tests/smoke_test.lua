@@ -306,13 +306,71 @@ Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 20)
 check("entry removed", #ns.db.queue, 0)
 check("list emptied", #lists[ns.LIST_NAME], 0)
 
+-- Restock without Syndicator: rows show, auctions unknown.
+ns.db.restock.minProfitSilver = 0
+local rows = ns.Restock.Rows()
+local shirtRow
+for _, row in ipairs(rows) do if row.itemID == 4 then shirtRow = row end end
+check("restock lists profitable item", shirtRow ~= nil, true)
+check("restock auctions unknown without Syndicator", shirtRow.onAH, nil)
+check("single-stack default goal", shirtRow.goal, 1)
+check("bind-on-pickup not restocked", (function()
+	for _, row in ipairs(rows) do if row.itemID == 5 then return true end end
+	return false
+end)(), false)
+ns.UI.Show("restock")
+check("restock window opens", ns.UI.windows.restock.frame:IsShown(), true)
+ns.UI.Refresh("restock")
+
+-- With Syndicator: auctions, alts and mail count towards the goal.
+Syndicator = { API = {
+	IsReady = function() return true end,
+	GetCurrentCharacter = function() return "Snic-Realm" end,
+	GetInventoryInfoByItemID = function(id)
+		if id ~= 2 then return { characters = {} } end
+		return { characters = {
+			{ character = "Snic", realmNormalized = "Realm", bags = 50, bank = 50, mail = 1, auctions = 2 },
+			{ character = "Alt", realmNormalized = "Realm", bags = 3, bank = 1, mail = 0, auctions = 1 },
+		} }
+	end,
+} }
+local onAH, owned = ns.Stock.ForRestock(2)
+check("auctions across characters", onAH, 3)
+-- Own count is 0 for this item in the stub, plus own mail 1, plus alt bags and bank 4.
+check("held excludes own Syndicator bags", owned, 5)
+
+-- Per-item goals: default follows setting until changed; matching the default clears the override.
+ns.db.restock.stackGoal = 20
+ns.Restock.SetGoal(2, 3)
+check("override goal", ns.Restock.Goal(2), 3)
+ns.Restock.SetGoal(2, ns.Restock.Goal(2) - 10)
+check("goal never negative", ns.Restock.Goal(2), 0)
+
+-- Apply: replaces earlier restock entries, leaves hand-queued ones alone.
+wipe(ns.db.queue)
+ns.Queue.Add(10, 2)
+RunTimers()
+local manual = ns.db.queue[1]
+ns.Restock.Apply({ { recipeID = 20, crafts = 3 }, { recipeID = 10, crafts = 0 } })
+ns.Restock.Apply({ { recipeID = 20, crafts = 1 } })
+check("restock replaced", #ns.db.queue, 2)
+check("manual entry kept", ns.db.queue[1], manual)
+check("restock quantity", ns.db.queue[2].qty, 1)
+check("restock flagged", ns.db.queue[2].restock, true)
+ns.Queue.Add(20, 1)
+check("manual add doesn't merge into restock", #ns.db.queue, 3)
+wipe(ns.db.queue)
+RunTimers()
+ns.UI.Refresh("restock")
+Syndicator = nil
+
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()
 Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CRAFTLEDGER_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "auto", "auto", "clear", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "auto", "auto", "clear", "diag", "bogus" }) do
 	SlashCmdList.CRAFTLEDGER(command)
 end
 RunTimers()

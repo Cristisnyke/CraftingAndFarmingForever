@@ -6,6 +6,7 @@ A World of Warcraft: Forever add-on for profitable crafting.
 - **Cheapest path:** each material is costed as the cheapest of AH, vendor or crafting it yourself.
 - **Queue window:** one queue shared across your characters, filled from the profession window, with total profit and a Craft Next button.
 - **Live shopping list:** one Auctionator list, `CraftLedger Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks.
+- **Restock window:** keeps the AH stocked. Each profitable item gets a goal (separate defaults for stackable and single items, adjustable per item). What's on the AH (through Syndicator) and what you hold count towards it, and one button queues the difference.
 - **Fresh prices:** asks for a new scan when Auctionator's data is more than 24 hours old.
 
 ## Requirements
@@ -21,6 +22,7 @@ Open a profession on each character once so CraftLedger can record its recipes. 
 | --- | --- |
 | `/craftledger` or `/cledger` | Show or hide both windows |
 | `/craftledger queue` / `profit` | Show or hide one window |
+| `/craftledger restock` | Show or hide the Restock window |
 | `/craftledger clear` | Empty the queue |
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |

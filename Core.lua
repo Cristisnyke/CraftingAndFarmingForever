@@ -51,7 +51,8 @@ end
 -- db.recipes[recipeID] = { n = name, o = outputItemID, qmin, qmax, p = professionID, pn = professionName,
 --                          r = { { qty, itemID, altItemID, ... }, ... }, x = true if it also costs a currency }
 -- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true } }
--- db.queue[i]          = { recipeID, qty, char = guid }
+-- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
+-- db.restock           = { stackGoal, singleGoal, minProfitSilver, goals = { [itemID] = per-item goal } }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -64,6 +65,11 @@ local function Normalize(db)
 	db.queue = db.queue or {}
 	db.ui = db.ui or {}
 	if db.ui.autoOpen == nil then db.ui.autoOpen = true end
+	db.restock = db.restock or {}
+	db.restock.stackGoal = db.restock.stackGoal or 10
+	db.restock.singleGoal = db.restock.singleGoal or 1
+	db.restock.minProfitSilver = db.restock.minProfitSilver or 1
+	db.restock.goals = db.restock.goals or {}
 	return db
 end
 

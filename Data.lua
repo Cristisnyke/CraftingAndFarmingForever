@@ -50,6 +50,16 @@ function Items.CanSellOnAH(itemID)
 	return bindType ~= 1 and bindType ~= 4
 end
 
+-- Returns true/false, or nil while the item data is loading.
+function Items.IsStackable(itemID)
+	local name, _, _, _, _, _, _, stackCount = C_Item.GetItemInfo(itemID)
+	if not name then
+		Request(itemID)
+		return nil
+	end
+	return (stackCount or 1) > 1
+end
+
 function Items.Quality(itemID)
 	local _, _, quality = C_Item.GetItemInfo(itemID)
 	return quality
@@ -170,6 +180,26 @@ function Stock.Alts(itemID)
 		end
 	end
 	return result
+end
+
+-- For restocking: units on the AH across characters (nil if they can't be seen), and units held anywhere else:
+-- bags and banks of all characters, plus mail, since expired auctions come back that way.
+function Stock.ForRestock(itemID)
+	local owned = Stock.Own(itemID)
+	local api = SyndicatorAPI()
+	if not api then return nil, owned end
+	local ok, info = pcall(api.GetInventoryInfoByItemID, itemID, true, true)
+	if not ok or type(info) ~= "table" then return nil, owned end
+	local me = api.GetCurrentCharacter()
+	local onAH = 0
+	for _, char in ipairs(info.characters or {}) do
+		local key = char.realmNormalized and char.realmNormalized ~= "" and (char.character .. "-" .. char.realmNormalized)
+			or char.character
+		onAH = onAH + (char.auctions or 0)
+		owned = owned + (char.mail or 0)
+		if key ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
+	end
+	return onAH, owned
 end
 
 ---------------------------------------------------------------------------

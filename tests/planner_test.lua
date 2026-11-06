@@ -186,6 +186,39 @@ check("totals excludes unsellable and unpriced", totals.excluded, 2)
 check("totals entry", totals.entries[1], 170)
 check("totals no entry for unpriced", totals.entries[3], nil)
 
+-- Restock arithmetic: AH, held and queued units all count towards the goal; batches round up.
+check("restock none needed", Planner.RestockCrafts(10, 6, 4, 0, 1), 0)
+check("restock over goal", Planner.RestockCrafts(1, 3, 0, 0, 1), 0)
+check("restock missing", Planner.RestockCrafts(10, 2, 3, 1, 1), 4)
+check("restock batches round up", Planner.RestockCrafts(10, 0, 0, 0, 3), 4)
+
+-- Restock rows: only sellable, profitable items above the minimum, best recipe per item, needed items first.
+local restockCtx = Context({
+	recipes = {
+		[1] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[2] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 5, ORE } } },
+		[3] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[4] = { o = BOLT, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[5] = { o = GEM, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[6] = { o = CLOTH, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+	},
+	known = { [SHIRT] = { 1, 2 }, [BAR] = { 3 }, [BOLT] = { 4 }, [GEM] = { 5 }, [CLOTH] = { 6 } },
+	ah = { [ORE] = 10, [SHIRT] = 1000, [BAR] = 500, [BOLT] = 5, [GEM] = 2000, [CLOTH] = 12 },
+})
+local restockRows = Planner.RestockRows(restockCtx, {
+	isSellable = function(id) return id ~= GEM end,
+	goal = function(id) return id == BAR and 10 or 1 end,
+	stock = function(id) if id == SHIRT then return 1, 0 end return 2, 3 end,
+	queued = function(id) return id == BAR and 1 or 0 end,
+	minProfit = 100,
+})
+check("restock row count", #restockRows, 2)
+check("restock needed first", restockRows[1].itemID, BAR)
+check("restock counts AH, held, queued", restockRows[1].crafts, 4)
+check("restock stocked row last", restockRows[2].itemID, SHIRT)
+check("restock stocked needs none", restockRows[2].crafts, 0)
+check("restock best recipe", restockRows[2].recipeID, 1)
+
 -- Zero-quantity entries are ignored; empty queue gives an empty plan.
 check("empty plan", #Planner.BuildPlan(Context(), {}).crafts, 0)
 check("zero qty", #Planner.BuildPlan(Context(), { { recipeID = 300, qty = 0 } }).crafts, 0)

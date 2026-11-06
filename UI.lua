@@ -1,5 +1,5 @@
 -- CraftLedger :: UI
--- Two independent movable windows (Profit and Queue), the Queue button on the crafting page, the stale-price
+-- Three independent movable windows (Profit, Queue, Restock), the Queue button on the crafting page, the stale-price
 -- prompts and the slash command.
 
 local _, ns = ...
@@ -18,6 +18,7 @@ local function Color(hex, text)
 end
 
 local windows = {}
+local restockAllProfessions = true
 UI.windows = windows
 local allProfessions = false
 local profitCache
@@ -30,6 +31,7 @@ local scanNotified = false
 function ns.InvalidateProfit()
 	profitCache = nil
 	UI.Refresh("profit")
+	UI.Refresh("restock")
 end
 
 -- Every recipe known on any character whose result can be sold on the AH, most profitable first.
@@ -137,6 +139,17 @@ local function ItemLabel(itemID)
 	return hex and ("|c" .. hex .. name .. "|r") or name
 end
 
+local function BuildRestockList()
+	local openRecipes = ns.Recipes.OpenRecipes()
+	local list = {}
+	for _, row in ipairs(ns.Restock.Rows()) do
+		if restockAllProfessions or not next(openRecipes) or openRecipes[row.recipeID] then
+			table.insert(list, { kind = "restock", row = row })
+		end
+	end
+	return list
+end
+
 local KIND_LABEL = { ah = "AH", vendor = "vendor", craft = "craft" }
 
 local function ShowProfitTooltip(row, result)
@@ -174,6 +187,17 @@ local function RowOnEnter(row)
 	elseif data.kind == "item" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
+		GameTooltip:Show()
+	elseif data.kind == "restock" then
+		local item = data.row
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetText(RecipeName(item.recipeID))
+		GameTooltip:AddDoubleLine("Profit per craft", ns.Money(item.net), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("On the AH", item.onAH and tostring(item.onAH) or "unknown", 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("Goal", tostring(item.goal), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.crafts), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddLine("+ and - change this item's goal (Shift for 10). A goal of 0 skips the item.", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
 	elseif data.kind == "queue" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
@@ -219,13 +243,22 @@ local function CreateRow(parent)
 			ns.Queue.Add(data.result.recipeID, IsShiftKeyDown() and 10 or 1)
 		elseif data.kind == "queue" then
 			ns.Queue.Change(data.index, IsShiftKeyDown() and 10 or 1)
+		elseif data.kind == "restock" then
+			ns.Restock.SetGoal(data.row.itemID, data.row.goal + (IsShiftKeyDown() and 10 or 1))
+			UI.Refresh("restock")
 		end
 	end)
 	row.plus:SetPoint("RIGHT", row, "RIGHT", -2, 0)
 
 	row.minus = SmallButton(row, "-", function(self)
 		local data = self:GetParent().data
-		if data and data.kind == "queue" then ns.Queue.Change(data.index, -1) end
+		if not data then return end
+		if data.kind == "queue" then
+			ns.Queue.Change(data.index, -1)
+		elseif data.kind == "restock" then
+			ns.Restock.SetGoal(data.row.itemID, data.row.goal - (IsShiftKeyDown() and 10 or 1))
+			UI.Refresh("restock")
+		end
 	end)
 	row.minus:SetPoint("RIGHT", row.plus, "LEFT", -1, 0)
 
@@ -275,7 +308,8 @@ local function SetRow(row, data)
 	elseif data.kind == "queue" then
 		local recipe = ns.db.recipes[data.entry.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
-		row.left:SetText(RecipeName(data.entry.recipeID) .. " x" .. data.entry.qty)
+		row.left:SetText(RecipeName(data.entry.recipeID) .. " x" .. data.entry.qty
+			.. (data.entry.restock and Color(COLOR_MUTED, " restock") or ""))
 		row.plus:Show()
 		row.minus:Show()
 		row.remove:Show()
@@ -286,6 +320,22 @@ local function SetRow(row, data)
 			row.right:SetText(Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
 		else
 			row.right:SetText(Color(COLOR_MUTED, "no price"))
+		end
+	elseif data.kind == "restock" then
+		local item = data.row
+		row.icon:SetTexture(ns.Items.Icon(item.itemID))
+		row.left:SetText(ItemLabel(item.itemID))
+		row.plus:Show()
+		row.minus:Show()
+		row.right:ClearAllPoints()
+		row.right:SetPoint("RIGHT", row.minus, "LEFT", -4, 0)
+		local text = ("AH %s, have %d, goal %d"):format(item.onAH and tostring(item.onAH) or "?", item.owned, item.goal)
+		if item.goal == 0 then
+			row.right:SetText(Color(COLOR_MUTED, "skipped"))
+		elseif item.crafts > 0 then
+			row.right:SetText(Color("ffffb040", text))
+		else
+			row.right:SetText(Color(COLOR_PROFIT, text))
 		end
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
@@ -352,10 +402,13 @@ end
 function UI.RefreshAll()
 	UI.Refresh("profit")
 	UI.Refresh("queue")
+	UI.Refresh("restock")
 end
 
+-- Queue, bags or bank changed: both windows that count stock need redrawing.
 function UI.RefreshQueue()
 	UI.Refresh("queue")
+	UI.Refresh("restock")
 end
 
 -- Where the window goes until the user moves it: profit beside the profession window, queue beside profit.
@@ -371,6 +424,8 @@ local function PlaceWindow(window)
 		else
 			frame:SetPoint("CENTER", UIParent, "CENTER", -WINDOW_WIDTH / 2 - 2, 0)
 		end
+	elseif window.key == "restock" then
+		frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	elseif windows.profit and windows.profit.frame:IsShown() and windows.profit.frame:GetRight() then
 		-- A fixed spot beside Profit, not an anchor to it: moving Profit must not drag this window along.
 		local profit = windows.profit.frame
@@ -500,6 +555,9 @@ local function CreateProfitWindow()
 	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
 	openQueue:SetPoint("TOPRIGHT", -12, -30)
 
+	local openRestock = HeaderButton(window.frame, "Restock", 70, function() UI.Toggle("restock") end)
+	openRestock:SetPoint("RIGHT", openQueue, "LEFT", -4, 0)
+
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	status:SetPoint("BOTTOMLEFT", 12, 12)
 	status:SetPoint("BOTTOMRIGHT", -12, 12)
@@ -524,6 +582,9 @@ local function CreateQueueWindow()
 
 	local openProfit = HeaderButton(window.frame, "Profit", 70, function() UI.Toggle("profit") end)
 	openProfit:SetPoint("TOPRIGHT", -12, -30)
+
+	local openRestock = HeaderButton(window.frame, "Restock", 70, function() UI.Toggle("restock") end)
+	openRestock:SetPoint("RIGHT", openProfit, "LEFT", -4, 0)
 
 	local craftButton = HeaderButton(window.frame, "Craft Next", 100, function() ns.Queue.CraftNext() end)
 	craftButton:SetHeight(26)
@@ -587,9 +648,122 @@ local function CreateQueueWindow()
 	end
 end
 
+-- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
+local function NumberBox(parent, labelText, previous, read, write)
+	local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	label:SetText(labelText)
+	if previous then
+		label:SetPoint("LEFT", previous, "RIGHT", 12, 0)
+	else
+		label:SetPoint("BOTTOMLEFT", 12, 72)
+	end
+	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	box:SetSize(38, 20)
+	box:SetPoint("LEFT", label, "RIGHT", 8, 0)
+	box:SetAutoFocus(false)
+	box:SetNumeric(true)
+	box:SetMaxLetters(4)
+	local function Save(self)
+		local value = tonumber(self:GetText())
+		if value and value ~= read() then
+			write(value)
+			UI.Refresh("restock")
+		end
+	end
+	box:SetScript("OnEnterPressed", function(self)
+		Save(self)
+		self:ClearFocus()
+	end)
+	box:SetScript("OnEscapePressed", function(self)
+		self:SetText(tostring(read()))
+		self:ClearFocus()
+	end)
+	box:SetScript("OnEditFocusLost", Save)
+	box.Sync = function(self)
+		if not self:HasFocus() then self:SetText(tostring(read())) end
+	end
+	return box
+end
+
+local function CreateRestockWindow()
+	local window = CreateWindow("restock", "Restock", 96)
+	window.build = BuildRestockList
+
+	local filter = HeaderButton(window.frame, "", 120, function()
+		restockAllProfessions = not restockAllProfessions
+		windows.restock.offset = 0
+		UI.Refresh("restock")
+	end)
+	filter:SetPoint("TOPLEFT", 10, -30)
+
+	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
+	openQueue:SetPoint("TOPRIGHT", -12, -30)
+
+	local stack = NumberBox(window.frame, "Stackable goal", nil,
+		function() return ns.db.restock.stackGoal end, function(v) ns.db.restock.stackGoal = v end)
+	local single = NumberBox(window.frame, "Single goal", stack,
+		function() return ns.db.restock.singleGoal end, function(v) ns.db.restock.singleGoal = v end)
+	local minProfit = NumberBox(window.frame, "Min profit (s)", single,
+		function() return ns.db.restock.minProfitSilver end, function(v) ns.db.restock.minProfitSilver = v end)
+
+	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	status:SetPoint("BOTTOMLEFT", 12, 40)
+	status:SetPoint("BOTTOMRIGHT", -12, 40)
+	status:SetHeight(24)
+	status:SetJustifyH("LEFT")
+	status:SetJustifyV("BOTTOM")
+
+	local apply = HeaderButton(window.frame, "Queue restock", 100, function()
+		local rows = {}
+		for _, data in ipairs(window.list) do table.insert(rows, data.row) end
+		local added = ns.Restock.Apply(rows)
+		ns.Print(("Restock: %d item(s) added to the queue."):format(added))
+		UI.Show("queue")
+	end)
+	apply:SetHeight(26)
+	apply:ClearAllPoints()
+	apply:SetPoint("BOTTOMLEFT", 10, 10)
+	apply:SetPoint("BOTTOMRIGHT", -10, 10)
+
+	window.update = function(self)
+		filter:SetText(restockAllProfessions and "All professions" or "This profession")
+		stack:Sync()
+		single:Sync()
+		minProfit:Sync()
+
+		local needed, toPost = 0, 0
+		for _, data in ipairs(self.list) do
+			local row = data.row
+			if row.crafts > 0 then needed = needed + 1 end
+			if row.goal > 0 and (row.onAH or 0) < row.goal then
+				toPost = toPost + math.min(row.owned, row.goal - (row.onAH or 0))
+			end
+		end
+
+		if not ns.Stock.HasSyndicator() then
+			apply:Disable()
+			apply:SetText("Queue restock")
+			status:SetText("Syndicator is needed to see your auctions. Without it this would over-craft.")
+			return
+		end
+		apply:SetEnabled(needed > 0)
+		apply:SetText(needed > 0 and ("Queue restock: %d item(s)"):format(needed) or "Fully stocked")
+		local notes = { "AH counts update when you visit the auction house." }
+		if toPost > 0 then table.insert(notes, 1, toPost .. " item(s) you hold are ready to post.") end
+		if #self.list == 0 then notes = { "No profitable items yet. Open your professions and scan the AH." } end
+		status:SetText(table.concat(notes, " "))
+	end
+end
+
 local function GetWindow(key)
 	if not windows[key] then
-		if key == "profit" then CreateProfitWindow() else CreateQueueWindow() end
+		if key == "profit" then
+			CreateProfitWindow()
+		elseif key == "restock" then
+			CreateRestockWindow()
+		else
+			CreateQueueWindow()
+		end
 	end
 	return windows[key]
 end
@@ -617,12 +791,11 @@ end
 function UI.ToggleBoth()
 	local anyShown = false
 	for _, window in pairs(windows) do anyShown = anyShown or window.frame:IsShown() end
-	for _, key in ipairs({ "profit", "queue" }) do
-		if anyShown then
-			if windows[key] then windows[key].frame:Hide() end
-		else
-			UI.Show(key)
-		end
+	if anyShown then
+		for _, window in pairs(windows) do window.frame:Hide() end
+	else
+		UI.Show("profit")
+		UI.Show("queue")
 	end
 end
 
@@ -774,7 +947,7 @@ SLASH_CRAFTLEDGER1 = "/craftledger"
 SLASH_CRAFTLEDGER2 = "/cledger"
 SlashCmdList.CRAFTLEDGER = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
-	if command == "queue" or command == "profit" then
+	if command == "queue" or command == "profit" or command == "restock" then
 		UI.Toggle(command)
 	elseif command == "clear" then
 		ns.Queue.Clear()
@@ -786,6 +959,6 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "" then
 		UI.ToggleBoth()
 	else
-		ns.Print("/craftledger [queue | profit | clear | auto | diag]")
+		ns.Print("/craftledger [queue | profit | restock | clear | auto | diag]")
 	end
 end

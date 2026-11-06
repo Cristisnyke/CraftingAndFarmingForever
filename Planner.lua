@@ -133,6 +133,47 @@ function Planner.QueueTotals(ctx, queue, isSellable)
 	return totals
 end
 
+-- Crafts needed to reach a stock goal. Everything already on the AH, held or queued counts towards it.
+function Planner.RestockCrafts(goal, onAH, owned, queued, yield)
+	local missing = goal - onAH - owned - queued
+	if missing <= 0 then return 0 end
+	return math.ceil(missing / yield)
+end
+
+-- One row per profitable item the characters can make, using its most profitable recipe. opts supplies:
+--   isSellable(itemID) -> true when it can go on the AH (false or nil leaves it out)
+--   goal(itemID)       -> stock goal, nil while unknown
+--   stock(itemID)      -> onAH, owned (onAH nil when auctions can't be seen)
+--   queued(itemID)     -> units already planned by queue entries the user added
+--   minProfit          -> minimum profit per craft, in copper
+function Planner.RestockRows(ctx, opts)
+	local rows = {}
+	for itemID, recipeIDs in pairs(ctx.known) do
+		if opts.isSellable(itemID) then
+			local best
+			for _, recipeID in ipairs(recipeIDs) do
+				local result = Planner.Profit(ctx, recipeID)
+				if result and result.net and (not best or result.net > best.net) then best = result end
+			end
+			local goal = opts.goal(itemID)
+			if best and goal and best.net > 0 and best.net >= (opts.minProfit or 0) then
+				local onAH, owned = opts.stock(itemID)
+				local yield = MinimumYield(ctx.recipes[best.recipeID])
+				rows[#rows + 1] = {
+					itemID = itemID, recipeID = best.recipeID, net = best.net, goal = goal, onAH = onAH, owned = owned,
+					crafts = Planner.RestockCrafts(goal, onAH or 0, owned, opts.queued(itemID), yield),
+				}
+			end
+		end
+	end
+	table.sort(rows, function(a, b)
+		if (a.crafts > 0) ~= (b.crafts > 0) then return a.crafts > 0 end
+		if a.net ~= b.net then return a.net > b.net end
+		return a.itemID < b.itemID
+	end)
+	return rows
+end
+
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups.
 function Planner.BuildPlan(ctx, queue)
 	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, cost = 0 }

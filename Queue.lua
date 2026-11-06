@@ -82,7 +82,7 @@ function Queue.Add(recipeID, qty)
 	local me = ns.CharKey()
 	local char = Recipes.Knows(me, recipeID) and me or Recipes.Crafter(recipeID, me)
 	for _, entry in ipairs(ns.db.queue) do
-		if entry.recipeID == recipeID and entry.char == char then
+		if entry.recipeID == recipeID and entry.char == char and not entry.restock then
 			entry.qty = entry.qty + qty
 			ns.RequestPlan()
 			return
@@ -108,6 +108,74 @@ end
 function Queue.Clear()
 	wipe(ns.db.queue)
 	ns.RequestPlan()
+end
+
+---------------------------------------------------------------------------
+-- Restock
+---------------------------------------------------------------------------
+
+local Restock = {}
+ns.Restock = Restock
+
+local function DefaultGoal(itemID)
+	local stackable = ns.Items.IsStackable(itemID)
+	if stackable == nil then return nil end
+	return stackable and ns.db.restock.stackGoal or ns.db.restock.singleGoal
+end
+
+function Restock.Goal(itemID)
+	return ns.db.restock.goals[itemID] or DefaultGoal(itemID)
+end
+
+-- Stores a goal for one item. Matching the default clears it, so the item keeps following the default.
+function Restock.SetGoal(itemID, goal)
+	goal = math.max(0, goal)
+	ns.db.restock.goals[itemID] = goal ~= DefaultGoal(itemID) and goal or nil
+end
+
+-- Units already planned by entries the user queued by hand. Earlier restock entries don't count: they get replaced.
+local function ManualQueued()
+	local queued = {}
+	for _, entry in ipairs(ns.db.queue) do
+		local recipe = ns.db.recipes[entry.recipeID]
+		if not entry.restock and recipe and recipe.o then
+			queued[recipe.o] = (queued[recipe.o] or 0) + entry.qty * (recipe.qmin or 1)
+		end
+	end
+	return queued
+end
+
+function Restock.Rows()
+	local queued = ManualQueued()
+	return ns.Planner.RestockRows(NewContext(), {
+		isSellable = ns.Items.CanSellOnAH,
+		goal = Restock.Goal,
+		stock = ns.Stock.ForRestock,
+		queued = function(itemID) return queued[itemID] or 0 end,
+		minProfit = ns.db.restock.minProfitSilver * 100,
+	})
+end
+
+-- Replaces the previous restock entries with what these rows need now. Hand-queued entries aren't touched.
+function Restock.Apply(rows)
+	local queue = ns.db.queue
+	for index = #queue, 1, -1 do
+		if queue[index].restock then table.remove(queue, index) end
+	end
+	local added = 0
+	for _, row in ipairs(rows) do
+		if row.crafts > 0 then
+			table.insert(queue, {
+				recipeID = row.recipeID,
+				qty = row.crafts,
+				char = Recipes.Crafter(row.recipeID, ns.CharKey()),
+				restock = true,
+			})
+			added = added + 1
+		end
+	end
+	ns.RequestPlan()
+	return added
 end
 
 -- Every finished craft counts down its queue entry, wherever it was started from.
