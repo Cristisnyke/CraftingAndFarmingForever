@@ -39,6 +39,9 @@ local function NewFrame()
 			SetShown = function(self, on) if on then self:Show() else self:Hide() end end,
 			IsShown = function(self) return self.shown end,
 			GetHeight = function(self) return self.height end,
+			SetHeight = function(self, height) self.height = height end,
+			SetSize = function(self, width, height) self.width, self.height = width, height end,
+			GetWidth = function(self) return self.width or 0 end,
 			GetLeft = function() return 100 end,
 			GetRight = function() return 480 end,
 			GetTop = function() return 900 end,
@@ -893,9 +896,9 @@ check("dust is disenchanted", (ns.Farm.Describe(10940)), "disenchant")
 check("unknown item admitted", (ns.Farm.Describe(5503)), "unknown")
 -- The Farm It button switches the Queue window and Craft Next to the farm plan and leaves the shopping list alone.
 do
-	local function QueueRows(kind)
+	local function Rows(key, kind)
 		local found = {}
-		for _, row in ipairs(ns.UI.windows.queue.rows) do
+		for _, row in ipairs(ns.UI.windows[key].rows) do
 			if row.data and row:IsShown() and row.data.kind == kind then table.insert(found, row.data) end
 		end
 		return found
@@ -910,21 +913,49 @@ do
 	check("toggle uses the farm plan", ns.ActivePlan(), ns.farmPlan)
 	check("toggle keeps the buy plan", ns.plan.buy[1], buyList)
 	check("farm plan buys nothing at AH", next(ns.farmPlan.buy), nil)
-	local farmed = next(ns.farmPlan.farm)
-	check("farm plan lists what to gather", farmed ~= nil, true)
-	local how = QueueRows("how")
-	check("each item says how to get it", #how, (function() local n = 0 for _ in pairs(ns.farmPlan.farm) do n = n + 1 end return n end)())
-	check("how row names the item", how[1].itemID ~= nil, true)
-	ns.UI.windows.queue.rows[1].scripts.OnEnter(ns.UI.windows.queue.rows[1])
-	for _, row in ipairs(ns.UI.windows.queue.rows) do
+	check("farm plan lists what to gather", next(ns.farmPlan.farm) ~= nil, true)
+
+	local farm, queue = ns.UI.windows.farm, ns.UI.windows.queue
+	check("Queue window makes way", queue.frame:IsShown(), false)
+	check("small list opens", farm.frame:IsShown(), true)
+	local count = 0
+	for _ in pairs(ns.farmPlan.farm) do count = count + 1 end
+	check("each item says how to get it", #Rows("farm", "how"), count)
+	check("small list has no price rows", #Rows("farm", "header"), 0)
+	check("small list height follows it", farm.frame:GetHeight() < 200, true)
+	check("small list is narrow", farm.frame:GetWidth() < queue.frame:GetWidth() / 2, true)
+	for _, row in ipairs(farm.rows) do
 		if row.data and row.data.kind == "how" then row.scripts.OnEnter(row) break end
 	end
 	check("farm choice is remembered", ns.db.ui.farmMode, true)
+
+	-- The profession window can bring the full Queue back while farming, for Craft Next.
+	ns.UI.Show("queue")
+	check("full list also follows the farm plan", #Rows("queue", "how"), count)
+	queue.frame:Hide()
+
 	ns.ToggleFarmMode()
-	check("toggles back to buying", ns.ActivePlan(), ns.plan)
-	check("how rows gone when buying", #QueueRows("how"), 0)
+	check("Back returns to buying", ns.ActivePlan(), ns.plan)
+	check("Back closes the small list", farm.frame:IsShown(), false)
+	check("Back reopens the Queue", queue.frame:IsShown(), true)
+	check("how rows gone when buying", #Rows("queue", "how"), 0)
+
+	ns.ToggleFarmMode()
+	farm.close.scripts.OnClick(farm.close)
+	check("closing leaves farm mode", ns.ActivePlan(), ns.plan)
+	check("closing hides the small list", farm.frame:IsShown(), false)
+	ns.UI.ToggleBoth()
+	ns.UI.Show("farm")
+	ns.UI.ToggleBoth()
+	check("hide-all leaves the small list alone", farm.frame:IsShown(), true)
+	farm.frame:Hide()
+
 	ns.Queue.Clear()
 	RunTimers()
+	ns.db.ui.farmMode = true
+	ns.UI.Show("farm")
+	check("empty queue says so", Rows("farm", "note")[1].text, "The queue is empty.")
+	farm.close.scripts.OnClick(farm.close)
 end
 for barID, smelt in pairs(ns.Farm.Smelting) do
 	check("smelt yield set for " .. barID, smelt.yield >= 1 and #smelt >= 1, true)

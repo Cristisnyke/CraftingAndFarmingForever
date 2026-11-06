@@ -34,7 +34,7 @@ Open a profession on each character once so CraftLedger can record its recipes. 
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |
 
-In the Queue window, **Farm It** turns the list into what to gather yourself and how: which vein or herb, which zones, which creatures, what to disenchant. Your own zone comes first, and hovering a row shows everything known. Press **Buy It** to go back. The Auctionator list stays the same either way.
+In the Queue window, **Farm It** turns the list into what to gather yourself and how: which vein or herb, which zones, which creatures, what to disenchant. The Queue window swaps for a small list you can leave on screen, which counts down as you gather. Your own zone comes first, and hovering a row shows everything known. Press **Back** to return. The Auctionator list stays the same either way.
 
 ## Development
 

@@ -13,6 +13,10 @@ local WINDOW_WIDTH = 380
 local WINDOW_HEIGHT = 560
 local TAB_WIDTH = 112
 local TAB_COUNT = 16
+local MINI_WIDTH = 280
+local MINI_ROW_HEIGHT = 15
+local MINI_MAX_ROWS = 24 -- about twelve materials, then it scrolls
+local MINI_TOP = 26
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED = "ff55dd55", "ffff6655", "ff999999"
 
 local function Color(hex, text)
@@ -133,6 +137,48 @@ local function AddFarmRows(list, plan)
 		end
 	end
 	AddItemRows(list, "Smelt with Mining", plan.smelt)
+end
+
+-- The small Farm window: only what's still needed, item on one line and how to get it under it.
+local function BuildFarmList()
+	local list = {}
+	local plan = ns.farmPlan
+
+	local function AddItems(items, note)
+		local sorted = {}
+		for itemID, count in pairs(items) do table.insert(sorted, { itemID = itemID, count = count }) end
+		table.sort(sorted, function(a, b) return a.itemID < b.itemID end)
+		for _, row in ipairs(sorted) do
+			table.insert(list, { kind = "item", itemID = row.itemID, count = row.count })
+			table.insert(list, { kind = "note", text = note })
+		end
+	end
+
+	local groups = {}
+	for itemID, count in pairs(plan.farm) do
+		local group, line = ns.Farm.Describe(itemID)
+		groups[group] = groups[group] or {}
+		table.insert(groups[group], { itemID = itemID, count = count, line = line })
+	end
+	for _, group in ipairs(ns.Farm.GROUPS) do
+		local rows = groups[group.key]
+		if rows then
+			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
+			for _, row in ipairs(rows) do
+				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
+				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
+			end
+		end
+	end
+	AddItems(plan.vendor, "Buy from a vendor")
+	local names = {}
+	for name in pairs(plan.fetch) do table.insert(names, name) end
+	table.sort(names)
+	for _, name in ipairs(names) do AddItems(plan.fetch[name], "Get from " .. name) end
+	if #list == 0 then
+		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Press Back to craft." or "The queue is empty." })
+	end
+	return list
 end
 
 local function BuildQueueList()
@@ -503,7 +549,7 @@ local function SetRow(row, data)
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
 		row.left:SetText(RecipeName(data.craft.recipeID) .. " x" .. data.craft.count)
 		row.right:SetText(Color(COLOR_MUTED, ns.CharLabel(data.craft.char)))
-	elseif data.kind == "how" then
+	elseif data.kind == "how" or data.kind == "note" then
 		row.icon:Hide()
 		row.left:SetText(Color(COLOR_MUTED, data.text))
 	elseif data.kind == "item" then
@@ -534,6 +580,7 @@ end
 
 local function RenderRows(window)
 	local visible = math.min(ROW_COUNT, math.floor(window.container:GetHeight() / ROW_HEIGHT))
+	if window.mini then visible = math.min(#window.list, MINI_MAX_ROWS) end
 	local maxOffset = math.max(0, #window.list - visible)
 	window.offset = math.min(window.offset, maxOffset)
 	for i = 1, ROW_COUNT do
@@ -554,6 +601,7 @@ local function RenderRows(window)
 end
 
 local function UpdateBanner(window)
+	if window.mini then return end
 	local stale = ns.Prices.IsStale()
 	window.banner:SetShown(stale)
 	if not stale then return end
@@ -621,6 +669,7 @@ end
 function UI.RefreshQueue()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
+	UI.Refresh("farm")
 end
 
 -- Where the window goes until the user moves it: profit beside the profession window, queue beside profit.
@@ -636,6 +685,8 @@ local function PlaceWindow(window)
 		else
 			frame:SetPoint("CENTER", UIParent, "CENTER", -frame:GetWidth() / 2 - 2, 0)
 		end
+	elseif window.key == "farm" then
+		frame:SetPoint("RIGHT", UIParent, "RIGHT", -40, 120)
 	elseif window.key == "restock" or window.key == "sales" then
 		frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	elseif windows.profit and windows.profit.frame:IsShown() and windows.profit.frame:GetRight() then
@@ -665,14 +716,17 @@ local function HeaderButton(frame, text, width, onClick)
 end
 
 -- footerHeight is the room kept below the list for the window's own controls. withTabs adds the column of
--- profession tabs on the left. extraWidth is for windows whose rows need more room.
-local function CreateWindow(key, title, footerHeight, withTabs, extraWidth)
+-- profession tabs on the left. extraWidth is for windows whose rows need more room. mini makes the small kind: no
+-- price banner, tight rows, and a height that follows the list.
+local function CreateWindow(key, title, footerHeight, withTabs, extraWidth, mini)
 	local frame = CreateFrame("Frame", "CraftLedger" .. title .. "Window", UIParent, "BackdropTemplate")
-	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {} }
+	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {}, mini = mini }
+	local listTop = mini and MINI_TOP or 84
+	local rowHeight = mini and MINI_ROW_HEIGHT or ROW_HEIGHT
 	windows[key] = window
 
 	local listLeft = withTabs and (10 + TAB_WIDTH) or 10
-	frame:SetSize(WINDOW_WIDTH + (withTabs and TAB_WIDTH or 0) + (extraWidth or 0), WINDOW_HEIGHT)
+	frame:SetSize(mini and MINI_WIDTH or (WINDOW_WIDTH + (withTabs and TAB_WIDTH or 0) + (extraWidth or 0)), WINDOW_HEIGHT)
 	frame:SetFrameStrata("HIGH")
 	frame:SetToplevel(true)
 	frame:SetClampedToScreen(true)
@@ -695,15 +749,17 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth)
 
 	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	titleText:SetPoint("TOPLEFT", 12, -10)
-	titleText:SetText("CraftLedger: " .. title)
+	titleText:SetText(mini and title or ("CraftLedger: " .. title))
 
 	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", 0, 0)
 	close:SetScript("OnClick", function() frame:Hide() end)
+	window.close = close
 
 	local refresh = HeaderButton(frame, "Refresh", 70, function() ns.RefreshEverything() end)
 	refresh:SetHeight(20)
 	refresh:SetPoint("RIGHT", close, "LEFT", -2, 0)
+	if mini then refresh:Hide() end
 
 	local banner = CreateFrame("Frame", nil, frame)
 	banner:SetPoint("TOPLEFT", 10, -56)
@@ -715,9 +771,10 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth)
 	window.banner = banner
 	window.scanButton = HeaderButton(banner, "Scan now", 80, function() ns.Prices.StartScan() end)
 	window.scanButton:SetPoint("RIGHT")
+	if mini then banner:Hide() end
 
 	local container = CreateFrame("Frame", nil, frame)
-	container:SetPoint("TOPLEFT", listLeft, -84)
+	container:SetPoint("TOPLEFT", listLeft, -listTop)
 	container:SetPoint("BOTTOMRIGHT", -24, footerHeight)
 	container:EnableMouseWheel(true)
 	container:SetScript("OnSizeChanged", function() if frame:IsShown() then RenderRows(window) end end)
@@ -729,8 +786,10 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth)
 
 	for i = 1, ROW_COUNT do
 		local row = CreateRow(container)
-		row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
-		row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
+		row:SetHeight(rowHeight)
+		if mini then row.icon:SetSize(14, 14) end
+		row:SetPoint("TOPLEFT", 0, -(i - 1) * rowHeight)
+		row:SetPoint("TOPRIGHT", 0, -(i - 1) * rowHeight)
 		row:Hide()
 		window.rows[i] = row
 	end
@@ -748,7 +807,7 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth)
 	end
 
 	local slider = CreateFrame("Slider", nil, frame)
-	slider:SetPoint("TOPRIGHT", -10, -84)
+	slider:SetPoint("TOPRIGHT", -10, -listTop)
 	slider:SetPoint("BOTTOMRIGHT", -10, footerHeight)
 	slider:SetWidth(10)
 	slider:SetOrientation("VERTICAL")
@@ -912,6 +971,29 @@ local function CreateQueueWindow()
 end
 
 -- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
+local function CreateFarmWindow()
+	local window = CreateWindow("farm", "Farm", 6, false, nil, true)
+	local base = BuildFarmList
+	window.build = function()
+		local list = base()
+		window.frame:SetHeight(MINI_TOP + math.min(#list, MINI_MAX_ROWS) * MINI_ROW_HEIGHT + 8)
+		return list
+	end
+	window.update = function() end
+
+	local back = HeaderButton(window.frame, "Back", 56, function() ns.ToggleFarmMode() end)
+	back:SetHeight(20)
+	back:SetPoint("RIGHT", window.close, "LEFT", -2, 0)
+
+	-- Closing it is leaving farm mode too, or Craft Next would keep following a list you can't see.
+	window.close:SetScript("OnClick", function()
+		ns.db.ui.farmMode = nil
+		window.frame:Hide()
+		UI.RefreshQueue()
+	end)
+	window.frame:SetBackdropColor(0.05, 0.05, 0.07, 0.8)
+end
+
 local function NumberBox(parent, labelText, previous, read, write)
 	local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	label:SetText(labelText)
@@ -1043,6 +1125,8 @@ local function GetWindow(key)
 			CreateSalesWindow()
 		elseif key == "restock" then
 			CreateRestockWindow()
+		elseif key == "farm" then
+			CreateFarmWindow()
 		else
 			CreateQueueWindow()
 		end
@@ -1072,14 +1156,40 @@ end
 
 function UI.ToggleBoth()
 	local anyShown = false
-	for _, window in pairs(windows) do anyShown = anyShown or window.frame:IsShown() end
+	for key, window in pairs(windows) do
+		-- The Farm list stays up on its own, so it doesn't count here.
+		anyShown = anyShown or (key ~= "farm" and window.frame:IsShown())
+	end
 	if anyShown then
-		for _, window in pairs(windows) do window.frame:Hide() end
+		for key, window in pairs(windows) do
+			if key ~= "farm" then window.frame:Hide() end
+		end
 	else
 		UI.Show("profit")
 		UI.Show("queue")
 	end
 end
+
+-- Farm It swaps the Queue window for the small list, and Back swaps them again.
+function UI.FarmModeChanged()
+	if ns.db.ui.farmMode then
+		if windows.queue then windows.queue.frame:Hide() end
+		UI.Show("farm")
+	else
+		if windows.farm then windows.farm.frame:Hide() end
+		UI.Show("queue")
+	end
+	UI.RefreshQueue()
+end
+
+ns.On("ZONE_CHANGED_NEW_AREA", function() UI.RefreshQueue() end)
+
+-- Still farming from last session: bring the list back. Saved data can arrive just after login.
+ns.On("PLAYER_LOGIN", function()
+	ns.Debounce("farmlist", 1, function()
+		if ns.db.ui.farmMode then UI.Show("farm") end
+	end)
+end)
 
 ---------------------------------------------------------------------------
 -- Profession window integration

@@ -60,7 +60,7 @@ end
 
 function ns.ToggleFarmMode()
 	ns.db.ui.farmMode = not ns.db.ui.farmMode or nil
-	ns.UI.RefreshQueue()
+	ns.UI.FarmModeChanged()
 end
 
 function ns.RequestPlan()

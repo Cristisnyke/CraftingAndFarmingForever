@@ -124,10 +124,10 @@ function Farm.Describe(itemID)
 	if #zones > 0 then
 		local shown = {}
 		for index = 1, math.min(#zones, ZONES_SHOWN) do shown[index] = zones[index] end
+		if inZone then shown[1] = shown[1] .. " (you are here)" end
 		local where = table.concat(shown, ", ")
 		if #zones > ZONES_SHOWN then where = where .. (", +%d more"):format(#zones - ZONES_SHOWN) end
 		line = (what ~= "" and (what .. ": ") or "") .. where
-		if inZone then line = line .. " (you are here)" end
 		table.insert(details, "Zones: " .. table.concat(zones, ", "))
 	end
 	return group, line, details
