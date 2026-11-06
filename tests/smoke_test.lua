@@ -77,6 +77,12 @@ StaticPopupDialogs = {}
 function StaticPopup_Show(name) ns_popup = name end
 function StaticPopup_Hide() end
 SlashCmdList = {}
+TRADE = "Trade"
+channelList = { 1, "General - City", false, 2, "Trade - City", false, 4, "LocalDefense - City", false }
+function GetChannelList() return unpack(channelList) end
+sentChat = {}
+function SendChatMessage(message, chatType, _, target) table.insert(sentChat, { message = message, chatType = chatType, target = target }) end
+function ChatFrame_OpenChat(text) chatBoxText = text end
 date = os.date
 hooksecurefunc = function(target, name, fn)
 	local original = target[name]
@@ -159,6 +165,7 @@ C_TradeSkillUI = {
 		return s[id]
 	end,
 	GetRecipeItemLink = function() return nil end,
+	GetTradeSkillListLink = function() return "|ctrade|Htrade:197|h[Tailoring]|h|r" end,
 	CraftRecipe = function(id, count) table.insert(crafted, { id = id, count = count }) end,
 	OpenRecipe = function() end,
 }
@@ -626,13 +633,62 @@ ns.db.sales.lots = {}
 ns.UI.Refresh("sales")
 ns.UI.windows.sales.frame:Hide()
 
+-- Advertising: one call posts the link in Trade chat.
+check("link kept per profession", ns.db.chars[me].links[197], "|ctrade|Htrade:197|h[Tailoring]|h|r")
+check("crafting profession can advertise", ns.Advertise.Reason(197), nil)
+check("gathering not advertised", ns.Advertise.Reason(186) ~= nil, true)
+check("other character's profession not advertised", ns.Advertise.Reason(164) ~= nil, true)
+check("nothing selected", ns.Advertise.Reason(nil) ~= nil, true)
+ns.Advertise.Send(197)
+check("posted once", #sentChat, 1)
+check("posted to Trade", sentChat[1].target, 2)
+check("posted as channel", sentChat[1].chatType, "CHANNEL")
+check("message has link and offer", sentChat[1].message,
+	"|ctrade|Htrade:197|h[Tailoring]|h|r available for hire! Your materials, or I'll give you a price based on material cost.")
+ns.Advertise.Send(197)
+check("cooldown stops repeats", #sentChat, 1)
+
+-- Not in Trade chat: nothing is sent.
+local realNow = time
+time = function() return realNow() + 120 end
+channelList = { 1, "General - City", false }
+ns.Advertise.Send(197)
+check("no Trade channel, no post", #sentChat, 1)
+channelList = { 1, "General - City", false, 2, "Trade (Services)", false, 5, "Trade - City", false }
+ns.Advertise.Send(197)
+check("plain Trade preferred", sentChat[2].target, 5)
+
+-- Blocked by the game: the message moves to the chat box, and stays that way.
+time = function() return realNow() + 240 end
+channelList = { 2, "Trade - City", false }
+local realSend = SendChatMessage
+SendChatMessage = function() Fire("ADDON_ACTION_BLOCKED", "CraftLedger", "SendChatMessage()") end
+ns.Advertise.Send(197)
+check("blocked message goes to chat box", chatBoxText:sub(1, 3), "/2 ")
+check("chat box has the link", chatBoxText:find("[Tailoring]", 1, true) ~= nil, true)
+check("remembers the block", ns.db.ui.advertiseManually, true)
+SendChatMessage = realSend
+time = function() return realNow() + 360 end
+chatBoxText = nil
+local before = #sentChat
+ns.Advertise.Send(197)
+check("later ads use the chat box", chatBoxText ~= nil, true)
+check("later ads don't send directly", #sentChat, before)
+ns.db.ui.advertiseManually = nil
+time = realNow
+
+-- The button's name follows the tab.
+ns.UI.Show("profit")
+ns.UI.SelectProfession("profit", 197)
+check("button named for profession", ns.UI.windows.profit.advertiseButton.text, "Advertise Tailoring")
+
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()
 Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CRAFTLEDGER_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "auto", "auto", "clear", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "diag", "bogus" }) do
 	SlashCmdList.CRAFTLEDGER(command)
 end
 RunTimers()

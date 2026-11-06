@@ -713,6 +713,10 @@ local function CreateProfitWindow()
 	local window = CreateWindow("profit", "Profit", 34, true)
 	window.build = BuildProfitList
 
+	local advertise = HeaderButton(window.frame, "Advertise", 190, function() ns.Advertise.Send(UI.AdvertisedProfession()) end)
+	advertise:SetPoint("TOPLEFT", 10, -30)
+	window.advertiseButton = advertise
+
 	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
 	openQueue:SetPoint("TOPRIGHT", -12, -30)
 
@@ -728,6 +732,11 @@ local function CreateProfitWindow()
 	status:SetJustifyH("LEFT")
 
 	window.update = function(self)
+		local professionID = UI.AdvertisedProfession()
+		local canAdvertise = ns.Advertise.Reason(professionID) == nil
+		advertise:SetEnabled(canAdvertise)
+		local professionName = professionID and ns.Recipes.ProfessionName(professionID)
+		advertise:SetText(canAdvertise and professionName and ("Advertise " .. professionName) or "Advertise")
 		if #self.list == 0 then
 			status:SetText("Open a profession to record its recipes.")
 		else
@@ -1085,6 +1094,108 @@ function ns.OnProfessionScanned()
 end
 
 ---------------------------------------------------------------------------
+-- Advertising in Trade chat
+---------------------------------------------------------------------------
+
+local Advertise = {}
+ns.Advertise = Advertise
+
+local AD_TEXT = "%s available for hire! Your materials, or I'll give you a price based on material cost."
+local AD_COOLDOWN_SECONDS = 60
+local lastAdvertised = 0
+local pendingAdText
+
+-- The tab's profession, or on the All tab the one that's open.
+function UI.AdvertisedProfession()
+	return selectedProfession.profit or (ns.Recipes.OpenProfession())
+end
+
+-- Why this profession can't be advertised on this character; nil when it can.
+function Advertise.Reason(professionID)
+	if not professionID then return "Pick a profession tab first." end
+	if not ns.Recipes.IsCraftingProfession(professionID) then return "Gathering professions aren't advertised." end
+	if not ns.Recipes.CharHasProfession(ns.CharKey(), professionID) then
+		return "This character doesn't have that profession."
+	end
+	return nil
+end
+
+-- The channel number of Trade chat, preferring plain Trade over a separate services channel. Nil when not in it.
+local function TradeChannel()
+	local tradeName = (TRADE or "Trade"):lower()
+	local channels = { GetChannelList() }
+	local fallback
+	for i = 1, #channels, 3 do
+		local id, name = channels[i], channels[i + 1]
+		if type(name) == "string" and name:lower():find(tradeName, 1, true) then
+			if not name:lower():find("services", 1, true) then return id end
+			fallback = fallback or id
+		end
+	end
+	return fallback
+end
+
+-- Puts the message in the chat box, so only Enter is left to press.
+local function PrefillChat(channel, message)
+	local text = "/" .. channel .. " " .. message
+	if ChatFrameUtil and ChatFrameUtil.OpenChat then
+		ChatFrameUtil.OpenChat(text)
+	else
+		ChatFrame_OpenChat(text)
+	end
+end
+
+function Advertise.Send(professionID)
+	local reason = Advertise.Reason(professionID)
+	if reason then
+		ns.Print(reason)
+		return
+	end
+	local channel = TradeChannel()
+	if not channel then
+		ns.Print("You're not in Trade chat. Go to a city and try again.")
+		return
+	end
+	local wait = AD_COOLDOWN_SECONDS - (time() - lastAdvertised)
+	if wait > 0 then
+		ns.Print(("Please wait %d more seconds, so Trade chat doesn't get spammed."):format(wait))
+		return
+	end
+
+	local char = ns.db.chars[ns.CharKey()]
+	local link = char.links and char.links[professionID]
+	if not link then
+		ns.Print("No profession link available yet, so this uses its name. Open the profession once to get the link.")
+	end
+	local message = AD_TEXT:format(link or ns.Recipes.ProfessionName(professionID) or "Crafting")
+	lastAdvertised = time()
+
+	-- The game can refuse chat from add-ons. Once it has, go straight to the chat box.
+	if ns.db.ui.advertiseManually then
+		PrefillChat(channel, message)
+		return
+	end
+	pendingAdText = { channel = channel, message = message }
+	local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
+	send(message, "CHANNEL", nil, channel)
+	C_Timer.After(0.5, function() pendingAdText = nil end)
+end
+
+local function OnChatBlocked(addon, blockedFunction)
+	if addon ~= ns.name or not pendingAdText then return end
+	if type(blockedFunction) == "string" and not blockedFunction:find("SendChatMessage", 1, true) then return end
+	local ad = pendingAdText
+	pendingAdText = nil
+	ns.db.ui.advertiseManually = true
+	lastAdvertised = 0
+	PrefillChat(ad.channel, ad.message)
+	ns.Print("The game won't let add-ons post in Trade chat, so your message is in the chat box. Press Enter to send it.")
+end
+
+ns.On("ADDON_ACTION_BLOCKED", OnChatBlocked)
+ns.On("ADDON_ACTION_FORBIDDEN", OnChatBlocked)
+
+---------------------------------------------------------------------------
 -- Scan prompt
 ---------------------------------------------------------------------------
 
@@ -1141,6 +1252,8 @@ local function Diagnostics()
 	local openKey = ns.Recipes.OpenProfession()
 	Add("open profession: " .. tostring(openKey) .. ", recipes in window: " .. CountKeys(ns.Recipes.OpenRecipes()))
 	Add("Queue button on crafting page: " .. tostring(queueButton ~= nil))
+	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
+		.. ", advertise through chat box: " .. tostring(ns.db.ui.advertiseManually == true))
 	ns.db.lastDiag = lines
 end
 
@@ -1150,6 +1263,8 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
 	if command == "queue" or command == "profit" or command == "restock" or command == "sales" then
 		UI.Toggle(command)
+	elseif command == "advertise" then
+		ns.Advertise.Send(UI.AdvertisedProfession())
 	elseif command == "refresh" then
 		ns.RefreshEverything()
 	elseif command == "clear" then
@@ -1162,6 +1277,6 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "" then
 		UI.ToggleBoth()
 	else
-		ns.Print("/craftledger [queue | profit | restock | sales | refresh | clear | auto | diag]")
+		ns.Print("/craftledger [queue | profit | restock | sales | advertise | refresh | clear | auto | diag]")
 	end
 end

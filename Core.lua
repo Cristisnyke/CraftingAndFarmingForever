@@ -50,7 +50,7 @@ end
 ---------------------------------------------------------------------------
 -- db.recipes[recipeID] = { n = name, o = outputItemID, qmin, qmax, p = professionID, pn = professionName,
 --                          r = { { qty, itemID, altItemID, ... }, ... }, x = true if it also costs a currency }
--- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true } }
+-- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true }, links = { [professionID] = link } }
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list

@@ -407,6 +407,12 @@ local function ScanOpenProfession()
 	if not next(learned) then return end
 
 	local baseKey = ProfessionKey(base)
+	-- The client only gives a profession's link while it's open, so keep it for advertising later.
+	local link = C_TradeSkillUI.GetTradeSkillListLink and C_TradeSkillUI.GetTradeSkillListLink()
+	if link then
+		char.links = char.links or {}
+		char.links[baseKey] = link
+	end
 	local changed = false
 	for recipeID in pairs(char.recipes) do
 		local recipe = ns.db.recipes[recipeID]
@@ -471,6 +477,31 @@ function Recipes.KnownProfessions()
 	for id, name in pairs(names) do table.insert(list, { id = id, name = name }) end
 	table.sort(list, function(a, b) return a.name < b.name end)
 	return list
+end
+
+-- Gathering professions aren't for hire: Herbalism, Mining, Skinning, Fishing.
+local GATHERING = { [182] = true, [186] = true, [393] = true, [356] = true }
+
+function Recipes.IsCraftingProfession(professionID)
+	return professionID ~= nil and not GATHERING[professionID]
+end
+
+-- True when the character knows at least one recipe filed under the profession.
+function Recipes.CharHasProfession(charKey, professionID)
+	local char = charKey and ns.db.chars[charKey]
+	if not char then return false end
+	for recipeID in pairs(char.recipes) do
+		local recipe = ns.db.recipes[recipeID]
+		if recipe and recipe.p == professionID then return true end
+	end
+	return false
+end
+
+function Recipes.ProfessionName(professionID)
+	for _, profession in ipairs(Recipes.KnownProfessions()) do
+		if profession.id == professionID then return profession.name end
+	end
+	return nil
 end
 
 function Recipes.Knows(charKey, recipeID)
