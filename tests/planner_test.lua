@@ -164,6 +164,28 @@ plan = Planner.BuildPlan(vendorCycle, { { recipeID = 2, qty = 1 } })
 check("cycle vendor", plan.vendor[ORE], 1)
 check("cycle not on AH", plan.buy[ORE], nil)
 
+-- Queue totals: profit of everything queued, unsellable or unpriced entries counted separately.
+local totalsCtx = Context({
+	recipes = {
+		[1] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[2] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[3] = { o = GEM, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+	},
+	known = {},
+	ah = { [ORE] = 10, [SHIRT] = 100, [BAR] = 500 },
+})
+local totals = Planner.QueueTotals(totalsCtx, {
+	{ recipeID = 1, qty = 2 },
+	{ recipeID = 2, qty = 1 },
+	{ recipeID = 3, qty = 1 },
+}, function(id) return id ~= BAR end)
+check("totals net", totals.net, 2 * (95 - 10))
+check("totals revenue", totals.revenue, 190)
+check("totals cost", totals.cost, 20)
+check("totals excludes unsellable and unpriced", totals.excluded, 2)
+check("totals entry", totals.entries[1], 170)
+check("totals no entry for unpriced", totals.entries[3], nil)
+
 -- Zero-quantity entries are ignored; empty queue gives an empty plan.
 check("empty plan", #Planner.BuildPlan(Context(), {}).crafts, 0)
 check("zero qty", #Planner.BuildPlan(Context(), { { recipeID = 300, qty = 0 } }).crafts, 0)

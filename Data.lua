@@ -196,10 +196,42 @@ local function ProfessionInfo()
 end
 Recipes.ProfessionInfo = ProfessionInfo
 
+-- The same profession can be reported as its parent or as an expansion child, so recipes are filed under the parent.
+local function ProfessionKey(info)
+	local parent = info.parentProfessionID
+	if parent and parent ~= 0 then return parent, info.parentProfessionName or info.professionName end
+	return info.professionID, info.professionName
+end
+
 function Recipes.OpenProfession()
 	if not (ProfessionsFrame and ProfessionsFrame:IsShown()) then return nil end
 	local info = ProfessionInfo()
-	return info and info.professionID, info and info.professionName
+	if not info then return nil end
+	return ProfessionKey(info)
+end
+
+-- The recipes in the open profession window, as a set. Asking the window itself is reliable where comparing
+-- profession IDs is not. Empty when no window is open.
+function Recipes.OpenRecipes()
+	local set = {}
+	if ProfessionsFrame and ProfessionsFrame:IsShown() then
+		for _, recipeID in ipairs(C_TradeSkillUI.GetAllRecipeIDs() or {}) do set[recipeID] = true end
+	end
+	return set
+end
+
+-- Names of what the recipe needs nearby and doesn't have, such as an anvil.
+function Recipes.UnmetRequirements(recipeID)
+	local unmet = {}
+	local fn = C_TradeSkillUI.GetRecipeRequirements
+	if not fn then return unmet end
+	local ok, requirements = pcall(fn, recipeID)
+	if ok and type(requirements) == "table" then
+		for _, requirement in ipairs(requirements) do
+			if requirement.met == false and requirement.name then table.insert(unmet, requirement.name) end
+		end
+	end
+	return unmet
 end
 
 local function BasicReagentType()
@@ -271,7 +303,7 @@ local function ScanOpenProfession()
 		if info and info.learned then
 			learned[recipeID] = true
 			if not readThisSession[recipeID] then
-				if Recipes.Read(recipeID, info, base.professionID, base.professionName) then
+				if Recipes.Read(recipeID, info, ProfessionKey(base)) then
 					readThisSession[recipeID] = true
 				end
 			end
@@ -280,10 +312,11 @@ local function ScanOpenProfession()
 	-- An empty answer means the list isn't ready yet, not that everything was unlearned.
 	if not next(learned) then return end
 
+	local baseKey = ProfessionKey(base)
 	local changed = false
 	for recipeID in pairs(char.recipes) do
 		local recipe = ns.db.recipes[recipeID]
-		if not learned[recipeID] and recipe and recipe.p == base.professionID then
+		if not learned[recipeID] and recipe and recipe.p == baseKey then
 			char.recipes[recipeID] = nil
 			changed = true
 		end

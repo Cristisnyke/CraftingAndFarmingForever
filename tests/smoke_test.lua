@@ -38,6 +38,9 @@ local function NewFrame()
 			SetShown = function(self, on) if on then self:Show() else self:Hide() end end,
 			IsShown = function(self) return self.shown end,
 			GetHeight = function(self) return self.height end,
+			GetLeft = function() return 100 end,
+			GetRight = function() return 480 end,
+			GetTop = function() return 900 end,
 			SetText = function(self, text) self.text = text end,
 			GetText = function(self) return self.text end,
 			GetParent = function(self) return self.parent end,
@@ -242,7 +245,7 @@ check("no recreate on update", createCalls, 1)
 check("quantity updated in place", lists[ns.LIST_NAME][1], '"Linen Cloth";;;;;;;;;;;#;;5')
 
 -- Panel, profit: bind-on-pickup results are hidden, sale items ranked.
-ns.UI.ShowStandalone("profit")
+ns.UI.Show("profit")
 ns.InvalidateProfit()
 local sellable = {}
 for _, result in ipairs(ns.UI.ComputeProfit()) do sellable[result.recipeID] = result end
@@ -251,13 +254,50 @@ check("sellable result listed", sellable[20] ~= nil, true)
 check("sub-craft cost used in profit", sellable[20].cost, 3 * 20 + 10)
 
 -- Tabs and craft button.
-ns.UI.ShowStandalone("queue")
+ns.UI.Show("queue")
+check("windows are separate", ns.UI.windows.profit.frame ~= ns.UI.windows.queue.frame, true)
+check("both open", ns.UI.windows.profit.frame:IsShown() and ns.UI.windows.queue.frame:IsShown(), true)
+ns.UI.windows.queue.frame.scripts.OnDragStop(ns.UI.windows.queue.frame)
+check("moved window keeps its position", ns.db.ui.positions.queue.x, 100)
+check("other window not moved", ns.db.ui.positions.profit, nil)
+ns.UI.Toggle("profit")
+check("closing profit leaves queue open", ns.UI.windows.queue.frame:IsShown(), true)
+ns.UI.Toggle("profit")
+
+-- Totals: 2 shirts sell for 1000 each less 5%; each costs 3 bolts at 20 (crafted) + thread 10 = 70.
+check("queue total profit", ns.totals.net, 2 * (950 - 70))
+check("queue total revenue", ns.totals.revenue, 1900)
+check("per-entry profit", ns.totals.entries[1], 1760)
+
 local craft, count = ns.Queue.NextCraft()
 check("next craft is the sub-craft", craft.recipeID, 10)
 check("batch limited by materials", count, 5)
 ns.Queue.CraftNext()
 check("craft called", crafted[1].id, 10)
 check("craft count", crafted[1].count, 5)
+
+-- Profession reported under a different ID than the recipe was stored with: still recognised as open.
+local realInfo = ProfessionsFrame.GetProfessionInfo
+ProfessionsFrame.GetProfessionInfo = function() return { professionID = 2437, professionName = "Classic Tailoring" } end
+local _, _, reason = nil, nil, nil
+C_TradeSkillUI.GetCraftableCount = function() return 0 end
+_, _, reason = ns.Queue.NextCraft()
+check("no materials reason", reason, "Recipe10 needs: materials.")
+C_TradeSkillUI.GetRecipeRequirements = function() return { { name = "Anvil", met = false } } end
+_, _, reason = ns.Queue.NextCraft()
+check("station reason", reason, "Recipe10 needs: materials and Anvil.")
+C_TradeSkillUI.GetCraftableCount = function(id) return id == 10 and 5 or 0 end
+_, _, reason = ns.Queue.NextCraft()
+check("station blocks craft", reason, "Recipe10 needs: Anvil.")
+ProfessionsFrame.GetProfessionInfo = realInfo
+C_TradeSkillUI.GetRecipeRequirements = nil
+
+-- A recipe that isn't in the open window does ask for its profession.
+local realIDs = C_TradeSkillUI.GetAllRecipeIDs
+C_TradeSkillUI.GetAllRecipeIDs = function() return { 40 } end
+_, _, reason = ns.Queue.NextCraft()
+check("other profession reason", reason, "Open Tailoring to continue.")
+C_TradeSkillUI.GetAllRecipeIDs = realIDs
 
 -- Queue countdown: craft of the entry itself removes it at zero.
 Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 20)
@@ -272,7 +312,7 @@ Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CRAFTLEDGER_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "queue", "profit", "auto", "auto", "clear", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "auto", "auto", "clear", "diag", "bogus" }) do
 	SlashCmdList.CRAFTLEDGER(command)
 end
 RunTimers()

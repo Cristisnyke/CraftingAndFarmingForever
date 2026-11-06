@@ -26,15 +26,18 @@ ns.NewContext = NewContext
 ---------------------------------------------------------------------------
 
 ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, cost = 0 }
+ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {} }
 
 local function RebuildPlan()
-	ns.plan = ns.Planner.BuildPlan(NewContext(), ns.db.queue)
+	local ctx = NewContext()
+	ns.plan = ns.Planner.BuildPlan(ctx, ns.db.queue)
+	ns.totals = ns.Planner.QueueTotals(ctx, ns.db.queue, ns.Items.CanSellOnAH)
 	if ns.Shopping then ns.Shopping.Sync() end
 	if ns.UI then ns.UI.RefreshQueue() end
 end
 
 function ns.RequestPlan()
-	ns.Debounce("plan", 0.5, RebuildPlan)
+	ns.Debounce("plan", 0.2, RebuildPlan)
 end
 
 function ns.OnDataChanged()
@@ -67,8 +70,7 @@ end)
 local function EnsureRecipe(recipeID)
 	if ns.db.recipes[recipeID] then return true end
 	local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
-	local base = Recipes.ProfessionInfo()
-	return Recipes.Read(recipeID, info, base and base.professionID, base and base.professionName) ~= nil
+	return Recipes.Read(recipeID, info, Recipes.OpenProfession()) ~= nil
 end
 
 function Queue.Add(recipeID, qty)
@@ -134,20 +136,24 @@ end)
 function Queue.NextCraft()
 	if #ns.plan.crafts == 0 then return nil, nil, "The queue is empty." end
 	local me = ns.CharKey()
-	local openProfession = Recipes.OpenProfession()
+	local openRecipes = Recipes.OpenRecipes()
 	local reason
 	for _, craft in ipairs(ns.plan.crafts) do
 		local recipe = ns.db.recipes[craft.recipeID]
 		if craft.char ~= me then
 			reason = reason or ("Next craft is on " .. ns.CharLabel(craft.char) .. ".")
-		elseif openProfession ~= recipe.p then
+		elseif not openRecipes[craft.recipeID] then
 			reason = reason or ("Open " .. (recipe.pn or "the profession") .. " to continue.")
 		else
 			local available = C_TradeSkillUI.GetCraftableCount(craft.recipeID) or 0
-			if available > 0 then
+			local unmet = Recipes.UnmetRequirements(craft.recipeID)
+			if available > 0 and #unmet == 0 then
 				return craft, math.min(craft.count, available)
 			end
-			reason = reason or "Materials are missing. See the lists below."
+			local needs = {}
+			if available <= 0 then table.insert(needs, "materials") end
+			if #unmet > 0 then table.insert(needs, table.concat(unmet, ", ")) end
+			reason = reason or ((recipe.n or "Next craft") .. " needs: " .. table.concat(needs, " and ") .. ".")
 		end
 	end
 	return nil, nil, reason

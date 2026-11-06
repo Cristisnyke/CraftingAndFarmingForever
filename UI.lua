@@ -1,6 +1,6 @@
 -- CraftLedger :: UI
--- The panel docked to the profession window (also available on its own with /craftledger), the Queue button on
--- the crafting page, the stale-price prompts and the slash command.
+-- Two independent movable windows (Profit and Queue), the Queue button on the crafting page, the stale-price
+-- prompts and the slash command.
 
 local _, ns = ...
 
@@ -9,22 +9,19 @@ ns.UI = UI
 
 local ROW_HEIGHT = 22
 local ROW_COUNT = 40
-local PANEL_WIDTH = 380
+local WINDOW_WIDTH = 380
+local WINDOW_HEIGHT = 560
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED = "ff55dd55", "ffff6655", "ff999999"
 
 local function Color(hex, text)
 	return "|c" .. hex .. text .. "|r"
 end
 
-local panel, rows, slider, craftButton, statusText, banner, scanButton, tabProfit, tabQueue, filterButton, clearButton
-local currentTab = "profit"
+local windows = {}
+UI.windows = windows
 local allProfessions = false
-local listData = {}
-local scrollOffset = 0
 local profitCache
-local attached = false
 local scanNotified = false
-local updatingSlider = false
 
 ---------------------------------------------------------------------------
 -- Profit data
@@ -32,7 +29,7 @@ local updatingSlider = false
 
 function ns.InvalidateProfit()
 	profitCache = nil
-	if panel and panel:IsShown() and currentTab == "profit" then UI.Refresh() end
+	UI.Refresh("profit")
 end
 
 -- Every recipe known on any character whose result can be sold on the AH, most profitable first.
@@ -72,9 +69,10 @@ UI.ComputeProfit = ComputeProfit
 local function BuildProfitList()
 	profitCache = profitCache or ComputeProfit()
 	local openProfession = ns.Recipes.OpenProfession()
+	local openRecipes = ns.Recipes.OpenRecipes()
 	local list = {}
 	for _, result in ipairs(profitCache) do
-		if allProfessions or not openProfession or result.profession == openProfession then
+		if allProfessions or not openProfession or openRecipes[result.recipeID] or result.profession == openProfession then
 			table.insert(list, { kind = "profit", result = result })
 		end
 	end
@@ -177,13 +175,19 @@ local function RowOnEnter(row)
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
 		GameTooltip:Show()
+	elseif data.kind == "queue" then
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetText(RecipeName(data.entry.recipeID))
+		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
+		GameTooltip:AddLine("+ adds one, Shift + adds ten, - removes one, x removes the entry.", 0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
 	end
 end
 
 local function RowOnClick(row)
 	local data = row.data
 	if data and data.kind == "profit" and ns.Recipes.Knows(ns.CharKey(), data.result.recipeID)
-		and ns.Recipes.OpenProfession() == data.result.profession then
+		and ns.Recipes.OpenRecipes()[data.result.recipeID] then
 		C_TradeSkillUI.OpenRecipe(data.result.recipeID)
 	end
 end
@@ -277,7 +281,12 @@ local function SetRow(row, data)
 		row.remove:Show()
 		row.right:ClearAllPoints()
 		row.right:SetPoint("RIGHT", row.remove, "LEFT", -4, 0)
-		row.right:SetText(Color(COLOR_MUTED, ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char))))
+		local net = ns.totals.entries[data.index]
+		if net then
+			row.right:SetText(Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
+		else
+			row.right:SetText(Color(COLOR_MUTED, "no price"))
+		end
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
@@ -291,210 +300,171 @@ local function SetRow(row, data)
 	row:Show()
 end
 
-local function VisibleRowCount()
-	if not panel then return 0 end
-	return math.min(ROW_COUNT, math.floor(rows.container:GetHeight() / ROW_HEIGHT))
-end
-
-local function RenderRows()
-	local visible = VisibleRowCount()
-	local maxOffset = math.max(0, #listData - visible)
-	scrollOffset = math.min(scrollOffset, maxOffset)
-	for i = 1, ROW_COUNT do
-		local data = i <= visible and listData[scrollOffset + i]
-		if data then SetRow(rows[i], data) else rows[i].data = nil; rows[i]:Hide() end
-	end
-	-- These can fire OnValueChanged while clamping; that must not overwrite the offset being rendered.
-	updatingSlider = true
-	slider:SetMinMaxValues(0, maxOffset)
-	slider:SetValue(scrollOffset)
-	updatingSlider = false
-	slider:SetShown(maxOffset > 0)
-end
-
----------------------------------------------------------------------------
--- Panel
----------------------------------------------------------------------------
-
 local function ScanAgeText()
 	local age = ns.Prices.ScanAge()
 	if not age then return "No auction house scan yet." end
 	return ("Prices are %d hours old."):format(math.floor(age / 3600))
 end
 
-local function UpdateBanner()
+---------------------------------------------------------------------------
+-- Windows
+---------------------------------------------------------------------------
+
+local function RenderRows(window)
+	local visible = math.min(ROW_COUNT, math.floor(window.container:GetHeight() / ROW_HEIGHT))
+	local maxOffset = math.max(0, #window.list - visible)
+	window.offset = math.min(window.offset, maxOffset)
+	for i = 1, ROW_COUNT do
+		local data = i <= visible and window.list[window.offset + i]
+		if data then
+			SetRow(window.rows[i], data)
+		else
+			window.rows[i].data = nil
+			window.rows[i]:Hide()
+		end
+	end
+	-- These can fire OnValueChanged while clamping; that must not overwrite the offset being rendered.
+	window.updatingSlider = true
+	window.slider:SetMinMaxValues(0, maxOffset)
+	window.slider:SetValue(window.offset)
+	window.updatingSlider = false
+	window.slider:SetShown(maxOffset > 0)
+end
+
+local function UpdateBanner(window)
 	local stale = ns.Prices.IsStale()
-	banner:SetShown(stale)
+	window.banner:SetShown(stale)
 	if not stale then return end
 	local atAH = AuctionHouseFrame and AuctionHouseFrame:IsShown()
-	banner.text:SetText(ScanAgeText() .. (atAH and "" or " Scan at the auction house."))
-	scanButton:SetShown(atAH and true or false)
+	window.banner.text:SetText(ScanAgeText() .. (atAH and "" or " Scan at the auction house."))
+	window.scanButton:SetShown(atAH and true or false)
 end
 
-local function UpdateCraftButton()
-	if currentTab ~= "queue" then return end
-	local craft, count, reason = ns.Queue.NextCraft()
-	if craft then
-		craftButton:SetText(("Craft Next: %s x%d"):format(RecipeName(craft.recipeID), count))
-		craftButton:Enable()
-		statusText:SetText("")
-	else
-		craftButton:SetText("Craft Next")
-		craftButton:Disable()
-		statusText:SetText(reason or "")
-	end
+function UI.Refresh(key)
+	local window = windows[key]
+	if not window or not window.frame:IsShown() then return end
+	window.list = window.build()
+	RenderRows(window)
+	UpdateBanner(window)
+	window.update(window)
 end
 
-local function UpdateFooter()
-	local isQueue = currentTab == "queue"
-	craftButton:SetShown(isQueue)
-	clearButton:SetShown(isQueue)
-	filterButton:SetShown(not isQueue)
-	filterButton:SetText(allProfessions and "All professions" or "This profession")
-	tabProfit:SetEnabled(isQueue)
-	tabQueue:SetEnabled(not isQueue)
-	if isQueue then
-		UpdateCraftButton()
-		local status = ns.Shopping.status
-		local parts = {}
-		if status.error then table.insert(parts, "List update failed. See /craftledger diag.") end
-		if status.loading > 0 then table.insert(parts, status.loading .. " item name(s) loading.") end
-		if not ns.Stock.HasSyndicator() then table.insert(parts, "Syndicator not active: alts not counted.") end
-		if #parts > 0 then
-			local current = statusText:GetText()
-			statusText:SetText(((current and current ~= "") and (current .. " ") or "") .. table.concat(parts, " "))
-		end
-	else
-		local count = #listData
-		if count == 0 then
-			statusText:SetText(next(ns.db.chars) and "Open a profession to record its recipes." or "")
-		else
-			statusText:SetText(count .. " sellable recipes known across your characters.")
-		end
-	end
-end
-
-function UI.Refresh()
-	if not panel or not panel:IsShown() then return end
-	listData = currentTab == "profit" and BuildProfitList() or BuildQueueList()
-	RenderRows()
-	UpdateBanner()
-	UpdateFooter()
+function UI.RefreshAll()
+	UI.Refresh("profit")
+	UI.Refresh("queue")
 end
 
 function UI.RefreshQueue()
-	if panel and panel:IsShown() and currentTab == "queue" then UI.Refresh() end
+	UI.Refresh("queue")
 end
 
-local function SetTab(tab)
-	currentTab = tab
-	scrollOffset = 0
-	UI.Refresh()
+-- Where the window goes until the user moves it: profit beside the profession window, queue beside profit.
+local function PlaceWindow(window)
+	local frame = window.frame
+	frame:ClearAllPoints()
+	local saved = ns.db.ui.positions and ns.db.ui.positions[window.key]
+	if saved then
+		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", saved.x, saved.y)
+	elseif window.key == "profit" then
+		if ProfessionsFrame and ProfessionsFrame:IsShown() then
+			frame:SetPoint("TOPLEFT", ProfessionsFrame, "TOPRIGHT", 2, 0)
+		else
+			frame:SetPoint("CENTER", UIParent, "CENTER", -WINDOW_WIDTH / 2 - 2, 0)
+		end
+	elseif windows.profit and windows.profit.frame:IsShown() and windows.profit.frame:GetRight() then
+		-- A fixed spot beside Profit, not an anchor to it: moving Profit must not drag this window along.
+		local profit = windows.profit.frame
+		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", profit:GetRight() + 2, profit:GetTop())
+	elseif ProfessionsFrame and ProfessionsFrame:IsShown() then
+		frame:SetPoint("TOPLEFT", ProfessionsFrame, "TOPRIGHT", 2, 0)
+	else
+		frame:SetPoint("CENTER", UIParent, "CENTER", WINDOW_WIDTH / 2 + 2, 0)
+	end
 end
 
-local function CreatePanel()
-	panel = CreateFrame("Frame", "CraftLedgerPanel", UIParent, "BackdropTemplate")
-	panel:SetSize(PANEL_WIDTH, 560)
-	panel:SetPoint("CENTER")
-	panel:SetFrameStrata("HIGH")
-	panel:SetClampedToScreen(true)
-	panel:SetBackdrop({
+local function SavePosition(window)
+	local left, top = window.frame:GetLeft(), window.frame:GetTop()
+	if not (left and top) then return end
+	ns.db.ui.positions = ns.db.ui.positions or {}
+	ns.db.ui.positions[window.key] = { x = left, y = top }
+end
+
+local function HeaderButton(frame, text, width, onClick)
+	local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+	button:SetSize(width, 22)
+	button:SetText(text)
+	button:SetScript("OnClick", onClick)
+	return button
+end
+
+-- footerHeight is the room kept below the list for the window's own controls.
+local function CreateWindow(key, title, footerHeight)
+	local frame = CreateFrame("Frame", "CraftLedger" .. title .. "Window", UIParent, "BackdropTemplate")
+	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {} }
+	windows[key] = window
+
+	frame:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+	frame:SetFrameStrata("HIGH")
+	frame:SetToplevel(true)
+	frame:SetClampedToScreen(true)
+	frame:SetBackdrop({
 		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 		edgeSize = 14,
 		insets = { left = 3, right = 3, top = 3, bottom = 3 },
 	})
-	panel:SetBackdropColor(0.05, 0.05, 0.07, 0.96)
-	panel:EnableMouse(true)
-	panel:SetMovable(true)
-	panel:RegisterForDrag("LeftButton")
-	panel:SetScript("OnDragStart", function(self) if not attached then self:StartMoving() end end)
-	panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-	panel:Hide()
-
-	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	title:SetPoint("TOPLEFT", 12, -10)
-	title:SetText("CraftLedger")
-
-	local close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
-	close:SetPoint("TOPRIGHT", 0, 0)
-	close:SetScript("OnClick", function() panel:Hide() end)
-
-	tabProfit = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	tabProfit:SetSize(70, 22)
-	tabProfit:SetPoint("TOPLEFT", 10, -30)
-	tabProfit:SetText("Profit")
-	tabProfit:SetScript("OnClick", function() SetTab("profit") end)
-
-	tabQueue = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	tabQueue:SetSize(70, 22)
-	tabQueue:SetPoint("LEFT", tabProfit, "RIGHT", 4, 0)
-	tabQueue:SetText("Queue")
-	tabQueue:SetScript("OnClick", function() SetTab("queue") end)
-
-	filterButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	filterButton:SetSize(120, 22)
-	filterButton:SetPoint("TOPRIGHT", -12, -30)
-	filterButton:SetScript("OnClick", function()
-		allProfessions = not allProfessions
-		scrollOffset = 0
-		UI.Refresh()
+	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.96)
+	frame:EnableMouse(true)
+	frame:SetMovable(true)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", frame.StartMoving)
+	frame:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		SavePosition(window)
 	end)
+	frame:Hide()
 
-	clearButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	clearButton:SetSize(70, 22)
-	clearButton:SetPoint("TOPRIGHT", -12, -30)
-	clearButton:SetText("Clear")
-	clearButton:SetScript("OnClick", function() ns.Queue.Clear() end)
+	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	titleText:SetPoint("TOPLEFT", 12, -10)
+	titleText:SetText("CraftLedger: " .. title)
 
-	banner = CreateFrame("Frame", nil, panel)
+	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", 0, 0)
+	close:SetScript("OnClick", function() frame:Hide() end)
+
+	local banner = CreateFrame("Frame", nil, frame)
 	banner:SetPoint("TOPLEFT", 10, -56)
 	banner:SetPoint("TOPRIGHT", -10, -56)
 	banner:SetHeight(24)
 	banner.text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	banner.text:SetPoint("LEFT", 2, 0)
 	banner.text:SetTextColor(1, 0.6, 0.2)
-	scanButton = CreateFrame("Button", nil, banner, "UIPanelButtonTemplate")
-	scanButton:SetSize(80, 20)
-	scanButton:SetPoint("RIGHT")
-	scanButton:SetText("Scan now")
-	scanButton:SetScript("OnClick", function() ns.Prices.StartScan() end)
+	window.banner = banner
+	window.scanButton = HeaderButton(banner, "Scan now", 80, function() ns.Prices.StartScan() end)
+	window.scanButton:SetPoint("RIGHT")
 
-	craftButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	craftButton:SetHeight(26)
-	craftButton:SetPoint("BOTTOMLEFT", 10, 10)
-	craftButton:SetPoint("BOTTOMRIGHT", -10, 10)
-	craftButton:SetText("Craft Next")
-	craftButton:SetScript("OnClick", function() ns.Queue.CraftNext() end)
-
-	statusText = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	statusText:SetPoint("BOTTOMLEFT", 12, 42)
-	statusText:SetPoint("BOTTOMRIGHT", -12, 42)
-	statusText:SetJustifyH("LEFT")
-	statusText:SetHeight(24)
-
-	local container = CreateFrame("Frame", nil, panel)
+	local container = CreateFrame("Frame", nil, frame)
 	container:SetPoint("TOPLEFT", 10, -84)
-	container:SetPoint("BOTTOMRIGHT", -24, 70)
+	container:SetPoint("BOTTOMRIGHT", -24, footerHeight)
 	container:EnableMouseWheel(true)
-	container:SetScript("OnSizeChanged", function() if panel:IsShown() then RenderRows() end end)
+	container:SetScript("OnSizeChanged", function() if frame:IsShown() then RenderRows(window) end end)
 	container:SetScript("OnMouseWheel", function(_, delta)
-		scrollOffset = math.max(0, scrollOffset - delta * 3)
-		RenderRows()
+		window.offset = math.max(0, window.offset - delta * 3)
+		RenderRows(window)
 	end)
+	window.container = container
 
-	rows = { container = container }
 	for i = 1, ROW_COUNT do
 		local row = CreateRow(container)
 		row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
 		row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
 		row:Hide()
-		rows[i] = row
+		window.rows[i] = row
 	end
 
-	slider = CreateFrame("Slider", nil, panel)
+	local slider = CreateFrame("Slider", nil, frame)
 	slider:SetPoint("TOPRIGHT", -10, -84)
-	slider:SetPoint("BOTTOMRIGHT", -10, 70)
+	slider:SetPoint("BOTTOMRIGHT", -10, footerHeight)
 	slider:SetWidth(10)
 	slider:SetOrientation("VERTICAL")
 	slider:SetValueStep(1)
@@ -505,43 +475,154 @@ local function CreatePanel()
 	slider:SetThumbTexture(thumb)
 	slider:SetScript("OnValueChanged", function(_, value)
 		local offset = math.floor(value + 0.5)
-		if not updatingSlider and offset ~= scrollOffset then
-			scrollOffset = offset
-			RenderRows()
+		if not window.updatingSlider and offset ~= window.offset then
+			window.offset = offset
+			RenderRows(window)
 		end
 	end)
+	window.slider = slider
 
-	panel:SetScript("OnShow", UI.Refresh)
+	frame:SetScript("OnShow", function() UI.Refresh(key) end)
+	return window
 end
 
-local function Attach()
-	if not panel then CreatePanel() end
-	attached = true
-	panel:ClearAllPoints()
-	panel:SetPoint("TOPLEFT", ProfessionsFrame, "TOPRIGHT", 2, 0)
-	panel:SetPoint("BOTTOMLEFT", ProfessionsFrame, "BOTTOMRIGHT", 2, 0)
-end
+local function CreateProfitWindow()
+	local window = CreateWindow("profit", "Profit", 34)
+	window.build = BuildProfitList
 
-function UI.ShowStandalone(tab)
-	if not panel then CreatePanel() end
-	if ProfessionsFrame and ProfessionsFrame:IsShown() then
-		Attach()
-	else
-		attached = false
-		panel:ClearAllPoints()
-		panel:SetSize(PANEL_WIDTH, 560)
-		panel:SetPoint("CENTER")
+	local filter = HeaderButton(window.frame, "", 120, function()
+		allProfessions = not allProfessions
+		windows.profit.offset = 0
+		UI.Refresh("profit")
+	end)
+	filter:SetPoint("TOPLEFT", 10, -30)
+
+	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
+	openQueue:SetPoint("TOPRIGHT", -12, -30)
+
+	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	status:SetPoint("BOTTOMLEFT", 12, 12)
+	status:SetPoint("BOTTOMRIGHT", -12, 12)
+	status:SetJustifyH("LEFT")
+
+	window.update = function(self)
+		filter:SetText(allProfessions and "All professions" or "This profession")
+		if #self.list == 0 then
+			status:SetText("Open a profession to record its recipes.")
+		else
+			status:SetText(#self.list .. " sellable recipes known across your characters.")
+		end
 	end
-	if tab then currentTab = tab end
-	panel:Show()
-	UI.Refresh()
 end
 
-function UI.Toggle(tab)
-	if panel and panel:IsShown() and (not tab or tab == currentTab) then
-		panel:Hide()
+local function CreateQueueWindow()
+	local window = CreateWindow("queue", "Queue", 128)
+	window.build = BuildQueueList
+
+	local clear = HeaderButton(window.frame, "Clear", 70, function() ns.Queue.Clear() end)
+	clear:SetPoint("TOPLEFT", 10, -30)
+
+	local openProfit = HeaderButton(window.frame, "Profit", 70, function() UI.Toggle("profit") end)
+	openProfit:SetPoint("TOPRIGHT", -12, -30)
+
+	local craftButton = HeaderButton(window.frame, "Craft Next", 100, function() ns.Queue.CraftNext() end)
+	craftButton:SetHeight(26)
+	craftButton:ClearAllPoints()
+	craftButton:SetPoint("BOTTOMLEFT", 10, 10)
+	craftButton:SetPoint("BOTTOMRIGHT", -10, 10)
+
+	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	status:SetPoint("BOTTOMLEFT", 12, 40)
+	status:SetPoint("BOTTOMRIGHT", -12, 40)
+	status:SetHeight(24)
+	status:SetJustifyH("LEFT")
+	status:SetJustifyV("BOTTOM")
+
+	local detail = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	detail:SetPoint("BOTTOMLEFT", 12, 66)
+	detail:SetPoint("BOTTOMRIGHT", -12, 66)
+	detail:SetHeight(26)
+	detail:SetJustifyH("LEFT")
+	detail:SetJustifyV("BOTTOM")
+
+	local total = window.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	total:SetPoint("BOTTOMLEFT", 12, 96)
+	total:SetPoint("BOTTOMRIGHT", -12, 96)
+	total:SetJustifyH("LEFT")
+
+	window.update = function()
+		local totals = ns.totals
+		if totals.counted > 0 then
+			local hex = totals.net >= 0 and COLOR_PROFIT or COLOR_LOSS
+			total:SetText("Total profit: " .. Color(hex, ns.Money(totals.net)))
+			detail:SetText(("Sells for %s after AH cut, materials %s.\nStill to buy: %s."):format(
+				ns.Money(totals.revenue), ns.Money(totals.cost), ns.Money(ns.plan.cost)))
+		elseif totals.excluded > 0 then
+			total:SetText("Total profit: " .. Color(COLOR_MUTED, "no price data"))
+			detail:SetText(("Still to buy: %s."):format(ns.Money(ns.plan.cost)))
+		else
+			total:SetText("Total profit: " .. Color(COLOR_MUTED, "nothing queued"))
+			detail:SetText("")
+		end
+
+		local craft, count, reason = ns.Queue.NextCraft()
+		if craft then
+			craftButton:SetText(("Craft Next: %s x%d"):format(RecipeName(craft.recipeID), count))
+			craftButton:Enable()
+		else
+			craftButton:SetText("Craft Next")
+			craftButton:Disable()
+		end
+
+		local notes = {}
+		if reason then table.insert(notes, reason) end
+		if totals.excluded > 0 and totals.counted > 0 then
+			table.insert(notes, totals.excluded .. " queued recipe(s) have no price and aren't in the total.")
+		end
+		local shopping = ns.Shopping.status
+		if shopping.error then table.insert(notes, "List update failed. See /craftledger diag.") end
+		if shopping.loading > 0 then table.insert(notes, shopping.loading .. " item name(s) loading.") end
+		if not ns.Stock.HasSyndicator() then table.insert(notes, "Syndicator not active: alts not counted.") end
+		status:SetText(table.concat(notes, " "))
+	end
+end
+
+local function GetWindow(key)
+	if not windows[key] then
+		if key == "profit" then CreateProfitWindow() else CreateQueueWindow() end
+	end
+	return windows[key]
+end
+
+-- withProfession: the window closes again with the profession window. Opened by command, it stays until closed.
+function UI.Show(key, withProfession)
+	local window = GetWindow(key)
+	if not window.frame:IsShown() then
+		PlaceWindow(window)
+		window.withProfession = withProfession
+		window.frame:Show()
+	end
+	UI.Refresh(key)
+end
+
+function UI.Toggle(key)
+	local window = GetWindow(key)
+	if window.frame:IsShown() then
+		window.frame:Hide()
 	else
-		UI.ShowStandalone(tab)
+		UI.Show(key, ProfessionsFrame and ProfessionsFrame:IsShown())
+	end
+end
+
+function UI.ToggleBoth()
+	local anyShown = false
+	for _, window in pairs(windows) do anyShown = anyShown or window.frame:IsShown() end
+	for _, key in ipairs({ "profit", "queue" }) do
+		if anyShown then
+			if windows[key] then windows[key].frame:Hide() end
+		else
+			UI.Show(key)
+		end
 	end
 end
 
@@ -564,6 +645,12 @@ local function CraftCountFromInput()
 	return type(value) == "number" and value >= 1 and value or 1
 end
 
+local function OpenWithProfession()
+	if not ns.db.ui.autoOpen then return end
+	UI.Show("profit", true)
+	if #ns.db.queue > 0 then UI.Show("queue", true) end
+end
+
 local function HookProfessionWindow()
 	if hooked or not (ProfessionsFrame and ProfessionsFrame.CraftingPage) then return end
 	hooked = true
@@ -583,7 +670,7 @@ local function HookProfessionWindow()
 				ns.Print("You have not learned that recipe.")
 			else
 				ns.Queue.Add(info.recipeID, CraftCountFromInput())
-				UI.ShowStandalone("queue")
+				UI.Show("queue", true)
 			end
 		end)
 		queueButton:SetScript("OnEnter", function(self)
@@ -595,14 +682,12 @@ local function HookProfessionWindow()
 		queueButton:SetScript("OnLeave", GameTooltip_Hide)
 	end
 
-	ProfessionsFrame:HookScript("OnShow", function()
-		if ns.db.ui.autoOpen then UI.ShowStandalone() end
-	end)
+	ProfessionsFrame:HookScript("OnShow", OpenWithProfession)
 	ProfessionsFrame:HookScript("OnHide", function()
-		if panel and attached then
-			panel:Hide()
-			attached = false
+		for _, window in pairs(windows) do
+			if window.withProfession then window.frame:Hide() end
 		end
+		UI.RefreshAll()
 	end)
 end
 
@@ -619,12 +704,12 @@ end
 ns.On("TRADE_SKILL_SHOW", function()
 	HookProfessionWindow()
 	NotifyStale()
-	if ns.db.ui.autoOpen and ProfessionsFrame and ProfessionsFrame:IsShown() then UI.ShowStandalone() end
+	if ProfessionsFrame and ProfessionsFrame:IsShown() then OpenWithProfession() end
 end)
 
 function ns.OnProfessionScanned()
 	ns.InvalidateProfit()
-	UI.Refresh()
+	UI.RefreshQueue()
 end
 
 ---------------------------------------------------------------------------
@@ -647,13 +732,13 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 		if ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
 			StaticPopup_Show("CRAFTLEDGER_SCAN", ScanAgeText())
 		end
-		UI.Refresh()
+		UI.RefreshAll()
 	end)
 end)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
 	StaticPopup_Hide("CRAFTLEDGER_SCAN")
-	UI.Refresh()
+	UI.RefreshAll()
 end)
 
 ---------------------------------------------------------------------------
@@ -678,6 +763,9 @@ local function Diagnostics()
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
 	local status = ns.Shopping.status
 	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.LIST_NAME, status.items, status.loading, tostring(status.error)))
+	Add(("queue profit: %s from %d entries, %d without a price"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded))
+	local openKey = ns.Recipes.OpenProfession()
+	Add("open profession: " .. tostring(openKey) .. ", recipes in window: " .. CountKeys(ns.Recipes.OpenRecipes()))
 	Add("Queue button on crafting page: " .. tostring(queueButton ~= nil))
 	ns.db.lastDiag = lines
 end
@@ -687,7 +775,7 @@ SLASH_CRAFTLEDGER2 = "/cledger"
 SlashCmdList.CRAFTLEDGER = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
 	if command == "queue" or command == "profit" then
-		UI.ShowStandalone(command)
+		UI.Toggle(command)
 	elseif command == "clear" then
 		ns.Queue.Clear()
 	elseif command == "auto" then
@@ -696,7 +784,7 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then
-		UI.Toggle()
+		UI.ToggleBoth()
 	else
 		ns.Print("/craftledger [queue | profit | clear | auto | diag]")
 	end

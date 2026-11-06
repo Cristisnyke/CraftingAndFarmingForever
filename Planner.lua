@@ -113,6 +113,26 @@ function Planner.Profit(ctx, recipeID)
 	return result
 end
 
+-- Expected result of selling everything in the queue, at the same prices as the profit list. isSellable(itemID)
+-- returns false for results that can't go on the AH. Entries without a usable price are counted, not guessed.
+function Planner.QueueTotals(ctx, queue, isSellable)
+	local totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {} }
+	for index, queued in ipairs(queue) do
+		local qty = queued.qty or 0
+		local result = Planner.Profit(ctx, queued.recipeID)
+		if qty > 0 and result and result.net and isSellable(result.itemID) then
+			totals.revenue = totals.revenue + result.saleUnit * result.yield * (1 - ctx.ahCut) * qty
+			totals.cost = totals.cost + result.cost * qty
+			totals.net = totals.net + result.net * qty
+			totals.counted = totals.counted + 1
+			totals.entries[index] = result.net * qty
+		elseif qty > 0 then
+			totals.excluded = totals.excluded + 1
+		end
+	end
+	return totals
+end
+
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups.
 function Planner.BuildPlan(ctx, queue)
 	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, cost = 0 }

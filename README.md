@@ -2,9 +2,9 @@
 
 A World of Warcraft: Forever add-on for profitable crafting.
 
-- **Profit list:** every recipe known by any of your characters, ranked by profit using Auctionator prices. Results that can't be sold on the auction house are left out.
+- **Profit window:** every recipe known by any of your characters, ranked by profit using Auctionator prices. Results that can't be sold on the auction house are left out.
 - **Cheapest path:** each material is costed as the cheapest of AH, vendor or crafting it yourself.
-- **Craft queue:** one queue shared across your characters, filled from the profession window, with a Craft Next button.
+- **Queue window:** one queue shared across your characters, filled from the profession window, with total profit and a Craft Next button.
 - **Live shopping list:** one Auctionator list, `CraftLedger Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks.
 - **Fresh prices:** asks for a new scan when Auctionator's data is more than 24 hours old.
 
@@ -15,12 +15,12 @@ A World of Warcraft: Forever add-on for profitable crafting.
 
 ## Usage
 
-Open a profession on each character once so CraftLedger can record its recipes. The panel opens with the profession window.
+Open a profession on each character once so CraftLedger can record its recipes. The windows open with the profession window (Queue only if it has something in it), and each one can be dragged anywhere and remembers where you put it.
 
 | Command | What it does |
 | --- | --- |
-| `/craftledger` or `/cledger` | Show or hide the panel |
-| `/craftledger queue` / `profit` | Open a specific tab |
+| `/craftledger` or `/cledger` | Show or hide both windows |
+| `/craftledger queue` / `profit` | Show or hide one window |
 | `/craftledger clear` | Empty the queue |
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |
