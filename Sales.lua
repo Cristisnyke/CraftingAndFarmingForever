@@ -16,7 +16,6 @@ local Sales = {}
 ns.Sales = Sales
 
 local DAY = 24 * 60 * 60
-local DURATION_SECONDS = { [1] = DAY / 2, [2] = DAY, [3] = 2 * DAY } -- the client's auction duration values
 local MAIL_LIFETIME_DAYS = 30
 local SAME_MAIL_TOLERANCE = 600 -- seconds; a mail's expiry time can differ slightly between scans
 local OPEN_LOT_LIMIT = 45 * DAY
@@ -30,6 +29,24 @@ local PRIOR_UNIT_DAYS = 1
 
 -- Under this many sold plus expired units the percentage is shown as a rough estimate.
 Sales.CONFIDENT_SAMPLES = 5
+
+---------------------------------------------------------------------------
+-- Auction durations
+---------------------------------------------------------------------------
+
+local DURATION_TEXT = { "AUCTION_DURATION_ONE", "AUCTION_DURATION_TWO", "AUCTION_DURATION_THREE" }
+local DURATION_NAME = { "Short", "Medium", "Long" }
+local DURATION_FALLBACK = { 12, 24, 48 }
+
+-- Hours of the client's duration 1 to 3. They differ between game versions, so the game's own text decides, then what
+-- Auctionator has on record for this version.
+function Sales.DurationHours(index)
+	local text = _G[DURATION_TEXT[index]]
+	local hours = type(text) == "string" and tonumber(text:match("%d+"))
+	if hours then return hours end
+	local known = Auctionator and Auctionator.Constants and Auctionator.Constants.Durations
+	return known and known[DURATION_NAME[index]] or DURATION_FALLBACK[index]
+end
 
 ---------------------------------------------------------------------------
 -- Calendar
@@ -160,13 +177,15 @@ end
 
 -- Every item with results, best sellers over the last 30 days first.
 function Sales.AllItems()
-	local list = {}
+	local list, recent = {}, {}
 	for _, item in pairs(ns.db.sales.items) do
-		if item.sold + item.expired > 0 then table.insert(list, item) end
+		if item.sold + item.expired > 0 then
+			table.insert(list, item)
+			recent[item] = Sales.Counts(item, 30)
+		end
 	end
 	table.sort(list, function(a, b)
-		local soldA, soldB = Sales.Counts(a, 30), Sales.Counts(b, 30)
-		if soldA ~= soldB then return soldA > soldB end
+		if recent[a] ~= recent[b] then return recent[a] > recent[b] end
 		return a.name < b.name
 	end)
 	return list
@@ -176,27 +195,32 @@ end
 -- Auction posts
 ---------------------------------------------------------------------------
 
-local pendingPost
+local PENDING_POST_SECONDS = 60
+-- Oldest first: posts sent quickly can still be waiting for the server when the next one goes.
+local pendingPosts = {}
 
 local function OnPost(itemLocation, duration, quantity)
-	pendingPost = {
+	local post = {
 		itemID = C_Item.GetItemID(itemLocation),
 		qty = quantity or 1,
-		dur = DURATION_SECONDS[duration] or DAY,
+		dur = Sales.DurationHours(duration or 2) * 60 * 60,
 		at = time(),
 	}
-	if pendingPost.itemID then ns.Items.Name(pendingPost.itemID) end
+	if post.itemID then ns.Items.Name(post.itemID) end
+	table.insert(pendingPosts, post)
 end
 
 -- A post only counts once the server confirms it, since a post can fail.
 ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
-	local post = pendingPost
-	pendingPost = nil
-	if not post or not post.itemID or time() - post.at > 60 then return end
+	-- One that never got an answer failed, so it mustn't be mistaken for this one.
+	while pendingPosts[1] and time() - pendingPosts[1].at > PENDING_POST_SECONDS do table.remove(pendingPosts, 1) end
+	local post = table.remove(pendingPosts, 1)
+	if not post or not post.itemID then return end
 	post.name = ns.Items.Name(post.itemID)
 	post.char = ns.CharKey()
 	table.insert(ns.db.sales.lots, post)
 	if ns.UI then ns.UI.Refresh("sales") end
+	if ns.Posting then ns.Posting.OnPosted(post) end
 end)
 
 ns.On("PLAYER_LOGIN", function()
@@ -269,7 +293,8 @@ function Sales.ScanMail()
 			end
 			count = count or 1
 
-			local key = table.concat({ kind, name, count, money or 0 }, "|")
+			-- Not the count: a sale's only arrives once its invoice has loaded, so the same mail could count twice.
+			local key = table.concat({ kind, name, money or 0 }, "|")
 			local expires = now + daysLeft * DAY
 			local known = false
 			for seenIndex, record in ipairs(seen) do

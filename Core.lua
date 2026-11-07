@@ -54,7 +54,9 @@ end
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
--- db.restock           = { stackGoal, singleGoal, minProfitSilver, goals = { [itemID] = per-item goal } }
+-- db.restock           = { stackGoal, singleGoal, minProfitSilver, duration = 1 to 3 for posting,
+--                          goals = { [itemID] = per-item goal } }
+-- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, positions = { [window] = { x, y } } }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -78,6 +80,13 @@ local function Normalize(db)
 	db.restock.singleGoal = db.restock.singleGoal or 1
 	db.restock.minProfitSilver = db.restock.minProfitSilver or 1
 	db.restock.goals = db.restock.goals or {}
+	db.restock.duration = db.restock.duration or 2
+	-- Mail records used to include the count, which can change between scans of one mail.
+	for _, records in pairs(db.sales.seen) do
+		for _, record in ipairs(records) do
+			record.key = record.key:gsub("^(%a+|.-)|%d+|(%d+)$", "%1|%2")
+		end
+	end
 	return db
 end
 
@@ -88,6 +97,10 @@ local function Merge(loaded, session)
 		if target then
 			target.name, target.realm, target.class = char.name, char.realm, char.class
 			for id in pairs(char.recipes) do target.recipes[id] = true end
+			for id, link in pairs(char.links or {}) do
+				target.links = target.links or {}
+				target.links[id] = link
+			end
 		else
 			loaded.chars[guid] = char
 		end

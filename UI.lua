@@ -133,7 +133,7 @@ local function AddItemRows(list, title, items, priceLabel, priceOf)
 end
 
 -- What's left to get yourself, grouped by how: one row for the item, one saying where to get it.
-local function AddFarmRows(list, plan)
+local function AddGatherRows(list, plan, withHeaders)
 	local groups = {}
 	for itemID, count in pairs(plan.farm) do
 		local group, line = ns.Farm.Describe(itemID)
@@ -144,14 +144,13 @@ local function AddFarmRows(list, plan)
 		local rows = groups[group.key]
 		if rows then
 			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
-			table.insert(list, { kind = "header", text = group.title })
+			if withHeaders then table.insert(list, { kind = "header", text = group.title }) end
 			for _, row in ipairs(rows) do
 				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
 				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
 			end
 		end
 	end
-	AddItemRows(list, "Smelt with Mining", plan.smelt)
 end
 
 -- The small Farm window: only what's still needed, item on one line and how to get it under it.
@@ -169,22 +168,8 @@ local function BuildFarmList()
 		end
 	end
 
-	local groups = {}
-	for itemID, count in pairs(plan.farm) do
-		local group, line = ns.Farm.Describe(itemID)
-		groups[group] = groups[group] or {}
-		table.insert(groups[group], { itemID = itemID, count = count, line = line })
-	end
-	for _, group in ipairs(ns.Farm.GROUPS) do
-		local rows = groups[group.key]
-		if rows then
-			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
-			for _, row in ipairs(rows) do
-				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
-				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
-			end
-		end
-	end
+	AddGatherRows(list, plan, false)
+	AddItems(plan.smelt, "Smelt with Mining")
 	AddItems(plan.vendor, "Buy from a vendor")
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
@@ -218,7 +203,10 @@ local function BuildQueueList()
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
-	if farming then AddFarmRows(list, plan) end
+	if farming then
+		AddGatherRows(list, plan, true)
+		AddItemRows(list, "Smelt with Mining", plan.smelt)
+	end
 	AddItemRows(list, "Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
 	AddItemRows(list, "Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	local names = {}
@@ -376,6 +364,11 @@ local function RowOnEnter(row)
 		AddSalesLines(ns.Items.Name(item.itemID))
 		GameTooltip:AddLine("+ and - change this item's goal (Shift for 10). A goal of 0 skips the item.", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
+	elseif data.kind == "post" then
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetItemByID(data.row.itemID)
+		AddSalesLines(ns.Items.Name(data.row.itemID))
+		GameTooltip:Show()
 	elseif data.kind == "sales" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetText(data.item.name)
@@ -401,7 +394,9 @@ end
 
 local function RowOnClick(row)
 	local data = row.data
-	if data and data.kind == "profit" and ns.Recipes.Knows(ns.CharKey(), data.result.recipeID)
+	if data and data.kind == "post" then
+		ns.Posting.Select(data.row.itemID)
+	elseif data and data.kind == "profit" and ns.Recipes.Knows(ns.CharKey(), data.result.recipeID)
 		and ns.Recipes.OpenRecipes()[data.result.recipeID] then
 		C_TradeSkillUI.OpenRecipe(data.result.recipeID)
 	end
@@ -495,6 +490,7 @@ local function SetRow(row, data)
 	row.right:ClearAllPoints()
 	row.right:SetPoint("RIGHT", row, "RIGHT", -4, 0)
 	row.right:SetText("")
+	if data.selected then row:LockHighlight() else row:UnlockHighlight() end
 
 	if data.kind == "header" then
 		row.icon:Hide()
@@ -559,6 +555,18 @@ local function SetRow(row, data)
 		local sold, expired = ns.Sales.Counts(item, 7)
 		local chance = ChanceText(item.name)
 		row.right:SetText((chance ~= "" and (chance .. "   ") or "") .. ("7 days: %d sold, %d expired"):format(sold, expired))
+	elseif data.kind == "post" then
+		local item = data.row
+		row.icon:SetTexture(ns.Items.Icon(item.itemID))
+		row.left:SetText(ItemLabel(item.itemID))
+		local held = ("%d in bags, AH %s/%d"):format(item.inBags, item.onAH and tostring(item.onAH) or "?", item.goal)
+		if item.toPost > 0 then
+			row.right:SetText(Color("ffffb040", "post " .. item.toPost) .. "   " .. held)
+		elseif item.goal > 0 and (item.onAH or 0) < item.goal then
+			row.right:SetText(Color(COLOR_MUTED, "for the queue   " .. held))
+		else
+			row.right:SetText(Color(COLOR_MUTED, held))
+		end
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
@@ -693,7 +701,7 @@ function UI.Refresh(key)
 	if window.tabs then RenderTabs(window) end
 	window.list = window.build()
 	RenderRows(window)
-	if not window.mini then UpdateBanner() end
+	if main then UpdateBanner() end
 	window.update(window)
 end
 
@@ -702,6 +710,7 @@ function UI.RefreshAll()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("sales")
+	UI.Refresh("posting")
 	UpdateTabStrip()
 end
 
@@ -710,6 +719,7 @@ function UI.RefreshQueue()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("farm")
+	UI.Refresh("posting")
 	UpdateTabStrip()
 end
 
@@ -793,6 +803,10 @@ local function CreateListArea(window, parent, left, top, footer, rowHeight)
 	end)
 	window.slider = slider
 end
+
+UI.HeaderButton = HeaderButton
+UI.CreateListArea = CreateListArea
+UI.ROW_HEIGHT = ROW_HEIGHT
 
 -- One tab's contents inside the main window, which sizes and places it. A row of the pane's own buttons runs along
 -- its top. withTabs adds the column of profession tabs on the left.
@@ -1098,7 +1112,7 @@ function CreateRestockPane()
 		apply:SetEnabled(needed > 0)
 		apply:SetText(needed > 0 and ("Queue restock: %d item(s)"):format(needed) or "Fully stocked")
 		local notes = { "AH counts update when you visit the auction house." }
-		if toPost > 0 then table.insert(notes, 1, toPost .. " item(s) you hold are ready to post.") end
+		if toPost > 0 then table.insert(notes, 1, toPost .. " item(s) you hold are ready to post, from the auction house's Restocking tab.") end
 		if #self.list == 0 then notes = { "No profitable items yet. Open your professions and scan the AH." } end
 		status:SetText(table.concat(notes, " "))
 	end
@@ -1202,6 +1216,7 @@ local function CreateMain()
 	UI.main = main
 	MakeMovable(frame, "main")
 	frame:SetSize(MAIN_WIDTH, WINDOW_HEIGHT)
+	table.insert(UISpecialFrames, "CraftLedgerWindow") -- Escape closes it, like the game's own windows
 
 	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	titleText:SetPoint("TOPLEFT", 12, -14)
@@ -1776,6 +1791,9 @@ local function Diagnostics()
 	local openKey = ns.Recipes.OpenProfession()
 	Add("open profession: " .. tostring(openKey) .. ", recipes in window: " .. CountKeys(ns.Recipes.OpenRecipes()))
 	Add("Queue button on crafting page: " .. tostring(queueButton ~= nil))
+	Add(("auction durations: %dh, %dh, %dh; client text: %s"):format(ns.Sales.DurationHours(1), ns.Sales.DurationHours(2),
+		ns.Sales.DurationHours(3), tostring(_G.AUCTION_DURATION_ONE)))
+	Add("Restocking tab created: " .. tostring(windows.posting ~= nil))
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	ns.db.lastDiag = lines

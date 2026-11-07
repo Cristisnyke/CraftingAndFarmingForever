@@ -277,5 +277,32 @@ do
 	check("farm: cycle ends in a farm entry", plan.farm[BAR], 1)
 end
 
+-- Posting: how many, at what price, and what the queue still needs.
+check("post what the goal lacks", Planner.PostQuantity(10, 3, 20, 0), 7)
+check("post no more than held", Planner.PostQuantity(10, 3, 4, 0), 4)
+check("queue's share stays", Planner.PostQuantity(10, 3, 4, 3), 1)
+check("goal met posts none", Planner.PostQuantity(10, 12, 4, 0), 0)
+check("queue needs them all", Planner.PostQuantity(10, 0, 4, 9), 0)
+check("undercut by 1c", (Planner.PostPrice({ lowest = 500 })), 499)
+check("own listing kept", (Planner.PostPrice({ lowest = 500, lowestIsMine = true })), 500)
+check("never below 1c", (Planner.PostPrice({ lowest = 1 })), 1)
+check("scan price with no listing", (Planner.PostPrice({ scanned = 700 })), 700)
+check("live price beats scan", (Planner.PostPrice({ lowest = 300, scanned = 700 })), 299)
+check("nothing to go on", Planner.PostPrice({ breakEven = 100 }), nil)
+local raisedPrice, raised = Planner.PostPrice({ lowest = 10, breakEven = 99.5 })
+check("raised to break-even", raisedPrice, 100)
+check("says it was raised", raised, true)
+check("profitable not raised", select(2, Planner.PostPrice({ lowest = 500, breakEven = 100 })), nil)
+do
+	local ctx = Context()
+	check("craft cost per unit", Planner.CraftUnitCost(ctx, SHIRT), (3 * 20 + 5))
+	check("no recipe, no cost", Planner.CraftUnitCost(ctx, ORE), nil)
+	local reserved = Planner.ReservedMaterials(ctx, { crafts = { { recipeID = 300, count = 2 }, { recipeID = 200, count = 6 } } })
+	check("direct material", reserved[BOLT], 6)
+	check("sub-craft material", reserved[CLOTH], 12)
+	check("vendor material", reserved[THREAD], 2)
+	check("result not reserved", reserved[SHIRT], nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -141,6 +141,54 @@ function Planner.RestockCrafts(goal, onAH, owned, queued, yield)
 	return math.ceil(missing / yield)
 end
 
+-- Units to post: what the goal still lacks on the AH, from what's in the bags and not needed by the queue.
+function Planner.PostQuantity(goal, onAH, inBags, reserved)
+	return math.max(0, math.min(goal - onAH, inBags - (reserved or 0)))
+end
+
+-- What one unit costs to craft by the cheapest known recipe. Nil when no recipe has a complete price.
+function Planner.CraftUnitCost(ctx, itemID)
+	local best
+	for _, recipeID in ipairs(ctx.known[itemID] or {}) do
+		local result = Planner.Profit(ctx, recipeID)
+		if result and result.cost then
+			local unit = result.cost / result.yield
+			if not best or unit < best then best = unit end
+		end
+	end
+	return best
+end
+
+-- The price to suggest for one unit, and whether it was raised to stop a post losing money. opts supplies:
+--   lowest, lowestIsMine   the cheapest listing right now, if any. Your own isn't undercut.
+--   scanned                the last scanned price, used with no listing to go on
+--   breakEven              the price that just covers materials and the AH cut, if known
+-- Nil when there's nothing to base a price on, for the user to decide.
+function Planner.PostPrice(opts)
+	local price = opts.scanned
+	if opts.lowest then
+		price = opts.lowestIsMine and opts.lowest or (opts.lowest - 1)
+	end
+	if not price then return nil end
+	price = math.max(1, math.floor(price))
+	if opts.breakEven and price < opts.breakEven then return math.ceil(opts.breakEven), true end
+	return price
+end
+
+-- Materials the crafts in a plan still use, by item. Every alternative of a slot counts, since any of them may be used.
+function Planner.ReservedMaterials(ctx, plan)
+	local reserved = {}
+	for _, craft in ipairs(plan.crafts) do
+		local recipe = ctx.recipes[craft.recipeID]
+		for _, slot in ipairs(recipe and recipe.r or {}) do
+			for i = 2, #slot do
+				reserved[slot[i]] = (reserved[slot[i]] or 0) + (slot[1] or 1) * craft.count
+			end
+		end
+	end
+	return reserved
+end
+
 -- One row per profitable item the characters can make, using its most profitable recipe. opts supplies:
 --   isSellable(itemID) -> true when it can go on the AH (false or nil leaves it out)
 --   goal(itemID)       -> stock goal, nil while unknown

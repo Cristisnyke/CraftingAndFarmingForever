@@ -227,6 +227,12 @@ function Stock.HasSyndicator()
 	return SyndicatorAPI() ~= nil
 end
 
+-- How Syndicator names a character in its results, the same form as GetCurrentCharacter.
+local function SyndicatorKey(char)
+	local realm = char.realmNormalized
+	return realm and realm ~= "" and (char.character .. "-" .. realm) or char.character
+end
+
 -- Bags and bank of other characters on the connected realm and same faction, since those can mail to this one.
 function Stock.Alts(itemID)
 	local api = SyndicatorAPI()
@@ -236,8 +242,7 @@ function Stock.Alts(itemID)
 	local me = api.GetCurrentCharacter()
 	local result = {}
 	for _, char in ipairs(info.characters or {}) do
-		local key = char.realmNormalized and char.realmNormalized ~= "" and (char.character .. "-" .. char.realmNormalized)
-			or char.character
+		local key = SyndicatorKey(char)
 		local count = (char.bags or 0) + (char.bank or 0)
 		if key ~= me and count > 0 then
 			table.insert(result, { name = char.character or key, count = count })
@@ -257,11 +262,9 @@ function Stock.ForRestock(itemID)
 	local me = api.GetCurrentCharacter()
 	local onAH = 0
 	for _, char in ipairs(info.characters or {}) do
-		local key = char.realmNormalized and char.realmNormalized ~= "" and (char.character .. "-" .. char.realmNormalized)
-			or char.character
 		onAH = onAH + (char.auctions or 0)
 		owned = owned + (char.mail or 0)
-		if key ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
+		if SyndicatorKey(char) ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
 	end
 	return onAH, owned
 end

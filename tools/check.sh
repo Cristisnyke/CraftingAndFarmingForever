@@ -3,7 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ADDON_FILES=(Core.lua Planner.lua Sources.lua Farm.lua Data.lua Queue.lua Sales.lua Shopping.lua UI.lua)
+# The toc decides what the game loads, so a file missing from it can't pass here unnoticed.
+mapfile -t ADDON_FILES < <(tr -d '\r' < CraftLedger.toc | grep -E '\.lua$')
+for f in *.lua; do
+	printf '%s\n' "${ADDON_FILES[@]}" | grep -qx "$f" || { echo "$f is not in the toc"; exit 1; }
+done
 
 for f in "${ADDON_FILES[@]}" tests/*.lua; do luac5.1 -p "$f"; done
 

@@ -93,6 +93,7 @@ StaticPopupDialogs = {}
 function StaticPopup_Show(name) ns_popup = name end
 function StaticPopup_Hide() end
 SlashCmdList = {}
+UISpecialFrames = {}
 TRADE = "Trade"
 channelList = { 1, "General - City", false, 2, "Trade - City", false, 4, "LocalDefense - City", false }
 function GetChannelList() return unpack(channelList) end
@@ -933,10 +934,14 @@ RunTimers()
 
 -- Late saved data: the session's queue is merged into the table the client hands over.
 ns.Queue.Add(10, 1)
-CraftLedgerDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {}, ui = {} }
+CraftLedgerDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {}, ui = {},
+	sales = { seen = { someone = { { key = "sold|Copper Axe|2|500", expires = 1 }, { key = "sold|Copper Axe|500", expires = 1 } } } } }
 RunTimers()
 Fire("PLAYER_LOGOUT")
 check("late data adopted", ns.db, CraftLedgerDB)
+check("old mail record loses its count", ns.db.sales.seen.someone[1].key, "sold|Copper Axe|500")
+check("new mail record left alone", ns.db.sales.seen.someone[2].key, "sold|Copper Axe|500")
+ns.db.sales.seen.someone = nil
 check("session queue merged", #ns.db.queue, 2)
 
 -- Source data and instructions, on real entries of the generated table.
@@ -1027,6 +1032,208 @@ do
 end
 for barID, smelt in pairs(ns.Farm.Smelting) do
 	check("smelt yield set for " .. barID, smelt.yield >= 1 and #smelt >= 1, true)
+end
+
+-- A late invoice changes a sale's count between mailbox scans: still one sale.
+do
+	ns.db.sales.items, ns.db.sales.lots, ns.db.sales.seen = {}, {}, {}
+	inbox = { { subject = "Auction successful: Late Item", money = 500, daysLeft = 30 } }
+	local invoiceCount = nil
+	GetInboxInvoiceInfo = function() return "seller", "Late Item", "Buyer", 0, 0, 0, 0, 0, 0, 0, invoiceCount end
+	ns.Sales.ScanMail()
+	invoiceCount = 4
+	ns.Sales.ScanMail()
+	check("same mail not counted twice", ns.Sales.Item("Late Item").sold, 1)
+	GetInboxInvoiceInfo = nil
+	inbox = {}
+	ns.db.sales.items, ns.db.sales.seen = {}, {}
+end
+
+-- Durations follow the game's own text, then Auctionator's record for this version.
+do
+	check("no text, no record: default", ns.Sales.DurationHours(1), 12)
+	Auctionator.Constants = { Durations = { Short = 2, Medium = 8, Long = 24 } }
+	check("Auctionator's record", ns.Sales.DurationHours(2), 8)
+	AUCTION_DURATION_ONE = "4 Hours"
+	check("the game's text wins", ns.Sales.DurationHours(1), 4)
+	AUCTION_DURATION_ONE = nil
+	Auctionator.Constants = nil
+end
+
+-- Posts waiting for the server are matched in order, and a failed one doesn't take the next one's confirmation.
+do
+	ns.db.sales.lots = {}
+	C_Item.GetItemID = function(location) return location.itemID end
+	local realTime = time
+	C_AuctionHouse.PostCommodity({ itemID = 1 }, 2, 3)
+	time = function() return realTime() + 120 end
+	C_AuctionHouse.PostCommodity({ itemID = 3 }, 2, 5)
+	C_AuctionHouse.PostItem({ itemID = 1 }, 2, 1)
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+	check("failed post dropped", ns.db.sales.lots[1].itemID, 3)
+	check("its quantity", ns.db.sales.lots[1].qty, 5)
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+	check("second post matched", ns.db.sales.lots[2].itemID, 1)
+	time = realTime
+	ns.db.sales.lots = {}
+end
+
+-- The small Farm list includes smelting, so it can't say all gathered while bars are still to make.
+do
+	ns.db.ui.farmMode = true
+	local realPlan = ns.farmPlan
+	ns.farmPlan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = { [2840] = 4 }, cost = 0 }
+	ns.UI.Show("farm")
+	local kinds = {}
+	for _, data in ipairs(ns.UI.windows.farm.list) do kinds[data.kind] = (kinds[data.kind] or 0) + 1 end
+	check("smelting listed", ns.UI.windows.farm.list[1].itemID, 2840)
+	check("says how", ns.UI.windows.farm.list[2].text, "Smelt with Mining")
+	ns.UI.windows.farm.frame:Hide()
+	ns.farmPlan = realPlan
+	ns.db.ui.farmMode = nil
+end
+
+-- Restocking tab: lists what's craftable in the bags, searches, suggests a price, posts and moves on.
+do
+	local bags = {}
+	C_Container = {
+		GetContainerNumSlots = function(bag) return bag == 0 and #bags or 0 end,
+		GetContainerItemInfo = function(_, slot) return bags[slot] end,
+	}
+	ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot, itemID = bags[slot].itemID } end }
+	Enum.ItemCommodityStatus = { Commodity = 2 }
+	local posts = {}
+	local commodity = {}
+	local listings = {}
+	local ready = true
+	local searches = 0
+	C_AuctionHouse.IsThrottledMessageSystemReady = function() return ready end
+	C_AuctionHouse.MakeItemKey = function(itemID) return { itemID = itemID } end
+	C_AuctionHouse.SendSearchQuery = function() searches = searches + 1 end
+	C_AuctionHouse.GetItemCommodityStatus = function(location) return commodity[location.itemID] and 2 or 1 end
+	C_AuctionHouse.GetAvailablePostCount = function(location) return 99 end
+	C_AuctionHouse.CalculateCommodityDeposit = function() return 7 end
+	C_AuctionHouse.CalculateItemDeposit = function() return 9 end
+	C_AuctionHouse.GetNumItemSearchResults = function(key) return #(listings[key.itemID] or {}) end
+	C_AuctionHouse.GetItemSearchResultInfo = function(key, index) return listings[key.itemID][index] end
+	C_AuctionHouse.GetNumCommoditySearchResults = function(itemID) return #(listings[itemID] or {}) end
+	C_AuctionHouse.GetCommoditySearchResultInfo = function(itemID, index) return listings[itemID][index] end
+	local realItemPost, realCommodityPost = C_AuctionHouse.PostItem, C_AuctionHouse.PostCommodity
+	C_AuctionHouse.PostItem = function(location, duration, quantity, bid, buyout)
+		realItemPost(location, duration, quantity, bid, buyout)
+		table.insert(posts, { itemID = location.itemID, duration = duration, quantity = quantity, bid = bid, price = buyout, kind = "item" })
+	end
+	C_AuctionHouse.PostCommodity = function(location, duration, quantity, price)
+		realCommodityPost(location, duration, quantity, price)
+		table.insert(posts, { itemID = location.itemID, duration = duration, quantity = quantity, price = price, kind = "commodity" })
+	end
+
+	local created
+	LibStub = function() return { CreateTab = function(_, id, frame, label) created = { id = id, frame = frame, label = label } end } end
+	ns.Queue.Clear()
+	RunTimers()
+	playerMoney = 100000
+
+	-- Item 4 is the shirt from recipe 20; nothing makes the cloth, item 1.
+	local shirt = ns.db.recipes[20].o
+	bags = { { itemID = shirt, stackCount = 3 }, { itemID = 1, stackCount = 20 }, { itemID = shirt, stackCount = 1, isBound = true } }
+	Fire("AUCTION_HOUSE_SHOW")
+	RunTimers()
+	check("tab named", created and created.label, "Restocking")
+	check("tab added once", (function()
+		local first = created
+		Fire("AUCTION_HOUSE_SHOW")
+		RunTimers()
+		return created == first
+	end)(), true)
+
+	local window = ns.Posting.window
+	AuctionHouseFrame:Show()
+	created.frame:Show()
+	ns.db.restock.goals[shirt] = 2
+	ns.UI.Refresh("posting")
+	local rows = window.list
+	check("only items a recipe makes", #rows, 1)
+	check("craft listed", rows[1].row.itemID, shirt)
+	check("bound copy not counted", rows[1].row.inBags, 3)
+	check("goal limits the suggestion", rows[1].row.toPost, 2)
+	check("first row selected", rows[1].selected, true)
+	check("search sent", searches >= 1, true)
+
+	-- Someone else sells at 500: 1c under. Below break-even raises it instead.
+	listings[shirt] = { { buyoutAmount = 700, containsOwnerItem = false }, { buyoutAmount = 500, containsOwnerItem = false } }
+	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
+	local posted = #posts
+	ns.Posting.PostSelected()
+	check("posted", #posts, posted + 1)
+	local last = posts[#posts]
+	check("undercut by 1c", last.price, 499)
+	check("suggested quantity", last.quantity, 2)
+	check("saved duration", last.duration, 2)
+	check("item post has no bid", last.bid, nil)
+	check("sent as an item", last.kind, "item")
+	ns.Posting.PostSelected()
+	check("double click doesn't post twice", #posts, posted + 1)
+
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+	check("post recorded for the odds", ns.db.sales.lots[#ns.db.sales.lots].itemID, shirt)
+	bags[1].stackCount = 1
+	RunTimers()
+	ns.UI.Refresh("posting")
+	rows = window.list
+	check("posted units count at once", rows[1].row.toPost, 0)
+	check("nothing left selected", rows[1].selected, false)
+	check("still there to post by hand", rows[1].row.inBags, 1)
+
+	-- By hand: selecting it works even with the goal met, and a typed price is kept when the search answers.
+	ns.Posting.Select(shirt)
+	check("selected by hand", window.list[1].selected, true)
+	listings[shirt] = { { buyoutAmount = 400, containsOwnerItem = true } }
+	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
+	ns.Posting.PostSelected()
+	check("own listing isn't undercut", posts[#posts].price, 400)
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+
+	-- The queue's materials are held back.
+	ns.db.restock.goals[shirt] = 10
+	ns.Queue.Add(20, 1)
+	RunTimers()
+	local bolts = ns.db.recipes[10].o
+	ns.db.restock.goals[bolts] = 100
+	bags = { { itemID = bolts, stackCount = 5 } }
+	listings[bolts] = {}
+	ns.UI.Refresh("posting")
+	check("queue's materials held back", window.list[1].row.toPost, 5 - window.list[1].row.reserved)
+	check("queue reserves some", window.list[1].row.reserved > 0, true)
+	ns.Queue.Clear()
+	RunTimers()
+
+	-- Busy: the search waits until the auction house can take it.
+	ready = false
+	local before = searches
+	bags = { { itemID = shirt, stackCount = 2 } }
+	ns.db.restock.goals[shirt] = 50
+	AuctionHouseFrame:Hide()
+	Fire("AUCTION_HOUSE_CLOSED")
+	AuctionHouseFrame:Show()
+	ns.UI.Refresh("posting")
+	check("no search while throttled", searches, before)
+	prices[shirt] = 900
+	ready = true
+	Fire("AUCTION_HOUSE_THROTTLED_SYSTEM_READY")
+	check("search sent when ready", searches, before + 1)
+
+	-- No answer: falls back to the last scan once the wait is over.
+	RunTimers()
+	ns.Posting.PostSelected()
+	check("last scan used after the wait", posts[#posts].price, 900)
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+
+	AuctionHouseFrame:Hide()
+	Fire("AUCTION_HOUSE_CLOSED")
+	created.frame:Hide()
+	ns.db.restock.goals = {}
+	ns.db.sales.lots = {}
 end
 
 print(("%d checks, %d failures"):format(checks, failures))
