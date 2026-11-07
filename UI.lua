@@ -44,6 +44,7 @@ local main
 -- Defined further down, used by code above them.
 local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane, ShowFarm
 local profitCache
+local profitSearch = "" -- the Profit search box's text, trimmed and lowercase
 local scanNotified = false
 
 ---------------------------------------------------------------------------
@@ -90,16 +91,40 @@ end
 
 UI.ComputeProfit = ComputeProfit
 
+-- Matches what the row shows (the item) or the recipe's own name, which can differ ("Transmute: Arcanite").
+-- An item name still loading falls back to the recipe name; the refresh when it arrives catches the rest.
+local function MatchesProfitSearch(result)
+	if profitSearch == "" then return true end
+	local recipe = ns.db.recipes[result.recipeID]
+	local itemName, recipeName = ns.Items.Name(result.itemID), recipe and recipe.n
+	return (itemName and itemName:lower():find(profitSearch, 1, true) ~= nil)
+		or (recipeName and recipeName:lower():find(profitSearch, 1, true) ~= nil)
+		or false
+end
+
 local function BuildProfitList()
 	profitCache = profitCache or ComputeProfit()
 	local selected = selectedProfession.profit
 	local list = {}
 	for _, result in ipairs(profitCache) do
-		if not selected or result.profession == selected then
+		if (not selected or result.profession == selected) and MatchesProfitSearch(result) then
 			table.insert(list, { kind = "profit", result = result })
 		end
 	end
 	return list
+end
+
+-- The status line's text while a search is active. The list follows the opened profession, so a search that finds
+-- nothing says when another tab has it rather than looking as if the item doesn't exist.
+local function ProfitSearchStatus(shown)
+	if shown == 1 then return "1 recipe matches your search." end
+	if shown > 0 then return shown .. " recipes match your search." end
+	local elsewhere = 0
+	for _, result in ipairs(profitCache) do
+		if MatchesProfitSearch(result) then elsewhere = elsewhere + 1 end
+	end
+	if elsewhere > 0 then return ("No matches on this tab, %d on the All tab."):format(elsewhere) end
+	return "No recipes match your search."
 end
 
 ---------------------------------------------------------------------------
@@ -839,10 +864,35 @@ function CreateProfitPane()
 	advertise:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
 	window.advertiseButton = advertise
 
+	local search = CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate")
+	search:SetSize(200, 20)
+	search:SetPoint("BOTTOMRIGHT", -24, 7) -- in the footer: the stale-price banner has the right of the top row
+	search:SetAutoFocus(false)
+	local placeholder = search:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	placeholder:SetPoint("LEFT", 2, 0)
+	placeholder:SetText(Color(COLOR_MUTED, "Search items (Esc clears)"))
+	search:SetScript("OnTextChanged", function(self)
+		local text = self:GetText() or ""
+		placeholder:SetShown(text == "")
+		local query = text:match("^%s*(.-)%s*$"):lower()
+		if query == profitSearch then return end
+		profitSearch = query
+		window.offset = 0
+		UI.Refresh("profit")
+	end)
+	search:SetScript("OnEnterPressed", search.ClearFocus)
+	search:SetScript("OnEscapePressed", function(self)
+		self:SetText("")
+		self:ClearFocus()
+	end)
+	search:SetScript("OnHide", search.ClearFocus)
+	window.searchBox = search
+
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	status:SetPoint("BOTTOMLEFT", 12, 12)
-	status:SetPoint("BOTTOMRIGHT", -12, 12)
+	status:SetPoint("BOTTOMRIGHT", -236, 12)
 	status:SetJustifyH("LEFT")
+	window.status = status
 
 	window.update = function(self)
 		local professionID = UI.AdvertisedProfession()
@@ -850,7 +900,9 @@ function CreateProfitPane()
 		advertise:SetEnabled(canAdvertise)
 		local professionName = professionID and ns.Recipes.ProfessionName(professionID)
 		advertise:SetText(canAdvertise and professionName and ("Advertise " .. professionName) or "Advertise")
-		if #self.list == 0 then
+		if profitSearch ~= "" then
+			status:SetText(ProfitSearchStatus(#self.list))
+		elseif #self.list == 0 then
 			status:SetText("Open a profession to record its recipes.")
 		else
 			status:SetText(#self.list .. " sellable recipes known across your characters.")

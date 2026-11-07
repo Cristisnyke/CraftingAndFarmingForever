@@ -630,6 +630,40 @@ check("All tab shows everything", #ns.UI.windows.profit.list > 1, true)
 Fire("TRADE_SKILL_LIST_UPDATE")
 check("clicked tab stays selected", #ns.UI.windows.profit.list > 1, true)
 
+-- Profit search: the real box fires OnTextChanged on any text change, including its own SetText.
+do
+	local window = ns.UI.windows.profit
+	local box = window.searchBox
+	local function Search(text)
+		box:SetText(text)
+		box.scripts.OnTextChanged(box)
+	end
+	local everything = #window.list
+	window.offset = 5
+	Search("  BRONZE b ")
+	check("search ignores case and outer spaces", #window.list, 1)
+	check("search finds the item", window.list[1].result.recipeID, 500)
+	check("search scrolls back to the top", window.offset, 0)
+	Search("no such recipe at all")
+	check("search can find nothing", #window.list, 0)
+	Search("[")
+	check("search text is not a pattern", #window.list, 0)
+	ns.UI.SelectProfession("profit", 197)
+	Search("bronze")
+	check("search stays within the tab", #window.list, 0)
+	check("empty tab points to the All tab", window.status.text, "No matches on this tab, 1 on the All tab.")
+	ns.UI.SelectProfession("profit", 186)
+	check("search survives a tab change", #window.list, 1)
+	check("search reports its matches", window.status.text, "1 recipe matches your search.")
+	ns.InvalidateProfit()
+	check("search survives a price refresh", #window.list, 1)
+	ns.UI.SelectProfession("profit", nil)
+	box.scripts.OnEscapePressed(box)
+	box.scripts.OnTextChanged(box)
+	check("escape empties the box", box:GetText(), "")
+	check("clearing shows everything again", #window.list, everything)
+end
+
 -- Restock on one tab leaves the other profession's restock entries alone.
 ns.db.queue[1] = { recipeID = 500, qty = 2, char = "Player-2-ALT", restock = true }
 ns.db.queue[2] = { recipeID = 20, qty = 2, char = me, restock = true }
