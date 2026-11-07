@@ -293,6 +293,17 @@ local raisedPrice, raised = Planner.PostPrice({ lowest = 10, breakEven = 99.5 })
 check("raised to break-even", raisedPrice, 100)
 check("says it was raised", raised, true)
 check("profitable not raised", select(2, Planner.PostPrice({ lowest = 500, breakEven = 100 })), nil)
+check("whole silver undercuts by 1s", (Planner.PostPrice({ lowest = 500, wholeSilver = true })), 400)
+check("whole silver rounds an odd lowest down", (Planner.PostPrice({ lowest = 367, wholeSilver = true })), 300)
+check("whole silver keeps your own", (Planner.PostPrice({ lowest = 500, lowestIsMine = true, wholeSilver = true })), 500)
+check("whole silver scan rounds down", (Planner.PostPrice({ scanned = 750, wholeSilver = true })), 700)
+check("whole silver at least 1s", (Planner.PostPrice({ lowest = 100, wholeSilver = true })), 100)
+do
+	local price, wasRaised = Planner.PostPrice({ lowest = 300, breakEven = 391, wholeSilver = true })
+	check("whole silver break-even rounds up", price, 400)
+	check("whole silver says it was raised", wasRaised, true)
+	check("exact break-even keeps its silver", (Planner.PostPrice({ lowest = 300, breakEven = 400.00000000000006, wholeSilver = true })), 400)
+end
 do
 	local ctx = Context()
 	check("craft cost per unit", Planner.CraftUnitCost(ctx, SHIRT), (3 * 20 + 5))

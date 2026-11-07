@@ -1131,7 +1131,6 @@ do
 	Enum.ItemClass = { Weapon = 2, Armor = 4 }
 	local itemClass = {}
 	C_Item.GetItemInfoInstant = function(itemID) return itemID, "", "", "", 1, itemClass[itemID] or 7, 0 end
-	ERR_AUCTION_DATABASE_ERROR = "Internal auction error"
 	C_AuctionHouse.GetItemCommodityStatus = function(location) return commodity[location.itemID] and 2 or 1 end
 	C_AuctionHouse.GetAvailablePostCount = function() return availableCount end
 	C_AuctionHouse.CalculateCommodityDeposit = function() return 7 end
@@ -1184,14 +1183,14 @@ do
 	check("items sort by buyout", lastSearch.sort, 4)
 	check("items use the plain search", lastSearch.kind, "plain")
 
-	-- Someone else sells at 500: 1c under. Below break-even raises it instead.
+	-- Someone else sells at 500: an item can't have copper, so 1s under. Below break-even raises it instead.
 	listings[shirt] = { { buyoutAmount = 700, containsOwnerItem = false }, { buyoutAmount = 500, containsOwnerItem = false } }
 	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
 	local posted = #posts
 	ns.Posting.PostSelected()
 	check("posted", #posts, posted + 1)
 	local last = posts[#posts]
-	check("undercut by 1c", last.price, 499)
+	check("item undercut by 1s", last.price, 400)
 	check("suggested quantity", last.quantity, 2)
 	check("saved duration", last.duration, 2)
 	check("item post has no bid", last.bid, nil)
@@ -1240,6 +1239,12 @@ do
 		ns.Posting.Select(bolts)
 		ns.UI.Refresh("posting")
 		check("commodities sort by price", lastSearch.sort, 0)
+		listings[bolts] = { { unitPrice = 500, containsOwnerItem = false } }
+		Fire("COMMODITY_SEARCH_RESULTS_UPDATED", bolts)
+		local commodityPosts = #posts
+		ns.Posting.PostSelected()
+		check("commodity undercut by 1c", posts[commodityPosts + 1].price, 499)
+		Fire("AUCTION_HOUSE_AUCTION_CREATED")
 		commodity[bolts] = nil
 
 		itemClass[shirt] = 4
@@ -1280,7 +1285,8 @@ do
 
 		-- Refused: reported with what was sent, the button works again and the record isn't kept.
 		local lots = #ns.db.sales.lots
-		Fire("UI_ERROR_MESSAGE", 1, "Internal auction error")
+		Fire("AUCTION_HOUSE_SHOW_ERROR", 10)
+		check("refusal keeps the error", ns.db.lastAuctionRefusal.code, 10)
 		check("refusal kept for reading later", ns.db.lastAuctionRefusal.kind, "post")
 		check("refusal says what was sent", ns.db.lastAuctionRefusal.text:find("price 5000", 1, true) ~= nil, true)
 		Fire("AUCTION_HOUSE_AUCTION_CREATED")

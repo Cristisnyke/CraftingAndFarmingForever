@@ -95,6 +95,24 @@ local function BreakEven(row)
 	return row.unitCost and row.unitCost / (1 - ns.AH_CUT) or nil
 end
 
+local function IsCommodity(location)
+	return C_AuctionHouse.GetItemCommodityStatus(location) == Enum.ItemCommodityStatus.Commodity
+end
+
+local function SelectedLocation()
+	local _, slots = BagContents()
+	local slot = selected and slots[selected]
+	if not slot then return nil end
+	return ItemLocation:CreateFromBagAndSlot(slot.bag, slot.slot), slot.locked
+end
+
+-- The server answers a price with copper in it with error 10 for anything that isn't a commodity: gear, bags. Stackable
+-- goods can have one.
+local function NeedsWholeSilver()
+	local location = SelectedLocation()
+	return location ~= nil and not IsCommodity(location)
+end
+
 local function SetPriceBoxes(copper)
 	if not copper then
 		form.gold:SetText("")
@@ -110,7 +128,7 @@ end
 local function PriceFromBoxes()
 	local total = (tonumber(form.gold:GetText()) or 0) * 10000
 		+ (tonumber(form.silver:GetText()) or 0) * 100
-		+ (tonumber(form.copper:GetText()) or 0)
+		+ (NeedsWholeSilver() and 0 or tonumber(form.copper:GetText()) or 0)
 	return total > 0 and total or nil
 end
 
@@ -131,6 +149,7 @@ local function ApplyLookup(row)
 		lowestIsMine = live.mine,
 		scanned = ns.Prices.AH(row.itemID),
 		breakEven = BreakEven(row),
+		wholeSilver = NeedsWholeSilver(),
 	})
 	live.raised = raised
 	SetPriceBoxes(price)
@@ -148,17 +167,6 @@ end
 local function IsEquipment(itemID)
 	local classID = select(6, C_Item.GetItemInfoInstant(itemID))
 	return classID == Enum.ItemClass.Weapon or classID == Enum.ItemClass.Armor
-end
-
-local function IsCommodity(location)
-	return C_AuctionHouse.GetItemCommodityStatus(location) == Enum.ItemCommodityStatus.Commodity
-end
-
-local function SelectedLocation()
-	local _, slots = BagContents()
-	local slot = selected and slots[selected]
-	if not slot then return nil end
-	return ItemLocation:CreateFromBagAndSlot(slot.bag, slot.slot), slot.locked
 end
 
 -- Commodities and items are searched and sorted differently, and the server refuses a sort meant for the other kind.
@@ -378,17 +386,18 @@ end
 function Posting.OnPosted(post)
 	postedSince[post.itemID] = (postedSince[post.itemID] or 0) + post.qty
 	posting = false
+	lastRequest = nil
 	reselect = post.itemID == selected
 	ns.RequestPlan()
 end
 
 -- The server refused what we just sent. Says exactly what that was, since the game's message doesn't.
-ns.On("UI_ERROR_MESSAGE", function(_, message)
-	if message ~= ERR_AUCTION_DATABASE_ERROR or not lastRequest or time() - lastRequest.at > REFUSAL_WINDOW then return end
+ns.On("AUCTION_HOUSE_SHOW_ERROR", function(errorCode)
+	if not lastRequest or time() - lastRequest.at > REFUSAL_WINDOW then return end
 	local request = lastRequest
 	lastRequest = nil
-	ns.db.lastAuctionRefusal = { kind = request.kind, text = request.text, at = request.at }
-	ns.Print(("The auction house refused this %s: %s"):format(request.kind, request.text))
+	ns.db.lastAuctionRefusal = { kind = request.kind, text = request.text, at = request.at, code = errorCode }
+	ns.Print(("The auction house refused this %s (error %s): %s"):format(request.kind, tostring(errorCode), request.text))
 	if request.kind == "post" then
 		posting = false
 		ns.Sales.ForgetLastPost()
@@ -488,14 +497,6 @@ end
 logFrame:SetScript("OnEvent", function(_, event, ...)
 	if time() > logUntil then return end
 	Log(event .. ": " .. ArgText(...))
-	if event == "AUCTION_HOUSE_SHOW_ERROR" or event == "AUCTION_HOUSE_POST_ERROR" then
-		ns.Print(event .. ": " .. ArgText(...))
-		if posting then
-			posting = false
-			ns.Sales.ForgetLastPost()
-			UpdateForm()
-		end
-	end
 end)
 
 ---------------------------------------------------------------------------
@@ -522,12 +523,18 @@ function UpdateForm()
 
 	local price, quantity = PriceFromBoxes(), Quantity()
 	local location, locked = SelectedLocation()
+	local wholeSilver = location ~= nil and not IsCommodity(location)
+	form.copper:SetEnabled(not wholeSilver)
 	local notes = {}
+	if wholeSilver then
+		table.insert(notes, Color(COLOR_MUTED, "Only stackable goods can have copper in their price."))
+	end
 	if locked then
 		table.insert(notes, Color(COLOR_WARN, "This item is locked, probably selected in Auctionator's Selling tab."))
 	end
 	if live and live.raised then
-		table.insert(notes, Color(COLOR_WARN, "Lowest is under your material cost, so this is your break-even price."))
+		table.insert(notes, Color(COLOR_WARN, "Lowest is under your material cost, so this is your break-even price."
+			.. (wholeSilver and " Rounded up to whole silver." or "")))
 	end
 	if quantity and quantity > row.inBags - row.reserved and row.reserved > 0 then
 		table.insert(notes, Color(COLOR_WARN, ("Your queue needs %d of these."):format(row.reserved)))

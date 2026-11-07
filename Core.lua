@@ -56,7 +56,7 @@ end
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
 -- db.restock           = { stackGoal, singleGoal, minProfitSilver, duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
--- db.lastAuctionRefusal = { kind, text, at }, what the auction house last refused
+-- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, positions = { [window] = { x, y } } }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can

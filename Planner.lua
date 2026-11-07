@@ -163,15 +163,20 @@ end
 --   lowest, lowestIsMine   the cheapest listing right now, if any. Your own isn't undercut.
 --   scanned                the last scanned price, used with no listing to go on
 --   breakEven              the price that just covers materials and the AH cut, if known
+--   wholeSilver            the price can't contain copper. Rounds down to undercut, and up to cover the break-even.
 -- Nil when there's nothing to base a price on, for the user to decide.
 function Planner.PostPrice(opts)
+	local step = opts.wholeSilver and 100 or 1
 	local price = opts.scanned
 	if opts.lowest then
 		price = opts.lowestIsMine and opts.lowest or (opts.lowest - 1)
 	end
 	if not price then return nil end
-	price = math.max(1, math.floor(price))
-	if opts.breakEven and price < opts.breakEven then return math.ceil(opts.breakEven), true end
+	price = math.max(step, math.floor(price / step) * step)
+	if opts.breakEven and price < opts.breakEven then
+		-- The margin stops floating point noise in the break-even costing a whole extra silver.
+		return math.ceil(opts.breakEven / step - 1e-9) * step, true
+	end
 	return price
 end
 
