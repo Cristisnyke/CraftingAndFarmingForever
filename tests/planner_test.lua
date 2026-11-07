@@ -182,9 +182,16 @@ local totals = Planner.QueueTotals(totalsCtx, {
 check("totals net", totals.net, 2 * (95 - 10))
 check("totals revenue", totals.revenue, 190)
 check("totals cost", totals.cost, 20)
-check("totals excludes unsellable and unpriced", totals.excluded, 2)
+check("totals excludes unsellable and unpriced", totals.excluded, 1)
 check("totals entry", totals.entries[1], 170)
 check("totals no entry for unpriced", totals.entries[3], nil)
+check("unsellable counted apart", totals.bound, 1)
+check("unsellable cost", totals.boundCost, 10)
+check("unsellable entry", totals.boundEntries[2], 10)
+check("unsellable has no profit entry", totals.entries[2], nil)
+local unknown = Planner.QueueTotals(totalsCtx, { { recipeID = 2, qty = 1 } }, function() return nil end)
+check("still loading isn't called unsellable", unknown.bound, 0)
+check("still loading is unpriced", unknown.excluded, 1)
 
 -- Restock arithmetic: AH, held and queued units all count towards the goal; batches round up.
 check("restock none needed", Planner.RestockCrafts(10, 6, 4, 0, 1), 0)

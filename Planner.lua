@@ -115,13 +115,18 @@ function Planner.Profit(ctx, recipeID)
 end
 
 -- Expected result of selling everything in the queue, at the same prices as the profit list. isSellable(itemID)
--- returns false for results that can't go on the AH. Entries without a usable price are counted, not guessed.
+-- returns false for results that can't go on the AH, nil while unknown. Those can't earn anything, so only their
+-- material cost is reported, apart from the profit. Entries without a usable price are counted, not guessed.
 function Planner.QueueTotals(ctx, queue, isSellable)
-	local totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {} }
+	local totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
 	for index, queued in ipairs(queue) do
 		local qty = queued.qty or 0
 		local result = Planner.Profit(ctx, queued.recipeID)
-		if qty > 0 and result and result.net and isSellable(result.itemID) then
+		if qty > 0 and result and result.cost and isSellable(result.itemID) == false then
+			totals.bound = totals.bound + 1
+			totals.boundCost = totals.boundCost + result.cost * qty
+			totals.boundEntries[index] = result.cost * qty
+		elseif qty > 0 and result and result.net and isSellable(result.itemID) then
 			totals.revenue = totals.revenue + result.saleUnit * result.yield * (1 - ctx.ahCut) * qty
 			totals.cost = totals.cost + result.cost * qty
 			totals.net = totals.net + result.net * qty

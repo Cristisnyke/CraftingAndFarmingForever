@@ -57,7 +57,8 @@ function ns.InvalidateProfit()
 	UI.Refresh("restock")
 end
 
--- Every recipe known on any character whose result can be sold on the AH, most profitable first.
+-- Every recipe known on any character that makes an item, most profitable first. Results that can't be sold on the
+-- AH (bind on pickup) are flagged bound and have no sale or profit, only a cost; they follow the priced ones.
 local function ComputeProfit()
 	local ctx = ns.NewContext()
 	local results = {}
@@ -68,10 +69,15 @@ local function ComputeProfit()
 				seen[recipeID] = true
 				local recipe = ns.db.recipes[recipeID]
 				-- CanSellOnAH is nil while loading: left out now, added by the refresh when the data arrives.
-				if recipe and recipe.o and ns.Items.CanSellOnAH(recipe.o) then
+				local sellable = recipe and recipe.o and ns.Items.CanSellOnAH(recipe.o)
+				if sellable ~= nil then
 					local result = ns.Planner.Profit(ctx, recipeID)
 					if result then
 						result.profession = recipe.p
+						if not sellable then
+							result.bound = true
+							result.saleUnit, result.net, result.margin = nil, nil, nil
+						end
 						table.insert(results, result)
 					end
 				end
@@ -84,6 +90,7 @@ local function ComputeProfit()
 			return a.recipeID < b.recipeID
 		end
 		if a.net or b.net then return a.net ~= nil end
+		if a.bound ~= b.bound then return a.bound == true end
 		return a.recipeID < b.recipeID
 	end)
 	return results
@@ -324,20 +331,24 @@ local function ShowProfitTooltip(row, result)
 	end
 	GameTooltip:AddLine(" ")
 	GameTooltip:AddDoubleLine("Cost", result.cost and ns.Money(result.cost) or "no price", 1, 1, 1, 1, 1, 1)
-	local sale = result.saleUnit and (ns.Money(result.saleUnit * result.yield)) or "no price"
-	GameTooltip:AddDoubleLine("Sells for", sale, 1, 1, 1, 1, 1, 1)
-	if result.net then
-		GameTooltip:AddDoubleLine("Profit after 5% AH cut", ns.Money(result.net), 1, 1, 1, 1, 1, 1)
+	if result.bound then
+		GameTooltip:AddLine("Bind on pickup: can't be sold on the auction house.", 1, 0.6, 0.2, true)
+	else
+		local sale = result.saleUnit and (ns.Money(result.saleUnit * result.yield)) or "no price"
+		GameTooltip:AddDoubleLine("Sells for", sale, 1, 1, 1, 1, 1, 1)
+		if result.net then
+			GameTooltip:AddDoubleLine("Profit after 5% AH cut", ns.Money(result.net), 1, 1, 1, 1, 1, 1)
+		end
+		local age = ns.Prices.ItemAgeDays(result.itemID)
+		if age and age > 0 then GameTooltip:AddLine(("Last seen on the AH %d day(s) ago."):format(age), 1, 0.6, 0.2) end
 	end
-	local age = ns.Prices.ItemAgeDays(result.itemID)
-	if age and age > 0 then GameTooltip:AddLine(("Last seen on the AH %d day(s) ago."):format(age), 1, 0.6, 0.2) end
 	local crafters = {}
 	for key in pairs(ns.db.chars) do
 		if ns.Recipes.Knows(key, result.recipeID) then table.insert(crafters, ns.CharLabel(key)) end
 	end
 	table.sort(crafters)
 	if #crafters > 0 then GameTooltip:AddLine("Known by: " .. table.concat(crafters, ", "), 0.6, 0.8, 1, true) end
-	AddSalesLines(ns.Items.Name(result.itemID))
+	if not result.bound then AddSalesLines(ns.Items.Name(result.itemID)) end
 	GameTooltip:AddLine("Click to open the recipe. + queues one, Shift + queues ten.", 0.6, 0.6, 0.6, true)
 	GameTooltip:Show()
 end
@@ -404,7 +415,9 @@ local function RowOnEnter(row)
 		GameTooltip:SetText(RecipeName(data.entry.recipeID))
 		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
 		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
-		if queuedRecipe and queuedRecipe.o then
+		if ns.totals.boundEntries[data.index] then
+			GameTooltip:AddLine("Bind on pickup: can't be sold, so it isn't in the total profit.", 1, 0.6, 0.2, true)
+		elseif queuedRecipe and queuedRecipe.o then
 			local old, new = ns.Prices.Change(queuedRecipe.o)
 			if old then
 				GameTooltip:AddDoubleLine("Sale price before this scan", ns.Money(old), 1, 1, 1, 1, 1, 1)
@@ -527,7 +540,9 @@ local function SetRow(row, data)
 		row.plus:Show()
 		row.right:ClearAllPoints()
 		row.right:SetPoint("RIGHT", row.plus, "LEFT", -4, 0)
-		if result.net then
+		if result.bound then
+			row.right:SetText(result.cost and ("craft cost " .. ns.Money(result.cost)) or Color(COLOR_MUTED, "no price"))
+		elseif result.net then
 			local chance = ChanceText(ns.Items.Name(result.itemID))
 			row.right:SetText((chance ~= "" and (chance .. "   ") or "")
 				.. Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
@@ -546,8 +561,11 @@ local function SetRow(row, data)
 		row.right:ClearAllPoints()
 		row.right:SetPoint("RIGHT", row.quote, "LEFT", -4, 0)
 		local net = ns.totals.entries[data.index]
-		local netText = net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)) or Color(COLOR_MUTED, "no price")
-		local change = recipe and recipe.o and PriceChangeText(recipe.o, false)
+		local boundCost = ns.totals.boundEntries[data.index]
+		local netText = boundCost and ("cost " .. ns.Money(boundCost))
+			or net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net))
+			or Color(COLOR_MUTED, "no price")
+		local change = not boundCost and recipe and recipe.o and PriceChangeText(recipe.o, false)
 		local mats = Color(COLOR_MUTED, "mats " .. (data.matCost and ns.Money(data.matCost) or "?"))
 		row.right:SetText(mats .. "   " .. (change and ("sells " .. change .. "   ") or "") .. netText)
 	elseif data.kind == "restock" then
@@ -905,7 +923,7 @@ function CreateProfitPane()
 		elseif #self.list == 0 then
 			status:SetText("Open a profession to record its recipes.")
 		else
-			status:SetText(#self.list .. " sellable recipes known across your characters.")
+			status:SetText(#self.list .. " recipes known across your characters.")
 		end
 	end
 end
@@ -954,6 +972,7 @@ function CreateQueuePane()
 	detail:SetJustifyV("BOTTOM")
 
 	local total = window.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	window.totalText = total
 	total:SetPoint("BOTTOMLEFT", 12, 96)
 	total:SetPoint("BOTTOMRIGHT", -12, 96)
 	total:SetJustifyH("LEFT")
@@ -973,6 +992,9 @@ function CreateQueuePane()
 			total:SetText("Total profit: " .. Color(hex, ns.Money(totals.net)))
 			detail:SetText(("Sells for %s after AH cut, materials %s.\n%s"):format(
 				ns.Money(totals.revenue), ns.Money(totals.cost), UI.StillToBuyText()))
+		elseif totals.bound > 0 then
+			total:SetText("Crafting cost: " .. ns.Money(totals.boundCost))
+			detail:SetText("Bind on pickup, so there's no sale or profit.\n" .. UI.StillToBuyText())
 		elseif totals.excluded > 0 then
 			total:SetText("Total profit: " .. Color(COLOR_MUTED, "no price data"))
 			detail:SetText(UI.StillToBuyText())
@@ -997,8 +1019,11 @@ function CreateQueuePane()
 			if net < 0 then losing = losing + 1 end
 		end
 		if losing > 0 then table.insert(notes, losing .. " queued item(s) would now lose money.") end
-		if totals.excluded > 0 and totals.counted > 0 then
+		if totals.excluded > 0 and (totals.counted > 0 or totals.bound > 0) then
 			table.insert(notes, totals.excluded .. " queued recipe(s) have no price and aren't in the total.")
+		end
+		if totals.bound > 0 and totals.counted > 0 then
+			table.insert(notes, ("%d bind-on-pickup craft(s) cost %s and aren't in the profit."):format(totals.bound, ns.Money(totals.boundCost)))
 		end
 		local shopping = ns.Shopping.status
 		if shopping.error then table.insert(notes, "List update failed. See /craftledger diag.") end
@@ -1839,7 +1864,7 @@ local function Diagnostics()
 	local soldTotal, expiredTotal = ns.Sales.Totals(nil)
 	Add(("sales recorded: %d sold, %d expired; open posts tracked: %d"):format(soldTotal, expiredTotal, #ns.db.sales.lots))
 	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.LIST_NAME, status.items, status.loading, tostring(status.error)))
-	Add(("queue profit: %s from %d entries, %d without a price"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded))
+	Add(("queue profit: %s from %d entries, %d without a price, %d bind on pickup"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded, ns.totals.bound))
 	local openKey = ns.Recipes.OpenProfession()
 	Add("open profession: " .. tostring(openKey) .. ", recipes in window: " .. CountKeys(ns.Recipes.OpenRecipes()))
 	Add("Queue button on crafting page: " .. tostring(queueButton ~= nil))

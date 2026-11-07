@@ -398,12 +398,15 @@ Fire("BAG_UPDATE_DELAYED")
 check("no recreate on update", createCalls, 1)
 check("quantity updated in place", lists[ns.LIST_NAME][1], '"Linen Cloth";;;;;;;;;;;#;;5')
 
--- Panel, profit: bind-on-pickup results are hidden, sale items ranked.
+-- Panel, profit: bind-on-pickup results are flagged with no sale or profit, sale items ranked.
 ns.UI.Show("profit")
 ns.InvalidateProfit()
 local sellable = {}
 for _, result in ipairs(ns.UI.ComputeProfit()) do sellable[result.recipeID] = result end
-check("bind-on-pickup result hidden", sellable[30], nil)
+check("bind-on-pickup result listed", sellable[30] ~= nil and sellable[30].bound, true)
+check("bind-on-pickup has a cost", sellable[30].cost ~= nil, true)
+check("bind-on-pickup has no profit", sellable[30].net, nil)
+check("sellable result not flagged", sellable[20].bound, nil)
 check("sellable result listed", sellable[20] ~= nil, true)
 check("sub-craft cost used in profit", sellable[20].cost, 3 * 20 + 10)
 
@@ -676,6 +679,39 @@ ns.db.chars["Player-2-ALT"] = nil
 ns.db.recipes[500] = nil
 ns.UI.SelectProfession("profit", nil)
 RunTimers()
+
+-- Bind on pickup in the queue: a crafting cost instead of a profit, and no search for it on the AH.
+do
+	local cost = ns.Planner.RecipeCost(ns.NewContext(), 30)
+	ns.UI.Show("profit")
+	local profitRow
+	for _, row in ipairs(ns.UI.windows.profit.rows) do
+		if row.data and row.data.result and row.data.result.recipeID == 30 then profitRow = row end
+	end
+	check("profit row shows craft cost", profitRow.right.text, "craft cost " .. ns.Money(cost))
+	profitRow.plus.scripts.OnClick(profitRow.plus)
+	RunTimers()
+	check("plus queues a bind-on-pickup craft", ns.db.queue[1].recipeID, 30)
+	check("queued bound counted apart", ns.totals.bound, 1)
+	check("queued bound not a profit", ns.totals.counted, 0)
+	check("queued bound not unpriced", ns.totals.excluded, 0)
+	check("queued bound cost", ns.totals.boundCost, cost)
+	check("bound craft is planned", ns.plan.crafts[1].recipeID, 30)
+	for _, searchString in ipairs(lists[ns.LIST_NAME]) do
+		check("bound result not searched on the AH", searchString:find("Soulbound Robe", 1, true), nil)
+	end
+	ns.UI.Show("queue")
+	local queue = ns.UI.windows.queue
+	check("queue total is a crafting cost", queue.totalText.text, "Crafting cost: " .. ns.Money(cost))
+	local queueRow
+	for _, row in ipairs(queue.rows) do
+		if row.data and row.data.kind == "queue" then queueRow = row end
+	end
+	check("queue row shows cost", queueRow.right.text:find("cost " .. ns.Money(cost), 1, true) ~= nil, true)
+	ns.Queue.Clear()
+	RunTimers()
+	ns.UI.Show("profit")
+end
 
 -- Refresh: picks up changed prices, stock and recipes right away, without being asked to wait for an event.
 ns.Queue.Add(10, 1)

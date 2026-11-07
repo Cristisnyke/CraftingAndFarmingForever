@@ -37,10 +37,10 @@ local function DesiredStrings()
 		end
 	end
 	-- What the queue will make goes on the list too, with no quantity to buy, so scanning the list also refreshes
-	-- the sale prices the profit depends on.
+	-- the sale prices the profit depends on. Bind-on-pickup results have no sale price to refresh.
 	for _, entry in ipairs(ns.db.queue) do
 		local recipe = ns.db.recipes[entry.recipeID]
-		if recipe and recipe.o then
+		if recipe and recipe.o and ns.Items.CanSellOnAH(recipe.o) ~= false then
 			local name = ns.Items.Name(recipe.o)
 			if name then
 				local clean = Sanitize(name)

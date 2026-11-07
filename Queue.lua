@@ -27,7 +27,7 @@ ns.NewContext = NewContext
 
 ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = {}, cost = 0 }
 ns.farmPlan = ns.plan
-ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {} }
+ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
 
 local function RebuildPlan()
 	local ctx = NewContext()
