@@ -1465,12 +1465,14 @@ local function HookProfessionWindow()
 	hooked = true
 	local page = ProfessionsFrame.CraftingPage
 
-	local anchor = page.CreateAllButton or page.CreateButton
-	if anchor then
-		queueButton = CreateFrame("Button", "CraftLedgerQueueButton", page, "UIPanelButtonTemplate")
-		queueButton:SetSize(80, anchor:GetHeight() > 0 and anchor:GetHeight() or 22)
-		queueButton:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
+	local form = page.SchematicForm
+	if form then
+		-- On the recipe's own pane, under the favourite star: clear of long names, which run left to right along the top.
+		queueButton = CreateFrame("Button", "CraftLedgerQueueButton", form, "UIPanelButtonTemplate")
+		queueButton:SetSize(64, 22)
+		queueButton:SetPoint("TOPRIGHT", form, "TOPRIGHT", -12, -47)
 		queueButton:SetText("Queue")
+		UI.queueButton = queueButton
 		queueButton:SetScript("OnClick", function()
 			local info = SelectedRecipe()
 			if not info or not info.recipeID then

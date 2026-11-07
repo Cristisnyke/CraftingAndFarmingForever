@@ -680,6 +680,19 @@ ns.db.recipes[500] = nil
 ns.UI.SelectProfession("profit", nil)
 RunTimers()
 
+-- The Queue button on the recipe's pane queues the selected recipe with the amount in the Create box.
+do
+	local button = ns.UI.queueButton
+	check("queue button sits on the recipe's pane", button.parent, page.SchematicForm)
+	check("queue button anchored to that pane", button.lastPoint[2], page.SchematicForm)
+	button.scripts.OnClick(button)
+	RunTimers()
+	check("queue button queues the selected recipe", ns.db.queue[1].recipeID, selected.recipeID)
+	check("queue button uses the Create box amount", ns.db.queue[1].qty, 2)
+	ns.Queue.Clear()
+	RunTimers()
+end
+
 -- Bind on pickup in the queue: a crafting cost instead of a profit, and no search for it on the AH.
 do
 	local cost = ns.Planner.RecipeCost(ns.NewContext(), 30)
