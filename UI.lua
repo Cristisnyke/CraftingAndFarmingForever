@@ -1,6 +1,6 @@
 -- CraftLedger :: UI
--- Four independent movable windows (Profit, Queue, Restock, Sales), the Queue button on the crafting page, the stale-price
--- prompts and the slash command.
+-- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales; the queue can sit beside Restock), the small
+-- Farm list, the Queue button on the crafting page, the stale-price prompts and the slash command.
 
 local _, ns = ...
 
@@ -9,8 +9,19 @@ ns.UI = UI
 
 local ROW_HEIGHT = 22
 local ROW_COUNT = 40
-local WINDOW_WIDTH = 380
+local MAIN_WIDTH = 620
+local RESTOCK_BESIDE_WIDTH = 500 -- Restock's share with the queue open beside it; the queue keeps its full width
 local WINDOW_HEIGHT = 560
+local MAIN_TOP = 36 -- title and tabs
+local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 86, 26
+local MAIN_TABS = {
+	{ key = "profit", title = "Profit" },
+	{ key = "queue", title = "Queue" },
+	{ key = "restock", title = "Restock" },
+	{ key = "sales", title = "Sales" },
+}
+local PANE_ACTIONS_TOP = 4
+local PANE_LIST_TOP = 30
 local TAB_WIDTH = 112
 local TAB_COUNT = 16
 local MINI_WIDTH = 280
@@ -28,6 +39,10 @@ local windows = {}
 local selectedProfession = {}
 local lastOpenProfession
 UI.windows = windows
+-- The one tabbed window; each tab's contents are a pane in `windows`. Created when first opened.
+local main
+-- Defined further down, used by code above them.
+local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane, ShowFarm
 local profitCache
 local scanNotified = false
 
@@ -600,14 +615,15 @@ local function RenderRows(window)
 	window.slider:SetShown(maxOffset > 0)
 end
 
-local function UpdateBanner(window)
-	if window.mini then return end
+local function UpdateBanner()
 	local stale = ns.Prices.IsStale()
-	window.banner:SetShown(stale)
+	main.banner:SetShown(stale)
 	if not stale then return end
-	local atAH = AuctionHouseFrame and AuctionHouseFrame:IsShown()
-	window.banner.text:SetText(ScanAgeText() .. (atAH and "" or " Scan at the auction house."))
-	window.scanButton:SetShown(atAH and true or false)
+	local atAH = AuctionHouseFrame and AuctionHouseFrame:IsShown() and true or false
+	main.banner.text:SetText(ScanAgeText() .. (atAH and "" or " Scan at the auction house."))
+	main.banner.text:ClearAllPoints()
+	main.banner.text:SetPoint("RIGHT", main.banner, "RIGHT", atAH and -86 or 0, 0)
+	main.scanButton:SetShown(atAH)
 end
 
 local function RenderTabs(window)
@@ -648,13 +664,36 @@ function UI.SelectProfession(key, professionID)
 	UI.Refresh(key)
 end
 
+-- Which tab the window shows, and whether the queue is open beside Restock.
+function ActiveTab()
+	return ns.db.ui.tab or "profit"
+end
+
+function QueueBeside()
+	return ActiveTab() == "restock" and ns.db.ui.queueBeside and true or false
+end
+
+function UpdateTabStrip()
+	if not main then return end
+	local active, beside = ActiveTab(), QueueBeside()
+	for _, tab in ipairs(main.tabButtons) do
+		local selected = tab.key == active or (beside and tab.key == "queue")
+		local title = tab.title
+		if tab.key == "queue" and #ns.db.queue > 0 then title = ("%s (%d)"):format(title, #ns.db.queue) end
+		tab.label:SetText(Color(selected and "ffffffff" or "ffb8b8b8", title))
+		local shade = selected and 0.24 or 0.11
+		tab.bg:SetColorTexture(shade, shade, shade + 0.03, 1)
+		tab.accent:SetShown(selected)
+	end
+end
+
 function UI.Refresh(key)
 	local window = windows[key]
-	if not window or not window.frame:IsShown() then return end
+	if not window or not window.frame:IsVisible() then return end
 	if window.tabs then RenderTabs(window) end
 	window.list = window.build()
 	RenderRows(window)
-	UpdateBanner(window)
+	if not window.mini then UpdateBanner() end
 	window.update(window)
 end
 
@@ -663,48 +702,22 @@ function UI.RefreshAll()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("sales")
+	UpdateTabStrip()
 end
 
--- Queue, bags or bank changed: both windows that count stock need redrawing.
+-- Queue, bags or bank changed: everything that counts stock needs redrawing.
 function UI.RefreshQueue()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("farm")
+	UpdateTabStrip()
 end
 
--- Where the window goes until the user moves it: profit beside the profession window, queue beside profit.
-local function PlaceWindow(window)
-	local frame = window.frame
-	frame:ClearAllPoints()
-	local saved = ns.db.ui.positions and ns.db.ui.positions[window.key]
-	if saved then
-		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", saved.x, saved.y)
-	elseif window.key == "profit" then
-		if ProfessionsFrame and ProfessionsFrame:IsShown() then
-			frame:SetPoint("TOPLEFT", ProfessionsFrame, "TOPRIGHT", 2, 0)
-		else
-			frame:SetPoint("CENTER", UIParent, "CENTER", -frame:GetWidth() / 2 - 2, 0)
-		end
-	elseif window.key == "farm" then
-		frame:SetPoint("RIGHT", UIParent, "RIGHT", -40, 120)
-	elseif window.key == "restock" or window.key == "sales" then
-		frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-	elseif windows.profit and windows.profit.frame:IsShown() and windows.profit.frame:GetRight() then
-		-- A fixed spot beside Profit, not an anchor to it: moving Profit must not drag this window along.
-		local profit = windows.profit.frame
-		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", profit:GetRight() + 2, profit:GetTop())
-	elseif ProfessionsFrame and ProfessionsFrame:IsShown() then
-		frame:SetPoint("TOPLEFT", ProfessionsFrame, "TOPRIGHT", 2, 0)
-	else
-		frame:SetPoint("CENTER", UIParent, "CENTER", WINDOW_WIDTH / 2 + 2, 0)
-	end
-end
-
-local function SavePosition(window)
-	local left, top = window.frame:GetLeft(), window.frame:GetTop()
+local function SavePosition(key, frame)
+	local left, top = frame:GetLeft(), frame:GetTop()
 	if not (left and top) then return end
 	ns.db.ui.positions = ns.db.ui.positions or {}
-	ns.db.ui.positions[window.key] = { x = left, y = top }
+	ns.db.ui.positions[key] = { x = left, y = top }
 end
 
 local function HeaderButton(frame, text, width, onClick)
@@ -715,18 +728,8 @@ local function HeaderButton(frame, text, width, onClick)
 	return button
 end
 
--- footerHeight is the room kept below the list for the window's own controls. withTabs adds the column of
--- profession tabs on the left. extraWidth is for windows whose rows need more room. mini makes the small kind: no
--- price banner, tight rows, and a height that follows the list.
-local function CreateWindow(key, title, footerHeight, withTabs, extraWidth, mini)
-	local frame = CreateFrame("Frame", "CraftLedger" .. title .. "Window", UIParent, "BackdropTemplate")
-	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {}, mini = mini }
-	local listTop = mini and MINI_TOP or 84
-	local rowHeight = mini and MINI_ROW_HEIGHT or ROW_HEIGHT
-	windows[key] = window
-
-	local listLeft = withTabs and (10 + TAB_WIDTH) or 10
-	frame:SetSize(mini and MINI_WIDTH or (WINDOW_WIDTH + (withTabs and TAB_WIDTH or 0) + (extraWidth or 0)), WINDOW_HEIGHT)
+-- The look and dragging shared by the main window and the Farm list.
+local function MakeMovable(frame, key)
 	frame:SetFrameStrata("HIGH")
 	frame:SetToplevel(true)
 	frame:SetClampedToScreen(true)
@@ -743,41 +746,18 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth, mini
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
-		SavePosition(window)
+		SavePosition(key, self)
 	end)
 	frame:Hide()
+end
 
-	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	titleText:SetPoint("TOPLEFT", 12, -10)
-	titleText:SetText(mini and title or ("CraftLedger: " .. title))
-
-	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-	close:SetPoint("TOPRIGHT", 0, 0)
-	close:SetScript("OnClick", function() frame:Hide() end)
-	window.close = close
-
-	local refresh = HeaderButton(frame, "Refresh", 70, function() ns.RefreshEverything() end)
-	refresh:SetHeight(20)
-	refresh:SetPoint("RIGHT", close, "LEFT", -2, 0)
-	if mini then refresh:Hide() end
-
-	local banner = CreateFrame("Frame", nil, frame)
-	banner:SetPoint("TOPLEFT", 10, -56)
-	banner:SetPoint("TOPRIGHT", -10, -56)
-	banner:SetHeight(24)
-	banner.text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	banner.text:SetPoint("LEFT", 2, 0)
-	banner.text:SetTextColor(1, 0.6, 0.2)
-	window.banner = banner
-	window.scanButton = HeaderButton(banner, "Scan now", 80, function() ns.Prices.StartScan() end)
-	window.scanButton:SetPoint("RIGHT")
-	if mini then banner:Hide() end
-
-	local container = CreateFrame("Frame", nil, frame)
-	container:SetPoint("TOPLEFT", listLeft, -listTop)
-	container:SetPoint("BOTTOMRIGHT", -24, footerHeight)
+-- The scrolling rows. footer is the room kept below them for the window's own controls.
+local function CreateListArea(window, parent, left, top, footer, rowHeight)
+	local container = CreateFrame("Frame", nil, parent)
+	container:SetPoint("TOPLEFT", left, -top)
+	container:SetPoint("BOTTOMRIGHT", -24, footer)
 	container:EnableMouseWheel(true)
-	container:SetScript("OnSizeChanged", function() if frame:IsShown() then RenderRows(window) end end)
+	container:SetScript("OnSizeChanged", function() if parent:IsVisible() then RenderRows(window) end end)
 	container:SetScript("OnMouseWheel", function(_, delta)
 		window.offset = math.max(0, window.offset - delta * 3)
 		RenderRows(window)
@@ -787,28 +767,15 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth, mini
 	for i = 1, ROW_COUNT do
 		local row = CreateRow(container)
 		row:SetHeight(rowHeight)
-		if mini then row.icon:SetSize(14, 14) end
 		row:SetPoint("TOPLEFT", 0, -(i - 1) * rowHeight)
 		row:SetPoint("TOPRIGHT", 0, -(i - 1) * rowHeight)
 		row:Hide()
 		window.rows[i] = row
 	end
 
-	if withTabs then
-		window.tabs = {}
-		for i = 1, TAB_COUNT do
-			local tab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-			tab:SetSize(TAB_WIDTH - 6, 24)
-			tab:SetPoint("TOPLEFT", 10, -84 - (i - 1) * 26)
-			tab:SetScript("OnClick", function(self) UI.SelectProfession(key, self.professionID) end)
-			tab:Hide()
-			window.tabs[i] = tab
-		end
-	end
-
-	local slider = CreateFrame("Slider", nil, frame)
-	slider:SetPoint("TOPRIGHT", -10, -listTop)
-	slider:SetPoint("BOTTOMRIGHT", -10, footerHeight)
+	local slider = CreateFrame("Slider", nil, parent)
+	slider:SetPoint("TOPRIGHT", -10, -top)
+	slider:SetPoint("BOTTOMRIGHT", -10, footer)
 	slider:SetWidth(10)
 	slider:SetOrientation("VERTICAL")
 	slider:SetValueStep(1)
@@ -825,27 +792,38 @@ local function CreateWindow(key, title, footerHeight, withTabs, extraWidth, mini
 		end
 	end)
 	window.slider = slider
+end
 
-	frame:SetScript("OnShow", function() UI.Refresh(key) end)
+-- One tab's contents inside the main window, which sizes and places it. A row of the pane's own buttons runs along
+-- its top. withTabs adds the column of profession tabs on the left.
+local function CreatePane(key, footerHeight, withTabs)
+	local frame = CreateFrame("Frame", nil, main.frame)
+	frame:Hide()
+	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {} }
+	windows[key] = window
+	CreateListArea(window, frame, withTabs and (10 + TAB_WIDTH) or 10, PANE_LIST_TOP, footerHeight, ROW_HEIGHT)
+
+	if withTabs then
+		window.tabs = {}
+		for i = 1, TAB_COUNT do
+			local tab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+			tab:SetSize(TAB_WIDTH - 6, 24)
+			tab:SetPoint("TOPLEFT", 10, -PANE_LIST_TOP - (i - 1) * 26)
+			tab:SetScript("OnClick", function(self) UI.SelectProfession(key, self.professionID) end)
+			tab:Hide()
+			window.tabs[i] = tab
+		end
+	end
 	return window
 end
 
-local function CreateProfitWindow()
-	local window = CreateWindow("profit", "Profit", 34, true)
+function CreateProfitPane()
+	local window = CreatePane("profit", 34, true)
 	window.build = BuildProfitList
 
 	local advertise = HeaderButton(window.frame, "Advertise", 190, function() ns.Advertise.Send(UI.AdvertisedProfession()) end)
-	advertise:SetPoint("TOPLEFT", 10, -30)
+	advertise:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
 	window.advertiseButton = advertise
-
-	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
-	openQueue:SetPoint("TOPRIGHT", -12, -30)
-
-	local openRestock = HeaderButton(window.frame, "Restock", 70, function() UI.Toggle("restock") end)
-	openRestock:SetPoint("RIGHT", openQueue, "LEFT", -4, 0)
-
-	local openSales = HeaderButton(window.frame, "Sales", 70, function() UI.Toggle("sales") end)
-	openSales:SetPoint("RIGHT", openRestock, "LEFT", -4, 0)
 
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	status:SetPoint("BOTTOMLEFT", 12, 12)
@@ -879,21 +857,15 @@ function UI.StillToBuyText()
 	return text .. " " .. Color(COLOR_LOSS, ("You have %s, %s short."):format(ns.Money(money), ns.Money(cost - money)))
 end
 
-local function CreateQueueWindow()
-	local window = CreateWindow("queue", "Queue", 128, false, 240)
+function CreateQueuePane()
+	local window = CreatePane("queue", 128)
 	window.build = BuildQueueList
 
 	local clear = HeaderButton(window.frame, "Clear", 70, function() ns.Queue.Clear() end)
-	clear:SetPoint("TOPLEFT", 10, -30)
+	clear:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
 
 	local farmButton = HeaderButton(window.frame, "Farm It", 70, function() ns.ToggleFarmMode() end)
 	farmButton:SetPoint("LEFT", clear, "RIGHT", 4, 0)
-
-	local openProfit = HeaderButton(window.frame, "Profit", 70, function() UI.Toggle("profit") end)
-	openProfit:SetPoint("TOPRIGHT", -12, -30)
-
-	local openRestock = HeaderButton(window.frame, "Restock", 70, function() UI.Toggle("restock") end)
-	openRestock:SetPoint("RIGHT", openProfit, "LEFT", -4, 0)
 
 	local craftButton = HeaderButton(window.frame, "Craft Next", 100, function() ns.Queue.CraftNext() end)
 	craftButton:SetHeight(26)
@@ -970,29 +942,61 @@ local function CreateQueueWindow()
 	end
 end
 
--- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
+-- The small list to leave on screen while gathering. It's the one thing that isn't a tab: the main window is too big
+-- to keep up while out in the world.
 local function CreateFarmWindow()
-	local window = CreateWindow("farm", "Farm", 6, false, nil, true)
-	local base = BuildFarmList
-	window.build = function()
-		local list = base()
-		window.frame:SetHeight(MINI_TOP + math.min(#list, MINI_MAX_ROWS) * MINI_ROW_HEIGHT + 8)
-		return list
-	end
-	window.update = function() end
+	local frame = CreateFrame("Frame", "CraftLedgerFarmWindow", UIParent, "BackdropTemplate")
+	local window = { key = "farm", frame = frame, list = {}, offset = 0, rows = {}, mini = true }
+	windows.farm = window
+	MakeMovable(frame, "farm")
+	frame:SetSize(MINI_WIDTH, WINDOW_HEIGHT)
+	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.8)
 
-	local back = HeaderButton(window.frame, "Back", 56, function() ns.ToggleFarmMode() end)
+	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	titleText:SetPoint("TOPLEFT", 12, -10)
+	titleText:SetText("Farm")
+
+	-- Closing it is leaving farm mode too, or Craft Next would keep following a list you can't see.
+	window.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+	window.close:SetPoint("TOPRIGHT", 0, 0)
+	window.close:SetScript("OnClick", function()
+		ns.db.ui.farmMode = nil
+		frame:Hide()
+		UI.RefreshQueue()
+	end)
+
+	local back = HeaderButton(frame, "Back", 56, function() ns.ToggleFarmMode() end)
 	back:SetHeight(20)
 	back:SetPoint("RIGHT", window.close, "LEFT", -2, 0)
 
-	-- Closing it is leaving farm mode too, or Craft Next would keep following a list you can't see.
-	window.close:SetScript("OnClick", function()
-		ns.db.ui.farmMode = nil
-		window.frame:Hide()
-		UI.RefreshQueue()
-	end)
-	window.frame:SetBackdropColor(0.05, 0.05, 0.07, 0.8)
+	CreateListArea(window, frame, 10, MINI_TOP, 6, MINI_ROW_HEIGHT)
+	for _, row in ipairs(window.rows) do row.icon:SetSize(14, 14) end
+
+	window.build = function()
+		local list = BuildFarmList()
+		frame:SetHeight(MINI_TOP + math.min(#list, MINI_MAX_ROWS) * MINI_ROW_HEIGHT + 8)
+		return list
+	end
+	window.update = function() end
 end
+
+function ShowFarm()
+	if not windows.farm then CreateFarmWindow() end
+	local frame = windows.farm.frame
+	if not frame:IsShown() then
+		local saved = ns.db.ui.positions and ns.db.ui.positions.farm
+		frame:ClearAllPoints()
+		if saved then
+			frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", saved.x, saved.y)
+		else
+			frame:SetPoint("RIGHT", UIParent, "RIGHT", -40, 120)
+		end
+		frame:Show()
+	end
+	UI.Refresh("farm")
+end
+
+-- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
 
 local function NumberBox(parent, labelText, previous, read, write)
 	local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1030,12 +1034,19 @@ local function NumberBox(parent, labelText, previous, read, write)
 	return box
 end
 
-local function CreateRestockWindow()
-	local window = CreateWindow("restock", "Restock", 96, true)
+function CreateRestockPane()
+	local window = CreatePane("restock", 96, true)
 	window.build = BuildRestockList
 
-	local openQueue = HeaderButton(window.frame, "Queue", 70, function() UI.Toggle("queue") end)
-	openQueue:SetPoint("TOPRIGHT", -12, -30)
+	local showQueue = HeaderButton(window.frame, "Show Queue", 100, function() UI.ToggleQueueBeside() end)
+	showQueue:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
+	showQueue:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Queue beside Restock")
+		GameTooltip:AddLine("Keeps the queue on screen while you work through your goals.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	showQueue:SetScript("OnLeave", GameTooltip_Hide)
 
 	local stack = NumberBox(window.frame, "Stackable goal", nil,
 		function() return ns.db.restock.stackGoal end, function(v) ns.db.restock.stackGoal = v end)
@@ -1064,6 +1075,7 @@ local function CreateRestockWindow()
 	apply:SetPoint("BOTTOMRIGHT", -10, 10)
 
 	window.update = function(self)
+		showQueue:SetText(ns.db.ui.queueBeside and "Hide Queue" or "Show Queue")
 		stack:Sync()
 		single:Sync()
 		minProfit:Sync()
@@ -1092,8 +1104,8 @@ local function CreateRestockWindow()
 	end
 end
 
-local function CreateSalesWindow()
-	local window = CreateWindow("sales", "Sales", 76)
+function CreateSalesPane()
+	local window = CreatePane("sales", 76)
 	window.build = BuildSalesList
 
 	local totals = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1117,63 +1129,195 @@ local function CreateSalesWindow()
 	end
 end
 
-local function GetWindow(key)
+---------------------------------------------------------------------------
+-- The main window
+---------------------------------------------------------------------------
+
+local function GetPane(key)
 	if not windows[key] then
 		if key == "profit" then
-			CreateProfitWindow()
-		elseif key == "sales" then
-			CreateSalesWindow()
+			CreateProfitPane()
+		elseif key == "queue" then
+			CreateQueuePane()
 		elseif key == "restock" then
-			CreateRestockWindow()
-		elseif key == "farm" then
-			CreateFarmWindow()
+			CreateRestockPane()
 		else
-			CreateQueueWindow()
+			CreateSalesPane()
 		end
 	end
 	return windows[key]
 end
 
+-- Only ever placed against the screen, never another window: Blizzard slides its panels around as others open, and
+-- anything anchored to one moves with it. The left edge stays put; it only shifts when a wider view wouldn't fit.
+local function PlaceMain()
+	local frame = main.frame
+	local saved = ns.db.ui.positions and ns.db.ui.positions.main
+	local x = saved and saved.x or (UIParent:GetWidth() - MAIN_WIDTH - 40)
+	local y = saved and saved.y or (UIParent:GetHeight() - 120)
+	x = math.max(0, math.min(x, UIParent:GetWidth() - frame:GetWidth()))
+	frame:ClearAllPoints()
+	frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
+end
+
+local function PlacePane(pane, left, right)
+	pane.frame:ClearAllPoints()
+	pane.frame:SetPoint("TOPLEFT", main.frame, "TOPLEFT", left, -MAIN_TOP)
+	if right then
+		pane.frame:SetPoint("BOTTOMRIGHT", main.frame, "BOTTOMLEFT", right, 0)
+	else
+		pane.frame:SetPoint("BOTTOMRIGHT", main.frame, "BOTTOMRIGHT", 0, 0)
+	end
+end
+
+-- Shows the selected tab's pane, with the queue beside Restock when asked for, and redraws what's showing.
+local function Layout()
+	local active, beside = ActiveTab(), QueueBeside()
+	main.frame:SetWidth(beside and (RESTOCK_BESIDE_WIDTH + MAIN_WIDTH) or MAIN_WIDTH)
+	PlaceMain()
+	main.divider:SetShown(beside)
+	for _, tab in ipairs(MAIN_TABS) do
+		local key = tab.key
+		if key == active or (beside and key == "queue") then
+			local pane = GetPane(key)
+			if not beside then
+				PlacePane(pane, 0)
+			elseif key == "restock" then
+				PlacePane(pane, 0, RESTOCK_BESIDE_WIDTH)
+			else
+				PlacePane(pane, RESTOCK_BESIDE_WIDTH)
+			end
+			pane.frame:Show()
+			UI.Refresh(key)
+		elseif windows[key] then
+			windows[key].frame:Hide()
+		end
+	end
+	UpdateTabStrip()
+end
+
+local function CreateMain()
+	local frame = CreateFrame("Frame", "CraftLedgerWindow", UIParent, "BackdropTemplate")
+	main = { frame = frame, tabButtons = {} }
+	UI.main = main
+	MakeMovable(frame, "main")
+	frame:SetSize(MAIN_WIDTH, WINDOW_HEIGHT)
+
+	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	titleText:SetPoint("TOPLEFT", 12, -14)
+	titleText:SetText("CraftLedger")
+
+	for index, info in ipairs(MAIN_TABS) do
+		local tab = CreateFrame("Button", nil, frame)
+		tab:SetSize(MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT)
+		tab:SetPoint("TOPLEFT", 96 + (index - 1) * (MAIN_TAB_WIDTH + 2), -7)
+		tab:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+		tab:SetScript("OnClick", function() UI.Select(info.key) end)
+		tab.key, tab.title = info.key, info.title
+		tab.bg = tab:CreateTexture(nil, "BACKGROUND")
+		tab.bg:SetAllPoints()
+		tab.accent = tab:CreateTexture(nil, "ARTWORK")
+		tab.accent:SetColorTexture(1, 0.82, 0, 1)
+		tab.accent:SetHeight(2)
+		tab.accent:SetPoint("BOTTOMLEFT")
+		tab.accent:SetPoint("BOTTOMRIGHT")
+		tab.label = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		tab.label:SetPoint("CENTER")
+		main.tabButtons[index] = tab
+	end
+
+	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", 0, 0)
+	close:SetScript("OnClick", function() frame:Hide() end)
+
+	local refresh = HeaderButton(frame, "Refresh", 70, function() ns.RefreshEverything() end)
+	refresh:SetHeight(20)
+	refresh:SetPoint("RIGHT", close, "LEFT", -2, 0)
+
+	local rule = frame:CreateTexture(nil, "ARTWORK")
+	rule:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+	rule:SetHeight(1)
+	rule:SetPoint("TOPLEFT", 6, -MAIN_TOP + 1)
+	rule:SetPoint("TOPRIGHT", -6, -MAIN_TOP + 1)
+
+	main.divider = frame:CreateTexture(nil, "ARTWORK")
+	main.divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+	main.divider:SetWidth(1)
+	main.divider:SetPoint("TOPLEFT", RESTOCK_BESIDE_WIDTH, -MAIN_TOP)
+	main.divider:SetPoint("BOTTOMLEFT", RESTOCK_BESIDE_WIDTH, 6)
+
+	-- In the row the panes keep their buttons in, on the right where none of them have any.
+	local banner = CreateFrame("Frame", nil, frame)
+	banner:SetPoint("TOPRIGHT", -12, -MAIN_TOP - 2)
+	banner:SetSize(360, 24)
+	banner:Hide()
+	banner.text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	banner.text:SetTextColor(1, 0.6, 0.2)
+	main.banner = banner
+	main.scanButton = HeaderButton(banner, "Scan now", 80, function() ns.Prices.StartScan() end)
+	main.scanButton:SetPoint("RIGHT")
+
+	frame:SetScript("OnShow", Layout)
+end
+
+function UI.IsOpen()
+	return main ~= nil and main.frame:IsShown()
+end
+
+function UI.Hide()
+	if main then main.frame:Hide() end
+end
+
+function UI.Select(key)
+	ns.db.ui.tab = key
+	if UI.IsOpen() then Layout() end
+end
+
+function UI.ToggleQueueBeside()
+	ns.db.ui.queueBeside = not ns.db.ui.queueBeside
+	Layout()
+end
+
+-- Opens the window on that tab. Already open and already showing it, nothing moves.
 -- withProfession: the window closes again with the profession window. Opened by command, it stays until closed.
 function UI.Show(key, withProfession)
-	local window = GetWindow(key)
-	if not window.frame:IsShown() then
-		PlaceWindow(window)
-		window.withProfession = withProfession
-		window.frame:Show()
+	if key == "farm" then
+		ShowFarm()
+		return
 	end
-	UI.Refresh(key)
+	if not main then CreateMain() end
+	if not UI.IsOpen() then
+		ns.db.ui.tab = key
+		main.withProfession = withProfession
+		main.frame:Show()
+	elseif key == ActiveTab() or (key == "queue" and QueueBeside()) then
+		UI.Refresh(key)
+	else
+		UI.Select(key)
+	end
 end
 
 function UI.Toggle(key)
-	local window = GetWindow(key)
-	if window.frame:IsShown() then
-		window.frame:Hide()
+	if UI.IsOpen() and key == ActiveTab() then
+		UI.Hide()
 	else
 		UI.Show(key, ProfessionsFrame and ProfessionsFrame:IsShown())
 	end
 end
 
-function UI.ToggleBoth()
-	local anyShown = false
-	for key, window in pairs(windows) do
-		-- The Farm list stays up on its own, so it doesn't count here.
-		anyShown = anyShown or (key ~= "farm" and window.frame:IsShown())
-	end
-	if anyShown then
-		for key, window in pairs(windows) do
-			if key ~= "farm" then window.frame:Hide() end
-		end
+-- The Farm list stays up on its own, so this leaves it alone.
+function UI.ToggleMain()
+	if UI.IsOpen() then
+		UI.Hide()
 	else
-		UI.Show("profit")
-		UI.Show("queue")
+		UI.Show(ActiveTab())
 	end
 end
 
--- Farm It swaps the Queue window for the small list, and Back swaps them again.
+-- Farm It swaps the main window for the small list, and Back swaps them again.
 function UI.FarmModeChanged()
 	if ns.db.ui.farmMode then
-		if windows.queue then windows.queue.frame:Hide() end
+		UI.Hide()
 		UI.Show("farm")
 	else
 		if windows.farm then windows.farm.frame:Hide() end
@@ -1221,9 +1365,7 @@ end
 
 local function OpenWithProfession()
 	FollowOpenProfession()
-	if not ns.db.ui.autoOpen then return end
-	UI.Show("profit", true)
-	if #ns.db.queue > 0 then UI.Show("queue", true) end
+	if ns.db.ui.autoOpen and not UI.IsOpen() then UI.Show(ActiveTab(), true) end
 end
 
 local function HookProfessionWindow()
@@ -1245,7 +1387,8 @@ local function HookProfessionWindow()
 				ns.Print("You have not learned that recipe.")
 			else
 				ns.Queue.Add(info.recipeID, CraftCountFromInput())
-				UI.Show("queue", true)
+				-- Already open: stay on the tab being used, and the Queue tab's count shows it worked.
+				if not UI.IsOpen() then UI.Show("queue", true) end
 			end
 		end)
 		queueButton:SetScript("OnEnter", function(self)
@@ -1260,9 +1403,9 @@ local function HookProfessionWindow()
 	ProfessionsFrame:HookScript("OnShow", OpenWithProfession)
 	ProfessionsFrame:HookScript("OnHide", function()
 		lastOpenProfession = nil
-		for _, window in pairs(windows) do
-			if window.withProfession then window.frame:Hide() end
-		end
+		-- Walking from the profession window to the auction house keeps it up, for the queue and the shopping list.
+		local atAH = AuctionHouseFrame and AuctionHouseFrame:IsShown()
+		if main and main.withProfession and not atAH then UI.Hide() end
 		UI.RefreshAll()
 	end)
 end
@@ -1656,8 +1799,8 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then
-		UI.ToggleBoth()
+		UI.ToggleMain()
 	else
-		ns.Print("/craftledger [queue | profit | restock | sales | advertise | refresh | clear | auto | diag]")
+		ns.Print("/craftledger [profit | queue | restock | sales | advertise | refresh | clear | auto | diag]")
 	end
 end

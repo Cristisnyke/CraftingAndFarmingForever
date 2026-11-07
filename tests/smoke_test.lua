@@ -38,9 +38,14 @@ local function NewFrame()
 			end,
 			SetShown = function(self, on) if on then self:Show() else self:Hide() end end,
 			IsShown = function(self) return self.shown end,
+			IsVisible = function(self)
+				local parent = rawget(self, "parent")
+				return self.shown and (parent == nil or parent:IsVisible())
+			end,
 			GetHeight = function(self) return self.height end,
 			SetHeight = function(self, height) self.height = height end,
 			SetSize = function(self, width, height) self.width, self.height = width, height end,
+			SetWidth = function(self, width) self.width = width end,
 			GetWidth = function(self) return self.width or 0 end,
 			GetLeft = function() return 100 end,
 			GetRight = function() return 480 end,
@@ -67,6 +72,8 @@ function CreateFrame(_, _, parent)
 end
 
 UIParent = NewFrame()
+UIParent.shown = true
+UIParent.GetWidth = function() return 2000 end
 ChatFrame1 = NewFrame()
 function geterrorhandler() return function(err) error(err, 0) end end
 wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
@@ -329,7 +336,7 @@ check("enough gold", ns.UI.StillToBuyText(), "Still to buy: 1s 10c. |cff55dd55Yo
 playerMoney = 50
 check("not enough gold", ns.UI.StillToBuyText(), "Still to buy: 1s 10c. |cffff6655You have 50c, 60c short.|r")
 Fire("PLAYER_MONEY")
-ns.UI.windows.queue.frame:Hide()
+ns.UI.Hide()
 
 -- Price changes: a whole-list scan starts a comparison. Dearer materials are red, cheaper green, old and new shown.
 local RED, GREEN = "|cffff6655", "|cff55dd55"
@@ -377,7 +384,7 @@ check("sale rise is green", QueueEntryText():find("sells " .. GREEN, 1, true) ~=
 check("profit uses the new sale price", ns.totals.revenue, 2 * 300 * 0.95)
 Rescan({ [4] = 1000, [1] = 10 })
 Rescan({})
-ns.UI.windows.queue.frame:Hide()
+ns.UI.Hide()
 
 -- A new item has nothing to compare with.
 check("no change for unknown item", ns.Prices.Change(12345), nil)
@@ -399,14 +406,75 @@ check("sub-craft cost used in profit", sellable[20].cost, 3 * 20 + 10)
 
 -- Tabs and craft button.
 ns.UI.Show("queue")
-check("windows are separate", ns.UI.windows.profit.frame ~= ns.UI.windows.queue.frame, true)
-check("both open", ns.UI.windows.profit.frame:IsShown() and ns.UI.windows.queue.frame:IsShown(), true)
-ns.UI.windows.queue.frame.scripts.OnDragStop(ns.UI.windows.queue.frame)
-check("moved window keeps its position", ns.db.ui.positions.queue.x, 100)
-check("other window not moved", ns.db.ui.positions.profit, nil)
-ns.UI.Toggle("profit")
-check("closing profit leaves queue open", ns.UI.windows.queue.frame:IsShown(), true)
-ns.UI.Toggle("profit")
+do
+	local main, profit, queue = ns.UI.main, ns.UI.windows.profit, ns.UI.windows.queue
+	local function Tab(key)
+		for _, tab in ipairs(main.tabButtons) do if tab.key == key then return tab end end
+	end
+	check("tabs share one window", profit.frame.parent, queue.frame.parent)
+	check("one tab shows at a time", profit.frame:IsVisible() or not queue.frame:IsVisible(), false)
+	check("anchored to the screen", main.frame.lastPoint[2], UIParent)
+	Tab("profit").scripts.OnClick(Tab("profit"))
+	check("clicking a tab switches", profit.frame:IsVisible() and not queue.frame:IsVisible(), true)
+	Tab("queue").scripts.OnClick(Tab("queue"))
+	check("queue tab counts its entries", Tab("queue").label.text:find("Queue (1)", 1, true) ~= nil, true)
+	check("tab choice saved", ns.db.ui.tab, "queue")
+
+	main.frame.scripts.OnDragStop(main.frame)
+	check("moved window keeps its position", ns.db.ui.positions.main.x, 100)
+	ns.UI.Hide()
+	ns.UI.Show("queue")
+	check("reopens where it was put", main.frame.lastPoint[4], 100)
+	local left, top = main.frame.lastPoint[4], main.frame.lastPoint[5]
+	ProfessionsFrame.scripts.OnShow(ProfessionsFrame)
+	check("other windows don't move it", main.frame.lastPoint[4] == left and main.frame.lastPoint[5] == top, true)
+
+	-- Restock can keep the queue beside it. The window grows from its left edge.
+	local width = main.frame:GetWidth()
+	ns.UI.Show("restock")
+	local restock = ns.UI.windows.restock
+	check("restock alone", restock.frame:IsVisible() and not queue.frame:IsVisible(), true)
+	ns.UI.ToggleQueueBeside()
+	check("queue beside restock", restock.frame:IsVisible() and queue.frame:IsVisible(), true)
+	check("window grows for it", main.frame:GetWidth() > width, true)
+	check("left edge stays", main.frame.lastPoint[4], left)
+	check("both tabs lit", Tab("queue").accent:IsShown() and Tab("restock").accent:IsShown(), true)
+	ns.UI.Show("queue")
+	check("queue already showing, no switch", ns.db.ui.tab, "restock")
+	UIParent.GetWidth = function() return 1000 end
+	ns.UI.Select("restock")
+	check("too wide for the spot: shifts to fit", main.frame.lastPoint[4], 0)
+	UIParent.GetWidth = function() return 2000 end
+	ns.UI.Show("profit")
+	check("beside is only for restock", queue.frame:IsVisible(), false)
+	check("width back to normal", main.frame:GetWidth(), width)
+	check("back in its spot", main.frame.lastPoint[4], left)
+	ns.UI.Show("restock")
+	ns.UI.ToggleQueueBeside()
+	ns.UI.Show("queue")
+
+	ns.UI.Toggle("queue")
+	check("toggling the shown tab closes", ns.UI.IsOpen(), false)
+	ns.UI.Toggle("queue")
+	check("toggling opens on it", queue.frame:IsVisible(), true)
+	ns.UI.ToggleMain()
+	check("main toggle closes", ns.UI.IsOpen(), false)
+	ns.UI.ToggleMain()
+	check("main toggle reopens the last tab", queue.frame:IsVisible(), true)
+
+	-- It closes with the profession window it opened with, unless that was for the auction house.
+	ns.UI.Hide()
+	ns.UI.Show("queue", true)
+	AuctionHouseFrame:Show()
+	ProfessionsFrame:Hide()
+	check("stays open at the AH", ns.UI.IsOpen(), true)
+	AuctionHouseFrame:Hide()
+	ProfessionsFrame:Show()
+	ProfessionsFrame:Hide()
+	check("closes with the profession window", ns.UI.IsOpen(), false)
+	ProfessionsFrame:Show()
+	ns.UI.Show("queue")
+end
 
 -- Totals: 2 shirts sell for 1000 each less 5%; each costs 3 bolts at 20 (crafted) + thread 10 = 70.
 check("queue total profit", ns.totals.net, 2 * (950 - 70))
@@ -492,7 +560,7 @@ check("bind-on-pickup not restocked", (function()
 	return false
 end)(), false)
 ns.UI.Show("restock")
-check("restock window opens", ns.UI.windows.restock.frame:IsShown(), true)
+check("restock tab opens", ns.UI.windows.restock.frame:IsVisible(), true)
 ns.UI.Refresh("restock")
 
 -- With Syndicator: auctions, alts and mail count towards the goal.
@@ -689,12 +757,12 @@ check("cancel isn't a result", ns.Sales.Item("Alt Item").expired, 0)
 
 -- The window and row text.
 ns.UI.Show("sales")
-check("sales window lists items", #ns.UI.windows.sales.list >= 1, true)
+check("sales tab lists items", #ns.UI.windows.sales.list >= 1, true)
 check("best seller first", ns.UI.windows.sales.list[1].item.name, "Test Sword")
 ns.db.sales.items = {}
 ns.db.sales.lots = {}
 ns.UI.Refresh("sales")
-ns.UI.windows.sales.frame:Hide()
+ns.UI.Hide()
 
 -- Advertising: who may advertise, and the chat box path used by the Profit window button and slash command.
 check("link kept per profession", ns.db.chars[me].links[197], "|ctrade|Htrade:197|h[Tailoring]|h|r")
@@ -916,14 +984,14 @@ do
 	check("farm plan lists what to gather", next(ns.farmPlan.farm) ~= nil, true)
 
 	local farm, queue = ns.UI.windows.farm, ns.UI.windows.queue
-	check("Queue window makes way", queue.frame:IsShown(), false)
+	check("main window makes way", ns.UI.IsOpen(), false)
 	check("small list opens", farm.frame:IsShown(), true)
 	local count = 0
 	for _ in pairs(ns.farmPlan.farm) do count = count + 1 end
 	check("each item says how to get it", #Rows("farm", "how"), count)
 	check("small list has no price rows", #Rows("farm", "header"), 0)
 	check("small list height follows it", farm.frame:GetHeight() < 200, true)
-	check("small list is narrow", farm.frame:GetWidth() < queue.frame:GetWidth() / 2, true)
+	check("small list is narrow", farm.frame:GetWidth() < ns.UI.main.frame:GetWidth() / 2, true)
 	for _, row in ipairs(farm.rows) do
 		if row.data and row.data.kind == "how" then row.scripts.OnEnter(row) break end
 	end
@@ -932,21 +1000,21 @@ do
 	-- The profession window can bring the full Queue back while farming, for Craft Next.
 	ns.UI.Show("queue")
 	check("full list also follows the farm plan", #Rows("queue", "how"), count)
-	queue.frame:Hide()
+	ns.UI.Hide()
 
 	ns.ToggleFarmMode()
 	check("Back returns to buying", ns.ActivePlan(), ns.plan)
 	check("Back closes the small list", farm.frame:IsShown(), false)
-	check("Back reopens the Queue", queue.frame:IsShown(), true)
+	check("Back reopens the Queue", queue.frame:IsVisible(), true)
 	check("how rows gone when buying", #Rows("queue", "how"), 0)
 
 	ns.ToggleFarmMode()
 	farm.close.scripts.OnClick(farm.close)
 	check("closing leaves farm mode", ns.ActivePlan(), ns.plan)
 	check("closing hides the small list", farm.frame:IsShown(), false)
-	ns.UI.ToggleBoth()
+	ns.UI.ToggleMain()
 	ns.UI.Show("farm")
-	ns.UI.ToggleBoth()
+	ns.UI.ToggleMain()
 	check("hide-all leaves the small list alone", farm.frame:IsShown(), true)
 	farm.frame:Hide()
 

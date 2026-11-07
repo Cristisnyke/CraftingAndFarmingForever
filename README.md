@@ -2,14 +2,14 @@
 
 A World of Warcraft: Forever add-on for profitable crafting.
 
-- **Profit window:** every recipe known by any of your characters, ranked by profit using Auctionator prices. Results that can't be sold on the auction house are left out.
+- **Profit tab:** every recipe known by any of your characters, ranked by profit using Auctionator prices. Results that can't be sold on the auction house are left out.
 - **Cheapest path:** each material is costed as the cheapest of AH, vendor or crafting it yourself.
-- **Queue window:** one queue shared across your characters, filled from the profession window, with total profit and a Craft Next button.
-- **Price check:** the buy list shows each material's price at the last scan, the price the profit assumes, so you can stop buying if the shopping list shows it has gone up. Each material and section also shows its total, and the Queue window compares what's left to buy with the gold you're carrying.
+- **Queue tab:** one queue shared across your characters, filled from the profession window, with total profit and a Craft Next button.
+- **Price check:** the buy list shows each material's price at the last scan, the price the profit assumes, so you can stop buying if the shopping list shows it has gone up. Each material and section also shows its total, and the Queue tab compares what's left to buy with the gold you're carrying.
 - **Live shopping list:** one Auctionator list, `CraftLedger Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks.
-- **Restock window:** keeps the AH stocked. Each profitable item gets a goal (separate defaults for stackable and single items, adjustable per item). What's on the AH (through Syndicator) and what you hold count towards it, and one button queues the difference.
-- **Sales window:** records what you sell and what expires per day, week, month and all time, read from your auction house mail, and shows each item's chance of selling within 24 hours. The more data it gathers, the better the estimate.
-- **Advertise:** a small Ad box beside the chat window opens a list of your crafting professions. One click posts that profession's link, offering your materials or a price based on material cost, then the list closes. A picker in it chooses Trade, Guild, Say or Yell, with or without the profession open. The button in the Profit window and the slash command fill in the chat box instead, for Enter to send. Crafting professions only, with a 60-second limit per destination.
+- **Restock tab:** keeps the AH stocked. Each profitable item gets a goal (separate defaults for stackable and single items, adjustable per item). What's on the AH (through Syndicator) and what you hold count towards it, and one button queues the difference. **Show Queue** opens the queue beside it.
+- **Sales tab:** records what you sell and what expires per day, week, month and all time, read from your auction house mail, and shows each item's chance of selling within 24 hours. The more data it gathers, the better the estimate.
+- **Advertise:** a small Ad box beside the chat window opens a list of your crafting professions. One click posts that profession's link, offering your materials or a price based on material cost, then the list closes. A picker in it chooses Trade, Guild, Say or Yell, with or without the profession open. The button on the Profit tab and the slash command fill in the chat box instead, for Enter to send. Crafting professions only, with a 60-second limit per destination.
 - **Quotes:** each queued item shows its material cost, and its Quote button fills in a reply to your last whisper with the materials plus 10%.
 - **Fresh prices:** asks for a new scan when Auctionator's data is more than 24 hours old.
 
@@ -20,21 +20,21 @@ A World of Warcraft: Forever add-on for profitable crafting.
 
 ## Usage
 
-Open a profession on each character once so CraftLedger can record its recipes. The windows open with the profession window (Queue only if it has something in it), and each one can be dragged anywhere and remembers where you put it.
+Open a profession on each character once so CraftLedger can record its recipes. CraftLedger is one window with a tab for each part. It opens with the profession window on the tab you last used, and can be dragged anywhere. It stays exactly where you put it when other windows open or close.
 
 | Command | What it does |
 | --- | --- |
-| `/craftledger` or `/cledger` | Show or hide both windows |
-| `/craftledger queue` / `profit` | Show or hide one window |
-| `/craftledger restock` | Show or hide the Restock window |
+| `/craftledger` or `/cledger` | Show or hide the window |
+| `/craftledger queue` / `profit` | Open that tab, or close it if it's showing |
+| `/craftledger restock` | Open that tab, or close it if it's showing |
 | `/craftledger refresh` | Re-read everything, same as the Refresh button |
-| `/craftledger sales` | Show or hide the Sales window |
+| `/craftledger sales` | Open that tab, or close it if it's showing |
 | `/craftledger advertise` | Post the selected profession to the chosen destination |
 | `/craftledger clear` | Empty the queue |
 | `/craftledger auto` | Toggle opening with the profession window |
 | `/craftledger diag` | Print diagnostics |
 
-In the Queue window, **Farm It** turns the list into what to gather yourself and how: which vein or herb, which zones, which creatures, what to disenchant. The Queue window swaps for a small list you can leave on screen, which counts down as you gather. Your own zone comes first, and hovering a row shows everything known. Press **Back** to return. The Auctionator list stays the same either way.
+On the Queue tab, **Farm It** turns the list into what to gather yourself and how: which vein or herb, which zones, which creatures, what to disenchant. The window swaps for a small list you can leave on screen, which counts down as you gather. Your own zone comes first, and hovering a row shows everything known. Press **Back** to return. The Auctionator list stays the same either way.
 
 ## Development
 
