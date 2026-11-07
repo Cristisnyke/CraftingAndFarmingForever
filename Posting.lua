@@ -12,6 +12,8 @@ ns.Posting = Posting
 
 local TAB_ID = "CraftLedgerRestocking"
 local LIST_WIDTH = 500
+local SORT_PRICE, SORT_BUYOUT = 0, 4 -- the game's auction sort orders
+local REFUSAL_WINDOW = 10 -- seconds; a server refusal this soon after a request is taken to be for that request
 local LOOKUP_TIMEOUT = 5 -- seconds; after this the last scanned price is used instead
 local POST_TIMEOUT = 3 -- seconds; a post that never gets an answer stops blocking the button
 local BAGS = { 0, 1, 2, 3, 4, 5 } -- backpack, four bags and the reagent bag
@@ -28,6 +30,7 @@ local keepSelection = false -- picked by hand, so it stays selected even with no
 local reselect = false -- a post went through: read the suggested quantity and price again
 local live -- the search for the selected item: { itemID, pending, waiting, lowest, mine, failed }
 local posting = false
+local lastRequest -- what was last sent to the server, to report if it gets refused: { kind, at, text }
 local postedSince = {} -- units posted since Syndicator last refreshed its count of your auctions
 
 ---------------------------------------------------------------------------
@@ -42,7 +45,11 @@ local function BagContents()
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			if info and info.itemID and not info.isBound then
 				counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1)
-				slots[info.itemID] = slots[info.itemID] or { bag, slot }
+				-- Prefer one that isn't locked: Auctionator's Selling tab locks the item it has selected.
+				local known = slots[info.itemID]
+				if not known or (known.locked and not info.isLocked) then
+					slots[info.itemID] = { bag = bag, slot = slot, locked = info.isLocked }
+				end
 			end
 		end
 	end
@@ -138,30 +145,67 @@ local function FinishLookup(itemID, lowest, mine)
 	UpdateForm()
 end
 
+local function IsEquipment(itemID)
+	local classID = select(6, C_Item.GetItemInfoInstant(itemID))
+	return classID == Enum.ItemClass.Weapon or classID == Enum.ItemClass.Armor
+end
+
+local function IsCommodity(location)
+	return C_AuctionHouse.GetItemCommodityStatus(location) == Enum.ItemCommodityStatus.Commodity
+end
+
+local function SelectedLocation()
+	local _, slots = BagContents()
+	local slot = selected and slots[selected]
+	if not slot then return nil end
+	return ItemLocation:CreateFromBagAndSlot(slot.bag, slot.slot), slot.locked
+end
+
+-- Commodities and items are searched and sorted differently, and the server refuses a sort meant for the other kind.
+-- Equipment is listed per item level, so it needs the sell search and a key with no level to find them all.
 local function SendLookup()
-	local search = live
-	search.waiting = false
-	local sorts = {}
-	if Enum.AuctionHouseSortOrder then
-		sorts = { { sortOrder = Enum.AuctionHouseSortOrder.Price, reverseSort = false } }
+	local itemID = live.itemID
+	local location = SelectedLocation()
+	local commodity = location and IsCommodity(location)
+	local equipment = not commodity and IsEquipment(itemID)
+	local itemKey = equipment and { itemID = itemID, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+		or C_AuctionHouse.MakeItemKey(itemID)
+
+	-- The client ignores searches for items it hasn't got the details of yet.
+	live.waiting, live.waitingDetails = false, false
+	if not C_AuctionHouse.IsThrottledMessageSystemReady() then
+		live.waiting = true
+		return
 	end
-	C_AuctionHouse.SendSearchQuery(C_AuctionHouse.MakeItemKey(search.itemID), sorts, true)
+	if not C_AuctionHouse.GetItemKeyInfo(itemKey) then
+		live.waitingDetails = true
+		return
+	end
+
+	local sorts = { { sortOrder = commodity and SORT_PRICE or SORT_BUYOUT, reverseSort = false } }
+	lastRequest = { kind = "search", at = time(), text = ("%s search for item %d"):format(equipment and "sell" or "plain", itemID) }
+	if equipment then
+		C_AuctionHouse.SendSellSearchQuery(itemKey, sorts, true)
+	else
+		C_AuctionHouse.SendSearchQuery(itemKey, sorts, true)
+	end
+end
+
+local function StartLookup(itemID)
+	local search = { itemID = itemID, pending = true }
+	live = search
+	SendLookup()
 	C_Timer.After(LOOKUP_TIMEOUT, function()
 		if live == search and search.pending then
 			search.failed = true
-			FinishLookup(search.itemID, nil, nil)
+			FinishLookup(itemID, nil, nil)
 		end
 	end)
 end
 
-local function StartLookup(itemID)
-	live = { itemID = itemID, pending = true }
-	if C_AuctionHouse.IsThrottledMessageSystemReady() then
-		SendLookup()
-	else
-		live.waiting = true
-	end
-end
+ns.On("ITEM_KEY_ITEM_INFO_RECEIVED", function(itemID)
+	if live and live.waitingDetails and live.itemID == itemID then SendLookup() end
+end)
 
 ns.On("COMMODITY_SEARCH_RESULTS_UPDATED", function(itemID)
 	if not (live and live.pending and live.itemID == itemID) then return end
@@ -271,16 +315,6 @@ end
 -- Posting
 ---------------------------------------------------------------------------
 
-local function SelectedLocation()
-	local _, slots = BagContents()
-	local slot = selected and slots[selected]
-	return slot and ItemLocation:CreateFromBagAndSlot(slot[1], slot[2]) or nil
-end
-
-local function IsCommodity(location)
-	return C_AuctionHouse.GetItemCommodityStatus(location) == Enum.ItemCommodityStatus.Commodity
-end
-
 local function Quantity()
 	local quantity = tonumber(form.quantity:GetText())
 	return quantity and quantity >= 1 and math.floor(quantity) or nil
@@ -299,11 +333,28 @@ local function Deposit(location, quantity)
 end
 
 function Posting.PostSelected()
-	local location = SelectedLocation()
+	local location, locked = SelectedLocation()
 	local quantity, price = Quantity(), PriceFromBoxes()
 	if posting or not (location and quantity and price) or not C_AuctionHouse.IsThrottledMessageSystemReady() then return end
-	quantity = math.min(quantity, C_AuctionHouse.GetAvailablePostCount(location) or quantity)
+	if locked then
+		ns.Print("That item is locked. Auctionator's Selling tab may have it selected, so pick something else there first.")
+		return
+	end
+	-- With true the game itself says why it can't be sold.
+	if not C_AuctionHouse.IsSellItemValid(location, true) then return end
+	local available = C_AuctionHouse.GetAvailablePostCount(location) or quantity
+	if available < 1 then
+		ns.Print("The auction house says none of this item can be posted right now.")
+		return
+	end
+	quantity = math.min(quantity, available)
 	posting = true
+	lastRequest = {
+		kind = "post",
+		at = time(),
+		text = ("%s, %s, quantity %d of %d, price %d, duration %d, deposit %s"):format(ns.Items.Name(selected) or tostring(selected),
+			IsCommodity(location) and "commodity" or "item", quantity, available, price, Duration(), tostring(Deposit(location, quantity))),
+	}
 	-- A true answer means the game wants a confirmation first, and its sell frames show that dialog.
 	if IsCommodity(location) then
 		if C_AuctionHouse.PostCommodity(location, Duration(), quantity, price) then
@@ -330,6 +381,20 @@ function Posting.OnPosted(post)
 	reselect = post.itemID == selected
 	ns.RequestPlan()
 end
+
+-- The server refused what we just sent. Says exactly what that was, since the game's message doesn't.
+ns.On("UI_ERROR_MESSAGE", function(_, message)
+	if message ~= ERR_AUCTION_DATABASE_ERROR or not lastRequest or time() - lastRequest.at > REFUSAL_WINDOW then return end
+	local request = lastRequest
+	lastRequest = nil
+	ns.db.lastAuctionRefusal = { kind = request.kind, text = request.text, at = request.at }
+	ns.Print(("The auction house refused this %s: %s"):format(request.kind, request.text))
+	if request.kind == "post" then
+		posting = false
+		ns.Sales.ForgetLastPost()
+		UpdateForm()
+	end
+end)
 
 ns.On("AUCTION_HOUSE_THROTTLED_SYSTEM_READY", function()
 	if not window or not window.frame:IsVisible() then return end
@@ -375,8 +440,11 @@ function UpdateForm()
 	form.lookup:SetText(LookupText())
 
 	local price, quantity = PriceFromBoxes(), Quantity()
-	local location = SelectedLocation()
+	local location, locked = SelectedLocation()
 	local notes = {}
+	if locked then
+		table.insert(notes, Color(COLOR_WARN, "This item is locked, probably selected in Auctionator's Selling tab."))
+	end
 	if live and live.raised then
 		table.insert(notes, Color(COLOR_WARN, "Lowest is under your material cost, so this is your break-even price."))
 	end
@@ -407,7 +475,7 @@ function UpdateForm()
 		form.post:SetText("Post")
 	end
 
-	form.post:SetEnabled(not posting and location ~= nil and price ~= nil and quantity ~= nil
+	form.post:SetEnabled(not posting and not locked and location ~= nil and price ~= nil and quantity ~= nil
 		and quantity <= row.inBags and GetMoney() >= (deposit or 0)
 		and C_AuctionHouse.IsThrottledMessageSystemReady() and true or false)
 end

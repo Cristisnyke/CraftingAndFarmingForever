@@ -1109,9 +1109,26 @@ do
 	local searches = 0
 	C_AuctionHouse.IsThrottledMessageSystemReady = function() return ready end
 	C_AuctionHouse.MakeItemKey = function(itemID) return { itemID = itemID } end
-	C_AuctionHouse.SendSearchQuery = function() searches = searches + 1 end
+	local lastSearch
+	C_AuctionHouse.SendSearchQuery = function(key, sorts)
+		searches = searches + 1
+		lastSearch = { kind = "plain", key = key, sort = sorts[1].sortOrder }
+	end
+	C_AuctionHouse.SendSellSearchQuery = function(key, sorts)
+		searches = searches + 1
+		lastSearch = { kind = "sell", key = key, sort = sorts[1].sortOrder }
+	end
+	local keyInfoMissing = {}
+	C_AuctionHouse.GetItemKeyInfo = function(key) return not keyInfoMissing[key.itemID] and {} or nil end
+	local sellValid = true
+	C_AuctionHouse.IsSellItemValid = function() return sellValid end
+	local availableCount = 99
+	Enum.ItemClass = { Weapon = 2, Armor = 4 }
+	local itemClass = {}
+	C_Item.GetItemInfoInstant = function(itemID) return itemID, "", "", "", 1, itemClass[itemID] or 7, 0 end
+	ERR_AUCTION_DATABASE_ERROR = "Internal auction error"
 	C_AuctionHouse.GetItemCommodityStatus = function(location) return commodity[location.itemID] and 2 or 1 end
-	C_AuctionHouse.GetAvailablePostCount = function(location) return 99 end
+	C_AuctionHouse.GetAvailablePostCount = function() return availableCount end
 	C_AuctionHouse.CalculateCommodityDeposit = function() return 7 end
 	C_AuctionHouse.CalculateItemDeposit = function() return 9 end
 	C_AuctionHouse.GetNumItemSearchResults = function(key) return #(listings[key.itemID] or {}) end
@@ -1121,7 +1138,7 @@ do
 	local realItemPost, realCommodityPost = C_AuctionHouse.PostItem, C_AuctionHouse.PostCommodity
 	C_AuctionHouse.PostItem = function(location, duration, quantity, bid, buyout)
 		realItemPost(location, duration, quantity, bid, buyout)
-		table.insert(posts, { itemID = location.itemID, duration = duration, quantity = quantity, bid = bid, price = buyout, kind = "item" })
+		table.insert(posts, { itemID = location.itemID, slot = location.slot, duration = duration, quantity = quantity, bid = bid, price = buyout, kind = "item" })
 	end
 	C_AuctionHouse.PostCommodity = function(location, duration, quantity, price)
 		realCommodityPost(location, duration, quantity, price)
@@ -1159,6 +1176,8 @@ do
 	check("goal limits the suggestion", rows[1].row.toPost, 2)
 	check("first row selected", rows[1].selected, true)
 	check("search sent", searches >= 1, true)
+	check("items sort by buyout", lastSearch.sort, 4)
+	check("items use the plain search", lastSearch.kind, "plain")
 
 	-- Someone else sells at 500: 1c under. Below break-even raises it instead.
 	listings[shirt] = { { buyoutAmount = 700, containsOwnerItem = false }, { buyoutAmount = 500, containsOwnerItem = false } }
@@ -1207,6 +1226,76 @@ do
 	check("queue reserves some", window.list[1].row.reserved > 0, true)
 	ns.Queue.Clear()
 	RunTimers()
+
+	-- Commodities sort by price; equipment needs the sell search and a key with no item level.
+	do
+		commodity[bolts] = true
+		bags = { { itemID = bolts, stackCount = 5 } }
+		ns.db.restock.goals[bolts] = 500
+		ns.Posting.Select(bolts)
+		ns.UI.Refresh("posting")
+		check("commodities sort by price", lastSearch.sort, 0)
+		commodity[bolts] = nil
+
+		itemClass[shirt] = 4
+		bags = { { itemID = shirt, stackCount = 1 } }
+		ns.db.restock.goals[shirt] = 500
+		ns.UI.Refresh("posting")
+		ns.Posting.Select(shirt)
+		check("equipment uses the sell search", lastSearch.kind, "sell")
+		check("equipment key has no level", lastSearch.key.itemLevel, 0)
+		check("equipment sorts by buyout", lastSearch.sort, 4)
+		itemClass[shirt] = nil
+
+		-- Details not loaded: the search waits for them, as the client would ignore it.
+		keyInfoMissing[shirt] = true
+		local before = searches
+		ns.Posting.Select(shirt)
+		check("search waits for item details", searches, before)
+		keyInfoMissing[shirt] = nil
+		for frame in pairs(eventFrames) do
+			if frame.scripts.OnEvent then frame.scripts.OnEvent(frame, "ITEM_KEY_ITEM_INFO_RECEIVED", shirt) end
+		end
+		check("search goes when they arrive", searches, before + 1)
+
+		-- Locked by another add-on: another copy is used, or it says so instead of posting.
+		listings[shirt] = {}
+		prices[shirt] = 5000
+		RunTimers()
+		bags = { { itemID = shirt, stackCount = 1, isLocked = true } }
+		ns.UI.Refresh("posting")
+		local count = #posts
+		ns.Posting.PostSelected()
+		check("locked item not posted", #posts, count)
+		bags = { { itemID = shirt, stackCount = 1, isLocked = true }, { itemID = shirt, stackCount = 1 } }
+		ns.UI.Refresh("posting")
+		ns.Posting.PostSelected()
+		check("unlocked copy posted", #posts, count + 1)
+		check("from its slot", posts[#posts].slot, 2)
+
+		-- Refused: reported with what was sent, the button works again and the record isn't kept.
+		local lots = #ns.db.sales.lots
+		Fire("UI_ERROR_MESSAGE", 1, "Internal auction error")
+		check("refusal kept for reading later", ns.db.lastAuctionRefusal.kind, "post")
+		check("refusal says what was sent", ns.db.lastAuctionRefusal.text:find("price 5000", 1, true) ~= nil, true)
+		Fire("AUCTION_HOUSE_AUCTION_CREATED")
+		check("refused post not recorded", #ns.db.sales.lots, lots)
+		ns.Posting.PostSelected()
+		check("can post again after a refusal", #posts, count + 2)
+		Fire("AUCTION_HOUSE_AUCTION_CREATED")
+
+		-- The game says it can't be sold, or none are available.
+		ns.Posting.Select(shirt)
+		count = #posts
+		sellValid = false
+		ns.Posting.PostSelected()
+		check("invalid item not posted", #posts, count)
+		sellValid = true
+		availableCount = 0
+		ns.Posting.PostSelected()
+		check("nothing available, no post", #posts, count)
+		availableCount = 99
+	end
 
 	-- Busy: the search waits until the auction house can take it.
 	ready = false

@@ -210,6 +210,11 @@ local function OnPost(itemLocation, duration, quantity)
 	table.insert(pendingPosts, post)
 end
 
+-- The server refused the latest post, so the next confirmation isn't for it.
+function Sales.ForgetLastPost()
+	table.remove(pendingPosts)
+end
+
 -- A post only counts once the server confirms it, since a post can fail.
 ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
 	-- One that never got an answer failed, so it mustn't be mistaken for this one.
