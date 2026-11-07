@@ -180,6 +180,11 @@ function Planner.PostPrice(opts)
 	return price
 end
 
+-- True when a vendor pays more for one than this price earns after the AH cut.
+function Planner.BelowVendor(price, sellPrice, ahCut)
+	return (sellPrice or 0) > 0 and sellPrice > math.floor(price * (1 - ahCut))
+end
+
 -- Materials the crafts in a plan still use, by item. Every alternative of a slot counts, since any of them may be used.
 function Planner.ReservedMaterials(ctx, plan)
 	local reserved = {}

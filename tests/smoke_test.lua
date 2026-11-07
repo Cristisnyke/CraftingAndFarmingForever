@@ -90,7 +90,7 @@ function GameTooltip_Hide() end
 GameTooltip = NewFrame()
 YES, NO = "Yes", "No"
 StaticPopupDialogs = {}
-function StaticPopup_Show(name) ns_popup = name end
+function StaticPopup_Show(name, _, _, data) ns_popup, ns_popupData = name, data end
 function StaticPopup_Hide() end
 SlashCmdList = {}
 UISpecialFrames = {}
@@ -1306,6 +1306,35 @@ do
 		ns.Posting.PostSelected()
 		check("nothing available, no post", #posts, count)
 		availableCount = 99
+
+		-- A vendor pays more: asks first, and only what it asked about gets posted.
+		local realInfo = C_Item.GetItemInfo
+		C_Item.GetItemInfo = function(id)
+			local info = { realInfo(id) }
+			if id == shirt then info[11] = 6000 end
+			return (table.unpack or unpack)(info, 1, 14)
+		end
+		ns_popup = nil
+		listings[shirt] = {}
+		Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
+		count = #posts
+		ns.Posting.PostSelected()
+		check("below vendor asks first", ns_popup, "CRAFTLEDGER_BELOW_VENDOR")
+		check("below vendor not posted yet", #posts, count)
+		local dialog = StaticPopupDialogs.CRAFTLEDGER_BELOW_VENDOR
+		dialog.OnAccept(nil, ns_popupData)
+		check("posted once agreed", #posts, count + 1)
+		check("at the price it asked about", posts[#posts].price, 5000)
+		Fire("AUCTION_HOUSE_AUCTION_CREATED")
+		ns.Posting.Select(shirt)
+		Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
+		ns.Posting.PostSelected()
+		local asked = ns_popupData
+		ns.Posting.Select(shirt) -- clears the price behind the dialog
+		count = #posts
+		dialog.OnAccept(nil, asked)
+		check("changed behind the dialog, not posted", #posts, count)
+		C_Item.GetItemInfo = realInfo
 	end
 
 	-- The log keeps requests with what the server said after them, and can't break a post.

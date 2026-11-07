@@ -340,7 +340,14 @@ local function Deposit(location, quantity)
 	return C_AuctionHouse.CalculateItemDeposit(location, Duration(), quantity)
 end
 
-function Posting.PostSelected()
+local function VendorPaysMore(price)
+	local sellPrice = selected and ns.Items.SellPrice(selected)
+	if price and ns.Planner.BelowVendor(price, sellPrice, ns.AH_CUT) then return sellPrice end
+	return nil
+end
+
+-- confirmed: the user has already agreed to post below what a vendor pays.
+function Posting.PostSelected(confirmed)
 	local location, locked = SelectedLocation()
 	local quantity, price = Quantity(), PriceFromBoxes()
 	if posting or not (location and quantity and price) or not C_AuctionHouse.IsThrottledMessageSystemReady() then return end
@@ -356,6 +363,11 @@ function Posting.PostSelected()
 		return
 	end
 	quantity = math.min(quantity, available)
+	local sellPrice = VendorPaysMore(price)
+	if sellPrice and not confirmed then
+		StaticPopup_Show("CRAFTLEDGER_BELOW_VENDOR", ns.Money(sellPrice), ns.Money(price), { itemID = selected, price = price })
+		return
+	end
 	posting = true
 	lastRequest = {
 		kind = "post",
@@ -381,6 +393,19 @@ function Posting.PostSelected()
 	end)
 	UpdateForm()
 end
+
+StaticPopupDialogs["CRAFTLEDGER_BELOW_VENDOR"] = {
+	text = "CraftLedger: a vendor pays %s for one of these, more than %s earns after the AH cut. Post it anyway?",
+	button1 = YES,
+	button2 = NO,
+	OnAccept = function(_, data)
+		-- The selection or price can change behind the dialog, and the answer was only about what it showed.
+		if data.itemID == selected and data.price == PriceFromBoxes() then Posting.PostSelected(true) end
+	end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
 
 -- Called by Sales once the server has confirmed a post.
 function Posting.OnPosted(post)
@@ -422,6 +447,7 @@ ns.On("PLAYER_LOGIN", function()
 end)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
+	StaticPopup_Hide("CRAFTLEDGER_BELOW_VENDOR")
 	live, posting = nil, false
 	selected = nil
 end)
@@ -535,6 +561,10 @@ function UpdateForm()
 	if live and live.raised then
 		table.insert(notes, Color(COLOR_WARN, "Lowest is under your material cost, so this is your break-even price."
 			.. (wholeSilver and " Rounded up to whole silver." or "")))
+	end
+	local sellPrice = VendorPaysMore(price)
+	if sellPrice then
+		table.insert(notes, Color(COLOR_WARN, ("A vendor pays %s for one, more than this earns after the AH cut."):format(ns.Money(sellPrice))))
 	end
 	if quantity and quantity > row.inBags - row.reserved and row.reserved > 0 then
 		table.insert(notes, Color(COLOR_WARN, ("Your queue needs %d of these."):format(row.reserved)))

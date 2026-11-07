@@ -66,6 +66,11 @@ function Items.IsStackable(itemID)
 	return (stackCount or 1) > 1
 end
 
+-- What a vendor pays for one, or nil while the item data is loading.
+function Items.SellPrice(itemID)
+	return (select(11, C_Item.GetItemInfo(itemID)))
+end
+
 function Items.Quality(itemID)
 	local _, _, quality = C_Item.GetItemInfo(itemID)
 	return quality
