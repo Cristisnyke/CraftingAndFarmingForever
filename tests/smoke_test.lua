@@ -134,6 +134,8 @@ Enum = { CraftingReagentType = { Basic = 0 } }
 print = print
 
 C_AuctionHouse = {
+	SendSearchQuery = function() end,
+	SendSellSearchQuery = function() end,
 	PostItem = function() end,
 	PostCommodity = function() end,
 }
@@ -1110,11 +1112,14 @@ do
 	C_AuctionHouse.IsThrottledMessageSystemReady = function() return ready end
 	C_AuctionHouse.MakeItemKey = function(itemID) return { itemID = itemID } end
 	local lastSearch
-	C_AuctionHouse.SendSearchQuery = function(key, sorts)
+	local realSearch, realSellSearch = C_AuctionHouse.SendSearchQuery, C_AuctionHouse.SendSellSearchQuery
+	C_AuctionHouse.SendSearchQuery = function(key, sorts, separate)
+		realSearch(key, sorts, separate)
 		searches = searches + 1
 		lastSearch = { kind = "plain", key = key, sort = sorts[1].sortOrder }
 	end
-	C_AuctionHouse.SendSellSearchQuery = function(key, sorts)
+	C_AuctionHouse.SendSellSearchQuery = function(key, sorts, separate)
+		realSellSearch(key, sorts, separate)
 		searches = searches + 1
 		lastSearch = { kind = "sell", key = key, sort = sorts[1].sortOrder }
 	end
@@ -1296,6 +1301,21 @@ do
 		check("nothing available, no post", #posts, count)
 		availableCount = 99
 	end
+
+	-- The log keeps requests with what the server said after them, and can't break a post.
+	check("posts are logged", (function()
+		for _, line in ipairs(ns.db.auctionLog) do
+			if line:find("PostItem(2,", 1, true) then return true end
+		end
+		return false
+	end)(), true)
+	check("searches are logged", (function()
+		for _, line in ipairs(ns.db.auctionLog) do
+			if line:find("SendSellSearchQuery(item", 1, true) then return true end
+		end
+		return false
+	end)(), true)
+	check("log stays short", #ns.db.auctionLog <= 60, true)
 
 	-- Busy: the search waits until the auction house can take it.
 	ready = false

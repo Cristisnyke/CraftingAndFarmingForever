@@ -418,6 +418,87 @@ ns.On("AUCTION_HOUSE_CLOSED", function()
 end)
 
 ---------------------------------------------------------------------------
+-- Auction log, to find out why a post gets refused
+---------------------------------------------------------------------------
+-- db.auctionLog keeps the latest requests from any add-on, with what the server said after them. Saved on /reload.
+
+local LOG_SIZE = 60
+local LOG_FOLLOW_SECONDS = 20 -- server messages are only worth keeping right after a request
+local logUntil = 0
+
+local function Log(text)
+	local log = ns.db.auctionLog or {}
+	ns.db.auctionLog = log
+	table.insert(log, date("%H:%M:%S") .. " " .. text)
+	while #log > LOG_SIZE do table.remove(log, 1) end
+end
+
+local function DescribeLocation(location)
+	local ok, text = pcall(function()
+		local key = C_AuctionHouse.GetItemKeyFromItem(location)
+		local bag, slot = location:GetBagAndSlot()
+		local info = C_Container.GetContainerItemInfo(bag, slot)
+		return ("bag %s slot %s, %s, bound %s, locked %s, commodity status %s, valid %s, available %s, key %s/%s/%s, stack %s"):format(
+			tostring(bag), tostring(slot), tostring(C_Item.GetItemLink(location)), tostring(C_Item.IsBound(location)),
+			tostring(C_Item.IsLocked(location)), tostring(C_AuctionHouse.GetItemCommodityStatus(location)),
+			tostring(C_AuctionHouse.IsSellItemValid(location, false)), tostring(C_AuctionHouse.GetAvailablePostCount(location)),
+			tostring(key and key.itemID), tostring(key and key.itemLevel), tostring(key and key.itemSuffix),
+			tostring(info and info.stackCount))
+	end)
+	return ok and text or ("could not describe: " .. tostring(text))
+end
+
+local function Requested(text)
+	logUntil = time() + LOG_FOLLOW_SECONDS
+	Log(text)
+end
+
+local function ArgText(...)
+	local parts = {}
+	for index = 1, select("#", ...) do parts[index] = tostring((select(index, ...))) end
+	return table.concat(parts, ", ")
+end
+
+ns.On("PLAYER_LOGIN", function()
+	hooksecurefunc(C_AuctionHouse, "PostItem", function(location, ...)
+		Requested("PostItem(" .. ArgText(...) .. ") " .. DescribeLocation(location))
+	end)
+	hooksecurefunc(C_AuctionHouse, "PostCommodity", function(location, ...)
+		Requested("PostCommodity(" .. ArgText(...) .. ") " .. DescribeLocation(location))
+	end)
+	for _, name in ipairs({ "SendSearchQuery", "SendSellSearchQuery" }) do
+		hooksecurefunc(C_AuctionHouse, name, function(itemKey, sorts, separate)
+			local sort = sorts and sorts[1]
+			Requested(("%s(item %s level %s suffix %s, sort %s, separate %s)"):format(name, tostring(itemKey and itemKey.itemID),
+				tostring(itemKey and itemKey.itemLevel), tostring(itemKey and itemKey.itemSuffix), tostring(sort and sort.sortOrder), tostring(separate)))
+		end)
+	end
+end)
+
+-- Registered one by one, since the client rejects an event it doesn't have.
+local logFrame = CreateFrame("Frame")
+for _, event in ipairs({
+	"UI_ERROR_MESSAGE", "CHAT_MSG_SYSTEM", "AUCTION_HOUSE_SHOW_ERROR", "AUCTION_HOUSE_POST_ERROR", "AUCTION_HOUSE_POST_WARNING",
+	"AUCTION_HOUSE_SHOW_NOTIFICATION", "AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", "AUCTION_HOUSE_AUCTION_CREATED",
+	"AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED", "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", "AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED",
+	"COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED",
+}) do
+	pcall(logFrame.RegisterEvent, logFrame, event)
+end
+logFrame:SetScript("OnEvent", function(_, event, ...)
+	if time() > logUntil then return end
+	Log(event .. ": " .. ArgText(...))
+	if event == "AUCTION_HOUSE_SHOW_ERROR" or event == "AUCTION_HOUSE_POST_ERROR" then
+		ns.Print(event .. ": " .. ArgText(...))
+		if posting then
+			posting = false
+			ns.Sales.ForgetLastPost()
+			UpdateForm()
+		end
+	end
+end)
+
+---------------------------------------------------------------------------
 -- The form
 ---------------------------------------------------------------------------
 
