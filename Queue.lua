@@ -1,4 +1,4 @@
--- CraftLedger :: Queue
+-- Crafting and Farming Forever :: Queue
 -- The shared craft queue, the plan derived from it and the Craft Next action.
 
 local _, ns = ...

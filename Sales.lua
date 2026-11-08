@@ -1,4 +1,4 @@
--- CraftLedger :: Sales
+-- Crafting and Farming Forever :: Sales
 -- Records what sells and what expires, and estimates the chance a listed item sells within 24 hours.
 --
 -- Outcomes come from the auction house mail, the only source that also covers sales made while offline. Mail that

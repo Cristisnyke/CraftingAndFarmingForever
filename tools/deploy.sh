@@ -7,8 +7,8 @@ cd "$(dirname "$0")/.."
 ADDONS="${1:-/mnt/WD850SN/Games/World of Warcraft/_forever_/Interface/AddOns}"
 [ -d "$ADDONS" ] || { echo "No AddOns folder at: $ADDONS"; exit 1; }
 
-mkdir -p "$ADDONS/CraftLedger"
+mkdir -p "$ADDONS/CraftingAndFarmingForever"
 rsync -a --delete \
 	--include='*.lua' --include='*.toc' --include='LICENSE' --exclude='*' \
-	./ "$ADDONS/CraftLedger/"
-echo "Deployed to $ADDONS/CraftLedger"
+	./ "$ADDONS/CraftingAndFarmingForever/"
+echo "Deployed to $ADDONS/CraftingAndFarmingForever"

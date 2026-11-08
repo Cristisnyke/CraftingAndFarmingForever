@@ -1,4 +1,4 @@
--- CraftLedger :: Planner
+-- Crafting and Farming Forever :: Planner
 -- Game-independent cost, profit and queue logic, so it can be tested outside the client.
 --
 -- A context supplies:

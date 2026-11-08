@@ -1,9 +1,9 @@
--- CraftLedger :: Core
+-- Crafting and Farming Forever :: Core
 -- Event dispatch, debouncing and saved data.
 
 local ADDON, ns = ...
 ns.name = ADDON
-ns.LIST_NAME = "CraftLedger Queue"
+ns.LIST_NAME = "Crafting and Farming Forever Queue"
 ns.AH_CUT = 0.05
 ns.STALE_SECONDS = 24 * 60 * 60
 
@@ -42,7 +42,7 @@ function ns.Debounce(key, delay, fn)
 end
 
 function ns.Print(text)
-	print("|cff66ccffCraftLedger|r: " .. tostring(text))
+	print("|cff66ccffCrafting and Farming Forever|r: " .. tostring(text))
 end
 
 ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ local adopted = false
 
 local function AdoptSavedData()
 	if adopted then return true end
-	local loaded = _G.CraftLedgerDB
+	local loaded = _G.CraftingAndFarmingForeverDB
 	if type(loaded) ~= "table" then return false end
 	adopted = true
 	Normalize(loaded)
@@ -139,7 +139,7 @@ end)
 
 ns.On("PLAYER_LOGOUT", function()
 	AdoptSavedData()
-	_G.CraftLedgerDB = ns.db
+	_G.CraftingAndFarmingForeverDB = ns.db
 end)
 
 ---------------------------------------------------------------------------

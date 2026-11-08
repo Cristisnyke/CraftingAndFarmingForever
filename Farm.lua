@@ -1,4 +1,4 @@
--- CraftLedger :: Farm
+-- Crafting and Farming Forever :: Farm
 -- Turns the source table into instructions for getting an item yourself. The table is generated from AllTheThings'
 -- data, see Sources.lua. Zone names come from the client so they follow the game's language.
 

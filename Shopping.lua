@@ -1,4 +1,4 @@
--- CraftLedger :: Shopping
+-- Crafting and Farming Forever :: Shopping
 -- Keeps one Auctionator shopping list equal to what the plan still has to buy.
 --
 -- The list is edited in place. CreateShoppingList replaces the list and re-expands it in Auctionator's tab, which

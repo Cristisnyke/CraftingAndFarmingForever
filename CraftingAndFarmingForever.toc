@@ -1,11 +1,11 @@
 ## Interface: 16001
-## Title: CraftLedger
-## Notes: Profit for every recipe your characters know, a shared craft queue, and a live Auctionator shopping list that accounts for what you own.
+## Title: Crafting and Farming Forever
+## Notes: Profit for every recipe your characters know, a shared craft queue, a live Auctionator shopping list that accounts for what you own, and a Farm It list of what to gather and where.
 ## Author: Cristisnyke
 ## Version: 0.1.0
 ## Dependencies: Auctionator
 ## OptionalDeps: Syndicator
-## SavedVariables: CraftLedgerDB
+## SavedVariables: CraftingAndFarmingForeverDB
 ## IconTexture: Interface\Icons\INV_Misc_Note_05
 ## Category: Professions
 

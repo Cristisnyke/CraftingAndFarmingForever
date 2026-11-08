@@ -1,4 +1,4 @@
--- CraftLedger :: UI
+-- Crafting and Farming Forever :: UI
 -- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales; the queue can sit beside Restock), the small
 -- Farm list, the Queue button on the crafting page, the stale-price prompts and the slash command.
 
@@ -1051,7 +1051,7 @@ function CreateQueuePane()
 			table.insert(notes, ("%d bind-on-pickup craft(s) cost %s and aren't in the profit."):format(totals.bound, ns.Money(totals.boundCost)))
 		end
 		local shopping = ns.Shopping.status
-		if shopping.error then table.insert(notes, "List update failed. See /craftledger diag.") end
+		if shopping.error then table.insert(notes, "List update failed. See /cff diag.") end
 		if shopping.loading > 0 then table.insert(notes, shopping.loading .. " item name(s) loading.") end
 		if not ns.Stock.HasSyndicator() then table.insert(notes, "Syndicator not active: alts not counted.") end
 		status:SetText(table.concat(notes, " "))
@@ -1061,7 +1061,7 @@ end
 -- The small list to leave on screen while gathering. It's the one thing that isn't a tab: the main window is too big
 -- to keep up while out in the world.
 local function CreateFarmWindow()
-	local frame = CreateFrame("Frame", "CraftLedgerFarmWindow", UIParent, "BackdropTemplate")
+	local frame = CreateFrame("Frame", "CFFFarmWindow", UIParent, "BackdropTemplate")
 	local window = { key = "farm", frame = frame, list = {}, offset = 0, rows = {}, mini = true }
 	windows.farm = window
 	MakeMovable(frame, "farm")
@@ -1313,16 +1313,16 @@ local function Layout()
 end
 
 local function CreateMain()
-	local frame = CreateFrame("Frame", "CraftLedgerWindow", UIParent, "BackdropTemplate")
+	local frame = CreateFrame("Frame", "CFFWindow", UIParent, "BackdropTemplate")
 	main = { frame = frame, tabButtons = {} }
 	UI.main = main
 	MakeMovable(frame, "main")
 	frame:SetSize(MAIN_WIDTH, WINDOW_HEIGHT)
-	table.insert(UISpecialFrames, "CraftLedgerWindow") -- Escape closes it, like the game's own windows
+	table.insert(UISpecialFrames, "CFFWindow") -- Escape closes it, like the game's own windows
 
 	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	titleText:SetPoint("TOPLEFT", 12, -14)
-	titleText:SetText("CraftLedger")
+	titleText:SetText("Crafting and Farming Forever")
 
 	for index, info in ipairs(MAIN_TABS) do
 		local tab = CreateFrame("Button", nil, frame)
@@ -1493,7 +1493,7 @@ local function HookProfessionWindow()
 	local form = page.SchematicForm
 	if form then
 		-- On the recipe's own pane, under the favourite star: clear of long names, which run left to right along the top.
-		queueButton = CreateFrame("Button", "CraftLedgerQueueButton", form, "UIPanelButtonTemplate")
+		queueButton = CreateFrame("Button", "CFFQueueButton", form, "UIPanelButtonTemplate")
 		queueButton:SetSize(64, 22)
 		queueButton:SetPoint("TOPRIGHT", form, "TOPRIGHT", -12, -47)
 		queueButton:SetText("Queue")
@@ -1512,7 +1512,7 @@ local function HookProfessionWindow()
 		end)
 		queueButton:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_TOP")
-			GameTooltip:SetText("Add to CraftLedger queue")
+			GameTooltip:SetText("Add to Crafting and Farming Forever queue")
 			GameTooltip:AddLine("Uses the amount in the box next to Create.", 1, 1, 1, true)
 			GameTooltip:Show()
 		end)
@@ -1694,7 +1694,7 @@ local adBox, destinationButton, destinationMenu
 local adOpen = false
 
 local function CreateDestinationPicker()
-	adBox = CreateFrame("Button", "CraftLedgerAdBox", UIParent, "UIPanelButtonTemplate")
+	adBox = CreateFrame("Button", "CFFAdBox", UIParent, "UIPanelButtonTemplate")
 	adBox:SetSize(AD_BOX_WIDTH, AD_BOX_HEIGHT)
 	-- Past the chat frame's own scroll bar.
 	adBox:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, 0)
@@ -1710,7 +1710,7 @@ local function CreateDestinationPicker()
 	end)
 	Advertise.box = adBox
 
-	destinationButton = CreateFrame("Button", "CraftLedgerAdDestination", UIParent, "UIPanelButtonTemplate")
+	destinationButton = CreateFrame("Button", "CFFAdDestination", UIParent, "UIPanelButtonTemplate")
 	destinationButton:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
 	destinationButton:SetPoint("BOTTOMLEFT", adBox, "TOPLEFT", 0, 2)
 	destinationButton:Hide()
@@ -1760,7 +1760,7 @@ end
 local function AdButton(index)
 	local button = adButtons[index]
 	if not button then
-		button = CreateFrame("Button", "CraftLedgerAdvertiseButton" .. index, UIParent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
+		button = CreateFrame("Button", "CFFAdvertiseButton" .. index, UIParent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
 		button:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
 		button:RegisterForClicks("AnyUp", "AnyDown")
 		button:SetAttribute("type", "macro")
@@ -1840,8 +1840,8 @@ end
 -- Scan prompt
 ---------------------------------------------------------------------------
 
-StaticPopupDialogs["CRAFTLEDGER_SCAN"] = {
-	text = "CraftLedger: %s Run a new auction house scan now?",
+StaticPopupDialogs["CFF_SCAN"] = {
+	text = "Crafting and Farming Forever: %s Run a new auction house scan now?",
 	button1 = YES,
 	button2 = NO,
 	OnAccept = function() ns.Prices.StartScan() end,
@@ -1854,7 +1854,7 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 	-- Auctionator creates its scan frames as the auction house opens, so wait for them.
 	C_Timer.After(1.5, function()
 		if ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
-			StaticPopup_Show("CRAFTLEDGER_SCAN", ScanAgeText())
+			StaticPopup_Show("CFF_SCAN", ScanAgeText())
 		end
 		UI.RefreshAll()
 	end)
@@ -1863,7 +1863,7 @@ end)
 ns.On("PLAYER_MONEY", UI.RefreshQueue)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
-	StaticPopup_Hide("CRAFTLEDGER_SCAN")
+	StaticPopup_Hide("CFF_SCAN")
 	UI.RefreshAll()
 end)
 
@@ -1903,9 +1903,9 @@ local function Diagnostics()
 	ns.db.lastDiag = lines
 end
 
-SLASH_CRAFTLEDGER1 = "/craftledger"
-SLASH_CRAFTLEDGER2 = "/cledger"
-SlashCmdList.CRAFTLEDGER = function(input)
+SLASH_CFF1 = "/cff"
+SLASH_CFF2 = "/craftfarm"
+SlashCmdList.CFF = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
 	if command == "queue" or command == "profit" or command == "restock" or command == "sales" then
 		UI.Toggle(command)
@@ -1923,6 +1923,6 @@ SlashCmdList.CRAFTLEDGER = function(input)
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/craftledger [profit | queue | restock | sales | advertise | refresh | clear | auto | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | advertise | refresh | clear | auto | diag]")
 	end
 end

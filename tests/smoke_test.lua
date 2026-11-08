@@ -257,10 +257,10 @@ AuctionHouseFrame = NewFrame()
 ---------------------------------------------------------------------------
 
 local ns = {}
-for line in io.lines("CraftLedger.toc") do
+for line in io.lines("CraftingAndFarmingForever.toc") do
 	if line:match("%.lua$") then
 		local chunk = assert(loadfile(line))
-		chunk("CraftLedger", ns)
+		chunk("CraftingAndFarmingForever", ns)
 	end
 end
 
@@ -275,7 +275,7 @@ end
 -- Flow
 ---------------------------------------------------------------------------
 
-Fire("ADDON_LOADED", "CraftLedger")
+Fire("ADDON_LOADED", "CraftingAndFarmingForever")
 Fire("PLAYER_LOGIN")
 check("no list before anything is queued", lists[ns.LIST_NAME], nil)
 
@@ -1042,21 +1042,21 @@ check("button named for profession", ns.UI.windows.profit.advertiseButton.text, 
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()
 Fire("AUCTION_HOUSE_SHOW")
-check("stale scan prompts", ns_popup, "CRAFTLEDGER_SCAN")
+check("stale scan prompts", ns_popup, "CFF_SCAN")
 
 -- Slash commands.
 for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "diag", "bogus" }) do
-	SlashCmdList.CRAFTLEDGER(command)
+	SlashCmdList.CFF(command)
 end
 RunTimers()
 
 -- Late saved data: the session's queue is merged into the table the client hands over.
 ns.Queue.Add(10, 1)
-CraftLedgerDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {}, ui = {},
+CraftingAndFarmingForeverDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {}, ui = {},
 	sales = { seen = { someone = { { key = "sold|Copper Axe|2|500", expires = 1 }, { key = "sold|Copper Axe|500", expires = 1 } } } } }
 RunTimers()
 Fire("PLAYER_LOGOUT")
-check("late data adopted", ns.db, CraftLedgerDB)
+check("late data adopted", ns.db, CraftingAndFarmingForeverDB)
 check("old mail record loses its count", ns.db.sales.seen.someone[1].key, "sold|Copper Axe|500")
 check("new mail record left alone", ns.db.sales.seen.someone[2].key, "sold|Copper Axe|500")
 ns.db.sales.seen.someone = nil
@@ -1435,9 +1435,9 @@ do
 		Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
 		count = #posts
 		ns.Posting.PostSelected()
-		check("below vendor asks first", ns_popup, "CRAFTLEDGER_BELOW_VENDOR")
+		check("below vendor asks first", ns_popup, "CFF_BELOW_VENDOR")
 		check("below vendor not posted yet", #posts, count)
-		local dialog = StaticPopupDialogs.CRAFTLEDGER_BELOW_VENDOR
+		local dialog = StaticPopupDialogs.CFF_BELOW_VENDOR
 		dialog.OnAccept(nil, ns_popupData)
 		check("posted once agreed", #posts, count + 1)
 		check("at the price it asked about", posts[#posts].price, 5000)

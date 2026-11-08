@@ -1,4 +1,4 @@
--- CraftLedger :: Posting
+-- Crafting and Farming Forever :: Posting
 -- The Restocking tab of the auction house: everything your characters can craft that's in this character's bags, how
 -- much of it your goals want on the AH, and a button to post it. The price comes from a live search for each item.
 --
@@ -10,7 +10,7 @@ local _, ns = ...
 local Posting = {}
 ns.Posting = Posting
 
-local TAB_ID = "CraftLedgerRestocking"
+local TAB_ID = "CFFRestocking"
 local LIST_WIDTH = 500
 local SORT_PRICE, SORT_BUYOUT = 0, 4 -- the game's auction sort orders
 local REFUSAL_WINDOW = 10 -- seconds; a server refusal this soon after a request is taken to be for that request
@@ -365,7 +365,7 @@ function Posting.PostSelected(confirmed)
 	quantity = math.min(quantity, available)
 	local sellPrice = VendorPaysMore(price)
 	if sellPrice and not confirmed then
-		StaticPopup_Show("CRAFTLEDGER_BELOW_VENDOR", ns.Money(sellPrice), ns.Money(price), { itemID = selected, price = price })
+		StaticPopup_Show("CFF_BELOW_VENDOR", ns.Money(sellPrice), ns.Money(price), { itemID = selected, price = price })
 		return
 	end
 	posting = true
@@ -394,8 +394,8 @@ function Posting.PostSelected(confirmed)
 	UpdateForm()
 end
 
-StaticPopupDialogs["CRAFTLEDGER_BELOW_VENDOR"] = {
-	text = "CraftLedger: a vendor pays %s for one of these, more than %s earns after the AH cut. Post it anyway?",
+StaticPopupDialogs["CFF_BELOW_VENDOR"] = {
+	text = "Crafting and Farming Forever: a vendor pays %s for one of these, more than %s earns after the AH cut. Post it anyway?",
 	button1 = YES,
 	button2 = NO,
 	OnAccept = function(_, data)
@@ -447,7 +447,7 @@ ns.On("PLAYER_LOGIN", function()
 end)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
-	StaticPopup_Hide("CRAFTLEDGER_BELOW_VENDOR")
+	StaticPopup_Hide("CFF_BELOW_VENDOR")
 	live, posting = nil, false
 	selected = nil
 end)
@@ -723,7 +723,7 @@ local function CreateTab()
 		return
 	end
 
-	local frame = CreateFrame("Frame", "CraftLedgerRestockingFrame", AuctionHouseFrame)
+	local frame = CreateFrame("Frame", "CFFRestockingFrame", AuctionHouseFrame)
 	frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPLEFT", 4, -30)
 	frame:SetPoint("BOTTOMRIGHT", AuctionHouseFrame, "BOTTOMRIGHT", -4, 27)
 
@@ -739,7 +739,7 @@ local function CreateTab()
 
 	CreateForm(frame)
 	frame:SetScript("OnShow", function() ns.UI.Refresh("posting") end)
-	lib:CreateTab(TAB_ID, frame, "Restocking", "CraftLedger Restocking")
+	lib:CreateTab(TAB_ID, frame, "Restocking", "Crafting and Farming Forever Restocking")
 end
 
 ns.On("AUCTION_HOUSE_SHOW", function()

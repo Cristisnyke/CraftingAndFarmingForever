@@ -1,4 +1,4 @@
--- CraftLedger :: Data
+-- Crafting and Farming Forever :: Data
 -- Everything read from the client and other add-ons: item data, prices, stock and learned recipes.
 
 local ADDON, ns = ...
