@@ -79,7 +79,7 @@ Guild bank, warband bank, mail and your own auctions don't count as stock. Quant
 - **Kill for drops**: which creatures drop it.
 - **Disenchant**, and **Other sources** for anything else.
 
-Your current zone comes first. Hover a row to see everything known about where the item comes from. The list counts down as you gather. Close it (×) when you're done: that ends farm mode, and the queue comes back the next time you open a profession, or with `/cff`. **Buy It** on the Queue tab also ends farm mode. The Auctionator list is the same in both modes.
+Your current zone comes first. Hover a row to see everything known about where the item comes from. The list counts down as you gather. **Buy It** at the top of the list switches back to buying and reopens the queue. Closing the list (×) also ends farm mode, without reopening anything. The Auctionator list is the same in both modes.
 
 ## Restock
 

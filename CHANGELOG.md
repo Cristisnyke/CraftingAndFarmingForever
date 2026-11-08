@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Farm list: Buy It button switches back to buying and reopens the queue
+
 ## 1.1.0
 
 - Queue: type the number of crafts straight into each row's box (0 removes the entry)

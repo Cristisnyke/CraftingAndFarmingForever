@@ -211,7 +211,7 @@ local function BuildFarmList()
 	table.sort(names)
 	for _, name in ipairs(names) do AddItems(plan.fetch[name], "Get from " .. name) end
 	if #list == 0 then
-		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Close this list to craft." or "The queue is empty." })
+		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Press Buy It to craft." or "The queue is empty." })
 	end
 	return list
 end
@@ -1483,8 +1483,8 @@ local function CreateFarmWindow()
 	titleText:SetPoint("TOPLEFT", 12, -10)
 	titleText:SetText("Farm")
 
-	-- The only way out, so there's one button, not two. Closing it is leaving farm mode too, or Craft Next would keep
-	-- following a list you can't see. The queue comes back with the profession window, or /cff.
+	-- Closing it is leaving farm mode too, or Craft Next would keep following a list you can't see. Buy It beside it
+	-- does the same and brings the queue back, named like the Queue tab's mode button.
 	window.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
 	window.close:SetPoint("TOPRIGHT", 0, 0)
 	window.close:SetScript("OnClick", function()
@@ -1493,6 +1493,17 @@ local function CreateFarmWindow()
 		UI.RefreshQueue()
 	end)
 
+	local buy = HeaderButton(frame, "Buy It", 60, function() ns.ToggleFarmMode() end)
+	buy:SetHeight(20)
+	buy:SetPoint("RIGHT", window.close, "LEFT", -2, 0)
+	buy:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Buy It")
+		GameTooltip:AddLine("Back to buying materials: closes this list and opens the queue.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	buy:SetScript("OnLeave", GameTooltip_Hide)
+	window.buyButton = buy
 
 	CreateListArea(window, frame, 10, MINI_TOP, 6, MINI_ROW_HEIGHT)
 	for _, row in ipairs(window.rows) do row.icon:SetSize(14, 14) end

@@ -1289,7 +1289,7 @@ do
 	check("pressing the lit Farm It changes nothing", ns.ActivePlan(), ns.farmPlan)
 	ns.UI.Hide()
 
-	modeButtons[1].scripts.OnClick(modeButtons[1])
+	farm.buyButton.scripts.OnClick(farm.buyButton)
 	check("Buy It returns to buying", ns.ActivePlan(), ns.plan)
 	check("Buy It closes the small list", farm.frame:IsShown(), false)
 	check("Buy It reopens the Queue", queue.frame:IsVisible(), true)
