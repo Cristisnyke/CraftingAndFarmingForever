@@ -86,12 +86,16 @@ The generated file carries AllTheThings' MIT notice. Keep it.
 
 ## Releases
 
-Work and commit on `main` locally. A version is pushed to GitHub only once it has been confirmed working in game; passing tests aren't enough.
+Work and commit on `main` locally. A version is published only once it has been confirmed working in game; passing tests aren't enough.
 
-1. Bump `## Version` in `CraftingAndFarmingForever.toc` and commit.
-2. Tag it: `git tag v1.0.0`.
-3. `git push origin main --tags`.
-4. `tools/package.sh` builds `dist/CraftingAndFarmingForever-<version>.zip` from the committed code: one `CraftingAndFarmingForever` folder with the toc, the `.lua` files, `LICENSE` and `Media`. Upload that zip. GitHub's "Download ZIP" is rejected by CurseForge, because its folder is named `CraftingAndFarmingForever-main` and holds the whole repository.
+1. Add a `## x.y.z` section to `CHANGELOG.md` describing the changes, and commit it. It becomes the CurseForge changelog.
+2. Try `tools/release.sh x.y.z --dry-run`. It runs the checks, finds the CurseForge game version that matches the toc's `## Interface`, and shows what it would upload, without changing anything.
+3. `tools/release.sh x.y.z` (add `--beta` or `--alpha` for a test build) bumps `## Version` in the toc, commits, tags `vx.y.z`, pushes to GitHub, builds the zip with `tools/package.sh` and uploads it to CurseForge. CurseForge reviews the file before it goes live.
+4. If the upload fails after the push, fix the cause and run `tools/release.sh x.y.z --upload-only`.
+
+The script needs the CurseForge API token in `~/.config/cff/curseforge-token` (readable only by you, never in the repository) and `## X-Curse-Project-ID` in the toc.
+
+`tools/package.sh [ref]` builds the zip on its own: `dist/CraftingAndFarmingForever-<version>.zip`, one `CraftingAndFarmingForever` folder with the toc, the `.lua` files, `LICENSE` and `Media`. GitHub's "Download ZIP" is rejected by CurseForge, because its folder is named `CraftingAndFarmingForever-main` and holds the whole repository.
 
 The add-on is All Rights Reserved (`LICENSE`, chosen 2026-11-08). The license goes into the game folder and the release zip with the code. Contributions from others need their written agreement that their changes fall under these terms.
 
