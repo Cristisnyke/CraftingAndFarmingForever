@@ -91,6 +91,7 @@ Work and commit on `main` locally. A version is pushed to GitHub only once it ha
 1. Bump `## Version` in `CraftingAndFarmingForever.toc` and commit.
 2. Tag it: `git tag v1.0.0`.
 3. `git push origin main --tags`.
+4. `tools/package.sh` builds `dist/CraftingAndFarmingForever-<version>.zip` from the committed code: one `CraftingAndFarmingForever` folder with the toc, the `.lua` files, `LICENSE` and `Media`. Upload that zip. GitHub's "Download ZIP" is rejected by CurseForge, because its folder is named `CraftingAndFarmingForever-main` and holds the whole repository.
 
 The add-on is All Rights Reserved (`LICENSE`, chosen 2026-11-08). The license goes into the game folder and the release zip with the code. Contributions from others need their written agreement that their changes fall under these terms.
 
