@@ -10,7 +10,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference.
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests a price just under the lowest listing, and posts it.
 - **Sales:** what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours.
-- **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price.
+- **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set.
 
 ## Requirements
 

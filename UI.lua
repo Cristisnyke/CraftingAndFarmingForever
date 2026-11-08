@@ -220,7 +220,8 @@ local function BuildQueueList()
 	local plan = ns.ActivePlan()
 	if #ns.db.queue > 0 then
 		local ctx = ns.NewContext()
-		table.insert(list, { kind = "header", text = "Queue (mats: material cost of one craft, Quote: reply with it + 10%)" })
+		table.insert(list, { kind = "header", text = ("Queue (mats: material cost of one craft, Quote: whole amount + %d%%)")
+			:format(ns.Queue.QuoteMargin()) })
 		for index, entry in ipairs(ns.db.queue) do
 			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
 			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
@@ -519,14 +520,22 @@ local function CreateRow(parent)
 
 	row.quote = SmallButton(row, "Quote", function(self)
 		local data = self:GetParent().data
-		if data and data.kind == "queue" then ns.Advertise.QuoteInWhisper(data.entry.recipeID) end
+		if data and data.kind == "queue" then ns.Advertise.QuoteInWhisper(data.entry.recipeID, data.entry.qty) end
 	end)
 	row.quote:SetWidth(46)
 	row.quote:SetPoint("RIGHT", row.remove, "LEFT", -1, 0)
 	row.quote:SetScript("OnEnter", function(self)
+		local data = self:GetParent().data
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText("Quote this price")
-		GameTooltip:AddLine("Fills in a reply to your last whisper with the material cost plus 10%. You press Enter to send it.", 1, 1, 1, true)
+		GameTooltip:SetText("Quote this order")
+		local price, cost
+		if data and data.kind == "queue" then price, cost = ns.Queue.QuotePrice(data.entry.recipeID, data.entry.qty) end
+		if price then
+			GameTooltip:AddDoubleLine(("Materials for x%d"):format(data.entry.qty), ns.Money(cost), 1, 1, 1, 1, 1, 1)
+			GameTooltip:AddDoubleLine(("Quote (+%d%%)"):format(ns.Queue.QuoteMargin()), ns.Money(price), 1, 1, 1, 1, 1, 1)
+		end
+		GameTooltip:AddLine("Fills in a reply to your last whisper with the price for the whole queued amount. "
+			.. "Change the margin in the box at the bottom. You press Enter to send it.", 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
 	row.quote:SetScript("OnLeave", GameTooltip_Hide)
@@ -966,6 +975,42 @@ function UI.StillToBuyText()
 	return text .. " " .. Color(COLOR_LOSS, ("You have %s, %s short."):format(ns.Money(money), ns.Money(cost - money)))
 end
 
+local function NumberBox(parent, labelText, previous, read, write, paneKey)
+	local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	label:SetText(labelText)
+	if previous then
+		label:SetPoint("LEFT", previous, "RIGHT", 12, 0)
+	else
+		label:SetPoint("BOTTOMLEFT", 12, 72)
+	end
+	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	box:SetSize(38, 20)
+	box:SetPoint("LEFT", label, "RIGHT", 8, 0)
+	box:SetAutoFocus(false)
+	box:SetNumeric(true)
+	box:SetMaxLetters(4)
+	local function Save(self)
+		local value = tonumber(self:GetText())
+		if value and value ~= read() then
+			write(value)
+			UI.Refresh(paneKey or "restock")
+		end
+	end
+	box:SetScript("OnEnterPressed", function(self)
+		Save(self)
+		self:ClearFocus()
+	end)
+	box:SetScript("OnEscapePressed", function(self)
+		self:SetText(tostring(read()))
+		self:ClearFocus()
+	end)
+	box:SetScript("OnEditFocusLost", Save)
+	box.Sync = function(self)
+		if not self:HasFocus() then self:SetText(tostring(read())) end
+	end
+	return box, label
+end
+
 function CreateQueuePane()
 	local window = CreatePane("queue", 128)
 	window.build = BuildQueueList
@@ -999,10 +1044,28 @@ function CreateQueuePane()
 	local total = window.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	window.totalText = total
 	total:SetPoint("BOTTOMLEFT", 12, 96)
-	total:SetPoint("BOTTOMRIGHT", -12, 96)
+	total:SetPoint("BOTTOMRIGHT", -150, 96)
 	total:SetJustifyH("LEFT")
 
+	-- Quote margin, beside the total: the top row's right side belongs to the stale-price banner.
+	local margin, marginLabel = NumberBox(window.frame, "Quote margin %", nil, ns.Queue.QuoteMargin,
+		ns.Queue.SetQuoteMargin, "queue")
+	window.marginBox = margin
+	margin:ClearAllPoints()
+	margin:SetPoint("BOTTOMRIGHT", -14, 94)
+	marginLabel:ClearAllPoints()
+	marginLabel:SetPoint("RIGHT", margin, "LEFT", -8, 0)
+	margin:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Quote margin")
+		GameTooltip:AddLine(("Added to the material cost when you press Quote. 0 to %d%%; press Enter to save.")
+			:format(ns.Queue.QUOTE_MARGIN_MAX), 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	margin:SetScript("OnLeave", GameTooltip_Hide)
+
 	window.update = function()
+		margin:Sync()
 		local totals = ns.totals
 		local farming = ns.db.ui.farmMode
 		farmButton:SetText(farming and "Buy It" or "Farm It")
@@ -1113,42 +1176,6 @@ function ShowFarm()
 end
 
 -- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
-
-local function NumberBox(parent, labelText, previous, read, write)
-	local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	label:SetText(labelText)
-	if previous then
-		label:SetPoint("LEFT", previous, "RIGHT", 12, 0)
-	else
-		label:SetPoint("BOTTOMLEFT", 12, 72)
-	end
-	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-	box:SetSize(38, 20)
-	box:SetPoint("LEFT", label, "RIGHT", 8, 0)
-	box:SetAutoFocus(false)
-	box:SetNumeric(true)
-	box:SetMaxLetters(4)
-	local function Save(self)
-		local value = tonumber(self:GetText())
-		if value and value ~= read() then
-			write(value)
-			UI.Refresh("restock")
-		end
-	end
-	box:SetScript("OnEnterPressed", function(self)
-		Save(self)
-		self:ClearFocus()
-	end)
-	box:SetScript("OnEscapePressed", function(self)
-		self:SetText(tostring(read()))
-		self:ClearFocus()
-	end)
-	box:SetScript("OnEditFocusLost", Save)
-	box.Sync = function(self)
-		if not self:HasFocus() then self:SetText(tostring(read())) end
-	end
-	return box
-end
 
 function CreateRestockPane()
 	local window = CreatePane("restock", 96, true)
@@ -1618,8 +1645,8 @@ local function OpenChatWith(text)
 end
 
 -- A reply to whoever whispered last. Never sent automatically: the user checks it and presses Enter.
-function Advertise.QuoteInWhisper(recipeID)
-	local text = ns.Queue.QuoteText(recipeID)
+function Advertise.QuoteInWhisper(recipeID, crafts)
+	local text = ns.Queue.QuoteText(recipeID, crafts)
 	if not text then
 		ns.Print("A material has no price yet, so there's nothing to quote. Scan the auction house first.")
 		return

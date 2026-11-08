@@ -144,7 +144,16 @@ end
 -- Price quotes
 ---------------------------------------------------------------------------
 
-local QUOTE_CUT = 0.10
+Queue.QUOTE_MARGIN_MAX = 1000
+
+-- The quote margin in percent, set in the Queue footer.
+function Queue.QuoteMargin()
+	return ns.db.ui.quoteMargin or 10
+end
+
+function Queue.SetQuoteMargin(percent)
+	ns.db.ui.quoteMargin = math.max(0, math.min(Queue.QUOTE_MARGIN_MAX, math.floor(percent)))
+end
 
 -- What a craft is called in a whisper: a clickable link where the client has one, otherwise the name.
 local function QuoteLabel(recipeID, recipe)
@@ -156,15 +165,24 @@ local function QuoteLabel(recipeID, recipe)
 	return link or recipe.n or "Craft"
 end
 
--- "[Bronze Bar]: materials 5s 10c + 10% = 5s 61c", at current prices. Nil if a material has no price.
-function Queue.QuoteText(recipeID)
-	local recipe = ns.db.recipes[recipeID]
-	if not recipe then return nil end
+-- The price for the whole order: material cost of every craft at current prices, plus the margin, rounded to
+-- whole copper. Also the material cost on its own. Nil if a material has no price.
+function Queue.QuotePrice(recipeID, crafts)
 	local cost = ns.Planner.RecipeCost(NewContext(), recipeID)
 	if not cost then return nil end
-	local yield = (recipe.qmin or 1) > 1 and (" (makes " .. recipe.qmin .. ")") or ""
-	return ("%s%s: materials %s + %d%% = %s"):format(QuoteLabel(recipeID, recipe), yield, ns.Money(cost),
-		QUOTE_CUT * 100, ns.Money(cost * (1 + QUOTE_CUT)))
+	cost = cost * math.max(1, crafts or 1)
+	return math.floor(cost * (1 + Queue.QuoteMargin() / 100) + 0.5), cost
+end
+
+-- "[Healing Potion] x20: 5g 20s" for the whole order. The count is items made, so a recipe that makes 5 queued
+-- twice says x10. Nil if a material has no price.
+function Queue.QuoteText(recipeID, crafts)
+	local recipe = ns.db.recipes[recipeID]
+	if not recipe then return nil end
+	crafts = math.max(1, crafts or 1)
+	local price = Queue.QuotePrice(recipeID, crafts)
+	if not price then return nil end
+	return ("%s x%d: %s"):format(QuoteLabel(recipeID, recipe), crafts * (recipe.qmin or 1), ns.Money(price))
 end
 
 ---------------------------------------------------------------------------

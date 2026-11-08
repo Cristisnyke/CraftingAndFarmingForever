@@ -487,8 +487,11 @@ check("queue total profit", ns.totals.net, 2 * (950 - 70))
 check("queue total revenue", ns.totals.revenue, 1900)
 check("per-entry profit", ns.totals.entries[1], 1760)
 
--- Quote: material cost of one craft plus 10%, filled into a reply, never sent. 3 bolts at 20c + thread 10c = 70c.
-check("quote text", ns.Queue.QuoteText(20), "link: materials 70c + 10% = 77c")
+-- Quote: material cost of the whole order plus the margin (default 10%), filled into a reply, never sent.
+-- One shirt: 3 bolts at 20c + thread 10c = 70c. The queue holds 2 shirts: 140c + 10% = 1s 54c.
+check("default quote margin", ns.Queue.QuoteMargin(), 10)
+check("quote text, one craft", ns.Queue.QuoteText(20), "link x1: 77c")
+check("quote text, whole order", ns.Queue.QuoteText(20, 2), "link x2: 1s 54c")
 local function QueueRow()
 	for _, row in ipairs(ns.UI.windows.queue.rows) do
 		if row.data and row.data.kind == "queue" then return row end
@@ -497,23 +500,48 @@ end
 ns.UI.Refresh("queue")
 check("material cost on the row", QueueRow().right.text:find("mats 70c", 1, true) ~= nil, true)
 check("quote button shown", QueueRow().quote:IsShown(), true)
+check("queue entry is 2 shirts", QueueRow().data.entry.qty, 2)
 local chatBefore = #sentChat
 function ChatEdit_GetLastTellTarget() return "Customer-Realm" end
 QueueRow().quote.scripts.OnClick(QueueRow().quote)
-check("quote fills a whisper to the last sender", chatBoxText, "/w Customer-Realm link: materials 70c + 10% = 77c")
+check("quote fills a whisper for the whole order", chatBoxText, "/w Customer-Realm link x2: 1s 54c")
 check("quote isn't sent", #sentChat, chatBefore)
 ChatEdit_GetLastTellTarget = function() return nil end
 QueueRow().quote.scripts.OnClick(QueueRow().quote)
-check("quote with no known sender uses reply", chatBoxText, "/r link: materials 70c + 10% = 77c")
+check("quote with no known sender uses reply", chatBoxText, "/r link x2: 1s 54c")
 ChatEdit_GetLastTellTarget = nil
+
+-- The margin box in the Queue footer changes the quote and is saved.
+do
+	local box = ns.UI.windows.queue.marginBox
+	check("margin box shows the margin", box:GetText(), "10")
+	box:SetText("400")
+	box.scripts.OnEnterPressed(box)
+	check("margin saved", ns.db.ui.quoteMargin, 400)
+	check("400% quote", ns.Queue.QuoteText(20, 2), "link x2: 7s 00c")
+	check("header shows the margin", ns.UI.windows.queue.list[1].text:find("+ 400%", 1, true) ~= nil, true)
+	box:SetText("0")
+	box.scripts.OnEnterPressed(box)
+	check("0% quote is the material cost", ns.Queue.QuoteText(20, 2), "link x2: 1s 40c")
+	box:SetText("5000")
+	box.scripts.OnEnterPressed(box)
+	check("margin capped", ns.db.ui.quoteMargin, ns.Queue.QUOTE_MARGIN_MAX)
+	check("box shows the capped margin", box:GetText(), tostring(ns.Queue.QUOTE_MARGIN_MAX))
+	box:SetText("25")
+	box.scripts.OnEscapePressed(box)
+	check("escape keeps the saved margin", box:GetText(), tostring(ns.Queue.QUOTE_MARGIN_MAX))
+	box:SetText("10")
+	box.scripts.OnEnterPressed(box)
+	check("margin back to 10", ns.db.ui.quoteMargin, 10)
+end
 
 -- A recipe with no item, such as an enchant, can still be quoted; a missing price isn't.
 ns.db.recipes[600] = { n = "Enchant Boots", qmin = 1, qmax = 1, r = { { 1, 1 } } }
-check("no-item recipe quote", ns.Queue.QuoteText(600), "Enchant Boots: materials 10c + 10% = 11c")
+check("no-item recipe quote", ns.Queue.QuoteText(600, 3), "Enchant Boots x3: 33c")
 ns.db.recipes[601] = { n = "Unpriced", qmin = 1, qmax = 1, r = { { 1, 77777 } } }
-check("no price no quote", ns.Queue.QuoteText(601), nil)
+check("no price no quote", ns.Queue.QuoteText(601, 2), nil)
 ns.db.recipes[602] = { n = "Batch", qmin = 5, qmax = 5, r = { { 1, 1 } } }
-check("batch recipe says how many", ns.Queue.QuoteText(602), "Batch (makes 5): materials 10c + 10% = 11c")
+check("batch recipe counts items made", ns.Queue.QuoteText(602, 2), "Batch x10: 22c")
 ns.db.recipes[600], ns.db.recipes[601], ns.db.recipes[602] = nil, nil, nil
 
 local craft, count = ns.Queue.NextCraft()

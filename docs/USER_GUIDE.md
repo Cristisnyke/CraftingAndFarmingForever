@@ -46,7 +46,8 @@ One queue shared by all your characters.
 - **Still to buy**: what you'll actually spend after what you own, compared with the gold you're carrying.
 - **Take from your bank**: materials the plan uses that are in your bank, not your bags.
 - **Buy from a vendor**: vendor materials. They're shown here only, never on the Auctionator list.
-- **Quote** on each row fills in a whisper to the last person who whispered you: the material cost of one craft plus 10%. Press Enter to send it.
+- **Quote** on each row fills in a whisper to the last person who whispered you, with one price for the whole queued amount: the material cost of every craft plus your margin, for example `[Healing Potion] x20: 5g 20s`. The count is the number of items made, so a recipe that makes 5 queued twice says x10. Hover **Quote** to see the material cost and the quote before sending. Press Enter to send it.
+- **Quote margin %** at the bottom right sets the margin: 10% by default, anything from 0 to 1000%. Type a number and press Enter; it's remembered.
 
 ### Price changes
 

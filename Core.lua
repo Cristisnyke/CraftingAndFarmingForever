@@ -57,7 +57,7 @@ end
 -- db.restock           = { stackGoal, singleGoal, minProfitSilver, duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
--- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, positions = { [window] = { x, y } } }
+-- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { [window] = { x, y } } }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -70,6 +70,7 @@ local function Normalize(db)
 	db.queue = db.queue or {}
 	db.ui = db.ui or {}
 	if db.ui.autoOpen == nil then db.ui.autoOpen = true end
+	db.ui.quoteMargin = db.ui.quoteMargin or 10
 	db.prices = db.prices or {}
 	db.priceRound = db.priceRound or 1
 	db.sales = db.sales or {}
