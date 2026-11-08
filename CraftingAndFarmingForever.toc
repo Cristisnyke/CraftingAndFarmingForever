@@ -8,6 +8,7 @@
 ## SavedVariables: CraftingAndFarmingForeverDB
 ## IconTexture: Interface\AddOns\CraftingAndFarmingForever\Media\Logo
 ## Category: Professions
+## X-Curse-Project-ID: 1791788
 
 Core.lua
 Planner.lua
