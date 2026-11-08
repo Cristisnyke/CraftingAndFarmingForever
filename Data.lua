@@ -83,6 +83,9 @@ ns.On("GET_ITEM_INFO_RECEIVED", function(itemID, success)
 	ns.Debounce("itemdata", 0.3, function()
 		ns.InvalidateProfit()
 		ns.RequestPlan()
+		-- Panes the plan doesn't redraw also show names, and would keep "Loading..." until something else changed.
+		ns.UI.Refresh("sales")
+		ns.UI.Refresh("posting")
 	end)
 end)
 

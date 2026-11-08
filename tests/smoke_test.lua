@@ -828,6 +828,24 @@ Fire("MAIL_SHOW")
 check("quantity defaults to one", ns.Sales.Item("Plain Item Two").sold, 1)
 inbox = {}
 
+-- A Sales row whose item name hasn't loaded shows "Loading...", and is redrawn when the name arrives.
+do
+	ns.UI.Show("sales")
+	RunTimers()
+	local function BoltRow()
+		for _, row in ipairs(ns.UI.windows.sales.rows) do
+			if row.data and row.data.kind == "sales" and row.data.item.itemID == 2 then return row end
+		end
+	end
+	local savedName = names[2]
+	names[2] = nil
+	ns.UI.Refresh("sales")
+	check("sales row waits for the name", BoltRow().left.text:find("Loading...", 1, true) ~= nil, true)
+	names[2] = savedName
+	Fire("GET_ITEM_INFO_RECEIVED", 2, true)
+	check("sales row redrawn when the name arrives", BoltRow().left.text:find("Bolt of Linen", 1, true) ~= nil, true)
+end
+
 -- A new identical sale is a new result.
 table.insert(inbox, 1, { subject = "Auction successful: Bolt of Linen (4)", money = 950, daysLeft = 29.9 })
 Fire("MAIL_INBOX_UPDATE")
