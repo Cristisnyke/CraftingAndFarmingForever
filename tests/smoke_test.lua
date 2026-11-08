@@ -21,7 +21,7 @@ local timers = {}
 local function NewFrame()
 	local frame = { scripts = {}, shown = false, height = 400 }
 	return setmetatable(frame, { __index = function(_, key)
-		if key == "professionID" or key == "data" then return nil end -- add-on data on a frame, not a method
+		if key == "professionID" or key == "data" or key == "target" then return nil end -- add-on data on a frame, not a method
 		local methods = {
 			SetScript = function(self, name, fn) self.scripts[name] = fn end,
 			HookScript = function(self, name, fn) self.scripts[name] = fn end,
@@ -84,7 +84,9 @@ function UnitName() return "Snic" end
 function UnitClass() return "Paladin" end
 function UnitCastingInfo() return nil end
 function GetRealmName() return "Realm" end
-function IsShiftKeyDown() return false end
+shiftDown, ctrlDown = false, false
+function IsShiftKeyDown() return shiftDown end
+function IsControlKeyDown() return ctrlDown end
 local clock = 0
 function GetTime() clock = clock + 1 return clock end
 function GameTooltip_Hide() end
@@ -353,7 +355,7 @@ local function Rescan(changes)
 end
 local function QueueEntryText()
 	for _, row in ipairs(ns.UI.windows.queue.rows) do
-		if row.data and row.data.kind == "queue" then return row.right.text end
+		if row.data and row.data.kind == "queue" then return row.left.text end
 	end
 end
 Rescan({ [1] = 15 })
@@ -382,9 +384,9 @@ check("full scan starts a comparison", QueueRowText(1), "x9, max 25c, total 2s 2
 -- What you're crafting: a lower sale price is bad, so it's red, and profit follows.
 Rescan({ [4] = 200, [1] = 10 })
 local entryText = QueueEntryText()
-check("sale drop is red", entryText:find("sells " .. RED .. "was 10s 00c, now 2s 00c|r", 1, true) ~= nil, true)
+check("sale drop is red", entryText:find("sells |r" .. RED .. "was 10s 00c, now 2s 00c|r", 1, true) ~= nil, true)
 Rescan({ [4] = 300 })
-check("sale rise is green", QueueEntryText():find("sells " .. GREEN, 1, true) ~= nil, true)
+check("sale rise is green", QueueEntryText():find("sells |r" .. GREEN, 1, true) ~= nil, true)
 check("profit uses the new sale price", ns.totals.revenue, 2 * 300 * 0.95)
 Rescan({ [4] = 1000, [1] = 10 })
 Rescan({})
@@ -503,7 +505,7 @@ local function QueueRow()
 	end
 end
 ns.UI.Refresh("queue")
-check("material cost on the row", QueueRow().right.text:find("mats 70c", 1, true) ~= nil, true)
+check("material cost of the whole entry", QueueRow().cost.text, "1s 40c")
 check("quote button shown", QueueRow().quote:IsShown(), true)
 check("queue entry is 2 shirts", QueueRow().data.entry.qty, 2)
 local chatBefore = #sentChat
@@ -524,7 +526,6 @@ do
 	box.scripts.OnEnterPressed(box)
 	check("margin saved", ns.db.ui.quoteMargin, 400)
 	check("400% quote", ns.Queue.QuoteText(20, 2), "link x2: 7s 00c")
-	check("header shows the margin", ns.UI.windows.queue.list[1].text:find("+ 400%", 1, true) ~= nil, true)
 	box:SetText("0")
 	box.scripts.OnEnterPressed(box)
 	check("0% quote is the material cost", ns.Queue.QuoteText(20, 2), "link x2: 1s 40c")
@@ -538,6 +539,86 @@ do
 	box:SetText("10")
 	box.scripts.OnEnterPressed(box)
 	check("margin back to 10", ns.db.ui.quoteMargin, 10)
+end
+
+-- The amount box between - and + on a queue row: typed crafts, Escape, Shift -, and 0 removing the entry.
+do
+	local row = QueueRow()
+	local entry = row.data.entry
+	check("amount box shown", row.amount:IsShown(), true)
+	check("amount box holds the crafts", row.amount:GetText(), "2")
+	row.amount:SetText("5")
+	row.amount.scripts.OnEnterPressed(row.amount)
+	check("typed amount saved", entry.qty, 5)
+	RunTimers()
+	check("box shows the saved amount", QueueRow().amount:GetText(), "5")
+	row = QueueRow()
+	row.amount:SetText("9")
+	row.amount.scripts.OnEscapePressed(row.amount)
+	check("escape puts the amount back", row.amount:GetText(), "5")
+	check("escape doesn't save", entry.qty, 5)
+	row.amount:SetText("")
+	row.amount.scripts.OnEditFocusLost(row.amount)
+	check("empty box keeps the amount", entry.qty, 5)
+	check("empty box shows the amount again", row.amount:GetText(), "5")
+	-- Typing for one entry, then the row is reused for another: the typed amount goes to the first.
+	row.amount.target = { entry = entry }
+	row.amount:SetText("3")
+	row.amount.scripts.OnEditFocusLost(row.amount)
+	check("amount follows the entry it was typed for", entry.qty, 3)
+	shiftDown = true
+	row.minus.scripts.OnClick(row.minus)
+	check("shift - stops at one", entry.qty, 1)
+	row.minus.scripts.OnClick(row.minus)
+	check("shift - at one keeps the entry", #ns.db.queue > 0 and ns.db.queue[1] == entry, true)
+	shiftDown = false
+	ns.Queue.Set(1, 2)
+	RunTimers()
+
+	ns.Queue.Add(10, 3)
+	RunTimers()
+	local bolts
+	for _, r in ipairs(ns.UI.windows.queue.rows) do
+		if r.data and r.data.kind == "queue" and r.data.entry.recipeID == 10 then bolts = r end
+	end
+	bolts.amount:SetText("0")
+	bolts.amount.scripts.OnEnterPressed(bolts.amount)
+	RunTimers()
+	check("0 removes the entry", #ns.db.queue, 1)
+
+	ns_popup = nil
+	local clear = ns.UI.windows.queue.clearButton
+	clear.scripts.OnClick(clear)
+	check("clear asks first", ns_popup, "CFF_CLEAR_QUEUE")
+	check("clear doesn't empty before yes", #ns.db.queue, 1)
+	ns_popup = nil
+end
+
+-- Right-click on a Profit row's +: type how many crafts to queue.
+do
+	ns.UI.Show("profit")
+	local plusRow
+	for _, r in ipairs(ns.UI.windows.profit.rows) do
+		if r.data and r.data.kind == "profit" and r.data.result.recipeID == 20 then plusRow = r end
+	end
+	plusRow.plus.scripts.OnClick(plusRow.plus, "RightButton")
+	local popup = ns.UI.amountPopup
+	check("right-click asks for an amount", popup ~= nil and popup:IsShown(), true)
+	check("amount starts at one", popup.box:GetText(), "1")
+	popup.box:SetText("4")
+	popup.box.scripts.OnEnterPressed(popup.box)
+	RunTimers()
+	check("typed amount queued", ns.db.queue[1].qty, 6)
+	check("popup closes", popup:IsShown(), false)
+	ctrlDown = true
+	plusRow.plus.scripts.OnClick(plusRow.plus, "LeftButton")
+	ctrlDown = false
+	check("ctrl-click asks too", popup:IsShown(), true)
+	popup.box.scripts.OnEscapePressed(popup.box)
+	check("escape closes without queuing", popup:IsShown() == false and ns.db.queue[1].qty == 6, true)
+	ns.Queue.Set(1, 2)
+	RunTimers()
+	ns.UI.Show("queue")
 end
 
 -- A recipe with no item, such as an enchant, can still be quoted; a missing price isn't.
@@ -601,6 +682,27 @@ end)(), false)
 ns.UI.Show("restock")
 check("restock tab opens", ns.UI.windows.restock.frame:IsVisible(), true)
 ns.UI.Refresh("restock")
+
+-- A goal typed in the row's box.
+do
+	local function RestockRow()
+		for _, r in ipairs(ns.UI.windows.restock.rows) do
+			if r.data and r.data.kind == "restock" then return r end
+		end
+	end
+	local row = RestockRow()
+	local itemID = row.data.row.itemID
+	local before = ns.Restock.Goal(itemID)
+	check("goal box shown", row.amount:IsShown(), true)
+	check("goal box holds the goal", row.amount:GetText(), tostring(row.data.row.goal))
+	row.amount:SetText("7")
+	row.amount.scripts.OnEnterPressed(row.amount)
+	check("typed goal saved", ns.Restock.Goal(itemID), 7)
+	RunTimers()
+	check("goal box shows the new goal", RestockRow().amount:GetText(), "7")
+	ns.Restock.SetGoal(itemID, before)
+	ns.UI.Refresh("restock")
+end
 
 -- With Syndicator: auctions, alts and mail count towards the goal.
 Syndicator = { API = {
@@ -753,7 +855,8 @@ do
 	for _, row in ipairs(queue.rows) do
 		if row.data and row.data.kind == "queue" then queueRow = row end
 	end
-	check("queue row shows cost", queueRow.right.text:find("cost " .. ns.Money(cost), 1, true) ~= nil, true)
+	check("queue row shows cost", queueRow.cost.text, ns.Money(cost))
+	check("bound entry has no profit", queueRow.profit.text:find("can't sell", 1, true) ~= nil, true)
 	ns.Queue.Clear()
 	RunTimers()
 	ns.UI.Show("profit")

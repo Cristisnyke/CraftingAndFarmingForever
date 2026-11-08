@@ -2,6 +2,16 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Queue: type the number of crafts straight into each row's box (0 removes the entry)
+- Queue: Materials and Profit columns, both for the whole entry
+- Queue: Shift - takes ten off, down to one
+- Queue: the remove button is a red cross at the end of the row, away from - and +
+- Queue: Clear asks before emptying the queue
+- Profit: right-click or Ctrl-click + to type how many crafts to queue
+- Restock: type an item's goal straight into its row's box
+
 ## 1.0.1
 
 - Sales and Restocking rows no longer stay on "Loading..." after the item's name arrives

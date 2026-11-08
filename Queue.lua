@@ -130,6 +130,15 @@ function Queue.Change(index, delta)
 	ns.RequestPlan()
 end
 
+-- Sets an entry to an exact number of crafts, typed in its box. 0 removes it.
+function Queue.Set(index, qty)
+	local entry = ns.db.queue[index]
+	if not entry then return end
+	entry.qty = math.max(0, math.floor(qty))
+	if entry.qty == 0 then table.remove(ns.db.queue, index) end
+	ns.RequestPlan()
+end
+
 function Queue.Remove(index)
 	table.remove(ns.db.queue, index)
 	ns.RequestPlan()

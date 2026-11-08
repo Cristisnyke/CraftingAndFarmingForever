@@ -221,8 +221,7 @@ local function BuildQueueList()
 	local plan = ns.ActivePlan()
 	if #ns.db.queue > 0 then
 		local ctx = ns.NewContext()
-		table.insert(list, { kind = "header", text = ("Queue (mats: material cost of one craft, Quote: whole amount + %d%%)")
-			:format(ns.Queue.QuoteMargin()) })
+		table.insert(list, { kind = "header", text = "Queue", columns = true })
 		for index, entry in ipairs(ns.db.queue) do
 			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
 			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
@@ -368,7 +367,8 @@ local function ShowProfitTooltip(row, result)
 	table.sort(crafters)
 	if #crafters > 0 then GameTooltip:AddLine("Known by: " .. table.concat(crafters, ", "), 0.6, 0.8, 1, true) end
 	if not result.bound then AddSalesLines(ns.Items.Name(result.itemID)) end
-	GameTooltip:AddLine("Click to open the recipe. + queues one, Shift + queues ten.", 0.6, 0.6, 0.6, true)
+	GameTooltip:AddLine("Click to open the recipe. + queues one, Shift + queues ten, right-click + to type an amount.",
+		0.6, 0.6, 0.6, true)
 	GameTooltip:Show()
 end
 
@@ -446,7 +446,8 @@ local function RowOnEnter(row)
 			end
 			AddSalesLines(ns.Items.Name(queuedRecipe.o))
 		end
-		GameTooltip:AddLine("+ adds one, Shift + adds ten, - removes one, x removes the entry.", 0.6, 0.6, 0.6, true)
+		GameTooltip:AddLine("Type the number of crafts in the box, or use - and + (Shift: ten). The red cross removes the entry.",
+			0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
@@ -475,6 +476,173 @@ local function SmallButton(parent, text, onClick)
 	return button
 end
 
+local QUEUE_COLUMN_WIDTH = 80
+
+-- Tooltips for + and -, by the kind of row they're on: title, then the help line.
+local PLUS_TIPS = {
+	profit = { "Queue one craft", "Shift: ten. Right-click or Ctrl-click: type an amount." },
+	queue = { "Add one craft", "Shift: ten. Or type the amount in the box." },
+	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
+}
+local MINUS_TIPS = {
+	queue = { "Remove one craft", "Shift: ten, down to one. At one, - removes the entry." },
+	restock = { "Lower the goal by one", "Shift: ten. 0 skips the item." },
+}
+
+local function ButtonTip(button, tips)
+	local data = button:GetParent().data
+	local tip = data and tips[data.kind]
+	if not tip then return end
+	GameTooltip:SetOwner(button, "ANCHOR_TOP")
+	GameTooltip:SetText(tip[1])
+	GameTooltip:AddLine(tip[2], 1, 1, 1, true)
+	GameTooltip:Show()
+end
+
+-- What a row's amount box edits: a queue entry (kept by reference, since entries above it can be removed while you
+-- type) or one item's restock goal.
+local function AmountTarget(data)
+	if data and data.kind == "queue" then return { entry = data.entry } end
+	if data and data.kind == "restock" then return { itemID = data.row.itemID } end
+end
+
+local function AmountValue(target)
+	if target.entry then return target.entry.qty end
+	return ns.Restock.Goal(target.itemID) or 0
+end
+
+-- Saves the box's amount to what it was editing. Saving the same value again does nothing, so Enter followed by the
+-- focus loss it causes saves once.
+local function CommitAmount(box)
+	local target = box.target or AmountTarget(box:GetParent().data)
+	box.target = nil
+	if not target then return end
+	local value = tonumber(box:GetText() or "")
+	if not value then
+		box:SetText(tostring(AmountValue(target)))
+		return
+	end
+	if value == AmountValue(target) then return end
+	if target.entry then
+		for index, entry in ipairs(ns.db.queue) do
+			if entry == target.entry then
+				ns.Queue.Set(index, value)
+				return
+			end
+		end
+	else
+		ns.Restock.SetGoal(target.itemID, value)
+		-- Not right away: this can run while the rows are being drawn, when a row is reused for another entry.
+		ns.Debounce("restockGoal", 0, function() UI.Refresh("restock") end)
+	end
+end
+
+-- Puts the amount in the row's box, unless you're typing in it for this same entry: plans are rebuilt whenever bags
+-- change, and that mustn't wipe what you've typed.
+local function ShowAmount(row, data, value)
+	local box = row.amount
+	if box:HasFocus() then
+		local target = box.target
+		local other = AmountTarget(data)
+		if target and other and target.entry == other.entry and target.itemID == other.itemID then
+			box:Show()
+			return
+		end
+		box:ClearFocus()
+	end
+	box:SetText(tostring(value))
+	box:Show()
+end
+
+-- Lines controls up from the row's right edge, each { region, gap to the one before }, and puts the row's right-hand
+-- text left of the last one. show = false only places them, for column headings over hidden controls.
+local function PlaceRight(row, controls, show)
+	local anchor
+	for _, control in ipairs(controls) do
+		local region, gap = control[1], control[2]
+		region:ClearAllPoints()
+		if anchor then
+			region:SetPoint("RIGHT", anchor, "LEFT", -gap, 0)
+		else
+			region:SetPoint("RIGHT", row, "RIGHT", -gap, 0)
+		end
+		if show then region:Show() end
+		anchor = region
+	end
+	row.right:ClearAllPoints()
+	row.right:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
+end
+
+local function QueueControls(row)
+	return {
+		{ row.remove, 4 }, { row.quote, 8 }, { row.plus, 6 }, { row.amount, 6 }, { row.minus, 8 },
+		{ row.profit, 8 }, { row.cost, 4 },
+	}
+end
+
+-- Right-click or Ctrl-click on a Profit row's +: a small box to type how many crafts to queue.
+local amountPopup
+local function AskQueueAmount(owner, recipeID)
+	if not amountPopup then
+		local frame = CreateFrame("Frame", "CFFAmountPopup", main.frame, "BackdropTemplate")
+		frame:SetSize(220, 60)
+		frame:SetFrameStrata("DIALOG")
+		frame:SetBackdrop({
+			bgFile = "Interface\\Buttons\\WHITE8X8",
+			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			edgeSize = 14,
+			insets = { left = 3, right = 3, top = 3, bottom = 3 },
+		})
+		frame:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
+		frame:EnableMouse(true)
+
+		frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		frame.title:SetPoint("TOPLEFT", 10, -9)
+		frame.title:SetPoint("TOPRIGHT", -10, -9)
+		frame.title:SetJustifyH("LEFT")
+		frame.title:SetWordWrap(false)
+
+		local box = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+		box:SetSize(56, 20)
+		box:SetPoint("BOTTOMLEFT", 16, 9)
+		box:SetAutoFocus(false)
+		box:SetNumeric(true)
+		box:SetMaxLetters(4)
+		frame.box = box
+
+		local function Accept()
+			local count = tonumber(box:GetText() or "")
+			if count and count > 0 then ns.Queue.Add(frame.recipeID, count) end
+			frame:Hide()
+		end
+		local queue = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+		queue:SetSize(64, 22)
+		queue:SetText("Queue")
+		queue:SetPoint("LEFT", box, "RIGHT", 8, 0)
+		queue:SetScript("OnClick", Accept)
+		local cancel = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+		cancel:SetSize(64, 22)
+		cancel:SetText(CANCEL or "Cancel")
+		cancel:SetPoint("LEFT", queue, "RIGHT", 4, 0)
+		cancel:SetScript("OnClick", function() frame:Hide() end)
+
+		box:SetScript("OnEnterPressed", Accept)
+		box:SetScript("OnEscapePressed", function() frame:Hide() end)
+		frame:SetScript("OnHide", function() box:ClearFocus() end)
+		amountPopup = frame
+		UI.amountPopup = frame
+	end
+	amountPopup.recipeID = recipeID
+	amountPopup.title:SetText("Crafts of " .. RecipeName(recipeID) .. " to queue:")
+	amountPopup:ClearAllPoints()
+	amountPopup:SetPoint("TOPRIGHT", owner, "BOTTOMRIGHT", 0, -2)
+	amountPopup:Show()
+	amountPopup.box:SetText("1")
+	amountPopup.box:SetFocus()
+	amountPopup.box:HighlightText()
+end
+UI.AskQueueAmount = AskQueueAmount
+
 local function CreateRow(parent)
 	local row = CreateFrame("Button", nil, parent)
 	row:SetHeight(ROW_HEIGHT)
@@ -487,11 +655,15 @@ local function CreateRow(parent)
 	row.icon:SetSize(18, 18)
 	row.icon:SetPoint("LEFT", 2, 0)
 
-	row.plus = SmallButton(row, "+", function(self)
+	row.plus = SmallButton(row, "+", function(self, button)
 		local data = self:GetParent().data
 		if not data then return end
 		if data.kind == "profit" then
-			ns.Queue.Add(data.result.recipeID, IsShiftKeyDown() and 10 or 1)
+			if button == "RightButton" or IsControlKeyDown() then
+				AskQueueAmount(self, data.result.recipeID)
+			else
+				ns.Queue.Add(data.result.recipeID, IsShiftKeyDown() and 10 or 1)
+			end
 		elseif data.kind == "queue" then
 			ns.Queue.Change(data.index, IsShiftKeyDown() and 10 or 1)
 		elseif data.kind == "restock" then
@@ -499,32 +671,87 @@ local function CreateRow(parent)
 			UI.Refresh("restock")
 		end
 	end)
-	row.plus:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+	row.plus:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	row.plus:SetScript("OnEnter", function(self) ButtonTip(self, PLUS_TIPS) end)
+	row.plus:SetScript("OnLeave", GameTooltip_Hide)
 
 	row.minus = SmallButton(row, "-", function(self)
 		local data = self:GetParent().data
 		if not data then return end
 		if data.kind == "queue" then
-			ns.Queue.Change(data.index, -1)
+			-- Shift takes ten but stops at one, so a big step can't drop the whole entry by surprise.
+			local step = IsShiftKeyDown() and math.min(10, data.entry.qty - 1) or 1
+			if step > 0 then ns.Queue.Change(data.index, -step) end
 		elseif data.kind == "restock" then
 			ns.Restock.SetGoal(data.row.itemID, data.row.goal - (IsShiftKeyDown() and 10 or 1))
 			UI.Refresh("restock")
 		end
 	end)
-	row.minus:SetPoint("RIGHT", row.plus, "LEFT", -1, 0)
+	row.minus:SetScript("OnEnter", function(self) ButtonTip(self, MINUS_TIPS) end)
+	row.minus:SetScript("OnLeave", GameTooltip_Hide)
 
-	row.remove = SmallButton(row, "x", function(self)
+	-- The amount between - and +: queued crafts, or a restock goal. Saved on Enter or when it loses focus.
+	local amount = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+	amount:SetSize(34, 18)
+	amount:SetAutoFocus(false)
+	amount:SetNumeric(true)
+	amount:SetMaxLetters(4)
+	amount:SetJustifyH("CENTER")
+	amount:SetScript("OnEditFocusGained", function(self)
+		self.target = AmountTarget(self:GetParent().data)
+		self:HighlightText()
+	end)
+	amount:SetScript("OnEditFocusLost", function(self)
+		self:HighlightText(0, 0)
+		CommitAmount(self)
+	end)
+	amount:SetScript("OnEnterPressed", function(self)
+		CommitAmount(self)
+		self:ClearFocus()
+	end)
+	amount:SetScript("OnEscapePressed", function(self)
+		local target = self.target or AmountTarget(self:GetParent().data)
+		if target then self:SetText(tostring(AmountValue(target))) end
+		self:ClearFocus()
+	end)
+	amount:SetScript("OnHide", function(self)
+		if self:HasFocus() then self:ClearFocus() end
+	end)
+	amount:Hide()
+	row.amount = amount
+	row.amountLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	row.amountLabel:SetPoint("CENTER", amount, "CENTER", 0, 0)
+
+	-- A red cross well away from - and the amount, so removing an entry can't be a slip.
+	row.remove = CreateFrame("Button", nil, row)
+	row.remove:SetSize(16, 16)
+	row.remove:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+	row.remove:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
+	row.remove:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Highlight", "ADD")
+	row.remove:SetScript("OnClick", function(self)
 		local data = self:GetParent().data
 		if data and data.kind == "queue" then ns.Queue.Remove(data.index) end
 	end)
-	row.remove:SetPoint("RIGHT", row.minus, "LEFT", -1, 0)
+	row.remove:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Remove from the queue")
+		GameTooltip:Show()
+	end)
+	row.remove:SetScript("OnLeave", GameTooltip_Hide)
+
+	-- The queue's columns: materials and profit for the whole entry.
+	for _, key in ipairs({ "cost", "profit" }) do
+		row[key] = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		row[key]:SetWidth(QUEUE_COLUMN_WIDTH)
+		row[key]:SetJustifyH("RIGHT")
+		row[key]:SetWordWrap(false)
+	end
 
 	row.quote = SmallButton(row, "Quote", function(self)
 		local data = self:GetParent().data
 		if data and data.kind == "queue" then ns.Advertise.QuoteInWhisper(data.entry.recipeID, data.entry.qty) end
 	end)
 	row.quote:SetWidth(46)
-	row.quote:SetPoint("RIGHT", row.remove, "LEFT", -1, 0)
 	row.quote:SetScript("OnEnter", function(self)
 		local data = self:GetParent().data
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -536,7 +763,8 @@ local function CreateRow(parent)
 			GameTooltip:AddDoubleLine(("Quote (+%d%%)"):format(ns.Queue.QuoteMargin()), ns.Money(price), 1, 1, 1, 1, 1, 1)
 		end
 		GameTooltip:AddLine("Fills in a reply to your last whisper with the price for the whole queued amount. "
-			.. "Change the margin in the box at the bottom. You press Enter to send it.", 1, 1, 1, true)
+			.. ("The margin is %d%%; change it in the box at the bottom. You press Enter to send it."):format(ns.Queue.QuoteMargin()),
+			1, 1, 1, true)
 		GameTooltip:Show()
 	end)
 	row.quote:SetScript("OnLeave", GameTooltip_Hide)
@@ -559,6 +787,11 @@ local function SetRow(row, data)
 	row.minus:Hide()
 	row.remove:Hide()
 	row.quote:Hide()
+	row.cost:Hide()
+	row.profit:Hide()
+	row.amountLabel:Hide()
+	-- Left alone on rows that keep it, so a redraw doesn't take the focus from someone typing in it.
+	if data.kind ~= "queue" and data.kind ~= "restock" then row.amount:Hide() end
 	row.icon:Show()
 	row.right:ClearAllPoints()
 	row.right:SetPoint("RIGHT", row, "RIGHT", -4, 0)
@@ -568,13 +801,20 @@ local function SetRow(row, data)
 	if data.kind == "header" then
 		row.icon:Hide()
 		row.left:SetText(Color("ffffd100", data.text))
+		if data.columns then
+			PlaceRight(row, QueueControls(row), false)
+			row.cost:SetText(Color("ffffd100", "Materials"))
+			row.profit:SetText(Color("ffffd100", "Profit"))
+			row.amountLabel:SetText("Crafts")
+			row.cost:Show()
+			row.profit:Show()
+			row.amountLabel:Show()
+		end
 	elseif data.kind == "profit" then
 		local result = data.result
 		row.icon:SetTexture(ns.Items.Icon(result.itemID))
 		row.left:SetText(ItemLabel(result.itemID))
-		row.plus:Show()
-		row.right:ClearAllPoints()
-		row.right:SetPoint("RIGHT", row.plus, "LEFT", -4, 0)
+		PlaceRight(row, { { row.plus, 2 } }, true)
 		if result.bound then
 			row.right:SetText(result.cost and ("craft cost " .. ns.Money(result.cost)) or Color(COLOR_MUTED, "no price"))
 		elseif result.net then
@@ -585,37 +825,34 @@ local function SetRow(row, data)
 			row.right:SetText(Color(COLOR_MUTED, "no data"))
 		end
 	elseif data.kind == "queue" then
-		local recipe = ns.db.recipes[data.entry.recipeID]
+		local entry = data.entry
+		local recipe = ns.db.recipes[entry.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
-		row.left:SetText(RecipeName(data.entry.recipeID) .. " x" .. data.entry.qty
-			.. (data.entry.restock and Color(COLOR_MUTED, " restock") or ""))
-		row.plus:Show()
-		row.minus:Show()
-		row.remove:Show()
-		row.quote:Show()
-		row.right:ClearAllPoints()
-		row.right:SetPoint("RIGHT", row.quote, "LEFT", -4, 0)
 		local net = ns.totals.entries[data.index]
 		local boundCost = ns.totals.boundEntries[data.index]
-		local netText = boundCost and ("cost " .. ns.Money(boundCost))
-			or net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net))
-			or Color(COLOR_MUTED, "no price")
 		local change = not boundCost and recipe and recipe.o and PriceChangeText(recipe.o, false)
-		local mats = Color(COLOR_MUTED, "mats " .. (data.matCost and ns.Money(data.matCost) or "?"))
-		row.right:SetText(mats .. "   " .. (change and ("sells " .. change .. "   ") or "") .. netText)
+		row.left:SetText(RecipeName(entry.recipeID)
+			.. (entry.restock and Color(COLOR_MUTED, " restock") or "")
+			.. (change and ("   " .. Color(COLOR_MUTED, "sells ") .. change) or ""))
+		PlaceRight(row, QueueControls(row), true)
+		ShowAmount(row, data, entry.qty)
+		-- Both columns are for the whole entry, every queued craft.
+		local cost = boundCost or (data.matCost and data.matCost * entry.qty)
+		row.cost:SetText(cost and ns.Money(cost) or Color(COLOR_MUTED, "?"))
+		row.profit:SetText(boundCost and Color(COLOR_MUTED, "can't sell")
+			or net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net))
+			or Color(COLOR_MUTED, "no price"))
 	elseif data.kind == "restock" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
 		row.left:SetText(ItemLabel(item.itemID))
-		row.plus:Show()
-		row.minus:Show()
-		row.right:ClearAllPoints()
-		row.right:SetPoint("RIGHT", row.minus, "LEFT", -4, 0)
-		local text = ("AH %s, have %d, goal %d"):format(item.onAH and tostring(item.onAH) or "?", item.owned, item.goal)
+		PlaceRight(row, { { row.plus, 2 }, { row.amount, 6 }, { row.minus, 8 } }, true)
+		ShowAmount(row, data, item.goal)
+		local text = ("AH %s, have %d, goal"):format(item.onAH and tostring(item.onAH) or "?", item.owned)
 		local chance = ChanceText(ns.Items.Name(item.itemID))
 		local prefix = chance ~= "" and (chance .. "   ") or ""
 		if item.goal == 0 then
-			row.right:SetText(prefix .. Color(COLOR_MUTED, "skipped"))
+			row.right:SetText(prefix .. Color(COLOR_MUTED, "skipped, goal"))
 		elseif item.crafts > 0 then
 			row.right:SetText(prefix .. Color("ffffb040", text))
 		else
@@ -1018,7 +1255,12 @@ function CreateQueuePane()
 	local window = CreatePane("queue", 128)
 	window.build = BuildQueueList
 
-	local clear = HeaderButton(window.frame, "Clear", 70, function() ns.Queue.Clear() end)
+	local clear = HeaderButton(window.frame, "Clear", 70, function()
+		local count = #ns.db.queue
+		if count == 0 then return end
+		StaticPopup_Show("CFF_CLEAR_QUEUE", count == 1 and "remove the one entry from the queue?"
+			or ("remove all %d entries from the queue?"):format(count))
+	end)
 	clear:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
 
 	local farmButton = HeaderButton(window.frame, "Farm It", 70, function() ns.ToggleFarmMode() end)
@@ -1067,8 +1309,10 @@ function CreateQueuePane()
 	end)
 	margin:SetScript("OnLeave", GameTooltip_Hide)
 
+	window.clearButton = clear
 	window.update = function()
 		margin:Sync()
+		clear:SetEnabled(#ns.db.queue > 0)
 		local totals = ns.totals
 		local farming = ns.db.ui.farmMode
 		farmButton:SetText(farming and "Buy It" or "Farm It")
@@ -1319,6 +1563,7 @@ end
 -- Shows the selected tab's pane, with the queue beside Restock when asked for, and redraws what's showing.
 local function Layout()
 	local active, beside = ActiveTab(), QueueBeside()
+	if amountPopup then amountPopup:Hide() end
 	main.frame:SetWidth(beside and (RESTOCK_BESIDE_WIDTH + MAIN_WIDTH) or MAIN_WIDTH)
 	PlaceMain()
 	main.divider:SetShown(beside)
@@ -1884,6 +2129,16 @@ end
 ---------------------------------------------------------------------------
 -- Scan prompt
 ---------------------------------------------------------------------------
+
+StaticPopupDialogs["CFF_CLEAR_QUEUE"] = {
+	text = "Crafting and Farming Forever: %s",
+	button1 = YES,
+	button2 = NO,
+	OnAccept = function() ns.Queue.Clear() end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
 
 StaticPopupDialogs["CFF_SCAN"] = {
 	text = "Crafting and Farming Forever: %s Run a new auction house scan now?",

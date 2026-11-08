@@ -51,7 +51,7 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 
 1. Open a profession. The window opens beside it on the **Profit** tab.
 2. If prices are more than a day old, it asks for a new auction house scan. Say yes when you're at the auction house.
-3. Pick something profitable and press **+** on its row (Shift for 10), or **Queue** under the favourite star on the recipe page, which queues the amount in the craft-count box.
+3. Pick something profitable and press **+** on its row (Shift for 10, right-click to type an amount), or **Queue** under the favourite star on the recipe page, which queues the amount in the craft-count box.
 4. At the auction house, open Auctionator's Shopping tab and search the `Crafting and Farming Forever Queue` list. It only holds what you still need.
 5. Back at the profession window, press **Craft Next** until the queue is empty.
 6. At the auction house, open the **Restocking** tab and post what you made.

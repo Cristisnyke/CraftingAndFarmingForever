@@ -20,7 +20,7 @@ Every known recipe, ranked by profit per craft:
 
 - **Profession tabs** on the left: **All**, plus every profession any of your characters has. The tab follows whichever profession you open, until you click a tab yourself.
 - **Search** box in the footer: matches the item or recipe name, within the selected tab. If a tab has no matches, it tells you how many the All tab has. Escape clears it.
-- **+** queues one craft; **Shift + +** queues ten.
+- **+** queues one craft; **Shift + +** queues ten. **Right-click +** (or Ctrl-click) opens a box to type how many crafts to queue.
 - **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
 - Enchants that don't produce an item aren't listed.
 
@@ -39,7 +39,9 @@ Materials you already hold count as free when it decides whether crafting a mate
 One queue shared by all your characters.
 
 - **Adding:** **+** on the Profit tab, or **Queue** on a recipe's page (under the favourite star), which queues the number in the craft-count box.
-- **Changing:** **+** and **-** on each row (Shift for 10), **x** to remove it. `/cff clear` empties the queue.
+- **Columns:** **Materials** and **Profit** are for the whole entry, every queued craft. **Crafts** is the number queued.
+- **Changing:** type the number of crafts in the row's box and press Enter (0 removes the entry), or use **-** and **+** (Shift for 10; Shift **-** stops at one). The red cross at the end of the row removes the entry.
+- **Clear** empties the queue after asking. `/cff clear` empties it without asking.
 - **Sub-crafts** (smelting bars for a recipe, say) aren't stored in the queue. They're worked out from it each time and shrink as your stock grows.
 - **Craft Next** crafts the next thing this character can make now. If it can't, it says why: the next craft is on another character, or you need to open a profession.
 - **Total profit**: sale prices after the auction house cut, minus materials at market price. Bind-on-pickup crafts show their cost and aren't counted.
@@ -78,7 +80,7 @@ Your current zone comes first. Hover a row to see everything known about where t
 
 Keeps a number of each item you craft listed on the auction house.
 
-- **Goals:** each profitable item gets one. Defaults are **Stackable goal** 10 and **Single goal** 1. Change the defaults at the top, or one item's goal with **+** and **-** on its row (Shift for 10).
+- **Goals:** each profitable item gets one. Defaults are **Stackable goal** 10 and **Single goal** 1. Change the defaults at the top, or one item's goal by typing it in the box on its row, or with **+** and **-** (Shift for 10). A goal of 0 skips the item.
 - **Min profit (s):** items earning less than this per craft are skipped. The default is 1 silver.
 - **Counted towards the goal:** what's on the auction house (from Syndicator) and what all your characters hold in bags, banks and mail.
 - **Queue restock: N item(s)** queues the difference for the selected profession tab. It replaces that profession's earlier restock entries and keeps anything you queued by hand, which also counts towards the goal. It never queues by itself. **Fully stocked** means there's nothing to do.
