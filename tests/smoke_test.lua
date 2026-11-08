@@ -1200,7 +1200,7 @@ end
 do
 	ns.db.ui.farmMode = true
 	local realPlan = ns.farmPlan
-	ns.farmPlan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = { [2840] = 4 }, cost = 0 }
+	ns.farmPlan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = { [2840] = 4 }, cost = 0 }
 	ns.UI.Show("farm")
 	local kinds = {}
 	for _, data in ipairs(ns.UI.windows.farm.list) do kinds[data.kind] = (kinds[data.kind] or 0) + 1 end

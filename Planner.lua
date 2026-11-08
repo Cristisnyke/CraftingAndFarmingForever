@@ -9,6 +9,7 @@
 --   ahCut              = 0.05
 -- and, for planning:
 --   ownStock(itemID)   -> count on the current character (bags + bank)
+--   bankStock(itemID)  -> the part of ownStock that's in the bank (optional), so the plan can say to fetch it
 --   altStock(itemID)   -> { { name = label, count = n }, ... }
 --   crafter(recipeID, preferredChar) -> character key
 --   smelting[itemID]   = { yield, { count, itemID }, ... }   only used by a farming plan
@@ -241,15 +242,29 @@ end
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups. With farming
 -- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
 -- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.
+-- Materials already held are used first in both plans; what has to come out of the bank goes on plan.bank.
 function Planner.BuildPlan(ctx, queue, farming)
-	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = {}, cost = 0 }
-	local own, alts = {}, {}
+	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = {}, cost = 0 }
+	local bags, bank, alts = {}, {}, {}
 	local craftIndex = {}
 	local active = {}
 
+	local function Load(itemID)
+		if bags[itemID] ~= nil then return end
+		local total = ctx.ownStock(itemID) or 0
+		local inBank = math.min(ctx.bankStock and ctx.bankStock(itemID) or 0, total)
+		bags[itemID], bank[itemID] = total - inBank, inBank
+	end
+
 	local function OwnLeft(itemID)
-		if own[itemID] == nil then own[itemID] = ctx.ownStock(itemID) or 0 end
-		return own[itemID]
+		Load(itemID)
+		return bags[itemID] + bank[itemID]
+	end
+
+	-- Crafted leftovers end up in the bags.
+	local function AddToBags(itemID, count)
+		Load(itemID)
+		bags[itemID] = bags[itemID] + count
 	end
 
 	local function AltsLeft(itemID)
@@ -264,9 +279,16 @@ function Planner.BuildPlan(ctx, queue, farming)
 
 	-- Takes up to count of an item from stock, own first. Returns how many are still missing.
 	local function TakeFromStock(itemID, count)
-		local fromOwn = math.min(OwnLeft(itemID), count)
-		own[itemID] = own[itemID] - fromOwn
-		count = count - fromOwn
+		Load(itemID)
+		local fromBags = math.min(bags[itemID], count)
+		bags[itemID] = bags[itemID] - fromBags
+		count = count - fromBags
+		local fromBank = math.min(bank[itemID], count)
+		if fromBank > 0 then
+			bank[itemID] = bank[itemID] - fromBank
+			count = count - fromBank
+			plan.bank[itemID] = (plan.bank[itemID] or 0) + fromBank
+		end
 		for _, alt in ipairs(AltsLeft(itemID)) do
 			if count <= 0 then break end
 			local take = math.min(alt.count, count)
@@ -281,6 +303,34 @@ function Planner.BuildPlan(ctx, queue, farming)
 	end
 
 	local Require, Acquire
+
+	-- How many of an item can still be had from bags, bank and alts, without taking them.
+	local function Available(itemID)
+		local count = OwnLeft(itemID)
+		for _, alt in ipairs(AltsLeft(itemID)) do count = count + alt.count end
+		return count
+	end
+
+	-- Gold actually spent to make count of an item with this recipe: materials already held cost nothing, the rest
+	-- at the cheapest market price. Nil when a material still to get has no price.
+	local function CraftSpend(recipeID, crafts)
+		local recipe = ctx.recipes[recipeID]
+		local spend = 0
+		for _, slot in ipairs(recipe.r or {}) do
+			local missing = (slot[1] or 1) * crafts
+			for i = 2, #slot do missing = missing - math.min(missing, Available(slot[i])) end
+			if missing > 0 then
+				local bestUnit
+				for i = 2, #slot do
+					local unit = Planner.ItemCost(ctx, slot[i])
+					if unit and (not bestUnit or unit < bestUnit) then bestUnit = unit end
+				end
+				if not bestUnit then return nil end
+				spend = spend + bestUnit * missing
+			end
+		end
+		return spend
+	end
 
 	-- The known recipe to farm for, the cheapest when prices can tell. Nil when none can be used right now.
 	local function FarmRecipe(itemID)
@@ -299,7 +349,7 @@ function Planner.BuildPlan(ctx, queue, farming)
 			local yield = MinimumYield(ctx.recipes[recipeID])
 			local crafts = math.ceil(count / yield)
 			Require(recipeID, crafts, nil, true)
-			own[itemID] = OwnLeft(itemID) + crafts * yield - count
+			AddToBags(itemID, crafts * yield - count)
 			return
 		end
 		local smelt = ctx.smelting and ctx.smelting[itemID]
@@ -310,7 +360,7 @@ function Planner.BuildPlan(ctx, queue, farming)
 				local missing = TakeFromStock(material[2], material[1] * smelts)
 				if missing > 0 then Acquire(material[2], missing) end
 			end
-			own[itemID] = OwnLeft(itemID) + smelts * smelt.yield - count
+			AddToBags(itemID, smelts * smelt.yield - count)
 			return
 		end
 		local vendor = ctx.vendorPrice(itemID)
@@ -324,22 +374,27 @@ function Planner.BuildPlan(ctx, queue, farming)
 
 	Acquire = function(itemID, count)
 		if farming then return AcquireByFarming(itemID, count) end
-		local _, kind, recipeID = Planner.ItemCost(ctx, itemID)
 		local ah, vendor = ctx.ahPrice(itemID), ctx.vendorPrice(itemID)
 		local useVendor = vendor and (not ah or vendor < ah)
 		local buyUnit = useVendor and vendor or ah
 
-		if kind == "craft" and not active[recipeID] then
-			-- Crafting comes in whole batches, so a small need can cost more than buying even when the unit
-			-- cost is lower. Compare what this purchase would actually cost.
-			local yield = MinimumYield(ctx.recipes[recipeID])
-			local crafts = math.ceil(count / yield)
-			local craftTotal = crafts * (Planner.RecipeCost(ctx, recipeID) or 0)
-			if not buyUnit or craftTotal <= buyUnit * count then
-				Require(recipeID, crafts, nil, true)
-				own[itemID] = OwnLeft(itemID) + crafts * yield - count
-				return
+		-- Crafting comes in whole batches, so a small need can cost more than buying even when the unit cost is
+		-- lower, and materials you already hold cost nothing more. Compare what each way would actually spend.
+		local bestRecipe, bestCrafts, bestSpend
+		for _, candidate in ipairs(ctx.known[itemID] or {}) do
+			local recipe = ctx.recipes[candidate]
+			if recipe and not recipe.x and not active[candidate] then
+				local crafts = math.ceil(count / MinimumYield(recipe))
+				local spend = CraftSpend(candidate, crafts)
+				if spend and (not bestSpend or spend < bestSpend) then
+					bestRecipe, bestCrafts, bestSpend = candidate, crafts, spend
+				end
 			end
+		end
+		if bestRecipe and (not buyUnit or bestSpend < buyUnit * count) then
+			Require(bestRecipe, bestCrafts, nil, true)
+			AddToBags(itemID, bestCrafts * MinimumYield(ctx.recipes[bestRecipe]) - count)
+			return
 		end
 
 		if useVendor then

@@ -83,6 +83,42 @@ check("cycle cost", (Planner.ItemCost(cycleCtx, BAR)), 10)
 local cyclePlan = Planner.BuildPlan(cycleCtx, { { recipeID = 2, qty = 1 } })
 check("cycle plan buys", cyclePlan.buy[ORE], 1)
 
+-- Materials you already hold are used before buying. Bars are cheaper on the AH (50) than smelted from AH ore
+-- (2 x 10 + nothing), but with 4 ore in the bank the 2 bars cost nothing more to make. Seen 2026-11-08 with Tin Ore.
+do
+	local queue = { { recipeID = 300, qty = 1 } }
+	local recipes = {
+		[100] = { o = BAR, qmin = 1, qmax = 1, r = { { 2, ORE } } },
+		[300] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 2, BAR } } },
+	}
+	local function StockContext(own, bank, ah)
+		local ctx = Context({ recipes = recipes, known = { [BAR] = { 100 }, [SHIRT] = { 300 } }, own = own,
+			ah = ah or { [ORE] = 30, [BAR] = 50, [SHIRT] = 1000 } })
+		ctx.bankStock = function(id) return (bank or {})[id] or 0 end
+		return ctx
+	end
+	local held = Planner.BuildPlan(StockContext({ [ORE] = 4 }, { [ORE] = 4 }), queue)
+	check("held ore: bars not bought", held.buy[BAR], nil)
+	check("held ore: ore not bought", held.buy[ORE], nil)
+	check("held ore: smelts the bars", held.crafts[1].recipeID, 100)
+	check("held ore: says to take it from the bank", held.bank[ORE], 4)
+	check("held ore: spends nothing", held.cost, 0)
+
+	-- Some ore held: the rest is bought only if that beats buying the bars. 2 ore short x 30 = 60 vs 2 bars = 100.
+	local partial = Planner.BuildPlan(StockContext({ [ORE] = 2 }), queue)
+	check("some ore: buys the missing ore", partial.buy[ORE], 2)
+	check("some ore: no bars bought", partial.buy[BAR], nil)
+	check("some ore: bags need no bank trip", next(partial.bank), nil)
+	-- With dear ore buying the bars wins: 2 ore short x 80 = 160 vs 100.
+	local dear = Planner.BuildPlan(StockContext({ [ORE] = 2 }, nil, { [ORE] = 80, [BAR] = 50, [SHIRT] = 1000 }), queue)
+	check("dear ore: buys bars", dear.buy[BAR], 2)
+
+	-- Farming takes from the bags before the bank and lists only what the bank must supply.
+	local farm = Planner.BuildPlan(StockContext({ [ORE] = 4 }, { [ORE] = 3 }), queue, true)
+	check("farm: bank part listed", farm.bank[ORE], 3)
+	check("farm: nothing to gather", next(farm.farm), nil)
+end
+
 -- Plan: empty stock. 2 shirts need 6 bolts (craft) = 12 cloth (buy) + 2 thread (vendor); sub-craft comes first.
 local plan = Planner.BuildPlan(Context(), { { recipeID = 300, qty = 2, char = "me" } })
 check("plan craft order first", plan.crafts[1].recipeID, 200)

@@ -14,6 +14,7 @@ local function NewContext()
 		ahPrice = ns.Prices.AH,
 		vendorPrice = ns.Prices.Vendor,
 		ownStock = ns.Stock.Own,
+		bankStock = ns.Stock.Bank,
 		altStock = ns.Stock.Alts,
 		crafter = Recipes.Crafter,
 		ahCut = ns.AH_CUT,
@@ -25,7 +26,7 @@ ns.NewContext = NewContext
 -- Plan
 ---------------------------------------------------------------------------
 
-ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, farm = {}, smelt = {}, cost = 0 }
+ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = {}, cost = 0 }
 ns.farmPlan = ns.plan
 ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
 

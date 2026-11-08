@@ -202,6 +202,7 @@ local function BuildFarmList()
 
 	AddGatherRows(list, plan, false)
 	AddItems(plan.smelt, "Smelt with Mining")
+	AddItems(plan.bank, "Take from your bank")
 	AddItems(plan.vendor, "Buy from a vendor")
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
@@ -241,6 +242,7 @@ local function BuildQueueList()
 	end
 	AddItemRows(list, "Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
 	AddItemRows(list, "Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
+	AddItemRows(list, "Take from your bank", plan.bank)
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)

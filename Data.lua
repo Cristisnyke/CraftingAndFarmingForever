@@ -218,6 +218,12 @@ function Stock.Own(itemID)
 	return C_Item.GetItemCount(itemID, true, false, true, false) or 0
 end
 
+-- The part of Stock.Own that's in the bank or reagent bank rather than the bags.
+function Stock.Bank(itemID)
+	local bagsOnly = C_Item.GetItemCount(itemID, false, false, false, false) or 0
+	return math.max(0, Stock.Own(itemID) - bagsOnly)
+end
+
 local function SyndicatorAPI()
 	local api = _G.Syndicator and _G.Syndicator.API
 	if type(api) ~= "table" or type(api.GetInventoryInfoByItemID) ~= "function"
