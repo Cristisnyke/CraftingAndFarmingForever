@@ -125,8 +125,10 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 echo "Uploading $ZIP to CurseForge project $PROJECT_ID as $RELEASE_TYPE..."
+# --form-string, not -F: -F reads ';' in a value as the start of options like ;type=, which cut the metadata short
+# (1.1.0's changelog has "headings; hover") and CurseForge called it invalid JSON.
 RESPONSE=$(curl -sS -w '\n%{http_code}' -H "X-Api-Token: $TOKEN" \
-	-F "metadata=$METADATA" -F "file=@$ZIP" "$API/projects/$PROJECT_ID/upload-file")
+	--form-string "metadata=$METADATA" -F "file=@$ZIP" "$API/projects/$PROJECT_ID/upload-file")
 STATUS=${RESPONSE##*$'\n'}
 BODY=${RESPONSE%$'\n'*}
 if [ "$STATUS" != 200 ]; then
