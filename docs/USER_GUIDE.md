@@ -1,0 +1,154 @@
+# User guide
+
+Crafting and Farming Forever is one window with four tabs (**Profit**, **Queue**, **Restock**, **Sales**), plus a small **Farm** list, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
+
+The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. `/cff auto` turns opening with the profession window off or on.
+
+Hover any row with an item icon to see the game's item tooltip followed by the add-on's own details.
+
+## Before you start
+
+- **Record recipes.** Open each profession once on each character. Only recipes your characters know are listed, and a character's recipes are only read while its profession window is open.
+- **Fresh prices.** Prices come from Auctionator. If its data is more than 24 hours old, the add-on asks for a new scan: a popup at the auction house, a banner in the window, and one line in chat.
+- **Syndicator** (optional) lets the add-on count your alts' bags and banks, and see what you have on the auction house. Without it, only the logged-in character's bags and bank count, and the Restock tab is turned off so it can't over-craft.
+
+## Profit
+
+Every known recipe, ranked by profit per craft:
+
+> profit = sale price after the 5% auction house cut − cost of materials by the cheapest path
+
+- **Profession tabs** on the left: **All**, plus every profession any of your characters has. The tab follows whichever profession you open, until you click a tab yourself.
+- **Search** box in the footer: matches the item or recipe name, within the selected tab. If a tab has no matches, it tells you how many the All tab has. Escape clears it.
+- **+** queues one craft; **Shift + +** queues ten.
+- **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
+- Enchants that don't produce an item aren't listed.
+
+### Cheapest path
+
+For each material, the add-on picks the cheapest of:
+
+- buying it on the auction house (Auctionator's price),
+- buying it from a vendor,
+- crafting it from its own materials, if one of your characters knows the recipe.
+
+Materials you already hold count as free when it decides whether crafting a material beats buying it. So 6 Tin Ore in your bank means it plans to smelt Tin Bars rather than buy them.
+
+## Queue
+
+One queue shared by all your characters.
+
+- **Adding:** **+** on the Profit tab, or **Queue** on a recipe's page (under the favourite star), which queues the number in the craft-count box.
+- **Changing:** **+** and **-** on each row (Shift for 10), **x** to remove it. `/cff clear` empties the queue.
+- **Sub-crafts** (smelting bars for a recipe, say) aren't stored in the queue. They're worked out from it each time and shrink as your stock grows.
+- **Craft Next** crafts the next thing this character can make now. If it can't, it says why: the next craft is on another character, or you need to open a profession.
+- **Total profit**: sale prices after the auction house cut, minus materials at market price. Bind-on-pickup crafts show their cost and aren't counted.
+- **Still to buy**: what you'll actually spend after what you own, compared with the gold you're carrying.
+- **Take from your bank**: materials the plan uses that are in your bank, not your bags.
+- **Buy from a vendor**: vendor materials. They're shown here only, never on the Auctionator list.
+- **Quote** on each row fills in a whisper to the last person who whispered you: the material cost of one craft plus 10%. Press Enter to send it.
+
+### Price changes
+
+Each material and sale price shows what it was before the latest scan: **was X, now Y**. Red means worse for your profit (a material got dearer or the sale price dropped). Green means better. Nothing is removed from the queue automatically; you decide.
+
+A new comparison starts when you scan the whole shopping list or run a full scan. Searching a single item updates its price but keeps the comparison.
+
+### The shopping list
+
+The add-on keeps one Auctionator shopping list, **Crafting and Farming Forever Queue**, and edits it in place as the queue and your stock change. It holds:
+
+- every material you still need to buy, after your bags, bank and (with Syndicator) your alts' bags and banks;
+- every queued result, with no quantity, so searching the list also refreshes their sale prices.
+
+Guild bank, warband bank, mail and your own auctions don't count as stock. Quantities aren't capped, because a cap would hide dearer listings you might still want.
+
+## Farm It
+
+**Farm It** on the Queue tab turns the plan into what to gather yourself, and swaps the window for a small list you can leave on screen while you play:
+
+- **Mine**, **Pick herbs**, **Skin creatures**, **Fish**: which veins, herbs or creatures, and in which zones.
+- **Kill for drops**: which creatures drop it.
+- **Disenchant**, and **Other sources** for anything else.
+
+Your current zone comes first. Hover a row to see everything known about where the item comes from. The list counts down as you gather. **Back** returns to the window, and the button then reads **Buy It**. The Auctionator list is the same in both modes.
+
+## Restock
+
+Keeps a number of each item you craft listed on the auction house.
+
+- **Goals:** each profitable item gets one. Defaults are **Stackable goal** 10 and **Single goal** 1. Change the defaults at the top, or one item's goal with **+** and **-** on its row (Shift for 10).
+- **Min profit (s):** items earning less than this per craft are skipped. The default is 1 silver.
+- **Counted towards the goal:** what's on the auction house (from Syndicator) and what all your characters hold in bags, banks and mail.
+- **Queue restock: N item(s)** queues the difference for the selected profession tab. It replaces that profession's earlier restock entries and keeps anything you queued by hand, which also counts towards the goal. It never queues by itself. **Fully stocked** means there's nothing to do.
+- **Show Queue** opens the queue beside the Restock tab.
+
+Syndicator only refreshes your auctions while you're at the auction house, so an item that sold since your last visit still counts as listed until you go back.
+
+## Restocking (at the auction house)
+
+A **Restocking** tab beside Auctionator's tabs at the bottom of the auction house. It lists items in your bags that one of your recipes makes, with the amount your goals want on the auction house first.
+
+Select an item and it searches the live listings:
+
+- **Quantity** suggested: the goal minus what's already listed, up to what's in your bags and not needed by the queue.
+- **Price each** suggested: just under the lowest listing, or the lowest itself if that listing is yours. With no listings it uses the last scan; with nothing to go on it stays blank.
+- It never suggests a price below break-even (material cost after the cut).
+- Stackable goods are priced to the copper and undercut by 1 copper. Gear and bags only accept whole silver, so they undercut by 1 silver.
+- If a vendor would pay more than the price earns after the cut, it warns you and asks before posting, but leaves the price as you set it.
+- **Duration** chooses the auction length.
+
+**Post** lists it and moves to the next item. **Next item** skips. Items posted this visit count as listed straight away, before Syndicator recounts.
+
+## Sales
+
+Sold and expired auctions per item, for **Today**, **Last 7 days**, **Last 30 days** and **All time**, plus each item's chance of selling within 24 hours.
+
+- Results are read from auction house mail, so they appear when that character opens the mailbox, including sales made while you were offline.
+- Time on the auction house comes from your posts.
+- The chance uses all history: `1 − exp(−sold ÷ (unit-days listed + 1))` per unit listed. With fewer than 5 units of history it's shown grey with `~`, as a rough guess.
+- Items are matched by name, because sold mail doesn't say which item ID it was.
+
+## Advertising
+
+A small **Ad** box beside the main chat window. Click it to pick where to post (**Trade**, **Guild**, **Say** or **Yell**) and one button per crafting profession of the logged-in character. One click posts that profession's link with a short offer (your materials, or a price based on material cost), and the box closes.
+
+- Gathering professions (Herbalism, Mining, Skinning, Fishing) aren't offered.
+- Each destination can be used once every 60 seconds.
+- The box can't open or close in combat.
+- The **Advertise** button on the Profit tab and `/cff advertise` fill in the chat box instead, for you to press Enter. This is a game restriction: only the Ad box's buttons can send directly.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `/cff` or `/craftfarm` | Show or hide the window |
+| `/cff profit`, `queue`, `restock`, `sales` | Open that tab, or close the window if that tab is already showing |
+| `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
+| `/cff advertise` | Advertise the selected profession in the chosen channel |
+| `/cff clear` | Empty the queue |
+| `/cff auto` | Toggle opening with the profession window |
+| `/cff diag` | Print diagnostics and save them for troubleshooting |
+
+## Troubleshooting
+
+**A character's recipes are missing.** Open that profession on that character. Recipes are only recorded while the profession window is open.
+
+**Profit shows no price for something.** Auctionator has never seen it listed. Search it at the auction house, or run a full scan.
+
+**Stock from alts isn't counted.** Install Syndicator and log in to each alt once so it records their bags and banks. Visit the bank on each alt too.
+
+**The queue or recipes vanished after a restart.** Run `/cff diag`, then `/reload`, and report the output. Saved data is only written on `/reload` or logout, so a crash loses changes since then.
+
+**Reporting a bug.** Run `/cff diag`, then `/reload` so it's saved, and include the `lastDiag` lines from `WTF/Account/<account>/SavedVariables/CraftingAndFarmingForever.lua`, plus any error from BugSack.
+
+## Upgrading from CraftLedger
+
+The add-on used to be called CraftLedger. To keep your queue, recipes, goals and sales history:
+
+1. Quit the game. It rewrites saved data on logout and would undo the move.
+2. Run `tools/migrate-name.sh "/path/to/World of Warcraft/_forever_"` from this repository.
+
+It copies each account's `CraftLedger.lua` saved data to `CraftingAndFarmingForever.lua` (the old file is left as it was), installs the add-on under its new folder name and removes the old `CraftLedger` folder so the two never load together.
+
+The old Auctionator list **CraftLedger Queue** is no longer used. Delete it in Auctionator's Shopping tab.
