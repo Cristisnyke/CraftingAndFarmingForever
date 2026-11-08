@@ -30,5 +30,5 @@ mkdir -p dist
 OUT="dist/$NAME-$VERSION.zip"
 rm -f "$OUT"
 (cd "$WORK" && bsdtar -a -cf "$OLDPWD/$OUT" "$NAME")
-echo "Built $OUT from $(git rev-parse --short "$REF") (version $VERSION):"
+echo "Built $OUT from $(git rev-parse --short "$REF^{commit}") (version $VERSION):"
 bsdtar -tf "$OUT"
