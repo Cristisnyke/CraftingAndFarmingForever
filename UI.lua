@@ -821,13 +821,15 @@ local function MakeMovable(frame, key)
 	frame:SetFrameStrata("HIGH")
 	frame:SetToplevel(true)
 	frame:SetClampedToScreen(true)
+	-- A plain white texture tinted dark, not the tooltip background: that texture is itself see-through, so the game
+	-- world and other windows showed through the lists at any opacity.
 	frame:SetBackdrop({
-		bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+		bgFile = "Interface\\Buttons\\WHITE8X8",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 		edgeSize = 14,
 		insets = { left = 3, right = 3, top = 3, bottom = 3 },
 	})
-	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.96)
+	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
 	frame:EnableMouse(true)
 	frame:SetMovable(true)
 	frame:RegisterForDrag("LeftButton")
@@ -1130,7 +1132,7 @@ local function CreateFarmWindow()
 	windows.farm = window
 	MakeMovable(frame, "farm")
 	frame:SetSize(MINI_WIDTH, WINDOW_HEIGHT)
-	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.8)
+	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.85) -- a little see-through, as it stays up out in the world
 
 	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	titleText:SetPoint("TOPLEFT", 12, -10)

@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## 1.0.1
 
 - Sales and Restocking rows no longer stay on "Loading..." after the item's name arrives
+- Solid window background, so the game world and other windows no longer show through the lists
 
 ## 1.0.0
 
