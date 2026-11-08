@@ -321,9 +321,24 @@ end
 
 local KIND_LABEL = { ah = "AH", vendor = "vendor", craft = "craft" }
 
+-- Starts a tooltip with the game's own item tooltip (stats, binding, other add-ons' lines), then a gap for ours.
+-- The recipe name is added only when it differs from the item's, e.g. an enchant whose result is a scroll.
+local function StartItemTooltip(owner, itemID, recipeID)
+	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+	if not itemID then
+		GameTooltip:SetText(recipeID and RecipeName(recipeID) or "?")
+		return
+	end
+	GameTooltip:SetItemByID(itemID)
+	GameTooltip:AddLine(" ")
+	if recipeID then
+		local recipeName = RecipeName(recipeID)
+		if recipeName ~= ns.Items.Name(itemID) then GameTooltip:AddLine("Recipe: " .. recipeName, 1, 0.82, 0) end
+	end
+end
+
 local function ShowProfitTooltip(row, result)
-	GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-	GameTooltip:SetText(RecipeName(result.recipeID))
+	StartItemTooltip(row, result.itemID, result.recipeID)
 	for _, part in ipairs(result.parts or {}) do
 		local name = ns.Items.Name(part.itemID) or "Loading..."
 		local value = part.unit and (ns.Money(part.unit * part.qty) .. " (" .. (KIND_LABEL[part.kind] or "?") .. ")") or "no price"
@@ -390,8 +405,7 @@ local function RowOnEnter(row)
 		GameTooltip:Show()
 	elseif data.kind == "restock" then
 		local item = data.row
-		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-		GameTooltip:SetText(RecipeName(item.recipeID))
+		StartItemTooltip(row, item.itemID, item.recipeID)
 		GameTooltip:AddDoubleLine("Profit per craft", ns.Money(item.net), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("On the AH", item.onAH and tostring(item.onAH) or "unknown", 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
@@ -406,15 +420,18 @@ local function RowOnEnter(row)
 		AddSalesLines(ns.Items.Name(data.row.itemID))
 		GameTooltip:Show()
 	elseif data.kind == "sales" then
-		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-		GameTooltip:SetText(data.item.name)
+		if data.item.itemID then
+			StartItemTooltip(row, data.item.itemID)
+		else
+			GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+			GameTooltip:SetText(data.item.name)
+		end
 		AddSalesLines(data.item.name)
 		GameTooltip:Show()
 	elseif data.kind == "queue" then
-		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-		GameTooltip:SetText(RecipeName(data.entry.recipeID))
-		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
 		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
+		StartItemTooltip(row, queuedRecipe and queuedRecipe.o, data.entry.recipeID)
+		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
 		if ns.totals.boundEntries[data.index] then
 			GameTooltip:AddLine("Bind on pickup: can't be sold, so it isn't in the total profit.", 1, 0.6, 0.2, true)
 		elseif queuedRecipe and queuedRecipe.o then
@@ -426,6 +443,12 @@ local function RowOnEnter(row)
 			AddSalesLines(ns.Items.Name(queuedRecipe.o))
 		end
 		GameTooltip:AddLine("+ adds one, Shift + adds ten, - removes one, x removes the entry.", 0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	elseif data.kind == "auto" then
+		local recipe = ns.db.recipes[data.craft.recipeID]
+		StartItemTooltip(row, recipe and recipe.o, data.craft.recipeID)
+		GameTooltip:AddLine(("Sub-craft: %d needed by the queue, made by %s."):format(data.craft.count,
+			ns.CharLabel(data.craft.char)), 0.6, 0.8, 1, true)
 		GameTooltip:Show()
 	end
 end

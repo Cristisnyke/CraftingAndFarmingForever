@@ -845,6 +845,39 @@ check("cancel isn't a result", ns.Sales.Item("Alt Item").expired, 0)
 ns.UI.Show("sales")
 check("sales tab lists items", #ns.UI.windows.sales.list >= 1, true)
 check("best seller first", ns.UI.windows.sales.list[1].item.name, "Test Sword")
+-- Every row with an item icon starts its tooltip with the game's item tooltip.
+GameTooltip.SetItemByID = function(self, itemID) rawset(self, "itemID", itemID) end
+local function HoverIconRows(key)
+	local hovered, withItem = 0, 0
+	for _, row in ipairs(ns.UI.windows[key].rows) do
+		if row.data and row:IsShown() and row.icon:IsShown() and row.data.kind ~= "header" then
+			rawset(GameTooltip, "itemID", nil)
+			row.scripts.OnEnter(row)
+			hovered = hovered + 1
+			if rawget(GameTooltip, "itemID") then withItem = withItem + 1 end
+		end
+	end
+	return hovered, withItem
+end
+local hovered, withItem = HoverIconRows("sales")
+check("sales rows hovered", hovered > 0, true)
+check("sales rows show the item tooltip", withItem, hovered)
+ns.UI.Show("profit")
+hovered, withItem = HoverIconRows("profit")
+check("profit rows hovered", hovered > 0, true)
+check("profit rows show the item tooltip", withItem, hovered)
+ns.Queue.Add(ns.UI.windows.profit.rows[1].data.result.recipeID, 1)
+RunTimers()
+ns.UI.Show("queue")
+hovered, withItem = HoverIconRows("queue")
+check("queue rows hovered", hovered > 0, true)
+check("queue rows show the item tooltip", withItem, hovered)
+ns.Queue.Clear()
+RunTimers()
+ns.UI.Show("restock")
+hovered, withItem = HoverIconRows("restock")
+check("restock rows show the item tooltip", withItem, hovered)
+ns.UI.Show("sales")
 ns.db.sales.items = {}
 ns.db.sales.lots = {}
 ns.UI.Refresh("sales")
