@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## 1.0.1
+
+- Sales and Restocking rows no longer stay on "Loading..." after the item's name arrives
+
 ## 1.0.0
 
 First release.

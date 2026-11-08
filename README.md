@@ -28,6 +28,10 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 
 ![Restock tab with the queue beside it](docs/images/restock-and-queue.png)
 
+**Sales**: what sold and expired per item, from your auction house mail, with each item's chance of selling within 24 hours.
+
+![Sales tab](docs/images/sales.png)
+
 ## Requirements
 
 | Add-on | |
