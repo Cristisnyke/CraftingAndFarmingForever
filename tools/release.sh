@@ -101,7 +101,7 @@ fi
 
 tools/package.sh "$REF" >/dev/null
 ZIP=$(ls -t dist/"$NAME"-*.zip | head -1)
-if [ "$DRY_RUN" = 1 ]; then
+if [ "$DRY_RUN" = 1 ] && [ "$UPLOAD_ONLY" = 0 ]; then
 	# The dry run's zip comes from HEAD, so it still carries the current version; the real one gets $VERSION.
 	ZIP_NAME="$ZIP (built from HEAD; the release zip will say $VERSION)"
 else
