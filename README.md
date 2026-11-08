@@ -69,4 +69,6 @@ World of Warcraft and Blizzard Entertainment are trademarks or registered tradem
 
 ## License
 
-Not chosen yet. Until one is, all rights are reserved by the author.
+All Rights Reserved. You may download the add-on, use it in World of Warcraft and read its source code. Copying, modifying or re-uploading it, in whole or in part, needs written permission from the author. See [LICENSE](LICENSE).
+
+The AllTheThings data in `Sources.lua` keeps its own MIT License; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

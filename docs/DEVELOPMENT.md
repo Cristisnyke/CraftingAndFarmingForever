@@ -92,9 +92,10 @@ Work and commit on `main` locally. A version is pushed to GitHub only once it ha
 2. Tag it: `git tag v1.0.0`.
 3. `git push origin main --tags`.
 
+The add-on is All Rights Reserved (`LICENSE`, chosen 2026-11-08). The license goes into the game folder and the release zip with the code. Contributions from others need their written agreement that their changes fall under these terms.
+
 Before making the repository public:
 
-- choose a license and add `LICENSE`;
 - check that the name isn't taken on CurseForge and Wago;
 - keep `THIRD-PARTY-NOTICES.md` and the README credits current when a dependency or data source changes.
 

@@ -1,0 +1,18 @@
+Crafting and Farming Forever
+Copyright (c) 2026 Cristisnyke. All rights reserved.
+
+You may download Crafting and Farming Forever (the "Add-on") and use it in World of Warcraft, and you may read its
+source code.
+
+You may not, in whole or in part and in original or modified form, copy, modify, redistribute, re-upload, publish,
+sublicense or sell the Add-on, or include any part of it in another add-on or project, without prior written
+permission from Cristisnyke.
+
+Third-party material keeps its own license. The data in Sources.lua is derived from AllTheThings and is used under the
+MIT License; its copyright and permission notice is at the top of Sources.lua and in THIRD-PARTY-NOTICES.md, and this
+license does not restrict it.
+
+THE ADD-ON IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE ADD-ON OR THE USE OR OTHER DEALINGS IN THE ADD-ON.

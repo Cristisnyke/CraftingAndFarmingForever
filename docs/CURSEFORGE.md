@@ -86,4 +86,8 @@ Please report bugs in the comments, with the output of `/cff diag` and any Lua e
 - **[Syndicator](https://www.curseforge.com/wow/addons/syndicator)** by plusmouse: stock across your characters.
 - **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team: Farm It's data on where materials come from, used under the MIT License.
 
+## License
+
+All Rights Reserved. You're welcome to use the add-on and read its code, but please don't re-upload it or copy it into other projects without permission.
+
 *World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. This add-on isn't affiliated with or endorsed by Blizzard Entertainment.*
