@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/logo.jpg" alt="Crafting and Farming Forever logo" width="200"></p>
+
 # Crafting and Farming Forever
 
 A crafting add-on for **World of Warcraft: Forever**. It shows what's worth crafting, keeps one craft queue for all your characters, works out what you still need to buy or gather, and helps you keep the auction house stocked.
