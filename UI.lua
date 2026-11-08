@@ -13,7 +13,8 @@ local MAIN_WIDTH = 620
 local RESTOCK_BESIDE_WIDTH = 500 -- Restock's share with the queue open beside it; the queue keeps its full width
 local WINDOW_HEIGHT = 560
 local MAIN_TOP = 36 -- title and tabs
-local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 86, 26
+local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 82, 26
+local LOGO_TEXTURE = "Interface\\AddOns\\CraftingAndFarmingForever\\Media\\Logo"
 local MAIN_TABS = {
 	{ key = "profit", title = "Profit" },
 	{ key = "queue", title = "Queue" },
@@ -1347,14 +1348,29 @@ local function CreateMain()
 	frame:SetSize(MAIN_WIDTH, WINDOW_HEIGHT)
 	table.insert(UISpecialFrames, "CFFWindow") -- Escape closes it, like the game's own windows
 
-	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	titleText:SetPoint("TOPLEFT", 12, -14)
-	titleText:SetText("Crafting and Farming Forever")
+	-- The full name is too long for one line beside the tabs, so it's the logo and the name on two lines. The tabs
+	-- start wherever the name ends, so a wider font can't push it under them.
+	local logo = frame:CreateTexture(nil, "ARTWORK")
+	logo:SetSize(28, 28)
+	logo:SetPoint("TOPLEFT", 8, -4)
+	logo:SetTexture(LOGO_TEXTURE)
+	main.logo = logo
+
+	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	titleText:SetPoint("LEFT", logo, "RIGHT", 5, 0)
+	titleText:SetJustifyH("LEFT")
+	titleText:SetText("Crafting and Farming\nForever")
+	main.titleText = titleText
 
 	for index, info in ipairs(MAIN_TABS) do
 		local tab = CreateFrame("Button", nil, frame)
 		tab:SetSize(MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT)
-		tab:SetPoint("TOPLEFT", 96 + (index - 1) * (MAIN_TAB_WIDTH + 2), -7)
+		if index == 1 then
+			tab:SetPoint("LEFT", titleText, "RIGHT", 10, 0)
+			tab:SetPoint("TOP", frame, "TOP", 0, -7)
+		else
+			tab:SetPoint("TOPLEFT", main.tabButtons[index - 1], "TOPRIGHT", 2, 0)
+		end
 		tab:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 		tab:SetScript("OnClick", function() UI.Select(info.key) end)
 		tab.key, tab.title = info.key, info.title

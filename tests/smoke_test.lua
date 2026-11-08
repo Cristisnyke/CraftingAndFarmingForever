@@ -51,6 +51,7 @@ local function NewFrame()
 			GetRight = function() return 480 end,
 			GetTop = function() return 900 end,
 			SetText = function(self, text) self.text = text end,
+			SetTexture = function(self, texture) self.texture = texture end,
 			SetAttribute = function(self, name, value)
 				rawset(self, "attributes", rawget(self, "attributes") or {})
 				self.attributes[name] = value
@@ -481,6 +482,10 @@ do
 	ProfessionsFrame:Show()
 	ns.UI.Show("queue")
 end
+
+-- The window title: the logo, then the full name on two lines, with the tabs placed after it.
+check("title shows the full name", ns.UI.main.titleText.text, "Crafting and Farming\nForever")
+check("title logo is the add-on's texture", ns.UI.main.logo.texture, "Interface\\AddOns\\CraftingAndFarmingForever\\Media\\Logo")
 
 -- Totals: 2 shirts sell for 1000 each less 5%; each costs 3 bolts at 20 (crafted) + thread 10 = 70.
 check("queue total profit", ns.totals.net, 2 * (950 - 70))

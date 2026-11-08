@@ -6,7 +6,7 @@
 ## Dependencies: Auctionator
 ## OptionalDeps: Syndicator
 ## SavedVariables: CraftingAndFarmingForeverDB
-## IconTexture: Interface\Icons\INV_Misc_Note_05
+## IconTexture: Interface\AddOns\CraftingAndFarmingForever\Media\Logo
 ## Category: Professions
 
 Core.lua
