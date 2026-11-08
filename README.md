@@ -14,6 +14,20 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Sales:** what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours.
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set.
 
+## Screenshots
+
+**Profit**: every known recipe ranked by profit, with each item's chance of selling.
+
+![Profit tab](docs/images/profit.png)
+
+**Queue**: the shared queue with its sub-crafts, profit and quotes.
+
+![Queue tab](docs/images/queue.png)
+
+**Restock beside the queue**: goals on the left; on the right, the queue in Farm It mode, with where to mine and skin what's missing.
+
+![Restock tab with the queue beside it](docs/images/restock-and-queue.png)
+
 ## Requirements
 
 | Add-on | |
