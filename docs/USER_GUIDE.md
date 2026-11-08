@@ -4,7 +4,9 @@ Crafting and Farming Forever is one window with four tabs (**Profit**, **Queue**
 
 The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. `/cff auto` turns opening with the profession window off or on.
 
-Hover any row with an item icon to see the game's item tooltip followed by the add-on's own details.
+Hover any row with an item icon to see the game's item tooltip followed by the add-on's own details. Hover a row of column headings to see what each column means.
+
+**Refresh** at the top re-reads recipes, item data, Auctionator's prices and your stock, and redraws everything; at the auction house it also re-reads your auctions. It doesn't scan the auction house.
 
 ## Before you start
 
@@ -19,6 +21,7 @@ Every known recipe, ranked by profit per craft:
 > profit = sale price after the 5% auction house cut − cost of materials by the cheapest path
 
 - **Profession tabs** on the left: **All**, plus every profession any of your characters has. The tab follows whichever profession you open, until you click a tab yourself.
+- **Columns:** **Sells** is the chance one sells within 24 hours, from your sales history: white is likely, orange under 50%, red under 20%, grey with `~` a rough guess from fewer than 5 units. **Profit** is per craft.
 - **Search** box in the footer: matches the item or recipe name, within the selected tab. If a tab has no matches, it tells you how many the All tab has. Escape clears it.
 - **+** queues one craft; **Shift + +** queues ten. **Right-click +** (or Ctrl-click) opens a box to type how many crafts to queue.
 - **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
@@ -39,9 +42,11 @@ Materials you already hold count as free when it decides whether crafting a mate
 One queue shared by all your characters.
 
 - **Adding:** **+** on the Profit tab, or **Queue** on a recipe's page (under the favourite star), which queues the number in the craft-count box.
-- **Columns:** **Materials** and **Profit** are for the whole entry, every queued craft. **Crafts** is the number queued.
+- **Columns:** **Materials** and **Profit** are for the whole entry, every queued craft. **Crafts** is the number queued. When another character has to craft an entry, their name follows the recipe in blue.
 - **Changing:** type the number of crafts in the row's box and press Enter (0 removes the entry), or use **-** and **+** (Shift for 10; Shift **-** stops at one). The red cross at the end of the row removes the entry.
 - **Clear** empties the queue after asking. `/cff clear` empties it without asking.
+- **Losing entries** (ones that would now sell for less than their materials) are shaded red. **Remove losing (N)** appears when there are any, and removes them after asking.
+- **Buy It** / **Farm It** picks how materials are planned. The lit one is the current mode; see [Farm It](#farm-it).
 - **Sub-crafts** (smelting bars for a recipe, say) aren't stored in the queue. They're worked out from it each time and shrink as your stock grows.
 - **Craft Next** crafts the next thing this character can make now. If it can't, it says why: the next craft is on another character, or you need to open a profession.
 - **Total profit**: sale prices after the auction house cut, minus materials at market price. Bind-on-pickup crafts show their cost and aren't counted.
@@ -68,13 +73,13 @@ Guild bank, warband bank, mail and your own auctions don't count as stock. Quant
 
 ## Farm It
 
-**Farm It** on the Queue tab turns the plan into what to gather yourself, and swaps the window for a small list you can leave on screen while you play:
+**Farm It** at the top of the Queue tab turns the plan into what to gather yourself, and swaps the window for a small list you can leave on screen while you play:
 
 - **Mine**, **Pick herbs**, **Skin creatures**, **Fish**: which veins, herbs or creatures, and in which zones.
 - **Kill for drops**: which creatures drop it.
 - **Disenchant**, and **Other sources** for anything else.
 
-Your current zone comes first. Hover a row to see everything known about where the item comes from. The list counts down as you gather. **Back** returns to the window, and the button then reads **Buy It**. The Auctionator list is the same in both modes.
+Your current zone comes first. Hover a row to see everything known about where the item comes from. The list counts down as you gather. Close it (×) when you're done: that ends farm mode, and the queue comes back the next time you open a profession, or with `/cff`. **Buy It** on the Queue tab also ends farm mode. The Auctionator list is the same in both modes.
 
 ## Restock
 

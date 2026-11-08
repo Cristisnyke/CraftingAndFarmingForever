@@ -761,12 +761,13 @@ check("second profession tab", tabs[3].professionID, 197)
 check("unused tab hidden", tabs[4]:IsShown(), false)
 ns.UI.SelectProfession("profit", 186)
 local list = ns.UI.windows.profit.list
-check("tab filters to its profession", #list, 1)
-check("tab shows its item", list[1].result.recipeID, 500)
+check("tab filters to its profession, under the column headings", #list, 2)
+check("column headings first", list[1].columns, "profit")
+check("tab shows its item", list[2].result.recipeID, 500)
 tabs[1].scripts.OnClick(tabs[1])
-check("All tab shows everything", #ns.UI.windows.profit.list > 1, true)
+check("All tab shows everything", #ns.UI.windows.profit.list > 2, true)
 Fire("TRADE_SKILL_LIST_UPDATE")
-check("clicked tab stays selected", #ns.UI.windows.profit.list > 1, true)
+check("clicked tab stays selected", #ns.UI.windows.profit.list > 2, true)
 
 -- Profit search: the real box fires OnTextChanged on any text change, including its own SetText.
 do
@@ -776,30 +777,31 @@ do
 		box:SetText(text)
 		box.scripts.OnTextChanged(box)
 	end
-	local everything = #window.list
+	local function Shown() return math.max(0, #window.list - 1) end -- less the column headings
+	local everything = Shown()
 	window.offset = 5
 	Search("  BRONZE b ")
-	check("search ignores case and outer spaces", #window.list, 1)
-	check("search finds the item", window.list[1].result.recipeID, 500)
+	check("search ignores case and outer spaces", Shown(), 1)
+	check("search finds the item", window.list[2].result.recipeID, 500)
 	check("search scrolls back to the top", window.offset, 0)
 	Search("no such recipe at all")
-	check("search can find nothing", #window.list, 0)
+	check("search can find nothing", Shown(), 0)
 	Search("[")
-	check("search text is not a pattern", #window.list, 0)
+	check("search text is not a pattern", Shown(), 0)
 	ns.UI.SelectProfession("profit", 197)
 	Search("bronze")
-	check("search stays within the tab", #window.list, 0)
+	check("search stays within the tab", Shown(), 0)
 	check("empty tab points to the All tab", window.status.text, "No matches on this tab, 1 on the All tab.")
 	ns.UI.SelectProfession("profit", 186)
-	check("search survives a tab change", #window.list, 1)
+	check("search survives a tab change", Shown(), 1)
 	check("search reports its matches", window.status.text, "1 recipe matches your search.")
 	ns.InvalidateProfit()
-	check("search survives a price refresh", #window.list, 1)
+	check("search survives a price refresh", Shown(), 1)
 	ns.UI.SelectProfession("profit", nil)
 	box.scripts.OnEscapePressed(box)
 	box.scripts.OnTextChanged(box)
 	check("escape empties the box", box:GetText(), "")
-	check("clearing shows everything again", #window.list, everything)
+	check("clearing shows everything again", Shown(), everything)
 end
 
 -- Restock on one tab leaves the other profession's restock entries alone.
@@ -836,7 +838,7 @@ do
 	for _, row in ipairs(ns.UI.windows.profit.rows) do
 		if row.data and row.data.result and row.data.result.recipeID == 30 then profitRow = row end
 	end
-	check("profit row shows craft cost", profitRow.right.text, "craft cost " .. ns.Money(cost))
+	check("profit row shows craft cost", profitRow.profit.text, "|cff999999cost |r" .. ns.Money(cost))
 	profitRow.plus.scripts.OnClick(profitRow.plus)
 	RunTimers()
 	check("plus queues a bind-on-pickup craft", ns.db.queue[1].recipeID, 30)
@@ -1020,7 +1022,7 @@ ns.UI.Show("profit")
 hovered, withItem = HoverIconRows("profit")
 check("profit rows hovered", hovered > 0, true)
 check("profit rows show the item tooltip", withItem, hovered)
-ns.Queue.Add(ns.UI.windows.profit.rows[1].data.result.recipeID, 1)
+ns.Queue.Add(ns.UI.windows.profit.rows[2].data.result.recipeID, 1)
 RunTimers()
 ns.UI.Show("queue")
 hovered, withItem = HoverIconRows("queue")
@@ -1254,7 +1256,12 @@ do
 	ns.UI.Show("queue")
 	local buyList = ns.plan.buy[1]
 	check("farm mode starts off", ns.ActivePlan(), ns.plan)
-	ns.ToggleFarmMode()
+	local modeButtons = ns.UI.windows.queue.modeButtons
+	check("Buy It lit while buying", modeButtons[1].text, "|cffffffffBuy It|r")
+	check("Farm It not lit while buying", modeButtons[2].text, "Farm It")
+	modeButtons[1].scripts.OnClick(modeButtons[1])
+	check("pressing the lit mode changes nothing", ns.ActivePlan(), ns.plan)
+	modeButtons[2].scripts.OnClick(modeButtons[2])
 	check("toggle uses the farm plan", ns.ActivePlan(), ns.farmPlan)
 	check("toggle keeps the buy plan", ns.plan.buy[1], buyList)
 	check("farm plan buys nothing at AH", next(ns.farmPlan.buy), nil)
@@ -1277,12 +1284,15 @@ do
 	-- The profession window can bring the full Queue back while farming, for Craft Next.
 	ns.UI.Show("queue")
 	check("full list also follows the farm plan", #Rows("queue", "how"), count)
+	check("Farm It lit while farming", modeButtons[2].text, "|cffffffffFarm It|r")
+	modeButtons[2].scripts.OnClick(modeButtons[2])
+	check("pressing the lit Farm It changes nothing", ns.ActivePlan(), ns.farmPlan)
 	ns.UI.Hide()
 
-	ns.ToggleFarmMode()
-	check("Back returns to buying", ns.ActivePlan(), ns.plan)
-	check("Back closes the small list", farm.frame:IsShown(), false)
-	check("Back reopens the Queue", queue.frame:IsVisible(), true)
+	modeButtons[1].scripts.OnClick(modeButtons[1])
+	check("Buy It returns to buying", ns.ActivePlan(), ns.plan)
+	check("Buy It closes the small list", farm.frame:IsShown(), false)
+	check("Buy It reopens the Queue", queue.frame:IsVisible(), true)
 	check("how rows gone when buying", #Rows("queue", "how"), 0)
 
 	ns.ToggleFarmMode()
@@ -1649,6 +1659,60 @@ do
 	ns.db.restock.goals = {}
 	ns.db.sales.lots = {}
 end
+
+-- Queue rows: losing entries shaded and removable in one go (after asking), the crafter shown when it's an alt,
+-- and a hint when the queue is empty.
+do
+	ns.Queue.Clear()
+	ns.Queue.Add(20, 2)
+	RunTimers()
+	ns.UI.Show("queue")
+	local queue = ns.UI.windows.queue
+	local function EntryRow(recipeID)
+		for _, row in ipairs(queue.rows) do
+			if row.data and row.data.kind == "queue" and row.data.entry.recipeID == recipeID then return row end
+		end
+	end
+	check("profitable entry not shaded", EntryRow(20).tint:IsShown(), false)
+	check("no remove-losing button without losers", queue.removeLosingButton:IsShown(), false)
+
+	local salePrice = prices[4]
+	prices[4] = 1
+	ns.RefreshEverything()
+	RunTimers()
+	check("losing entry shaded", EntryRow(20).tint:IsShown(), true)
+	check("remove-losing button shown", queue.removeLosingButton:IsShown(), true)
+	check("remove-losing button counts", queue.removeLosingButton:GetText(), "Remove losing (1)")
+	ns_popup = nil
+	queue.removeLosingButton.scripts.OnClick(queue.removeLosingButton)
+	check("remove losing asks first", ns_popup, "CFF_REMOVE_LOSING")
+	check("nothing removed before yes", #ns.db.queue, 1)
+	StaticPopupDialogs.CFF_REMOVE_LOSING.OnAccept()
+	check("losing entry removed", #ns.db.queue, 0)
+	prices[4] = salePrice
+	ns.RefreshEverything()
+	RunTimers()
+
+	check("empty queue says so", queue.list[1].text, "The queue is empty.")
+	check("empty queue says how to add", queue.list[2].text:find("Profit tab", 1, true) ~= nil, true)
+
+	ns.db.recipes[500] = { n = "Bronze Bar", o = 2, qmin = 1, qmax = 1, p = 186, pn = "Mining", r = { { 1, 1 } } }
+	ns.db.chars["Player-2-ALT"] = { name = "Alt", class = "Mage", recipes = { [500] = true } }
+	ns.Queue.Add(500, 1)
+	ns.Queue.Add(20, 1)
+	RunTimers()
+	check("alt's craft names the alt", EntryRow(500).left.text:find("Alt", 1, true) ~= nil, true)
+	check("own craft names no one", EntryRow(20).left.text:find("Snic", 1, true), nil)
+	ns.Queue.Clear()
+	ns.db.chars["Player-2-ALT"] = nil
+	ns.db.recipes[500] = nil
+	RunTimers()
+end
+
+-- Plurals.
+check("plural of one", ns.Plural(1, "entry", "entries"), "1 entry")
+check("plural of many", ns.Plural(3, "entry", "entries"), "3 entries")
+check("plural of none", ns.Plural(0, "item", "items"), "0 items")
 
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

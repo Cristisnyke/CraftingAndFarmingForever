@@ -119,6 +119,7 @@ local function BuildProfitList()
 			table.insert(list, { kind = "profit", result = result })
 		end
 	end
+	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Recipe", columns = "profit" }) end
 	return list
 end
 
@@ -210,7 +211,7 @@ local function BuildFarmList()
 	table.sort(names)
 	for _, name in ipairs(names) do AddItems(plan.fetch[name], "Get from " .. name) end
 	if #list == 0 then
-		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Press Back to craft." or "The queue is empty." })
+		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Close this list to craft." or "The queue is empty." })
 	end
 	return list
 end
@@ -221,7 +222,7 @@ local function BuildQueueList()
 	local plan = ns.ActivePlan()
 	if #ns.db.queue > 0 then
 		local ctx = ns.NewContext()
-		table.insert(list, { kind = "header", text = "Queue", columns = true })
+		table.insert(list, { kind = "header", text = "Queue", columns = "queue" })
 		for index, entry in ipairs(ns.db.queue) do
 			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
 			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
@@ -248,6 +249,10 @@ local function BuildQueueList()
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
 	for _, name in ipairs(names) do AddItemRows(list, "Get from " .. name, plan.fetch[name]) end
+	if #list == 0 then
+		table.insert(list, { kind = "note", text = "The queue is empty." })
+		table.insert(list, { kind = "note", text = "Press + on the Profit tab, or Queue on a recipe's page (under the favourite star)." })
+	end
 	return list
 end
 
@@ -287,7 +292,7 @@ local function ChanceText(name)
 	if not chance then return "" end
 	local percent = ("%d%%"):format(math.floor(chance * 100 + 0.5))
 	if samples < ns.Sales.CONFIDENT_SAMPLES then return Color(COLOR_MUTED, "~" .. percent) end
-	if chance >= 0.5 then return Color(COLOR_PROFIT, percent) end
+	if chance >= 0.5 then return Color("ffffffff", percent) end
 	if chance >= 0.2 then return Color("ffffb040", percent) end
 	return Color(COLOR_LOSS, percent)
 end
@@ -303,7 +308,8 @@ local function AddSalesLines(name)
 	local chance, samples = ns.Sales.Chance(name)
 	if chance then
 		GameTooltip:AddDoubleLine("Chance to sell in 24 hours", ChanceText(name), 1, 0.82, 0)
-		GameTooltip:AddLine(("Based on %d unit(s). More data makes this more accurate."):format(samples), 0.6, 0.6, 0.6, true)
+		GameTooltip:AddLine(("Based on %s. More data makes this more accurate."):format(ns.Plural(samples, "unit", "units")),
+			0.6, 0.6, 0.6, true)
 	end
 	GameTooltip:AddDoubleLine(" ", "sold / expired", 1, 1, 1, 0.6, 0.6, 0.6)
 	for _, period in ipairs({ { "Today", 1 }, { "Last 7 days", 7 }, { "Last 30 days", 30 }, { "All time", nil } }) do
@@ -358,7 +364,7 @@ local function ShowProfitTooltip(row, result)
 			GameTooltip:AddDoubleLine("Profit after 5% AH cut", ns.Money(result.net), 1, 1, 1, 1, 1, 1)
 		end
 		local age = ns.Prices.ItemAgeDays(result.itemID)
-		if age and age > 0 then GameTooltip:AddLine(("Last seen on the AH %d day(s) ago."):format(age), 1, 0.6, 0.2) end
+		if age and age > 0 then GameTooltip:AddLine(("Last seen on the AH %s ago."):format(ns.Plural(age, "day", "days")), 1, 0.6, 0.2) end
 	end
 	local crafters = {}
 	for key in pairs(ns.db.chars) do
@@ -372,10 +378,28 @@ local function ShowProfitTooltip(row, result)
 	GameTooltip:Show()
 end
 
+local COLUMN_TIPS = {
+	profit = {
+		"Sells: the chance one sells within 24 hours, from your sales history. Grey with ~ is a rough guess from under "
+			.. "5 units; orange is under 50%, red under 20%.",
+		"Profit: for one craft, after the 5% auction house cut, with materials by the cheapest path.",
+	},
+	queue = {
+		"Materials: what every queued craft's materials cost at market prices.",
+		"Profit: sale after the 5% auction house cut, minus those materials, for the whole entry.",
+		"Crafts: how many are queued. Type a number in the box, or use - and +.",
+	},
+}
+
 local function RowOnEnter(row)
 	local data = row.data
 	if not data then return end
-	if data.kind == "profit" then
+	if data.kind == "header" and COLUMN_TIPS[data.columns] then
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetText("Columns")
+		for _, line in ipairs(COLUMN_TIPS[data.columns]) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+		GameTooltip:Show()
+	elseif data.kind == "profit" then
 		ShowProfitTooltip(row, data.result)
 	elseif data.kind == "how" or data.farm then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
@@ -396,7 +420,7 @@ local function RowOnEnter(row)
 				GameTooltip:AddDoubleLine("Profit assumes each costs", ns.Money(data.price), 1, 1, 1, 1, 1, 1)
 				local age = ns.Prices.ItemAgeDays(data.itemID)
 				if age and age > 0 then
-					GameTooltip:AddLine(("That price is %d day(s) old."):format(age), 1, 0.6, 0.2)
+					GameTooltip:AddLine(("That price is %s old."):format(ns.Plural(age, "day", "days")), 1, 0.6, 0.2)
 				end
 				if ns.totals.counted > 0 and ns.totals.net > 0 then
 					GameTooltip:AddDoubleLine("Queue profit gone at", ns.Money(data.price + ns.totals.net / data.count), 1, 1, 1, 1, 0.6, 0.2)
@@ -477,6 +501,8 @@ local function SmallButton(parent, text, onClick)
 end
 
 local QUEUE_COLUMN_WIDTH = 80
+local PROFIT_COLUMN_WIDTH = 110 -- fits "cost 12g 34s 56c" for bind-on-pickup crafts
+local CHANCE_COLUMN_WIDTH = 44
 
 -- Tooltips for + and -, by the kind of row they're on: title, then the help line.
 local PLUS_TIPS = {
@@ -573,7 +599,13 @@ local function PlaceRight(row, controls, show)
 	row.right:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
 end
 
+local function ProfitControls(row)
+	row.profit:SetWidth(PROFIT_COLUMN_WIDTH)
+	return { { row.plus, 2 }, { row.profit, 6 }, { row.chance, 6 } }
+end
+
 local function QueueControls(row)
+	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
 	return {
 		{ row.remove, 4 }, { row.quote, 8 }, { row.plus, 6 }, { row.amount, 6 }, { row.minus, 8 },
 		{ row.profit, 8 }, { row.cost, 4 },
@@ -739,10 +771,16 @@ local function CreateRow(parent)
 	end)
 	row.remove:SetScript("OnLeave", GameTooltip_Hide)
 
-	-- The queue's columns: materials and profit for the whole entry.
-	for _, key in ipairs({ "cost", "profit" }) do
+	-- Behind a queue entry that would lose money.
+	row.tint = row:CreateTexture(nil, "BACKGROUND")
+	row.tint:SetAllPoints()
+	row.tint:SetColorTexture(0.8, 0.1, 0.1, 0.18)
+	row.tint:Hide()
+
+	-- Columns: the queue's materials and profit for the whole entry, the Profit tab's sell chance and profit.
+	for _, key in ipairs({ "cost", "profit", "chance" }) do
 		row[key] = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		row[key]:SetWidth(QUEUE_COLUMN_WIDTH)
+		row[key]:SetWidth(key == "chance" and CHANCE_COLUMN_WIDTH or QUEUE_COLUMN_WIDTH)
 		row[key]:SetJustifyH("RIGHT")
 		row[key]:SetWordWrap(false)
 	end
@@ -789,6 +827,8 @@ local function SetRow(row, data)
 	row.quote:Hide()
 	row.cost:Hide()
 	row.profit:Hide()
+	row.chance:Hide()
+	row.tint:Hide()
 	row.amountLabel:Hide()
 	-- Left alone on rows that keep it, so a redraw doesn't take the focus from someone typing in it.
 	if data.kind ~= "queue" and data.kind ~= "restock" then row.amount:Hide() end
@@ -801,7 +841,13 @@ local function SetRow(row, data)
 	if data.kind == "header" then
 		row.icon:Hide()
 		row.left:SetText(Color("ffffd100", data.text))
-		if data.columns then
+		if data.columns == "profit" then
+			PlaceRight(row, ProfitControls(row), false)
+			row.chance:SetText(Color("ffffd100", "Sells"))
+			row.profit:SetText(Color("ffffd100", "Profit"))
+			row.chance:Show()
+			row.profit:Show()
+		elseif data.columns == "queue" then
 			PlaceRight(row, QueueControls(row), false)
 			row.cost:SetText(Color("ffffd100", "Materials"))
 			row.profit:SetText(Color("ffffd100", "Profit"))
@@ -814,15 +860,14 @@ local function SetRow(row, data)
 		local result = data.result
 		row.icon:SetTexture(ns.Items.Icon(result.itemID))
 		row.left:SetText(ItemLabel(result.itemID))
-		PlaceRight(row, { { row.plus, 2 } }, true)
+		PlaceRight(row, ProfitControls(row), true)
 		if result.bound then
-			row.right:SetText(result.cost and ("craft cost " .. ns.Money(result.cost)) or Color(COLOR_MUTED, "no price"))
+			row.profit:SetText(result.cost and (Color(COLOR_MUTED, "cost ") .. ns.Money(result.cost)) or Color(COLOR_MUTED, "no price"))
 		elseif result.net then
-			local chance = ChanceText(ns.Items.Name(result.itemID))
-			row.right:SetText((chance ~= "" and (chance .. "   ") or "")
-				.. Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
+			row.chance:SetText(ChanceText(ns.Items.Name(result.itemID)))
+			row.profit:SetText(Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
 		else
-			row.right:SetText(Color(COLOR_MUTED, "no data"))
+			row.profit:SetText(Color(COLOR_MUTED, "no data"))
 		end
 	elseif data.kind == "queue" then
 		local entry = data.entry
@@ -831,7 +876,10 @@ local function SetRow(row, data)
 		local net = ns.totals.entries[data.index]
 		local boundCost = ns.totals.boundEntries[data.index]
 		local change = not boundCost and recipe and recipe.o and PriceChangeText(recipe.o, false)
-		row.left:SetText(RecipeName(entry.recipeID)
+		-- Who crafts it, when that isn't the character you're on.
+		local crafter = ns.Recipes.Crafter(entry.recipeID, entry.char)
+		local onAlt = crafter ~= ns.CharKey() and Color("ff99ccff", "  " .. ns.CharLabel(crafter)) or ""
+		row.left:SetText(RecipeName(entry.recipeID) .. onAlt
 			.. (entry.restock and Color(COLOR_MUTED, " restock") or "")
 			.. (change and ("   " .. Color(COLOR_MUTED, "sells ") .. change) or ""))
 		PlaceRight(row, QueueControls(row), true)
@@ -839,6 +887,7 @@ local function SetRow(row, data)
 		-- Both columns are for the whole entry, every queued craft.
 		local cost = boundCost or (data.matCost and data.matCost * entry.qty)
 		row.cost:SetText(cost and ns.Money(cost) or Color(COLOR_MUTED, "?"))
+		row.tint:SetShown(net ~= nil and net < 0 and not boundCost)
 		row.profit:SetText(boundCost and Color(COLOR_MUTED, "can't sell")
 			or net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net))
 			or Color(COLOR_MUTED, "no price"))
@@ -1192,12 +1241,13 @@ function CreateProfitPane()
 		advertise:SetEnabled(canAdvertise)
 		local professionName = professionID and ns.Recipes.ProfessionName(professionID)
 		advertise:SetText(canAdvertise and professionName and ("Advertise " .. professionName) or "Advertise")
+		local shown = math.max(0, #self.list - 1) -- less the column headings
 		if profitSearch ~= "" then
-			status:SetText(ProfitSearchStatus(#self.list))
-		elseif #self.list == 0 then
+			status:SetText(ProfitSearchStatus(shown))
+		elseif shown == 0 then
 			status:SetText("Open a profession to record its recipes.")
 		else
-			status:SetText(#self.list .. " recipes known across your characters.")
+			status:SetText(ns.Plural(shown, "recipe", "recipes") .. " known across your characters.")
 		end
 	end
 end
@@ -1263,8 +1313,47 @@ function CreateQueuePane()
 	end)
 	clear:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
 
-	local farmButton = HeaderButton(window.frame, "Farm It", 70, function() ns.ToggleFarmMode() end)
-	farmButton:SetPoint("LEFT", clear, "RIGHT", 4, 0)
+	-- Buy It and Farm It side by side, the current mode lit, so the button shows where you are, not where you'd go.
+	local modes = {}
+	for index, mode in ipairs({
+		{ farm = false, label = "Buy It", tip = "Plan to buy materials at the auction house and from vendors." },
+		{ farm = true, label = "Farm It", tip = "Plan to gather materials yourself. Swaps this window for a small list "
+			.. "of what to gather and where, to keep on screen while you play." },
+	}) do
+		local button = HeaderButton(window.frame, mode.label, 62, function()
+			if (ns.db.ui.farmMode and true or false) ~= mode.farm then ns.ToggleFarmMode() end
+		end)
+		button:SetPoint("LEFT", index == 1 and clear or modes[1], "RIGHT", index == 1 and 12 or 0, 0)
+		button:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			GameTooltip:SetText(mode.label)
+			GameTooltip:AddLine(mode.tip, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		button:SetScript("OnLeave", GameTooltip_Hide)
+		button.mode = mode
+		modes[index] = button
+	end
+	window.modeButtons = modes
+
+	local removeLosing = HeaderButton(window.frame, "Remove losing", 124, function()
+		local losing = 0
+		for _, net in pairs(ns.totals.entries) do
+			if net < 0 then losing = losing + 1 end
+		end
+		if losing > 0 then StaticPopup_Show("CFF_REMOVE_LOSING", ns.Plural(losing, "entry", "entries")) end
+	end)
+	-- In the footer beside the note about losing entries: the top row's right side belongs to the stale-price banner.
+	removeLosing:SetPoint("BOTTOMRIGHT", -10, 41)
+	removeLosing:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Remove losing entries")
+		GameTooltip:AddLine("Removes the queue entries shaded red: at current prices they'd sell for less than "
+			.. "their materials cost. Asks first.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	removeLosing:SetScript("OnLeave", GameTooltip_Hide)
+	window.removeLosingButton = removeLosing
 
 	local craftButton = HeaderButton(window.frame, "Craft Next", 100, function() ns.Queue.CraftNext() end)
 	craftButton:SetHeight(26)
@@ -1314,8 +1403,12 @@ function CreateQueuePane()
 		margin:Sync()
 		clear:SetEnabled(#ns.db.queue > 0)
 		local totals = ns.totals
-		local farming = ns.db.ui.farmMode
-		farmButton:SetText(farming and "Buy It" or "Farm It")
+		local farming = ns.db.ui.farmMode and true or false
+		for _, button in ipairs(modes) do
+			local on = button.mode.farm == farming
+			button:SetText(on and ("|cffffffff" .. button.mode.label .. "|r") or button.mode.label)
+			if on then button:LockHighlight() else button:UnlockHighlight() end
+		end
 		if farming and totals.counted > 0 then
 			-- Farmed materials cost no gold, so this is what the batch leaves in your pocket.
 			local keeps = totals.revenue - ns.farmPlan.cost
@@ -1353,16 +1446,24 @@ function CreateQueuePane()
 		for _, net in pairs(totals.entries) do
 			if net < 0 then losing = losing + 1 end
 		end
-		if losing > 0 then table.insert(notes, losing .. " queued item(s) would now lose money.") end
+		removeLosing:SetShown(losing > 0)
+		status:SetPoint("BOTTOMRIGHT", losing > 0 and -140 or -12, 40)
+		removeLosing:SetText(("Remove losing (%d)"):format(losing))
+		if losing > 0 then
+			table.insert(notes, losing == 1 and "1 entry would now lose money (shaded red)."
+				or (losing .. " entries would now lose money (shaded red)."))
+		end
 		if totals.excluded > 0 and (totals.counted > 0 or totals.bound > 0) then
-			table.insert(notes, totals.excluded .. " queued recipe(s) have no price and aren't in the total.")
+			table.insert(notes, totals.excluded == 1 and "1 queued recipe has no price and isn't in the total."
+				or (totals.excluded .. " queued recipes have no price and aren't in the total."))
 		end
 		if totals.bound > 0 and totals.counted > 0 then
-			table.insert(notes, ("%d bind-on-pickup craft(s) cost %s and aren't in the profit."):format(totals.bound, ns.Money(totals.boundCost)))
+			table.insert(notes, (totals.bound == 1 and "1 bind-on-pickup craft costs %s and isn't in the profit."
+				or (totals.bound .. " bind-on-pickup crafts cost %s and aren't in the profit.")):format(ns.Money(totals.boundCost)))
 		end
 		local shopping = ns.Shopping.status
 		if shopping.error then table.insert(notes, "List update failed. See /cff diag.") end
-		if shopping.loading > 0 then table.insert(notes, shopping.loading .. " item name(s) loading.") end
+		if shopping.loading > 0 then table.insert(notes, ns.Plural(shopping.loading, "item name", "item names") .. " loading.") end
 		if not ns.Stock.HasSyndicator() then table.insert(notes, "Syndicator not active: alts not counted.") end
 		status:SetText(table.concat(notes, " "))
 	end
@@ -1382,7 +1483,8 @@ local function CreateFarmWindow()
 	titleText:SetPoint("TOPLEFT", 12, -10)
 	titleText:SetText("Farm")
 
-	-- Closing it is leaving farm mode too, or Craft Next would keep following a list you can't see.
+	-- The only way out, so there's one button, not two. Closing it is leaving farm mode too, or Craft Next would keep
+	-- following a list you can't see. The queue comes back with the profession window, or /cff.
 	window.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
 	window.close:SetPoint("TOPRIGHT", 0, 0)
 	window.close:SetScript("OnClick", function()
@@ -1391,9 +1493,6 @@ local function CreateFarmWindow()
 		UI.RefreshQueue()
 	end)
 
-	local back = HeaderButton(frame, "Back", 56, function() ns.ToggleFarmMode() end)
-	back:SetHeight(20)
-	back:SetPoint("RIGHT", window.close, "LEFT", -2, 0)
 
 	CreateListArea(window, frame, 10, MINI_TOP, 6, MINI_ROW_HEIGHT)
 	for _, row in ipairs(window.rows) do row.icon:SetSize(14, 14) end
@@ -1456,7 +1555,7 @@ function CreateRestockPane()
 		local rows = {}
 		for _, data in ipairs(window.list) do table.insert(rows, data.row) end
 		local added = ns.Restock.Apply(rows, selectedProfession.restock)
-		ns.Print(("Restock: %d item(s) added to the queue."):format(added))
+		ns.Print(("Restock: %s added to the queue."):format(ns.Plural(added, "item", "items")))
 		UI.Show("queue")
 	end)
 	apply:SetHeight(26)
@@ -1486,9 +1585,12 @@ function CreateRestockPane()
 			return
 		end
 		apply:SetEnabled(needed > 0)
-		apply:SetText(needed > 0 and ("Queue restock: %d item(s)"):format(needed) or "Fully stocked")
+		apply:SetText(needed > 0 and ("Queue restock: %s"):format(ns.Plural(needed, "item", "items")) or "Fully stocked")
 		local notes = { "AH counts update when you visit the auction house." }
-		if toPost > 0 then table.insert(notes, 1, toPost .. " item(s) you hold are ready to post, from the auction house's Restocking tab.") end
+		if toPost > 0 then
+			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))
+				.. " ready to post, from the auction house's Restocking tab.")
+		end
 		if #self.list == 0 then notes = { "No profitable items yet. Open your professions and scan the AH." } end
 		status:SetText(table.concat(notes, " "))
 	end
@@ -1640,6 +1742,16 @@ local function CreateMain()
 	local refresh = HeaderButton(frame, "Refresh", 70, function() ns.RefreshEverything() end)
 	refresh:SetHeight(20)
 	refresh:SetPoint("RIGHT", close, "LEFT", -2, 0)
+	refresh:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+		GameTooltip:SetText("Refresh")
+		GameTooltip:AddLine("Re-reads your recipes, item data, prices from Auctionator and stock, then redraws "
+			.. "everything. At the auction house it also re-reads your auctions.", 1, 1, 1, true)
+		GameTooltip:AddLine("It doesn't scan the auction house. Scan with Auctionator, or with Scan now when prices "
+			.. "are old.", 0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	end)
+	refresh:SetScript("OnLeave", GameTooltip_Hide)
 
 	local rule = frame:CreateTexture(nil, "ARTWORK")
 	rule:SetColorTexture(0.5, 0.5, 0.5, 0.5)
@@ -1721,7 +1833,7 @@ function UI.ToggleMain()
 	end
 end
 
--- Farm It swaps the main window for the small list, and Back swaps them again.
+-- Farm It swaps the main window for the small list, and Buy It swaps them again.
 function UI.FarmModeChanged()
 	if ns.db.ui.farmMode then
 		UI.Hide()
@@ -2135,6 +2247,19 @@ StaticPopupDialogs["CFF_CLEAR_QUEUE"] = {
 	button1 = YES,
 	button2 = NO,
 	OnAccept = function() ns.Queue.Clear() end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
+
+StaticPopupDialogs["CFF_REMOVE_LOSING"] = {
+	text = "Crafting and Farming Forever: remove %s that would lose money at current prices?",
+	button1 = YES,
+	button2 = NO,
+	OnAccept = function()
+		local removed = ns.Queue.RemoveLosing()
+		ns.Print(("Removed %s that would lose money."):format(ns.Plural(removed, "entry", "entries")))
+	end,
 	timeout = 0,
 	whileDead = true,
 	hideOnEscape = true,

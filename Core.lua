@@ -181,6 +181,11 @@ end
 -- Formatting
 ---------------------------------------------------------------------------
 
+-- "1 item", "2 items": the count with the right form of the word.
+function ns.Plural(count, one, many)
+	return ("%d %s"):format(count, count == 1 and one or many)
+end
+
 function ns.Money(copper)
 	if not copper then return "?" end
 	local sign = copper < 0 and "-" or ""

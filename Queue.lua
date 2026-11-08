@@ -139,6 +139,22 @@ function Queue.Set(index, qty)
 	ns.RequestPlan()
 end
 
+-- Removes every entry that would lose money at current prices. Worked out afresh, so it can't remove the wrong
+-- entries if the queue changed since the window last drew. Returns how many went.
+function Queue.RemoveLosing()
+	local totals = ns.Planner.QueueTotals(NewContext(), ns.db.queue, ns.Items.CanSellOnAH)
+	local removed = 0
+	for index = #ns.db.queue, 1, -1 do
+		local net = totals.entries[index]
+		if net and net < 0 then
+			table.remove(ns.db.queue, index)
+			removed = removed + 1
+		end
+	end
+	if removed > 0 then ns.RequestPlan() end
+	return removed
+end
+
 function Queue.Remove(index)
 	table.remove(ns.db.queue, index)
 	ns.RequestPlan()
