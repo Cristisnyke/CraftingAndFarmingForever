@@ -55,9 +55,15 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 
 ## Credits
 
-- Where materials come from (Farm It) is generated from [AllTheThings](https://github.com/ATTWoWAddon/AllTheThings) data, under its MIT License. The notice is in `Sources.lua`.
-- Vendor reagent seed prices come from CraftProfit by Vystery (MIT).
-- Prices and the shopping list come from Auctionator through its public API. No Auctionator code is included.
+Crafting and Farming Forever is built on other people's work. Thank you to:
+
+- **[Auctionator](https://www.curseforge.com/wow/addons/auctionator)** by plusmouse and Borjamacare. All prices, the price history and the shopping list come from Auctionator, and the Restocking tab sits in the auction house through its [LibAHTab](https://github.com/Auctionator/LibAHTab) library. Crafting and Farming Forever calls Auctionator's public API while the game runs. Auctionator is All Rights Reserved, and none of its code is included here.
+- **[Syndicator](https://www.curseforge.com/wow/addons/syndicator)** by plusmouse. What your alts hold in bags and banks, and what you have on the auction house, comes from Syndicator's public API. None of its code is included here.
+- **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team. Farm It's list of where each material comes from (`Sources.lua`) is generated from AllTheThings' data under its MIT License.
+
+See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the licenses.
+
+World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. This project isn't affiliated with or endorsed by Blizzard Entertainment.
 
 ## License
 

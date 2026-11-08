@@ -26,7 +26,7 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 ### Rules that keep it working
 
 - **Keep `Planner.lua` free of game APIs.** Anything that reads the client goes in `Data.lua`, so the planner can be tested on its own.
-- **Don't copy Auctionator code.** Its license is All Rights Reserved. Call its public API (`Auctionator.API.v1`) and `LibAHTab` through LibStub at runtime, and write everything else against the game's API.
+- **Don't copy Auctionator, Syndicator or CraftProfit code.** Their licenses are All Rights Reserved. Call the public APIs (`Auctionator.API.v1`, Syndicator's API) and `LibAHTab` through LibStub at runtime, and write everything else against the game's API.
 - **Item names load asynchronously.** Never show or send a name until the client has it, or you get question-mark items.
 - **Saved data can arrive after `ADDON_LOADED`.** Don't create `CraftingAndFarmingForeverDB` early. `Core.lua` adopts it when it appears and assigns it at logout.
 - **Characters are keyed by GUID,** because names aren't unique across linked realms.
@@ -96,4 +96,6 @@ Before making the repository public:
 
 - choose a license and add `LICENSE`;
 - check that the name isn't taken on CurseForge and Wago;
-- settle the AllTheThings licensing: it ships both an MIT `LICENSE` and an All Rights Reserved `LICENSE.txt`, and `Sources.lua` is derived from its data.
+- keep `THIRD-PARTY-NOTICES.md` and the README credits current when a dependency or data source changes.
+
+AllTheThings licensing was checked on 2026-11-08: its GitHub repository carries only the MIT `LICENSE`. The packaged add-on also has a `LICENSE.txt` reading "All Rights Reserved unless otherwise explicitly stated", and the MIT `LICENSE` is that explicit statement. The vendor seed prices in `Data.lua` were replaced on 2026-11-08 with prices seen at the game's merchants, because CraftProfit, their earlier source, changed from MIT to All Rights Reserved.

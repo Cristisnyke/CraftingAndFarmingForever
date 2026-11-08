@@ -94,15 +94,15 @@ local Prices = {}
 ns.Prices = Prices
 
 -- Well-known unlimited vendor reagents, so they count as vendor items before the first merchant visit. Learned
--- merchant prices from Auctionator take priority. Seed values from CraftProfit by Vystery (MIT).
+-- merchant prices from Auctionator take priority. Values are what Forever's merchants charged the author in game.
 local VENDOR_SEED = {
 	[2320] = 10, [2321] = 100, [4291] = 500, [8343] = 2000, [14341] = 5000,
-	[2324] = 25, [2604] = 50, [6260] = 50, [2605] = 100, [4340] = 100, [6261] = 250, [4341] = 500, [4342] = 2500,
+	[2324] = 25, [2604] = 50, [6260] = 50, [2605] = 100, [4340] = 350, [6261] = 1000, [4341] = 500, [4342] = 2500,
 	[2880] = 100, [3466] = 2000, [3857] = 500,
-	[3371] = 20, [3372] = 200, [8925] = 2000,
+	[3371] = 4, [3372] = 40,
 	[6217] = 124,
-	[2678] = 10, [2692] = 20, [3713] = 40, [159] = 25, [1179] = 125,
-	[4289] = 5, [4470] = 38,
+	[2678] = 2, [2692] = 40, [3713] = 160, [159] = 5, [1179] = 25,
+	[4289] = 50, [4470] = 38,
 }
 
 -- Auctionator's price, noting any change since we last looked. Everything that costs or sells goes through here, so
