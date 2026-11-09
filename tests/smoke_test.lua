@@ -1479,7 +1479,9 @@ do
 	check("no version seen shows only the newest", #sections, 1)
 	check("no version seen shows the installed one", sections[1].version, "1.2.0")
 	ns.CHANGELOG = saved
-	check("changelog has the toc's version", ns.CHANGELOG[1].version, tocVersion)
+	-- The newest notes are for the toc's version, or for the one about to be released (release.sh bumps the toc after
+	-- running these checks).
+	check("changelog is up to the toc's version", (W.Compare(ns.CHANGELOG[1].version, tocVersion) or -1) >= 0, true)
 end
 
 -- Source data and instructions, on real entries of the generated table.
