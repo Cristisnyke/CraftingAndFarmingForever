@@ -25,7 +25,7 @@ Every known recipe, ranked by profit per craft:
 
 - **Profession tabs** on the left: **All**, plus every profession any of your characters has. The tab follows whichever profession you open, until you click a tab yourself.
 - **Columns:** **Sells** is the chance one sells within 24 hours, from your sales history: white is likely, orange under 50%, red under 20%, grey with `~` a rough guess from fewer than 5 units. **Profit** is per craft.
-- **Sorting:** click **Recipe**, **Sells** or **Profit** in the headings to sort by it; click again to reverse. An arrow shows the current order. Recipes with no price or no sales data always go last. The order is remembered.
+- **Sorting:** the headings **Recipe**, **Sells** and **Profit** are buttons: click one to sort by it, click again to reverse. The sorted one is underlined with a bright arrow; the others show a faint arrow. Recipes with no price or no sales data always go last. The order is remembered.
 - **Hide losing recipes** (top left) hides recipes that would lose money at current prices. The footer says how many are hidden.
 - **Advertise**, under the profession tabs, advertises the selected profession (on the All tab, the open one). Hover it to see what it will post, or why it can't.
 - **Search** box in the footer: matches the item or recipe name, within the selected tab. If a tab has no matches, it tells you how many the All tab has. Escape clears it.

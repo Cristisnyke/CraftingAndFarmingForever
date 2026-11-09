@@ -548,23 +548,9 @@ local function RowOnEnter(row)
 	end
 end
 
--- Which profit heading the cursor is over: Sells, Profit, or else Recipe.
-local function ProfitHeadingAtCursor(row)
-	local x = GetCursorPosition() / (row:GetEffectiveScale() or 1)
-	local function Over(region)
-		local left, right = region:GetLeft(), region:GetRight()
-		return left and right and x >= left - 4 and x <= right + 4
-	end
-	if Over(row.profit) then return "profit" end
-	if Over(row.chance) then return "chance" end
-	return "name"
-end
-
 local function RowOnClick(row)
 	local data = row.data
-	if data and data.kind == "header" and data.columns == "profit" then
-		UI.SortProfit(ProfitHeadingAtCursor(row))
-	elseif data and data.kind == "post" then
+	if data and data.kind == "post" then
 		ns.Posting.Select(data.row.itemID)
 	elseif data and data.kind == "profit" and ns.Recipes.Knows(ns.CharKey(), data.result.recipeID)
 		and ns.Recipes.OpenRecipes()[data.result.recipeID] then
@@ -905,11 +891,52 @@ local function CreateRow(parent)
 	end)
 	row.reset:SetScript("OnLeave", GameTooltip_Hide)
 
-	-- On the Profit headings: which column the list is sorted by, and which way.
-	row.sortArrow = row:CreateTexture(nil, "OVERLAY")
-	row.sortArrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
-	row.sortArrow:SetSize(9, 10)
-	row.sortArrow:Hide()
+	-- The Profit headings are buttons, styled like the column headers of the game's own lists: a shaded box that lights
+	-- up under the mouse, and an arrow on every one (bright on the sorted column, faint on the others).
+	row.sortHeadings = {}
+	for _, key in ipairs({ "name", "chance", "profit" }) do
+		local heading = CreateFrame("Button", nil, row)
+		heading:SetHeight(ROW_HEIGHT - 4)
+		heading.key = key
+		local bg = heading:CreateTexture(nil, "BACKGROUND")
+		bg:SetAllPoints()
+		bg:SetColorTexture(1, 1, 1, 0.07)
+		local glow = heading:CreateTexture(nil, "HIGHLIGHT")
+		glow:SetAllPoints()
+		glow:SetColorTexture(1, 0.82, 0, 0.2)
+		heading.edge = heading:CreateTexture(nil, "ARTWORK")
+		heading.edge:SetColorTexture(1, 0.82, 0, 0.9)
+		heading.edge:SetHeight(1)
+		heading.edge:SetPoint("BOTTOMLEFT")
+		heading.edge:SetPoint("BOTTOMRIGHT")
+		heading.arrow = heading:CreateTexture(nil, "OVERLAY")
+		heading.arrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
+		heading.arrow:SetSize(9, 10)
+		heading.label = heading:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		if key == "name" then
+			heading.label:SetPoint("LEFT", 5, 0)
+			heading.arrow:SetPoint("LEFT", heading.label, "RIGHT", 4, 0)
+		else
+			heading.label:SetPoint("RIGHT", -4, 0)
+			heading.arrow:SetPoint("RIGHT", heading.label, "LEFT", -3, 0)
+		end
+		heading:SetScript("OnClick", function(self) UI.SortProfit(self.key) end)
+		heading:SetScript("OnEnter", function(self)
+			self.label:SetTextColor(1, 1, 1)
+			self.arrow:SetAlpha(1)
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			GameTooltip:SetText("Columns")
+			for _, line in ipairs(COLUMN_TIPS.profit) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+			GameTooltip:Show()
+		end)
+		heading:SetScript("OnLeave", function(self)
+			self.label:SetTextColor(1, 0.82, 0)
+			self.arrow:SetAlpha(self.sorted and 1 or 0.3)
+			GameTooltip:Hide()
+		end)
+		heading:Hide()
+		row.sortHeadings[key] = heading
+	end
 
 	row.quote = SmallButton(row, "Quote", function(self)
 		local data = self:GetParent().data
@@ -958,7 +985,10 @@ local function SetRow(row, data)
 	row.colHave:Hide()
 	row.colCraft:Hide()
 	row.reset:Hide()
-	row.sortArrow:Hide()
+	for _, heading in pairs(row.sortHeadings) do heading:Hide() end
+	-- The Profit headings light up one by one, so the row as a whole doesn't.
+	local rowGlow = row:GetHighlightTexture()
+	if rowGlow then rowGlow:SetAlpha(data.kind == "header" and data.columns == "profit" and 0 or 1) end
 	row.tint:Hide()
 	row.amountLabel:Hide()
 	row.amount:SetTextColor(1, 1, 1)
@@ -975,22 +1005,31 @@ local function SetRow(row, data)
 		row.left:SetText(Color("ffffd100", data.text))
 		if data.columns == "profit" then
 			PlaceRight(row, ProfitControls(row), false)
-			row.chance:SetText(Color("ffffd100", "Sells"))
-			row.profit:SetText(Color("ffffd100", "Profit"))
-			row.chance:Show()
-			row.profit:Show()
-			-- The arrow sits just left of a right-aligned heading's text, or just right of "Recipe".
-			local key, ascending = UI.ProfitSort()
-			local arrow = row.sortArrow
-			arrow:ClearAllPoints()
-			if key == "name" then
-				arrow:SetPoint("LEFT", row.left, "LEFT", (row.left:GetStringWidth() or 0) + 3, 0)
-			else
-				local heading = key == "chance" and row.chance or row.profit
-				arrow:SetPoint("RIGHT", heading, "RIGHT", -((heading:GetStringWidth() or 0) + 3), 0)
+			row.left:SetText("")
+			local sortKey, ascending = UI.ProfitSort()
+			local headings = row.sortHeadings
+			headings.name.label:SetText(data.text)
+			headings.chance.label:SetText("Sells")
+			headings.profit.label:SetText("Profit")
+			headings.name:ClearAllPoints()
+			headings.name:SetPoint("LEFT", row, "LEFT", 0, 0)
+			headings.name:SetWidth((headings.name.label:GetStringWidth() or 40) + 26)
+			for key, region in pairs({ chance = row.chance, profit = row.profit }) do
+				headings[key]:ClearAllPoints()
+				headings[key]:SetPoint("LEFT", region, "LEFT", -2, 0)
+				headings[key]:SetPoint("RIGHT", region, "RIGHT", 2, 0)
 			end
-			if ascending then arrow:SetTexCoord(0, 0.5625, 1, 0) else arrow:SetTexCoord(0, 0.5625, 0, 1) end
-			arrow:Show()
+			for key, heading in pairs(headings) do
+				local sorted = key == sortKey
+				-- Up for ascending. Unsorted columns point the way a first click would sort them.
+				local up = sorted and ascending or (not sorted and key == "name")
+				if up then heading.arrow:SetTexCoord(0, 0.5625, 1, 0) else heading.arrow:SetTexCoord(0, 0.5625, 0, 1) end
+				heading.sorted = sorted
+				heading.arrow:SetAlpha(sorted and 1 or 0.3)
+				heading.edge:SetShown(sorted)
+				heading.label:SetTextColor(1, 0.82, 0)
+				heading:Show()
+			end
 		elseif data.columns == "restock" then
 			PlaceRight(row, RestockControls(row), false)
 			row.chance:SetText(Color("ffffd100", "Sells"))

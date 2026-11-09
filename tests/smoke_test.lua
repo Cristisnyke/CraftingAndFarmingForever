@@ -1250,12 +1250,23 @@ do
 	check("no price stays last when reversed", pricedAfter, false)
 	ns.UI.SortProfit("chance")
 	check("sells, likely first", ns.db.ui.profitSortAsc, false)
-	-- Clicking the headings row: the stub puts every column under the cursor, so Profit wins.
-	function GetCursorPosition() return 200, 0 end
-	profit.rows[1].scripts.OnClick(profit.rows[1])
+	-- Clicking a heading button.
+	local headings = profit.rows[1].sortHeadings
+	check("headings are buttons", headings.profit.shown and headings.chance.shown and headings.name.shown, true)
+	check("sorted heading underlined", headings.chance.edge.shown, true)
+	headings.profit.scripts.OnClick(headings.profit)
 	check("heading click sorts by profit", ns.db.ui.profitSort, "profit")
 	check("heading click starts highest first", select(2, ns.UI.ProfitSort()), false)
-	check("sort arrow on the headings", profit.rows[1].sortArrow.shown, true)
+	check("underline moves with the sort", headings.profit.edge.shown and not headings.chance.edge.shown, true)
+	ns.UI.Refresh("queue")
+	ns.UI.Show("queue")
+	ns.UI.Show("profit")
+	check("only the Profit headings get buttons", (function()
+		for _, row in ipairs(ns.UI.windows.queue.rows) do
+			if row.sortHeadings.profit.shown then return false end
+		end
+		return true
+	end)(), true)
 
 	-- Hide losing.
 	local results = Results()
