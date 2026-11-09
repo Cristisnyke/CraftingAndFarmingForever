@@ -1200,10 +1200,134 @@ ns.db.recipes[700], ns.db.recipes[701], ns.db.recipes[702] = nil, nil, nil
 ProfessionsFrame:Show()
 time = realNow
 
--- The button's name follows the tab.
+-- Advertise sits under the profession tabs and follows the selected one.
 ns.UI.Show("profit")
 ns.UI.SelectProfession("profit", 197)
-check("button named for profession", ns.UI.windows.profit.advertiseButton.text, "Advertise Tailoring")
+check("advertise follows the tab", ns.UI.AdvertisedProfession(), 197)
+check("advertise button is short", ns.UI.windows.profit.advertiseButton.text, "Advertise")
+
+-- Profit sorting, by heading.
+do
+	local profit = ns.UI.windows.profit
+	ns.UI.SelectProfession("profit", nil)
+	local function Results()
+		local results = {}
+		for _, data in ipairs(profit.list) do
+			if data.kind == "profit" then table.insert(results, data.result) end
+		end
+		return results
+	end
+	local function Ordered(valueOf, ascending)
+		local last
+		for _, result in ipairs(Results()) do
+			local value = valueOf(result)
+			if value ~= nil then
+				if last ~= nil and (ascending and value < last or not ascending and value > last) then return false end
+				last = value
+			end
+		end
+		return true
+	end
+	local function Name(result) local name = ns.Items.Name(result.itemID) return name and name:lower() end
+	local function Net(result) return result.net end
+	check("enough recipes to sort", #Results() >= 3, true)
+	check("profit, highest first by default", ns.UI.ProfitSort(), "profit")
+	check("default order", Ordered(Net, false), true)
+	ns.UI.SortProfit("name")
+	check("sorted by name", ns.db.ui.profitSort, "name")
+	check("names A to Z", Ordered(Name, true), true)
+	ns.UI.SortProfit("name")
+	check("second click reverses", ns.db.ui.profitSortAsc, false)
+	check("names Z to A", Ordered(Name, false), true)
+	ns.UI.SortProfit("profit")
+	check("profit highest first", Ordered(Net, false), true)
+	ns.UI.SortProfit("profit")
+	check("profit lowest first", Ordered(Net, true), true)
+	local seenUnpriced, pricedAfter = false, false
+	for _, result in ipairs(Results()) do
+		if result.net == nil then seenUnpriced = true elseif seenUnpriced then pricedAfter = true end
+	end
+	check("no price stays last when reversed", pricedAfter, false)
+	ns.UI.SortProfit("chance")
+	check("sells, likely first", ns.db.ui.profitSortAsc, false)
+	-- Clicking the headings row: the stub puts every column under the cursor, so Profit wins.
+	function GetCursorPosition() return 200, 0 end
+	profit.rows[1].scripts.OnClick(profit.rows[1])
+	check("heading click sorts by profit", ns.db.ui.profitSort, "profit")
+	check("heading click starts highest first", select(2, ns.UI.ProfitSort()), false)
+	check("sort arrow on the headings", profit.rows[1].sortArrow.shown, true)
+
+	-- Hide losing.
+	local results = Results()
+	results[1].net = -500
+	ns.UI.Refresh("profit")
+	local count = #Results()
+	ns.db.ui.hideLosing = true
+	ns.UI.Refresh("profit")
+	check("losing recipe hidden", #Results(), count - 1)
+	check("hidden count kept", profit.list.hiddenLosing, 1)
+	check("status says how many are hidden", profit.status.text:find("1 losing hidden", 1, true) ~= nil, true)
+	ns.db.ui.hideLosing = false
+	ns.UI.Refresh("profit")
+	check("shown again", #Results(), count)
+	ns.InvalidateProfit()
+	ns.UI.SelectProfession("profit", 197)
+end
+
+-- Restock: headings, and own goals told apart from defaults.
+do
+	ns.UI.Show("restock")
+	local restock = ns.UI.windows.restock
+	check("restock headings first", restock.list[1].kind == "header" and restock.list[1].columns, "restock")
+	local function FirstRow()
+		for _, r in ipairs(restock.rows) do
+			if r.data and r.data.kind == "restock" then return r end
+		end
+	end
+	local row = FirstRow()
+	local itemID = row.data.row.itemID
+	ns.Restock.ResetGoal(itemID)
+	ns.UI.Refresh("restock")
+	row = FirstRow()
+	check("default goal has no reset", row.reset.shown, false)
+	check("craft column filled", row.colCraft.text ~= nil, true)
+	ns.Restock.SetGoal(itemID, ns.Restock.Goal(itemID) + 5)
+	ns.UI.Refresh("restock")
+	row = FirstRow()
+	check("own goal flagged", ns.Restock.IsCustom(itemID), true)
+	check("own goal shows reset", row.reset.shown, true)
+	row.reset.scripts.OnClick(row.reset)
+	check("reset back to default", ns.Restock.IsCustom(itemID), false)
+	check("reset goal is the default", ns.Restock.Goal(itemID), ns.Restock.DefaultGoal(itemID))
+end
+
+-- Resizing: the size is kept per layout, and right-click on the corner restores the default.
+do
+	local frame = ns.UI.main.frame
+	UIParent.height = 1200
+	ns.UI.Show("profit")
+	check("default width", frame.width, 680)
+	frame:SetSize(900, 700)
+	ns.UI.SaveSize()
+	ns.UI.Select("queue")
+	check("width kept", frame.width, 900)
+	check("height kept", frame.height, 700)
+	ns.db.ui.queueBeside = true
+	ns.UI.Select("restock")
+	check("beside has its own width", frame.width, 1240)
+	check("beside keeps the height", frame.height, 700)
+	ns.db.ui.queueBeside = false
+	frame:SetSize(400, 300)
+	ns.UI.SaveSize()
+	ns.UI.Select("profit")
+	check("never narrower than the tabs", frame.width, 680)
+	check("never shorter than the minimum", frame.height, 460)
+	ns.UI.main.grip.scripts.OnClick(ns.UI.main.grip)
+	check("reset width", frame.width, 680)
+	check("reset height", frame.height, 560)
+	check("reset clears saved size", ns.db.ui.width, nil)
+	UIParent.height = 400
+end
 
 -- Stale prompt at the AH.
 AuctionHouseFrame:Show()

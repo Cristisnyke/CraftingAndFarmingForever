@@ -15,7 +15,8 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - Every recipe any of your characters knows, ranked by profit after the auction house cut.
 - Each material is costed the cheapest way: auction house, vendor, or crafting it yourself.
 - Materials you already hold count as free, so ore in your bank means it smelts bars instead of buying them.
-- A tab per profession and a search box.
+- A tab per profession, a search box, and sorting by name, sell chance or profit.
+- Hide recipes that would lose money with one tick.
 - Bind-on-pickup crafts are listed with their crafting cost, so you can still plan them.
 
 ### One queue for every character
@@ -41,6 +42,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 ### Restock the auction house
 
 - A goal for each item you sell: how many you want listed. Your auctions, bags, banks and mail count towards it.
+- Clear columns for what's listed, what you hold and what to craft. Goals you set yourself stand out from the defaults, and one click puts them back.
 - One button queues whatever is missing.
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests just under the lowest listing, never below break-even, and posts with one click.
 - It warns you before you post below what a vendor would pay.

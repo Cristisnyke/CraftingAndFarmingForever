@@ -227,6 +227,17 @@ function Restock.Goal(itemID)
 	return ns.db.restock.goals[itemID] or DefaultGoal(itemID)
 end
 
+Restock.DefaultGoal = DefaultGoal
+
+-- True when the player set this item's goal; false when it follows the default for its kind.
+function Restock.IsCustom(itemID)
+	return ns.db.restock.goals[itemID] ~= nil
+end
+
+function Restock.ResetGoal(itemID)
+	ns.db.restock.goals[itemID] = nil
+end
+
 -- Stores a goal for one item. Matching the default clears it, so the item keeps following the default.
 function Restock.SetGoal(itemID, goal)
 	goal = math.max(0, goal)

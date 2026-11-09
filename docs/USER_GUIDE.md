@@ -6,6 +6,8 @@ The window opens with the profession window, on the tab you last used. Drag it a
 
 Hover any row with an item icon to see the game's item tooltip followed by the add-on's own details. Hover a row of column headings to see what each column means.
 
+Drag the window's bottom-right corner to resize it; right-click that corner for the default size. The window alone and the window with the queue beside Restock each keep their own width.
+
 **Refresh** at the top re-reads recipes, item data, Auctionator's prices and your stock, and redraws everything; at the auction house it also re-reads your auctions. It doesn't scan the auction house.
 
 ## Before you start
@@ -23,6 +25,9 @@ Every known recipe, ranked by profit per craft:
 
 - **Profession tabs** on the left: **All**, plus every profession any of your characters has. The tab follows whichever profession you open, until you click a tab yourself.
 - **Columns:** **Sells** is the chance one sells within 24 hours, from your sales history: white is likely, orange under 50%, red under 20%, grey with `~` a rough guess from fewer than 5 units. **Profit** is per craft.
+- **Sorting:** click **Recipe**, **Sells** or **Profit** in the headings to sort by it; click again to reverse. An arrow shows the current order. Recipes with no price or no sales data always go last. The order is remembered.
+- **Hide losing recipes** (top left) hides recipes that would lose money at current prices. The footer says how many are hidden.
+- **Advertise**, under the profession tabs, advertises the selected profession (on the All tab, the open one). Hover it to see what it will post, or why it can't.
 - **Search** box in the footer: matches the item or recipe name, within the selected tab. If a tab has no matches, it tells you how many the All tab has. Escape clears it.
 - **+** queues one craft; **Shift + +** queues ten. **Right-click +** (or Ctrl-click) opens a box to type how many crafts to queue.
 - **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
@@ -86,7 +91,9 @@ Your current zone comes first. Hover a row to see everything known about where t
 
 Keeps a number of each item you craft listed on the auction house.
 
-- **Goals:** each profitable item gets one. Defaults are **Stackable goal** 10 and **Single goal** 1. Change the defaults at the top, or one item's goal by typing it in the box on its row, or with **+** and **-** (Shift for 10). A goal of 0 skips the item.
+- **Columns:** **Sells** (chance to sell within 24 hours), **AH** (how many you have listed), **Have** (held in bags, banks and mail across your characters), **Craft** (crafts Queue restock would add; `skip` when the goal is 0) and **Goal**.
+- **Goals:** each profitable item gets one. The defaults are in the boxes at the bottom: **Default goal: stackable** 10 and **single** 1. Change one item's goal by typing it in the box on its row, or with **+** and **-** (Shift for 10). A goal of 0 skips the item.
+- **Default or your own:** a grey goal follows the defaults, so it changes when you change them. A white goal is one you set for that item, and has an arrow button beside it that puts it back on the default. Setting a goal equal to the default also makes it follow the default again.
 - **Min profit (s):** items earning less than this per craft are skipped. The default is 1 silver.
 - **Counted towards the goal:** what's on the auction house (from Syndicator) and what all your characters hold in bags, banks and mail.
 - **Queue restock: N item(s)** queues the difference for the selected profession tab. It replaces that profession's earlier restock entries and keeps anything you queued by hand, which also counts towards the goal. It never queues by itself. **Fully stocked** means there's nothing to do.

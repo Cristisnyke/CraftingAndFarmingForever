@@ -8,10 +8,13 @@ local UI = {}
 ns.UI = UI
 
 local ROW_HEIGHT = 22
-local ROW_COUNT = 40
-local MAIN_WIDTH = 680 -- room for five tabs beside Refresh
-local RESTOCK_BESIDE_WIDTH = 500 -- Restock's share with the queue open beside it; the queue keeps its full width
+local ROW_COUNT = 48 -- enough for the tallest window
+local MAIN_WIDTH = 680 -- default and narrowest width: five tabs beside Refresh
+local BESIDE_WIDTH = 1240 -- default width with the queue beside Restock
+local BESIDE_MIN_WIDTH = 1180
+local RESTOCK_SHARE = 0.45 -- Restock's share of the width with the queue beside it
 local WINDOW_HEIGHT = 560
+local MIN_HEIGHT, MAX_HEIGHT = 460, 1100
 local MAIN_TOP = 36 -- title and tabs
 local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 82, 26
 local LOGO_TEXTURE = "Interface\\AddOns\\CraftingAndFarmingForever\\Media\\Logo"
@@ -111,15 +114,66 @@ local function MatchesProfitSearch(result)
 		or false
 end
 
+-- Sorting: a column and a direction, saved. Clicking a heading picks its column in its natural direction (names
+-- A to Z, the rest highest first); clicking it again reverses.
+local SORT_ASCENDING = { name = true, chance = false, profit = false }
+
+function UI.ProfitSort()
+	local key = ns.db.ui.profitSort
+	if SORT_ASCENDING[key] == nil then key = "profit" end
+	return key, ns.db.ui.profitSortAsc == true
+end
+
+function UI.SortProfit(key)
+	local current, ascending = UI.ProfitSort()
+	if key == current then
+		ns.db.ui.profitSortAsc = not ascending
+	else
+		ns.db.ui.profitSort, ns.db.ui.profitSortAsc = key, SORT_ASCENDING[key]
+	end
+	if windows.profit then windows.profit.offset = 0 end
+	UI.Refresh("profit")
+end
+
+-- What a recipe sorts by. Nil (no price, no sales data, name still loading) always goes last.
+local function SortValue(result, key)
+	local name = ns.Items.Name(result.itemID)
+	if key == "name" then return name and name:lower() end
+	if key == "chance" then return not result.bound and name and ns.Sales.Chance(name) or nil end
+	return result.net
+end
+
 local function BuildProfitList()
 	profitCache = profitCache or ComputeProfit()
 	local selected = selectedProfession.profit
-	local list = {}
-	for _, result in ipairs(profitCache) do
+	local hideLosing = ns.db.ui.hideLosing
+	local results, order, values = {}, {}, {}
+	local key, ascending = UI.ProfitSort()
+	local hidden = 0
+	for index, result in ipairs(profitCache) do
 		if (not selected or result.profession == selected) and MatchesProfitSearch(result) then
-			table.insert(list, { kind = "profit", result = result })
+			if hideLosing and result.net and result.net < 0 then
+				hidden = hidden + 1
+			else
+				table.insert(results, result)
+				order[result], values[result] = index, SortValue(result, key)
+			end
 		end
 	end
+	-- The cache is already highest profit first, so that order is the tie-break and the default.
+	if key ~= "profit" or ascending then
+		table.sort(results, function(a, b)
+			local va, vb = values[a], values[b]
+			if va ~= nil and vb ~= nil and va ~= vb then
+				if ascending then return va < vb end
+				return va > vb
+			end
+			if (va == nil) ~= (vb == nil) then return va ~= nil end
+			return order[a] < order[b]
+		end)
+	end
+	local list = { hiddenLosing = hidden }
+	for _, result in ipairs(results) do table.insert(list, { kind = "profit", result = result }) end
 	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Recipe", columns = "profit" }) end
 	return list
 end
@@ -278,6 +332,7 @@ local function BuildRestockList()
 			table.insert(list, { kind = "restock", row = row })
 		end
 	end
+	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Item", columns = "restock" }) end
 	return list
 end
 
@@ -384,6 +439,15 @@ local COLUMN_TIPS = {
 		"Sells: the chance one sells within 24 hours, from your sales history. Grey with ~ is a rough guess from under "
 			.. "5 units; orange is under 50%, red under 20%.",
 		"Profit: for one craft, after the 5% auction house cut, with materials by the cheapest path.",
+		"Click Recipe, Sells or Profit to sort by it; click again to reverse.",
+	},
+	restock = {
+		"Sells: the chance one sells within 24 hours, from your sales history.",
+		"AH: how many you have on the auction house, across your characters. Updates when you visit the auction house.",
+		"Have: how many your characters hold in bags, banks and mail.",
+		"Craft: how many crafts Queue restock would add. Grey 'skip' means the goal is 0.",
+		"Goal: how many you want on the auction house. Grey goals follow the defaults at the bottom; white ones are "
+			.. "your own for that item. The arrow button puts an item back on the default.",
 	},
 	queue = {
 		"Materials: what every queued craft's materials cost at market prices.",
@@ -438,7 +502,8 @@ local function RowOnEnter(row)
 		GameTooltip:AddDoubleLine("Profit per craft", ns.Money(item.net), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("On the AH", item.onAH and tostring(item.onAH) or "unknown", 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
-		GameTooltip:AddDoubleLine("Goal", tostring(item.goal), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine(ns.Restock.IsCustom(item.itemID) and "Goal (your own)" or "Goal (default)",
+			tostring(item.goal), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.crafts), 1, 1, 1, 1, 1, 1)
 		AddSalesLines(ns.Items.Name(item.itemID))
 		GameTooltip:AddLine("+ and - change this item's goal (Shift for 10). A goal of 0 skips the item.", 0.6, 0.6, 0.6, true)
@@ -483,9 +548,23 @@ local function RowOnEnter(row)
 	end
 end
 
+-- Which profit heading the cursor is over: Sells, Profit, or else Recipe.
+local function ProfitHeadingAtCursor(row)
+	local x = GetCursorPosition() / (row:GetEffectiveScale() or 1)
+	local function Over(region)
+		local left, right = region:GetLeft(), region:GetRight()
+		return left and right and x >= left - 4 and x <= right + 4
+	end
+	if Over(row.profit) then return "profit" end
+	if Over(row.chance) then return "chance" end
+	return "name"
+end
+
 local function RowOnClick(row)
 	local data = row.data
-	if data and data.kind == "post" then
+	if data and data.kind == "header" and data.columns == "profit" then
+		UI.SortProfit(ProfitHeadingAtCursor(row))
+	elseif data and data.kind == "post" then
 		ns.Posting.Select(data.row.itemID)
 	elseif data and data.kind == "profit" and ns.Recipes.Knows(ns.CharKey(), data.result.recipeID)
 		and ns.Recipes.OpenRecipes()[data.result.recipeID] then
@@ -603,6 +682,15 @@ end
 local function ProfitControls(row)
 	row.profit:SetWidth(PROFIT_COLUMN_WIDTH)
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.chance, 6 } }
+end
+
+local RESTOCK_COLUMN_WIDTH = 38
+
+local function RestockControls(row)
+	return {
+		{ row.plus, 2 }, { row.amount, 6 }, { row.minus, 8 }, { row.reset, 4 },
+		{ row.colCraft, 4 }, { row.colHave, 6 }, { row.colAH, 6 }, { row.chance, 6 },
+	}
 end
 
 local function QueueControls(row)
@@ -786,6 +874,43 @@ local function CreateRow(parent)
 		row[key]:SetWordWrap(false)
 	end
 
+	-- Restock's columns: on the AH, held, crafts to queue.
+	for _, key in ipairs({ "colAH", "colHave", "colCraft" }) do
+		row[key] = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		row[key]:SetWidth(RESTOCK_COLUMN_WIDTH)
+		row[key]:SetJustifyH("RIGHT")
+		row[key]:SetWordWrap(false)
+	end
+
+	-- Puts an item's own restock goal back on the default. Only on items with their own goal.
+	row.reset = CreateFrame("Button", nil, row)
+	row.reset:SetSize(16, 16)
+	row.reset:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
+	row.reset:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+	row.reset:SetScript("OnClick", function(self)
+		local data = self:GetParent().data
+		if not (data and data.kind == "restock") then return end
+		ns.Restock.ResetGoal(data.row.itemID)
+		UI.Refresh("restock")
+	end)
+	row.reset:SetScript("OnEnter", function(self)
+		local data = self:GetParent().data
+		if not (data and data.kind == "restock") then return end
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Use the default goal")
+		local default = ns.Restock.DefaultGoal(data.row.itemID)
+		GameTooltip:AddLine(("This item has its own goal. Click to go back to the default%s, which follows the boxes "
+			.. "at the bottom."):format(default and (" (" .. default .. ")") or ""), 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	row.reset:SetScript("OnLeave", GameTooltip_Hide)
+
+	-- On the Profit headings: which column the list is sorted by, and which way.
+	row.sortArrow = row:CreateTexture(nil, "OVERLAY")
+	row.sortArrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
+	row.sortArrow:SetSize(9, 10)
+	row.sortArrow:Hide()
+
 	row.quote = SmallButton(row, "Quote", function(self)
 		local data = self:GetParent().data
 		if data and data.kind == "queue" then ns.Advertise.QuoteInWhisper(data.entry.recipeID, data.entry.qty) end
@@ -829,8 +954,14 @@ local function SetRow(row, data)
 	row.cost:Hide()
 	row.profit:Hide()
 	row.chance:Hide()
+	row.colAH:Hide()
+	row.colHave:Hide()
+	row.colCraft:Hide()
+	row.reset:Hide()
+	row.sortArrow:Hide()
 	row.tint:Hide()
 	row.amountLabel:Hide()
+	row.amount:SetTextColor(1, 1, 1)
 	-- Left alone on rows that keep it, so a redraw doesn't take the focus from someone typing in it.
 	if data.kind ~= "queue" and data.kind ~= "restock" then row.amount:Hide() end
 	row.icon:Show()
@@ -848,6 +979,28 @@ local function SetRow(row, data)
 			row.profit:SetText(Color("ffffd100", "Profit"))
 			row.chance:Show()
 			row.profit:Show()
+			-- The arrow sits just left of a right-aligned heading's text, or just right of "Recipe".
+			local key, ascending = UI.ProfitSort()
+			local arrow = row.sortArrow
+			arrow:ClearAllPoints()
+			if key == "name" then
+				arrow:SetPoint("LEFT", row.left, "LEFT", (row.left:GetStringWidth() or 0) + 3, 0)
+			else
+				local heading = key == "chance" and row.chance or row.profit
+				arrow:SetPoint("RIGHT", heading, "RIGHT", -((heading:GetStringWidth() or 0) + 3), 0)
+			end
+			if ascending then arrow:SetTexCoord(0, 0.5625, 1, 0) else arrow:SetTexCoord(0, 0.5625, 0, 1) end
+			arrow:Show()
+		elseif data.columns == "restock" then
+			PlaceRight(row, RestockControls(row), false)
+			row.chance:SetText(Color("ffffd100", "Sells"))
+			row.colAH:SetText(Color("ffffd100", "AH"))
+			row.colHave:SetText(Color("ffffd100", "Have"))
+			row.colCraft:SetText(Color("ffffd100", "Craft"))
+			row.amountLabel:SetText("Goal")
+			for _, region in ipairs({ row.chance, row.colAH, row.colHave, row.colCraft, row.amountLabel }) do
+				region:Show()
+			end
 		elseif data.columns == "queue" then
 			PlaceRight(row, QueueControls(row), false)
 			row.cost:SetText(Color("ffffd100", "Materials"))
@@ -896,17 +1049,21 @@ local function SetRow(row, data)
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
 		row.left:SetText(ItemLabel(item.itemID))
-		PlaceRight(row, { { row.plus, 2 }, { row.amount, 6 }, { row.minus, 8 } }, true)
+		PlaceRight(row, RestockControls(row), true)
 		ShowAmount(row, data, item.goal)
-		local text = ("AH %s, have %d, goal"):format(item.onAH and tostring(item.onAH) or "?", item.owned)
-		local chance = ChanceText(ns.Items.Name(item.itemID))
-		local prefix = chance ~= "" and (chance .. "   ") or ""
+		-- Grey: follows the default. White, with the reset arrow: the player's own goal for this item.
+		local custom = ns.Restock.IsCustom(item.itemID)
+		row.reset:SetShown(custom)
+		if custom then row.amount:SetTextColor(1, 1, 1) else row.amount:SetTextColor(0.6, 0.6, 0.6) end
+		row.chance:SetText(ChanceText(ns.Items.Name(item.itemID)))
+		row.colAH:SetText(item.onAH and tostring(item.onAH) or Color(COLOR_MUTED, "?"))
+		row.colHave:SetText(tostring(item.owned))
 		if item.goal == 0 then
-			row.right:SetText(prefix .. Color(COLOR_MUTED, "skipped, goal"))
+			row.colCraft:SetText(Color(COLOR_MUTED, "skip"))
 		elseif item.crafts > 0 then
-			row.right:SetText(prefix .. Color("ffffb040", text))
+			row.colCraft:SetText(Color("ffffb040", tostring(item.crafts)))
 		else
-			row.right:SetText(prefix .. Color(COLOR_PROFIT, text))
+			row.colCraft:SetText(Color(COLOR_PROFIT, "0"))
 		end
 	elseif data.kind == "sales" then
 		local item = data.item
@@ -1211,9 +1368,43 @@ function CreateProfitPane()
 	local window = CreatePane("profit", 34, true)
 	window.build = BuildProfitList
 
-	local advertise = HeaderButton(window.frame, "Advertise", 190, function() ns.Advertise.Send(UI.AdvertisedProfession()) end)
-	advertise:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
+	-- Under the profession tabs, since it advertises the selected one.
+	local advertise = HeaderButton(window.frame, "Advertise", TAB_WIDTH - 6, function()
+		ns.Advertise.Send(UI.AdvertisedProfession())
+	end)
+	advertise:SetPoint("BOTTOMLEFT", 10, 7)
+	if advertise.SetMotionScriptsWhileDisabled then advertise:SetMotionScriptsWhileDisabled(true) end
+	advertise:SetScript("OnEnter", function(self)
+		local professionID = UI.AdvertisedProfession()
+		local professionName = professionID and ns.Recipes.ProfessionName(professionID)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(professionName and ("Advertise " .. professionName) or "Advertise")
+		local reason = ns.Advertise.Reason(professionID)
+		if reason then
+			GameTooltip:AddLine(reason, 1, 0.6, 0.2, true)
+		else
+			GameTooltip:AddLine(("Fills in your %s link for %s. You press Enter to send it. Choose where to post "
+				.. "with the Ad box beside the chat."):format(professionName or "profession", ns.Advertise.DestinationLabel()),
+				1, 1, 1, true)
+		end
+		GameTooltip:Show()
+	end)
+	advertise:SetScript("OnLeave", GameTooltip_Hide)
 	window.advertiseButton = advertise
+
+	local hideLosing = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	hideLosing:SetSize(24, 24)
+	hideLosing:SetPoint("TOPLEFT", 8, -PANE_ACTIONS_TOP + 1)
+	hideLosing:SetHitRectInsets(0, -120, 0, 0) -- the label is clickable too
+	local hideLabel = hideLosing:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	hideLabel:SetPoint("LEFT", hideLosing, "RIGHT", 2, 1)
+	hideLabel:SetText("Hide losing recipes")
+	hideLosing:SetScript("OnClick", function(self)
+		ns.db.ui.hideLosing = self:GetChecked() and true or false
+		window.offset = 0
+		UI.Refresh("profit")
+	end)
+	window.hideLosing = hideLosing
 
 	local search = CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate")
 	search:SetSize(200, 20)
@@ -1240,25 +1431,27 @@ function CreateProfitPane()
 	window.searchBox = search
 
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	status:SetPoint("BOTTOMLEFT", 12, 12)
+	status:SetPoint("BOTTOMLEFT", 12 + TAB_WIDTH, 12)
 	status:SetPoint("BOTTOMRIGHT", -236, 12)
 	status:SetJustifyH("LEFT")
+	status:SetWordWrap(false)
 	window.status = status
 
 	window.update = function(self)
-		local professionID = UI.AdvertisedProfession()
-		local canAdvertise = ns.Advertise.Reason(professionID) == nil
-		advertise:SetEnabled(canAdvertise)
-		local professionName = professionID and ns.Recipes.ProfessionName(professionID)
-		advertise:SetText(canAdvertise and professionName and ("Advertise " .. professionName) or "Advertise")
+		advertise:SetEnabled(ns.Advertise.Reason(UI.AdvertisedProfession()) == nil)
+		hideLosing:SetChecked(ns.db.ui.hideLosing and true or false)
 		local shown = math.max(0, #self.list - 1) -- less the column headings
+		local hidden = self.list.hiddenLosing or 0
+		local text
 		if profitSearch ~= "" then
-			status:SetText(ProfitSearchStatus(shown))
-		elseif shown == 0 then
-			status:SetText("Open a profession to record its recipes.")
+			text = ProfitSearchStatus(shown)
+		elseif shown == 0 and hidden == 0 then
+			text = "Open a profession to record its recipes."
 		else
-			status:SetText(ns.Plural(shown, "recipe", "recipes") .. " known across your characters.")
+			text = ns.Plural(shown, "recipe", "recipes") .. " known across your characters."
 		end
+		if hidden > 0 then text = text .. " " .. Color(COLOR_MUTED, ("%d losing hidden."):format(hidden)) end
+		status:SetText(text)
 	end
 end
 
@@ -1558,9 +1751,9 @@ function CreateRestockPane()
 	end)
 	showQueue:SetScript("OnLeave", GameTooltip_Hide)
 
-	local stack = NumberBox(window.frame, "Stackable goal", nil,
+	local stack = NumberBox(window.frame, "Default goal: stackable", nil,
 		function() return ns.db.restock.stackGoal end, function(v) ns.db.restock.stackGoal = v end)
-	local single = NumberBox(window.frame, "Single goal", stack,
+	local single = NumberBox(window.frame, "single", stack,
 		function() return ns.db.restock.singleGoal end, function(v) ns.db.restock.singleGoal = v end)
 	local minProfit = NumberBox(window.frame, "Min profit (s)", single,
 		function() return ns.db.restock.minProfitSilver end, function(v) ns.db.restock.minProfitSilver = v end)
@@ -1574,7 +1767,9 @@ function CreateRestockPane()
 
 	local apply = HeaderButton(window.frame, "Queue restock", 100, function()
 		local rows = {}
-		for _, data in ipairs(window.list) do table.insert(rows, data.row) end
+		for _, data in ipairs(window.list) do
+			if data.row then table.insert(rows, data.row) end
+		end
 		local added = ns.Restock.Apply(rows, selectedProfession.restock)
 		ns.Print(("Restock: %s added to the queue."):format(ns.Plural(added, "item", "items")))
 		UI.Show("queue")
@@ -1590,12 +1785,15 @@ function CreateRestockPane()
 		single:Sync()
 		minProfit:Sync()
 
-		local needed, toPost = 0, 0
+		local needed, toPost, items = 0, 0, 0
 		for _, data in ipairs(self.list) do
 			local row = data.row
-			if row.crafts > 0 then needed = needed + 1 end
-			if row.goal > 0 and (row.onAH or 0) < row.goal then
-				toPost = toPost + math.min(row.owned, row.goal - (row.onAH or 0))
+			if row then
+				items = items + 1
+				if row.crafts > 0 then needed = needed + 1 end
+				if row.goal > 0 and (row.onAH or 0) < row.goal then
+					toPost = toPost + math.min(row.owned, row.goal - (row.onAH or 0))
+				end
 			end
 		end
 
@@ -1612,7 +1810,7 @@ function CreateRestockPane()
 			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))
 				.. " ready to post, from the auction house's Restocking tab.")
 		end
-		if #self.list == 0 then notes = { "No profitable items yet. Open your professions and scan the AH." } end
+		if items == 0 then notes = { "No profitable items yet. Open your professions and scan the AH." } end
 		status:SetText(table.concat(notes, " "))
 	end
 end
@@ -1687,30 +1885,85 @@ local function PlacePane(pane, left, right)
 	end
 end
 
+-- Size: one width for the window alone and one with the queue beside Restock, and one height for both. Dragging the
+-- corner changes the one in use.
+local function SizeLimits(beside)
+	local minWidth = beside and BESIDE_MIN_WIDTH or MAIN_WIDTH
+	local maxWidth = math.max(minWidth, math.floor(UIParent:GetWidth() or minWidth))
+	local maxHeight = math.max(MIN_HEIGHT, math.min(MAX_HEIGHT, math.floor(UIParent:GetHeight() or MAX_HEIGHT)))
+	return minWidth, maxWidth, maxHeight
+end
+
+local function SavedSize(beside)
+	local ui = ns.db.ui
+	local minWidth, maxWidth, maxHeight = SizeLimits(beside)
+	local width
+	if beside then width = ui.besideWidth or BESIDE_WIDTH else width = ui.width or MAIN_WIDTH end
+	width = math.max(minWidth, math.min(width, maxWidth))
+	-- Only a saved height is fitted to the screen; the default is left as it always was.
+	local height = ui.height and math.max(MIN_HEIGHT, math.min(ui.height, maxHeight)) or WINDOW_HEIGHT
+	return width, height
+end
+
+local function SetSizeLimits(beside)
+	local frame = main.frame
+	local minWidth, maxWidth, maxHeight = SizeLimits(beside)
+	if frame.SetResizeBounds then
+		frame:SetResizeBounds(minWidth, MIN_HEIGHT, maxWidth, maxHeight)
+	elseif frame.SetMinResize then
+		frame:SetMinResize(minWidth, MIN_HEIGHT)
+		frame:SetMaxResize(maxWidth, maxHeight)
+	end
+end
+
+local function SaveSize()
+	local width, height = main.frame:GetWidth(), main.frame:GetHeight()
+	if not (width and height) then return end
+	width, height = math.floor(width + 0.5), math.floor(height + 0.5)
+	if QueueBeside() then ns.db.ui.besideWidth = width else ns.db.ui.width = width end
+	ns.db.ui.height = height
+end
+
+-- Anchors the showing panes to the window: one pane fills it, or Restock and the queue share it.
+local function PlacePanes()
+	local beside = QueueBeside()
+	local split = math.floor((main.frame:GetWidth() or 0) * RESTOCK_SHARE)
+	main.divider:ClearAllPoints()
+	main.divider:SetPoint("TOPLEFT", split, -MAIN_TOP)
+	main.divider:SetPoint("BOTTOMLEFT", split, 6)
+	main.divider:SetShown(beside)
+	for key, pane in pairs(windows) do
+		if pane.frame:GetParent() == main.frame and pane.frame:IsShown() then
+			if not beside then
+				PlacePane(pane, 0)
+			elseif key == "restock" then
+				PlacePane(pane, 0, split)
+			else
+				PlacePane(pane, split)
+			end
+		end
+	end
+end
+
 -- Shows the selected tab's pane, with the queue beside Restock when asked for, and redraws what's showing.
 local function Layout()
 	local active, beside = ActiveTab(), QueueBeside()
 	if amountPopup then amountPopup:Hide() end
-	main.frame:SetWidth(beside and (RESTOCK_BESIDE_WIDTH + MAIN_WIDTH) or MAIN_WIDTH)
+	SetSizeLimits(beside)
+	main.frame:SetSize(SavedSize(beside))
 	PlaceMain()
-	main.divider:SetShown(beside)
+	local showing = {}
 	for _, tab in ipairs(MAIN_TABS) do
 		local key = tab.key
 		if key == active or (beside and key == "queue") then
-			local pane = GetPane(key)
-			if not beside then
-				PlacePane(pane, 0)
-			elseif key == "restock" then
-				PlacePane(pane, 0, RESTOCK_BESIDE_WIDTH)
-			else
-				PlacePane(pane, RESTOCK_BESIDE_WIDTH)
-			end
-			pane.frame:Show()
-			UI.Refresh(key)
+			GetPane(key).frame:Show()
+			table.insert(showing, key)
 		elseif windows[key] then
 			windows[key].frame:Hide()
 		end
 	end
+	PlacePanes()
+	for _, key in ipairs(showing) do UI.Refresh(key) end
 	UpdateTabStrip()
 end
 
@@ -1792,8 +2045,37 @@ local function CreateMain()
 	main.divider = frame:CreateTexture(nil, "ARTWORK")
 	main.divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
 	main.divider:SetWidth(1)
-	main.divider:SetPoint("TOPLEFT", RESTOCK_BESIDE_WIDTH, -MAIN_TOP)
-	main.divider:SetPoint("BOTTOMLEFT", RESTOCK_BESIDE_WIDTH, 6)
+
+	-- Drag the corner to resize; right-click it for the default size.
+	frame:SetResizable(true)
+	local grip = CreateFrame("Button", nil, frame)
+	grip:SetSize(16, 16)
+	grip:SetPoint("BOTTOMRIGHT", -3, 3)
+	grip:SetFrameLevel((frame:GetFrameLevel() or 0) + 20) -- above the panes
+	grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+	grip:RegisterForClicks("RightButtonUp")
+	grip:SetScript("OnMouseDown", function(_, button)
+		if button == "LeftButton" then frame:StartSizing("BOTTOMRIGHT") end
+	end)
+	grip:SetScript("OnMouseUp", function(_, button)
+		if button ~= "LeftButton" then return end
+		frame:StopMovingOrSizing()
+		SaveSize()
+		SavePosition("main", frame)
+		PlaceMain() -- sizing leaves the window anchored differently; back to the top left
+	end)
+	grip:SetScript("OnClick", function() UI.ResetSize() end)
+	grip:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Resize")
+		GameTooltip:AddLine("Drag to resize the window. Right-click for the default size.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	grip:SetScript("OnLeave", GameTooltip_Hide)
+	main.grip = grip
+	frame:SetScript("OnSizeChanged", function() PlacePanes() end)
 
 	-- In the row the panes keep their buttons in, on the right where none of them have any.
 	local banner = CreateFrame("Frame", nil, frame)
@@ -1808,6 +2090,14 @@ local function CreateMain()
 
 	frame:SetScript("OnShow", Layout)
 end
+
+function UI.ResetSize()
+	if QueueBeside() then ns.db.ui.besideWidth = nil else ns.db.ui.width = nil end
+	ns.db.ui.height = nil
+	if UI.IsOpen() then Layout() end
+end
+
+UI.SaveSize = function() SaveSize() end
 
 function UI.IsOpen()
 	return main ~= nil and main.frame:IsShown()
@@ -2012,6 +2302,10 @@ local function CurrentDestination()
 end
 
 -- The tab's profession, or on the All tab the one that's open.
+function Advertise.DestinationLabel()
+	return CurrentDestination().label
+end
+
 function UI.AdvertisedProfession()
 	return selectedProfession.profit or (ns.Recipes.OpenProfession())
 end
