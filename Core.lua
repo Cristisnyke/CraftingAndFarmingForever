@@ -57,6 +57,7 @@ end
 -- db.restock           = { stackGoal, singleGoal, minProfitSilver, duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
+-- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { [window] = { x, y } } }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
@@ -115,6 +116,25 @@ end
 ns.db = Normalize({})
 local adopted = false
 
+-- Code that needs to know whether saved data existed (the What's new window) waits for this: it runs once the saved
+-- data is adopted, or once it's clear there is none (a first install). ns.savedDataFound tells which.
+local readyCallbacks = {}
+ns.dataReady = false
+
+function ns.WhenDataReady(fn)
+	if ns.dataReady then fn() else table.insert(readyCallbacks, fn) end
+end
+
+local function MarkDataReady(found)
+	if ns.dataReady then return end
+	ns.dataReady, ns.savedDataFound = true, found
+	for _, fn in ipairs(readyCallbacks) do
+		local ok, err = pcall(fn)
+		if not ok then geterrorhandler()(err) end
+	end
+	readyCallbacks = {}
+end
+
 local function AdoptSavedData()
 	if adopted then return true end
 	local loaded = _G.CraftingAndFarmingForeverDB
@@ -124,6 +144,7 @@ local function AdoptSavedData()
 	Merge(loaded, ns.db)
 	ns.db = loaded
 	if ns.OnDataChanged then ns.OnDataChanged() end
+	MarkDataReady(true)
 	return true
 end
 
@@ -133,7 +154,8 @@ ns.On("ADDON_LOADED", function(name)
 	local tries = 0
 	local function Check()
 		tries = tries + 1
-		if not AdoptSavedData() and tries < 120 then C_Timer.After(1, Check) end
+		if AdoptSavedData() then return end
+		if tries < 120 then C_Timer.After(1, Check) else MarkDataReady(false) end
 	end
 	C_Timer.After(1, Check)
 end)

@@ -18,5 +18,10 @@ if [ -n "$leaks" ]; then
 	echo "Accidental globals:"; echo "$leaks"; exit 1
 fi
 
+# The in-game What's new text comes from CHANGELOG.md.
+if ! diff -q <(lua5.1 tools/gen_changelog.lua CHANGELOG.md) Changelog.lua >/dev/null; then
+	echo "Changelog.lua is out of date: lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua"; exit 1
+fi
+
 lua5.1 tests/planner_test.lua
 lua5.1 tests/smoke_test.lua

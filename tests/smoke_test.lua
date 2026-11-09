@@ -142,6 +142,15 @@ C_AuctionHouse = {
 	PostItem = function() end,
 	PostCommodity = function() end,
 }
+local tocVersion
+for line in io.lines("CraftingAndFarmingForever.toc") do tocVersion = tocVersion or line:match("^## Version: *(%S+)") end
+syndicatorLoaded = true
+C_AddOns = {
+	GetAddOnMetadata = function(name, field)
+		if name == "CraftingAndFarmingForever" and field == "Version" then return tocVersion end
+	end,
+	IsAddOnLoaded = function(name) return name == "Syndicator" and syndicatorLoaded end,
+}
 C_Timer = { After = function(_, fn) table.insert(timers, fn) end }
 local function RunTimers()
 	for _ = 1, 20 do
@@ -281,6 +290,7 @@ end
 Fire("ADDON_LOADED", "CraftingAndFarmingForever")
 Fire("PLAYER_LOGIN")
 check("no list before anything is queued", lists[ns.LIST_NAME], nil)
+check("no What's new before the saved data is known", ns.WhatsNew.IsShown(), false)
 
 ProfessionsFrame:Show()
 Fire("ADDON_LOADED", "Blizzard_Professions")
@@ -1201,7 +1211,7 @@ Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CFF_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "changelog", "diag", "bogus" }) do
 	SlashCmdList.CFF(command)
 end
 RunTimers()
@@ -1217,6 +1227,49 @@ check("old mail record loses its count", ns.db.sales.seen.someone[1].key, "sold|
 check("new mail record left alone", ns.db.sales.seen.someone[2].key, "sold|Copper Axe|500")
 ns.db.sales.seen.someone = nil
 check("session queue merged", #ns.db.queue, 2)
+
+-- What's new.
+do
+	local W = ns.WhatsNew
+	check("changelog command opens it", W.IsShown(), true)
+	W.Hide()
+	-- Saved data from a version before the window existed counts as an update.
+	ns.savedDataFound, ns.db.lastSeenVersion = true, nil
+	W.CheckUpdate()
+	RunTimers()
+	check("shown after an update", W.IsShown(), true)
+	check("version marked as seen", ns.db.lastSeenVersion, tocVersion)
+	W.Hide()
+	W.CheckUpdate()
+	RunTimers()
+	check("not shown again for the same version", W.IsShown(), false)
+	ns.db.lastSeenVersion = "0.9.0"
+	W.CheckUpdate()
+	RunTimers()
+	check("shown after updating from an older version", W.IsShown(), true)
+	W.Hide()
+	ns.savedDataFound, ns.db.lastSeenVersion = false, nil
+	W.CheckUpdate()
+	RunTimers()
+	check("not shown on a first install", W.IsShown(), false)
+	check("first install marks the version seen", ns.db.lastSeenVersion, tocVersion)
+	check("older version", W.Compare("1.1.0", "1.2.0"), -1)
+	check("same version", W.Compare("1.10.0", "1.10.0"), 0)
+	check("numbers, not text", W.Compare("1.10.0", "1.9.9"), 1)
+	check("not a version", W.Compare("dev", "1.0.0"), nil)
+	local saved = ns.CHANGELOG
+	ns.CHANGELOG = { { version = "1.3.0", lines = {} }, { version = "1.2.0", lines = {} }, { version = "1.1.0", lines = {} },
+		{ version = "1.0.0", lines = {} } }
+	local sections = W.Sections("1.0.0", "1.2.0")
+	check("every version since the last one seen", #sections, 2)
+	check("newest first", sections[1].version, "1.2.0")
+	check("nothing newer than the installed version", W.Sections("1.2.0", "1.2.0")[1], nil)
+	sections = W.Sections(nil, "1.2.0")
+	check("no version seen shows only the newest", #sections, 1)
+	check("no version seen shows the installed one", sections[1].version, "1.2.0")
+	ns.CHANGELOG = saved
+	check("changelog has the toc's version", ns.CHANGELOG[1].version, tocVersion)
+end
 
 -- Source data and instructions, on real entries of the generated table.
 local realMaps = { [1411] = "Durotar", [1426] = "Dun Morogh", [1429] = "Elwynn Forest", [1412] = "Mulgore", [1420] = "Tirisfal Glades" }

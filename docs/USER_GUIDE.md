@@ -12,7 +12,8 @@ Hover any row with an item icon to see the game's item tooltip followed by the a
 
 - **Record recipes.** Open each profession once on each character. Only recipes your characters know are listed, and a character's recipes are only read while its profession window is open.
 - **Fresh prices.** Prices come from Auctionator. If its data is more than 24 hours old, the add-on asks for a new scan: a popup at the auction house, a banner in the window, and one line in chat.
-- **Syndicator** (optional) lets the add-on count your alts' bags and banks, and see what you have on the auction house. Without it, only the logged-in character's bags and bank count, and the Restock tab is turned off so it can't over-craft.
+- **Auctionator and Syndicator are both needed.** Auctionator supplies every price and the shopping list; the add-on doesn't load without it. Syndicator counts your alts' bags and banks and sees what you have on the auction house. Without Syndicator only the logged-in character's bags and bank count (so it may tell you to buy what an alt already has), the Restock tab is turned off so it can't over-craft, and a reminder appears in chat at each login.
+- **TradeSkillMaster (TSM)** support is coming in a future update.
 
 ## Profit
 
@@ -136,13 +137,20 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |
 | `/cff auto` | Toggle opening with the profession window |
+| `/cff changelog` (or `/cff new`) | Show the What's new window with every version's notes |
 | `/cff diag` | Print diagnostics and save them for troubleshooting |
+
+## What's new
+
+The first time you log in after updating, a **What's new** window lists what changed since the version you had, in plain words, along with the add-ons it needs and what's coming. It shows once per update; **Got it**, the × or Escape closes it. `/cff changelog` opens it again with every version's notes. A first install doesn't show it.
 
 ## Troubleshooting
 
 **A character's recipes are missing.** Open that profession on that character. Recipes are only recorded while the profession window is open.
 
 **Profit shows no price for something.** Auctionator has never seen it listed. Search it at the auction house, or run a full scan.
+
+**A red chat line says Syndicator isn't installed or is turned off.** Install Syndicator, make sure it's ticked in the AddOns list at character select, and restart the game.
 
 **Stock from alts isn't counted.** Install Syndicator and log in to each alt once so it records their bags and banks. Visit the bank on each alt too.
 

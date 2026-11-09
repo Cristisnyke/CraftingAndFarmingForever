@@ -4,6 +4,8 @@
 
 A crafting add-on for **World of Warcraft: Forever**. It shows what's worth crafting, keeps one craft queue for all your characters, works out what you still need to buy or gather, and helps you keep the auction house stocked.
 
+> **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** It won't work properly without both: Auctionator supplies every price and the shopping list, and Syndicator counts what your alts hold and what you have on the auction house. **TradeSkillMaster (TSM) support is coming.**
+
 - **Profit:** every recipe any of your characters knows, ranked by profit at current Auctionator prices, with a search box and a tab per profession.
 - **Cheapest path:** each material is costed as the cheapest of the auction house, a vendor, or crafting it yourself. Materials you already hold count as free.
 - **Queue:** one queue shared by all your characters, with total profit, what's still to buy, what to take from the bank, and a **Craft Next** button.
@@ -12,6 +14,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference.
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests a price just under the lowest listing, and posts it.
 - **Sales:** what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours.
+- **What's new:** after each update, a short window lists what changed, once.
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set.
 
 ## Screenshots
@@ -36,14 +39,17 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 
 | Add-on | |
 | --- | --- |
-| [Auctionator](https://www.curseforge.com/wow/addons/auctionator) | Required. Prices and the shopping list. |
-| [Syndicator](https://www.curseforge.com/wow/addons/syndicator) | Optional. Alts' bags and banks, and what's on the auction house. The Restock tab needs it. |
+| [Auctionator](https://www.curseforge.com/wow/addons/auctionator) | Required. Prices and the shopping list. Without it the add-on doesn't load. |
+| [Syndicator](https://www.curseforge.com/wow/addons/syndicator) | Required to work properly. Alts' bags and banks, and what's on the auction house. Without it the add-on still loads, but it only counts the logged-in character's stock (so it may tell you to buy what an alt already has), the Restock tab is off, and it warns you in chat at each login. |
+
+Coming soon: support for [TradeSkillMaster](https://www.curseforge.com/wow/addons/tradeskill-master) (TSM).
 
 ## Installation
 
-1. Copy the `CraftingAndFarmingForever` folder into `World of Warcraft/_forever_/Interface/AddOns/`. Only the `.toc` and `.lua` files are needed.
-2. Restart the game client. A newly added add-on isn't picked up by `/reload`.
-3. Log in to each character with a profession and open that profession once, so its recipes are recorded.
+1. Install Auctionator and Syndicator.
+2. Copy the `CraftingAndFarmingForever` folder into `World of Warcraft/_forever_/Interface/AddOns/`. Only the `.toc` and `.lua` files are needed.
+3. Restart the game client. A newly added add-on isn't picked up by `/reload`.
+4. Log in to each character with a profession and open that profession once, so its recipes are recorded.
 
 Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run `tools/migrate-name.sh` to carry your saved data over and remove the old folder. See [the user guide](docs/USER_GUIDE.md#upgrading-from-craftledger).
 
@@ -66,6 +72,7 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |
 | `/cff auto` | Toggle opening with the profession window |
+| `/cff changelog` | Show the What's new window with every version's notes |
 | `/cff diag` | Print diagnostics and save them for troubleshooting |
 
 ## Documentation

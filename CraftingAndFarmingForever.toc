@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Crafting and Farming Forever
-## Notes: Profit for every recipe your characters know, a shared craft queue, a live Auctionator shopping list that accounts for what you own, and a Farm It list of what to gather and where.
+## Notes: Profit for every recipe your characters know, a shared craft queue, a live Auctionator shopping list that accounts for what you own, and a Farm It list of what to gather and where. Needs Auctionator and Syndicator to work properly. TradeSkillMaster support is coming.
 ## Author: Cristisnyke
 ## Version: 1.1.0
 ## Dependencies: Auctionator
@@ -20,3 +20,5 @@ Sales.lua
 Shopping.lua
 UI.lua
 Posting.lua
+Changelog.lua
+WhatsNew.lua

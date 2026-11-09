@@ -4,7 +4,7 @@
 
 - Lua 5.1 and `luac5.1`, the version the game client runs.
 - `rsync` for `tools/deploy.sh`.
-- A World of Warcraft: Forever install with Auctionator (and ideally Syndicator) for testing in game.
+- A World of Warcraft: Forever install with Auctionator and Syndicator for testing in game.
 
 ## Layout
 
@@ -22,6 +22,8 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `Shopping.lua` | Keeps the `Crafting and Farming Forever Queue` Auctionator list in sync, editing it in place |
 | `UI.lua` | The tabbed window and its panes, the Farm list, the recipe-page Queue button, the scan prompt, advertising, the slash command |
 | `Posting.lua` | The Restocking tab in the auction house: candidate items, live price search, posting |
+| `Changelog.lua` | Generated from `CHANGELOG.md` by `tools/gen_changelog.lua`: the What's new text. Don't edit by hand. |
+| `WhatsNew.lua` | The What's new window shown once after an update (`db.lastSeenVersion`), `/cff changelog`, the missing-Syndicator chat warning |
 
 ### Rules that keep it working
 
@@ -88,7 +90,7 @@ The generated file carries AllTheThings' MIT notice. Keep it.
 
 Work and commit on `main` locally. A version is published only once it has been confirmed working in game; passing tests aren't enough.
 
-1. Add a `## x.y.z` section to `CHANGELOG.md` describing the changes, and commit it. It becomes the CurseForge changelog.
+1. Add a `## x.y.z` section to `CHANGELOG.md` describing the changes, then `lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua`, and commit both. The section becomes the CurseForge changelog and the in-game What's new window, so write it for players: short, plain bullets about what they'll notice, no code names. `tools/check.sh` fails if `Changelog.lua` is out of date. Work in progress goes under `## Unreleased`, which the game doesn't show.
 2. Try `tools/release.sh x.y.z --dry-run`. It runs the checks, finds the CurseForge game version that matches the toc's `## Interface`, and shows what it would upload, without changing anything.
 3. `tools/release.sh x.y.z` (add `--beta` or `--alpha` for a test build) bumps `## Version` in the toc, commits, tags `vx.y.z`, pushes to GitHub, builds the zip with `tools/package.sh` and uploads it to CurseForge. CurseForge reviews the file before it goes live.
 4. If the upload fails after the push, fix the cause and run `tools/release.sh x.y.z --upload-only`.

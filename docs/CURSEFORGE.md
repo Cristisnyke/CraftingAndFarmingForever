@@ -4,6 +4,10 @@
 
 Crafting and Farming Forever is a profession add-on for **World of Warcraft: Forever**. It ranks every recipe your characters know by real profit at current auction house prices. It keeps one craft queue for all of them, and turns that queue into a shopping list that leaves out everything you already own. Anything you'd rather gather becomes a farming list.
 
+> **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** Crafting and Farming Forever won't work properly without both. Install them first.
+>
+> **Coming soon:** TradeSkillMaster (TSM) support.
+
 ## Features
 
 ### Profit list
@@ -54,15 +58,18 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 ### Stale-price warning
 
 - If your auction house prices are more than a day old, it asks for a new scan.
+- After each update, a short What's new window lists the changes, once.
 
 ## Requirements
 
-- **[Auctionator](https://www.curseforge.com/wow/addons/auctionator)**: required.
-- **[Syndicator](https://www.curseforge.com/wow/addons/syndicator)**: optional. Needed for alts' stock and for Restock goals.
+- **[Auctionator](https://www.curseforge.com/wow/addons/auctionator)**: required. All prices and the shopping list come from it; without it the add-on doesn't load.
+- **[Syndicator](https://www.curseforge.com/wow/addons/syndicator)**: required to work properly. It counts your alts' bags and banks and what you have on the auction house. Without it only the logged-in character counts, so the add-on may tell you to buy what an alt already has, and the Restock tab is off. You'll get a reminder in chat at each login until it's installed.
+
+TradeSkillMaster (TSM) support is coming in a future update.
 
 ## Getting started
 
-1. Install the add-on along with Auctionator, and restart the game.
+1. Install the add-on along with Auctionator and Syndicator, and restart the game.
 2. Open each profession once on each character so its recipes are recorded.
 3. Run an auction house scan when it asks.
 4. Queue something profitable, then search the **Crafting and Farming Forever Queue** list in Auctionator's Shopping tab.
@@ -73,6 +80,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`: open a tab
 - `/cff refresh`: re-read recipes, stock and prices
 - `/cff clear`: empty the queue
+- `/cff changelog`: show what's new in every version
 - `/cff auto`: toggle opening with the profession window
 - `/cff diag`: diagnostics for bug reports
 

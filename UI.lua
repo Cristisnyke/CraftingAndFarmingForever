@@ -2354,11 +2354,13 @@ SlashCmdList.CFF = function(input)
 	elseif command == "auto" then
 		ns.db.ui.autoOpen = not ns.db.ui.autoOpen
 		ns.Print("Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
+	elseif command == "changelog" or command == "new" then
+		ns.WhatsNew.ShowAll()
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/cff [profit | queue | restock | sales | advertise | refresh | clear | auto | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | advertise | refresh | clear | auto | changelog | diag]")
 	end
 end
