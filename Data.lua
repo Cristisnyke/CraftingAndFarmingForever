@@ -188,12 +188,14 @@ local function WatchScans()
 		ReceiveEvent = function(_, eventName, terms)
 			if eventName ~= shoppingStart then
 				Prices.NewRound()
-			elseif type(terms) == "table" and #terms > 1 then
+			elseif type(terms) == "table" and #terms > 0 then
 				local manager = Auctionator.Shopping.ListManager
-				if manager:GetIndexForName(ns.LIST_NAME)
-					and #manager:GetByName(ns.LIST_NAME):GetAllItems() == #terms then
-					Prices.NewRound()
-				end
+				if not manager:GetIndexForName(ns.LIST_NAME) then return end
+				local items = manager:GetByName(ns.LIST_NAME):GetAllItems()
+				if #items ~= #terms then return end
+				-- A one-item list's scan looks like a single search, so it must be our list's own item.
+				if #terms == 1 and terms[1] ~= items[1] then return end
+				Prices.NewRound()
 			end
 		end,
 	}

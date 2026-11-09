@@ -81,10 +81,7 @@ A new comparison starts when you scan the whole shopping list or run a full scan
 
 ### The shopping list
 
-The add-on keeps one Auctionator shopping list, **Crafting and Farming Forever Queue**, and edits it in place as the queue and your stock change. It holds:
-
-- every material you still need to buy, after your bags, bank and (with Syndicator) your alts' bags and banks;
-- every queued result, with no quantity, so searching the list also refreshes their sale prices.
+The add-on keeps one Auctionator shopping list, **Crafting and Farming Forever Queue**, and edits it in place as the queue and your stock change. It holds every material you still need to buy, after your bags, bank and (with Syndicator) your alts' bags and banks. What you're going to craft isn't on it.
 
 Guild bank, warband bank, mail and your own auctions don't count as stock. Quantities aren't capped, because a cap would hide dearer listings you might still want.
 

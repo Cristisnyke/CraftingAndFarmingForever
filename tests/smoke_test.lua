@@ -328,8 +328,7 @@ Fire("GET_ITEM_INFO_RECEIVED", 5, true)
 check("plan buys remaining cloth", ns.plan.buy[1], 9)
 check("thread on vendor list", ns.plan.vendor[3], 2)
 check("list created once", createCalls, 1)
-check("list has the material and the queued item", #lists[ns.LIST_NAME], 2)
-check("queued item listed with no quantity", lists[ns.LIST_NAME][2], '"Linen Shirt";;;;;;;;;;;#;;')
+check("list has only the material, not the queued item", #lists[ns.LIST_NAME], 1)
 check("list search string", lists[ns.LIST_NAME][1], '"Linen Cloth";;;;;;;;;;;#;;9')
 
 -- The buy list shows the price the profit assumes; the vendor list shows its fixed price.

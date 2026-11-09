@@ -24,6 +24,8 @@ end
 local function DesiredStrings()
 	local api = Auctionator.API.v1
 	local byName, loading = {}, 0
+	-- Materials only. The queued results used to be listed too, with no quantity, to refresh their sale prices, but
+	-- that read as "buy what you're about to craft".
 	for itemID, count in pairs(ns.plan.buy) do
 		local name = ns.Items.Name(itemID)
 		if name then
@@ -36,21 +38,6 @@ local function DesiredStrings()
 			loading = loading + 1
 		end
 	end
-	-- What the queue will make goes on the list too, with no quantity to buy, so scanning the list also refreshes
-	-- the sale prices the profit depends on. Bind-on-pickup results have no sale price to refresh.
-	for _, entry in ipairs(ns.db.queue) do
-		local recipe = ns.db.recipes[entry.recipeID]
-		if recipe and recipe.o and ns.Items.CanSellOnAH(recipe.o) ~= false then
-			local name = ns.Items.Name(recipe.o)
-			if name then
-				local clean = Sanitize(name)
-				local key = clean:lower()
-				byName[key] = byName[key] or { name = clean, count = 0 }
-			elseif not ns.Items.IsMissing(recipe.o) then
-				loading = loading + 1
-			end
-		end
-	end
 
 	local wanted = {}
 	for key, item in pairs(byName) do
@@ -58,7 +45,7 @@ local function DesiredStrings()
 			searchString = item.name,
 			isExact = true,
 			categoryKey = "",
-			quantity = item.count > 0 and item.count or nil,
+			quantity = item.count,
 		})
 	end
 	return wanted, loading
