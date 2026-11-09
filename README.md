@@ -14,7 +14,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference.
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests a price just under the lowest listing, and posts it.
 - **Sales:** what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours.
-- **What's new:** after each update, a short window lists what changed, once.
+- **Changelog:** a tab listing what changed in each version. It lights up after an update; nothing pops up.
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set.
 
 ## Screenshots
@@ -67,12 +67,12 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 | Command | What it does |
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
-| `/cff profit`, `queue`, `restock`, `sales` | Open that tab, or close the window if that tab is already showing |
+| `/cff profit`, `queue`, `restock`, `sales`, `changelog` | Open that tab, or close the window if that tab is already showing |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |
 | `/cff auto` | Toggle opening with the profession window |
-| `/cff changelog` | Show the What's new window with every version's notes |
+| `/cff changelog` | Open the Changelog tab |
 | `/cff diag` | Print diagnostics and save them for troubleshooting |
 
 ## Documentation

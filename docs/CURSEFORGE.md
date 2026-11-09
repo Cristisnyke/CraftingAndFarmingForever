@@ -58,7 +58,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 ### Stale-price warning
 
 - If your auction house prices are more than a day old, it asks for a new scan.
-- After each update, a short What's new window lists the changes, once.
+- A Changelog tab lists what changed in each version. It lights up after an update; nothing pops up.
 
 ## Requirements
 
@@ -80,7 +80,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 - `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`: open a tab
 - `/cff refresh`: re-read recipes, stock and prices
 - `/cff clear`: empty the queue
-- `/cff changelog`: show what's new in every version
+- `/cff changelog`: open the Changelog tab
 - `/cff auto`: toggle opening with the profession window
 - `/cff diag`: diagnostics for bug reports
 

@@ -1,16 +1,13 @@
 -- Crafting and Farming Forever :: What's new
--- The window that opens once after an update with that version's notes from CHANGELOG.md (through Changelog.lua),
--- what the add-on needs and what's coming. Also the chat warning when Syndicator is missing.
+-- The Changelog tab: every version's notes from CHANGELOG.md (through Changelog.lua), the new ones marked, what the
+-- add-on needs and what's coming. The tab is lit until the notes of the installed version have been opened.
+-- Also the chat warning when Syndicator is missing.
 
 local ADDON, ns = ...
 
 local WhatsNew = {}
 ns.WhatsNew = WhatsNew
 
-local WIDTH, HEIGHT = 460, 420
-local TEXT_WIDTH = WIDTH - 50
-local FOOTER = 104
-local LOGO_TEXTURE = "Interface\\AddOns\\CraftingAndFarmingForever\\Media\\Logo"
 local GOLD = "|cffffd100"
 
 WhatsNew.NEEDS = GOLD .. "Auctionator|r and " .. GOLD .. "Syndicator|r are both needed for Crafting and Farming "
@@ -46,7 +43,7 @@ function WhatsNew.Compare(a, b)
 	return 0
 end
 
--- The changelog sections to show after updating from `seen` to `current`, newest first: every version newer than
+-- The changelog sections that are new after updating from `seen` to `current`, newest first: every version newer than
 -- `seen`, up to `current`. With no `seen` (updated from a version before this window existed) only the newest one.
 function WhatsNew.Sections(seen, current)
 	local result = {}
@@ -65,125 +62,54 @@ function WhatsNew.Sections(seen, current)
 end
 
 ---------------------------------------------------------------------------
--- Window
+-- Seen or not
+---------------------------------------------------------------------------
+-- db.lastSeenVersion is the version whose notes the player has opened. Until the saved data is known it can't be
+-- told whether this is an update, so nothing counts as unseen.
+
+function WhatsNew.HasUnseen()
+	if not ns.dataReady then return false end
+	local current = WhatsNew.CurrentVersion()
+	if not WhatsNew.Compare(current, current) then return false end
+	local seen = ns.db.lastSeenVersion
+	return seen == nil or (WhatsNew.Compare(seen, current) or 0) < 0
+end
+
+-- Returns the version seen before, for marking what's new.
+function WhatsNew.MarkSeen()
+	local before = ns.db.lastSeenVersion
+	local current = WhatsNew.CurrentVersion()
+	if ns.dataReady and WhatsNew.Compare(current, current) then ns.db.lastSeenVersion = current end
+	return before
+end
+
+-- A first install has nothing new to point at: its notes would only repeat the add-on's description.
+ns.WhenDataReady(function()
+	if not ns.savedDataFound then WhatsNew.MarkSeen() end
+	if ns.UI and ns.UI.RefreshTabs then ns.UI.RefreshTabs() end
+end)
+
+---------------------------------------------------------------------------
+-- Changelog tab
 ---------------------------------------------------------------------------
 
-local window
-
-local function UpdateScroll()
-	local child, scroll = window.child, window.scroll
-	local height = window.text:GetStringHeight() or 0
-	child:SetHeight(math.max(height, 1))
-	local range = math.max(0, height - (scroll:GetHeight() or 0))
-	window.range = range
-	window.slider:SetMinMaxValues(0, range)
-	window.slider:SetShown(range > 0)
-	window.slider:SetValue(math.min(scroll:GetVerticalScroll() or 0, range))
+-- Every version's notes, newest first, with the ones new since `seenBefore` marked.
+function WhatsNew.Text(seenBefore, wasUnseen)
+	local new = {}
+	if wasUnseen then
+		for _, section in ipairs(WhatsNew.Sections(seenBefore, WhatsNew.CurrentVersion())) do new[section] = true end
+	end
+	local parts = {}
+	for _, section in ipairs(ns.CHANGELOG or {}) do
+		local heading = GOLD .. "Version " .. section.version .. "|r"
+		if new[section] then heading = heading .. "  |cff55dd55new|r" end
+		table.insert(parts, heading .. "\n" .. table.concat(section.lines, "\n"))
+	end
+	if #parts == 0 then table.insert(parts, "No notes yet.") end
+	return table.concat(parts, "\n\n")
 end
 
-local function ScrollTo(value)
-	value = math.max(0, math.min(value, window.range or 0))
-	window.scroll:SetVerticalScroll(value)
-	window.slider:SetValue(value)
-end
-
-local function CreateWindow()
-	local frame = CreateFrame("Frame", "CFFWhatsNew", UIParent, "BackdropTemplate")
-	window = { frame = frame }
-	frame:SetSize(WIDTH, HEIGHT)
-	frame:SetPoint("CENTER", 0, 60)
-	frame:SetFrameStrata("DIALOG")
-	frame:SetToplevel(true)
-	frame:SetClampedToScreen(true)
-	frame:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8X8",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 14,
-		insets = { left = 3, right = 3, top = 3, bottom = 3 },
-	})
-	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
-	frame:EnableMouse(true)
-	frame:SetMovable(true)
-	frame:RegisterForDrag("LeftButton")
-	frame:SetScript("OnDragStart", frame.StartMoving)
-	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	frame:Hide()
-	table.insert(UISpecialFrames, "CFFWhatsNew") -- Escape closes it
-
-	local logo = frame:CreateTexture(nil, "ARTWORK")
-	logo:SetSize(28, 28)
-	logo:SetPoint("TOPLEFT", 10, -8)
-	logo:SetTexture(LOGO_TEXTURE)
-
-	local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	title:SetPoint("LEFT", logo, "RIGHT", 6, 0)
-	title:SetJustifyH("LEFT")
-	window.title = title
-
-	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-	close:SetPoint("TOPRIGHT", 0, 0)
-	close:SetScript("OnClick", function() frame:Hide() end)
-
-	local scroll = CreateFrame("ScrollFrame", nil, frame)
-	scroll:SetPoint("TOPLEFT", 14, -44)
-	scroll:SetPoint("BOTTOMRIGHT", -26, FOOTER)
-	scroll:EnableMouseWheel(true)
-	scroll:SetScript("OnMouseWheel", function(self, delta) ScrollTo((self:GetVerticalScroll() or 0) - delta * 40) end)
-	window.scroll = scroll
-
-	local child = CreateFrame("Frame", nil, scroll)
-	child:SetSize(TEXT_WIDTH, 1)
-	scroll:SetScrollChild(child)
-	window.child = child
-
-	local text = child:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	text:SetPoint("TOPLEFT")
-	text:SetWidth(TEXT_WIDTH)
-	text:SetJustifyH("LEFT")
-	text:SetJustifyV("TOP")
-	text:SetSpacing(2)
-	window.text = text
-
-	local slider = CreateFrame("Slider", nil, frame)
-	slider:SetPoint("TOPRIGHT", -10, -44)
-	slider:SetPoint("BOTTOMRIGHT", -10, FOOTER)
-	slider:SetWidth(10)
-	slider:SetOrientation("VERTICAL")
-	local thumb = slider:CreateTexture(nil, "OVERLAY")
-	thumb:SetColorTexture(0.6, 0.6, 0.6, 0.8)
-	thumb:SetSize(10, 36)
-	slider:SetThumbTexture(thumb)
-	slider:SetScript("OnValueChanged", function(_, value) scroll:SetVerticalScroll(value) end)
-	window.slider = slider
-
-	local rule = frame:CreateTexture(nil, "ARTWORK")
-	rule:SetColorTexture(0.5, 0.5, 0.5, 0.5)
-	rule:SetHeight(1)
-	rule:SetPoint("BOTTOMLEFT", 10, FOOTER - 6)
-	rule:SetPoint("BOTTOMRIGHT", -10, FOOTER - 6)
-
-	local notes = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	notes:SetPoint("TOPLEFT", rule, "BOTTOMLEFT", 4, -6)
-	notes:SetPoint("TOPRIGHT", rule, "BOTTOMRIGHT", -4, -6)
-	notes:SetJustifyH("LEFT")
-	notes:SetTextColor(1, 1, 1)
-	window.notes = notes
-
-	local ok = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-	ok:SetSize(90, 22)
-	ok:SetPoint("BOTTOMRIGHT", -12, 10)
-	ok:SetText("Got it")
-	ok:SetScript("OnClick", function() frame:Hide() end)
-
-	local again = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	again:SetPoint("BOTTOMLEFT", 14, 16)
-	again:SetText("/cff changelog shows this again.")
-
-	-- The text's height is only known once the client has laid it out.
-	frame:SetScript("OnShow", function() C_Timer.After(0, UpdateScroll) end)
-end
-
-local function NotesText()
+function WhatsNew.NotesText()
 	local lines = { WhatsNew.NEEDS }
 	if not WhatsNew.SyndicatorLoaded() then
 		table.insert(lines, "|cffff6655Syndicator isn't active on this character.|r")
@@ -192,61 +118,98 @@ local function NotesText()
 	return table.concat(lines, "\n")
 end
 
--- sections: changelog sections, newest first.
-function WhatsNew.Show(sections, titleText)
-	if not window then CreateWindow() end
-	window.title:SetText(titleText or "What's new in Crafting and Farming Forever")
-	local parts = {}
-	for _, section in ipairs(sections) do
-		table.insert(parts, GOLD .. "Version " .. section.version .. "|r\n" .. table.concat(section.lines, "\n"))
+local function UpdateScroll(pane)
+	local height = pane.text:GetStringHeight() or 0
+	pane.child:SetHeight(math.max(height, 1))
+	local range = math.max(0, height - (pane.scroll:GetHeight() or 0))
+	pane.range = range
+	pane.slider:SetMinMaxValues(0, range)
+	pane.slider:SetShown(range > 0)
+	pane.slider:SetValue(math.min(pane.scroll:GetVerticalScroll() or 0, range))
+end
+
+local function ScrollTo(pane, value)
+	value = math.max(0, math.min(value, pane.range or 0))
+	pane.scroll:SetVerticalScroll(value)
+	pane.slider:SetValue(value)
+end
+
+-- Fills the main window's Changelog pane. top: where the text starts; the pane's top row stays free for the
+-- stale-price banner. Returns the pane's update function.
+function WhatsNew.BuildPane(frame, top)
+	local pane = {}
+	local footer = 70
+
+	local scroll = CreateFrame("ScrollFrame", nil, frame)
+	scroll:SetPoint("TOPLEFT", 14, -top)
+	scroll:SetPoint("BOTTOMRIGHT", -26, footer)
+	scroll:EnableMouseWheel(true)
+	scroll:SetScript("OnMouseWheel", function(self, delta) ScrollTo(pane, (self:GetVerticalScroll() or 0) - delta * 40) end)
+	pane.scroll = scroll
+
+	local child = CreateFrame("Frame", nil, scroll)
+	child:SetSize(1, 1)
+	scroll:SetScrollChild(child)
+	pane.child = child
+
+	local text = child:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	text:SetPoint("TOPLEFT")
+	text:SetJustifyH("LEFT")
+	text:SetJustifyV("TOP")
+	text:SetSpacing(2)
+	pane.text = text
+
+	local function FitWidth(width)
+		width = math.max(100, (type(width) == "number" and width or 0) - 4)
+		child:SetWidth(width)
+		text:SetWidth(width)
 	end
-	if #parts == 0 then table.insert(parts, "No notes for this version.") end
-	window.text:SetText(table.concat(parts, "\n\n"))
-	window.notes:SetText(NotesText())
-	window.scroll:SetVerticalScroll(0)
-	window.frame:Hide()
-	window.frame:Show()
+	scroll:SetScript("OnSizeChanged", function(_, width)
+		FitWidth(width)
+		UpdateScroll(pane)
+	end)
+
+	local slider = CreateFrame("Slider", nil, frame)
+	slider:SetPoint("TOPRIGHT", -10, -top)
+	slider:SetPoint("BOTTOMRIGHT", -10, footer)
+	slider:SetWidth(10)
+	slider:SetOrientation("VERTICAL")
+	local thumb = slider:CreateTexture(nil, "OVERLAY")
+	thumb:SetColorTexture(0.6, 0.6, 0.6, 0.8)
+	thumb:SetSize(10, 36)
+	slider:SetThumbTexture(thumb)
+	slider:SetScript("OnValueChanged", function(_, value) scroll:SetVerticalScroll(value) end)
+	pane.slider = slider
+
+	local rule = frame:CreateTexture(nil, "ARTWORK")
+	rule:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+	rule:SetHeight(1)
+	rule:SetPoint("BOTTOMLEFT", 10, footer - 6)
+	rule:SetPoint("BOTTOMRIGHT", -10, footer - 6)
+
+	local notes = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	notes:SetPoint("TOPLEFT", rule, "BOTTOMLEFT", 4, -6)
+	notes:SetPoint("TOPRIGHT", rule, "BOTTOMRIGHT", -4, -6)
+	notes:SetJustifyH("LEFT")
+	notes:SetTextColor(1, 1, 1)
+	pane.notes = notes
+
+	-- Opening the tab marks the notes seen. The "new" marks stay for the rest of the session.
+	local seenBefore, wasUnseen = nil, false
+
+	return function()
+		if WhatsNew.HasUnseen() then
+			wasUnseen = true
+			seenBefore = WhatsNew.MarkSeen()
+			if ns.UI.RefreshTabs then ns.UI.RefreshTabs() end
+		end
+		FitWidth(scroll:GetWidth())
+		text:SetText(WhatsNew.Text(seenBefore, wasUnseen))
+		notes:SetText(WhatsNew.NotesText())
+		-- The text's height is only known once the client has laid it out.
+		C_Timer.After(0, function() UpdateScroll(pane) end)
+	end
 end
-
-function WhatsNew.ShowAll()
-	WhatsNew.Show(ns.CHANGELOG or {}, "Crafting and Farming Forever changelog")
-end
-
-function WhatsNew.IsShown()
-	return window ~= nil and window.frame:IsShown()
-end
-
-function WhatsNew.Hide()
-	if window then window.frame:Hide() end
-end
-
----------------------------------------------------------------------------
--- Once after an update
----------------------------------------------------------------------------
-
-local loggedIn = false
-
--- Runs when both the player is in the world and the saved data is known. If the saved data only arrives after the
--- add-on gave up waiting for it, the version seen is lost with the stand-in data, and the notes show next session.
-function WhatsNew.CheckUpdate()
-	if not (loggedIn and ns.dataReady) then return end
-	local current = WhatsNew.CurrentVersion()
-	if not WhatsNew.Compare(current, current) then return end
-	local seen = ns.db.lastSeenVersion
-	ns.db.lastSeenVersion = current
-	-- A first install has nothing to compare with; the notes would only repeat the add-on's description.
-	if not ns.savedDataFound then return end
-	if seen and (WhatsNew.Compare(seen, current) or 0) >= 0 then return end
-	local sections = WhatsNew.Sections(seen, current)
-	if #sections == 0 then return end
-	C_Timer.After(3, function() WhatsNew.Show(sections) end)
-end
-
-ns.On("PLAYER_LOGIN", function()
-	loggedIn = true
-	WhatsNew.CheckUpdate()
-end)
-ns.WhenDataReady(function() WhatsNew.CheckUpdate() end)
 
 ---------------------------------------------------------------------------
 -- Syndicator warning

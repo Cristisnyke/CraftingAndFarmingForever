@@ -1,5 +1,5 @@
 -- Crafting and Farming Forever :: UI
--- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales; the queue can sit beside Restock), the small
+-- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales, Changelog; the queue can sit beside Restock), the small
 -- Farm list, the Queue button on the crafting page, the stale-price prompts and the slash command.
 
 local _, ns = ...
@@ -9,7 +9,7 @@ ns.UI = UI
 
 local ROW_HEIGHT = 22
 local ROW_COUNT = 40
-local MAIN_WIDTH = 620
+local MAIN_WIDTH = 680 -- room for five tabs beside Refresh
 local RESTOCK_BESIDE_WIDTH = 500 -- Restock's share with the queue open beside it; the queue keeps its full width
 local WINDOW_HEIGHT = 560
 local MAIN_TOP = 36 -- title and tabs
@@ -20,6 +20,7 @@ local MAIN_TABS = {
 	{ key = "queue", title = "Queue" },
 	{ key = "restock", title = "Restock" },
 	{ key = "sales", title = "Sales" },
+	{ key = "changelog", title = "Changelog" },
 }
 local PANE_ACTIONS_TOP = 4
 local PANE_LIST_TOP = 30
@@ -1052,7 +1053,10 @@ function UpdateTabStrip()
 		local selected = tab.key == active or (beside and tab.key == "queue")
 		local title = tab.title
 		if tab.key == "queue" and #ns.db.queue > 0 then title = ("%s (%d)"):format(title, #ns.db.queue) end
-		tab.label:SetText(Color(selected and "ffffffff" or "ffb8b8b8", title))
+		-- Notes for this version not opened yet: the tab is green with a dot, nothing pops up.
+		local unseen = tab.key == "changelog" and ns.WhatsNew and ns.WhatsNew.HasUnseen()
+		tab.label:SetText(Color(selected and "ffffffff" or (unseen and "ff55dd55" or "ffb8b8b8"), title))
+		tab.badge:SetShown(unseen and true or false)
 		local shade = selected and 0.24 or 0.11
 		tab.bg:SetColorTexture(shade, shade, shade + 0.03, 1)
 		tab.accent:SetShown(selected)
@@ -1063,8 +1067,10 @@ function UI.Refresh(key)
 	local window = windows[key]
 	if not window or not window.frame:IsVisible() then return end
 	if window.tabs then RenderTabs(window) end
-	window.list = window.build()
-	RenderRows(window)
+	if window.build then -- the Changelog pane is text, not rows
+		window.list = window.build()
+		RenderRows(window)
+	end
 	if main then UpdateBanner() end
 	window.update(window)
 end
@@ -1075,6 +1081,10 @@ function UI.RefreshAll()
 	UI.Refresh("restock")
 	UI.Refresh("sales")
 	UI.Refresh("posting")
+	UpdateTabStrip()
+end
+
+function UI.RefreshTabs()
 	UpdateTabStrip()
 end
 
@@ -1644,8 +1654,12 @@ local function GetPane(key)
 			CreateQueuePane()
 		elseif key == "restock" then
 			CreateRestockPane()
-		else
+		elseif key == "sales" then
 			CreateSalesPane()
+		else
+			local frame = CreateFrame("Frame", nil, main.frame)
+			frame:Hide()
+			windows.changelog = { key = "changelog", frame = frame, update = ns.WhatsNew.BuildPane(frame, PANE_LIST_TOP) }
 		end
 	end
 	return windows[key]
@@ -1743,6 +1757,11 @@ local function CreateMain()
 		tab.accent:SetPoint("BOTTOMRIGHT")
 		tab.label = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		tab.label:SetPoint("CENTER")
+		tab.badge = tab:CreateTexture(nil, "OVERLAY")
+		tab.badge:SetColorTexture(0.33, 0.87, 0.33, 1)
+		tab.badge:SetSize(6, 6)
+		tab.badge:SetPoint("TOPRIGHT", -4, -4)
+		tab.badge:Hide()
 		main.tabButtons[index] = tab
 	end
 
@@ -2343,7 +2362,8 @@ SLASH_CFF1 = "/cff"
 SLASH_CFF2 = "/craftfarm"
 SlashCmdList.CFF = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
-	if command == "queue" or command == "profit" or command == "restock" or command == "sales" then
+	if command == "new" then command = "changelog" end
+	if command == "queue" or command == "profit" or command == "restock" or command == "sales" or command == "changelog" then
 		UI.Toggle(command)
 	elseif command == "advertise" then
 		ns.Advertise.Send(UI.AdvertisedProfession())
@@ -2354,13 +2374,11 @@ SlashCmdList.CFF = function(input)
 	elseif command == "auto" then
 		ns.db.ui.autoOpen = not ns.db.ui.autoOpen
 		ns.Print("Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
-	elseif command == "changelog" or command == "new" then
-		ns.WhatsNew.ShowAll()
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/cff [profit | queue | restock | sales | advertise | refresh | clear | auto | changelog | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | changelog | advertise | refresh | clear | auto | diag]")
 	end
 end

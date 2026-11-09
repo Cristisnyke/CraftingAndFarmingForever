@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- New: a What's new window opens once after each update, telling you what changed. Type /cff changelog to see it again
+- New Changelog tab after Sales: what changed in each version, in plain words. It lights up green after an update until you've had a look
 - The add-on now says clearly that it needs both Auctionator and Syndicator to work properly
 - If Syndicator is missing or turned off, a reminder appears in chat when you log in
 - Coming soon: TradeSkillMaster (TSM) support

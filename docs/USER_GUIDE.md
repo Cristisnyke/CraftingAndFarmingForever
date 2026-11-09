@@ -1,6 +1,6 @@
 # User guide
 
-Crafting and Farming Forever is one window with four tabs (**Profit**, **Queue**, **Restock**, **Sales**), plus a small **Farm** list, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
+Crafting and Farming Forever is one window with five tabs (**Profit**, **Queue**, **Restock**, **Sales**, **Changelog**), plus a small **Farm** list, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
 
 The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. `/cff auto` turns opening with the profession window off or on.
 
@@ -137,12 +137,12 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |
 | `/cff auto` | Toggle opening with the profession window |
-| `/cff changelog` (or `/cff new`) | Show the What's new window with every version's notes |
+| `/cff changelog` (or `/cff new`) | Open the Changelog tab |
 | `/cff diag` | Print diagnostics and save them for troubleshooting |
 
-## What's new
+## Changelog
 
-The first time you log in after updating, a **What's new** window lists what changed since the version you had, in plain words, along with the add-ons it needs and what's coming. It shows once per update; **Got it**, the × or Escape closes it. `/cff changelog` opens it again with every version's notes. A first install doesn't show it.
+The last tab lists what changed in each version, newest first, in plain words, followed by the add-ons it needs and what's coming. After an update the tab turns green with a dot until you open it, and the versions you haven't seen yet are marked **new** for the rest of that session. Nothing pops up. A first install doesn't light it.
 
 ## Troubleshooting
 

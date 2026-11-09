@@ -290,7 +290,7 @@ end
 Fire("ADDON_LOADED", "CraftingAndFarmingForever")
 Fire("PLAYER_LOGIN")
 check("no list before anything is queued", lists[ns.LIST_NAME], nil)
-check("no What's new before the saved data is known", ns.WhatsNew.IsShown(), false)
+check("nothing unseen before the saved data is known", ns.WhatsNew.HasUnseen(), false)
 
 ProfessionsFrame:Show()
 Fire("ADDON_LOADED", "Blizzard_Professions")
@@ -1228,31 +1228,31 @@ check("new mail record left alone", ns.db.sales.seen.someone[2].key, "sold|Coppe
 ns.db.sales.seen.someone = nil
 check("session queue merged", #ns.db.queue, 2)
 
--- What's new.
+-- Changelog tab.
 do
 	local W = ns.WhatsNew
-	check("changelog command opens it", W.IsShown(), true)
-	W.Hide()
-	-- Saved data from a version before the window existed counts as an update.
-	ns.savedDataFound, ns.db.lastSeenVersion = true, nil
-	W.CheckUpdate()
+	local tab = ns.UI.main.tabButtons[5]
+	check("Changelog is the tab after Sales", tab.key, "changelog")
+	-- Saved data from a version before the notes existed counts as an update: the tab lights up, nothing opens.
+	ns.dataReady, ns.savedDataFound, ns.db.lastSeenVersion = true, true, nil
+	ns.UI.Show("profit")
+	ns.UI.RefreshTabs()
+	check("unseen notes light the tab", tab.badge.shown, true)
+	check("unseen tab label is green", tab.label.text:find("ff55dd55", 1, true) ~= nil, true)
+	check("nothing marked seen before the tab opens", ns.db.lastSeenVersion, nil)
+	ns.UI.Show("changelog")
 	RunTimers()
-	check("shown after an update", W.IsShown(), true)
-	check("version marked as seen", ns.db.lastSeenVersion, tocVersion)
-	W.Hide()
-	W.CheckUpdate()
-	RunTimers()
-	check("not shown again for the same version", W.IsShown(), false)
-	ns.db.lastSeenVersion = "0.9.0"
-	W.CheckUpdate()
-	RunTimers()
-	check("shown after updating from an older version", W.IsShown(), true)
-	W.Hide()
-	ns.savedDataFound, ns.db.lastSeenVersion = false, nil
-	W.CheckUpdate()
-	RunTimers()
-	check("not shown on a first install", W.IsShown(), false)
-	check("first install marks the version seen", ns.db.lastSeenVersion, tocVersion)
+	check("opening the tab marks the version seen", ns.db.lastSeenVersion, tocVersion)
+	check("seen notes don't light the tab", tab.badge.shown, false)
+	ns.UI.Show("profit")
+	check("back to profit", ns.db.ui.tab, "profit")
+	check("installed version marked new", W.Text(nil, true):find("Version " .. tocVersion .. "|r  |cff55dd55new", 1, true) ~= nil, true)
+	check("nothing marked new when seen", W.Text(tocVersion, false):find("new|r", 1, true), nil)
+	check("needs both add-ons", W.NotesText():find("Syndicator", 1, true) ~= nil, true)
+	check("TSM is coming", W.NotesText():find("TradeSkillMaster", 1, true) ~= nil, true)
+	syndicatorLoaded = false
+	check("missing Syndicator noted", W.NotesText():find("isn't active", 1, true) ~= nil, true)
+	syndicatorLoaded = true
 	check("older version", W.Compare("1.1.0", "1.2.0"), -1)
 	check("same version", W.Compare("1.10.0", "1.10.0"), 0)
 	check("numbers, not text", W.Compare("1.10.0", "1.9.9"), 1)
