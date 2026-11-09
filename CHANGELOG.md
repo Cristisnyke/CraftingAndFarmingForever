@@ -2,21 +2,21 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.2.0
 
-- New Changelog tab after Sales: what changed in each version, in plain words. It lights up green after an update until you've had a look
-- The add-on now says clearly that it needs both Auctionator and Syndicator to work properly
-- If Syndicator is missing or turned off, a reminder appears in chat when you log in
-- Coming soon: TradeSkillMaster (TSM) support
-- Farm list: Buy It button switches back to buying and reopens the queue
-- Profit: click Recipe, Sells or Profit at the top of the list to sort by it; click again to reverse
+- New: Skill up mode on the Profit tab, for levelling. It lists the recipes that can still give you a skill point, cheapest per skill point first. Recipes are coloured orange, yellow and green as in the game, with each colour's chance of a point
+- New: Changelog tab after Sales, with what changed in each version. It turns green after an update until you've had a look
+- Profit and Skill up: click a column heading to sort by it, click again to reverse
 - Profit: tick Hide unprofitable recipes to hide recipes that would make no profit
 - Profit: the Advertise button moved under the profession tabs; hover it to see what it posts
-- New: Skill up mode on the Profit tab for levelling. It lists the recipes that can still give you a skill point, cheapest per point first. Orange, yellow and green are coloured as in the game, with the chance of a point for each
-- Restock: proper columns for Sells, AH, Have, Craft and Goal
-- Restock: goals you set yourself are white with a button to go back to the default; default goals are grey
-- More reminders when auction house prices are over a day old: in chat after you log in, at the top of the Farm list, and every time you quote an order. Material tooltips mark prices that are a day or more old
+- Restock: clear columns for Sells, AH, Have, Craft and Goal
+- Restock: goals you set yourself are white, with a button to go back to the default; default goals are grey
 - The window can be resized: drag the bottom-right corner, right-click it for the default size
+- More reminders when auction house prices are over a day old: in chat after you log in, at the top of the Farm list, and every time you quote an order. Material tooltips mark prices that are a day or more old
+- Farm list: Buy It switches back to buying and reopens the queue
+- Farm It knows a few more places to gather from
+- Crafting and Farming Forever needs both Auctionator and Syndicator to work properly. If Syndicator is missing or turned off, a reminder appears in chat when you log in
+- Coming soon: TradeSkillMaster (TSM) support
 
 ## 1.1.0
 
