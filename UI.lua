@@ -314,8 +314,9 @@ local function AddItemRows(list, title, items, priceLabel, priceOf)
 	for _, row in ipairs(sorted) do table.insert(list, row) end
 end
 
--- What's left to get yourself, grouped by how: one row for the item, one saying where to get it.
-local function AddGatherRows(list, plan, withHeaders)
+-- What's left to get yourself, grouped by how: one row for the item, one saying where to get it. step, when given,
+-- numbers each group's header.
+local function AddGatherRows(list, plan, withHeaders, step)
 	local groups = {}
 	for itemID, count in pairs(plan.farm) do
 		local group, line = ns.Farm.Describe(itemID)
@@ -326,7 +327,7 @@ local function AddGatherRows(list, plan, withHeaders)
 		local rows = groups[group.key]
 		if rows then
 			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
-			if withHeaders then table.insert(list, { kind = "header", text = group.title }) end
+			if withHeaders then table.insert(list, { kind = "header", text = (step and step() or "") .. group.title }) end
 			for _, row in ipairs(rows) do
 				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
 				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
@@ -350,14 +351,15 @@ local function BuildFarmList()
 		end
 	end
 
-	AddGatherRows(list, plan, false)
-	AddItems(plan.smelt, "Smelt with Mining")
-	AddItems(plan.bank, "Take from your bank")
-	AddItems(plan.vendor, "Buy from a vendor")
+	-- In the order you'd do it: errands in town first, then gathering, then smelting what was gathered.
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
 	for _, name in ipairs(names) do AddItems(plan.fetch[name], "Get from " .. name) end
+	AddItems(plan.bank, "Take from your bank")
+	AddItems(plan.vendor, "Buy from a vendor")
+	AddGatherRows(list, plan, false)
+	AddItems(plan.smelt, "Smelt with Mining")
 	if #list == 0 then
 		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Press Buy It to craft." or "The queue is empty." })
 	end
@@ -366,39 +368,54 @@ local function BuildFarmList()
 	return list
 end
 
+-- The Queue tab is a to-do list in the order you'd work through it, numbered: fetch from alts, the bank, buy, gather
+-- and smelt, sub-crafts, and only then the queued crafts themselves, so you reach the crafting station with
+-- everything on you.
 local function BuildQueueList()
 	local list = {}
 	local farming = ns.db.ui.farmMode
 	local plan = ns.ActivePlan()
-	if #ns.db.queue > 0 then
-		local ctx = ns.NewContext()
-		table.insert(list, { kind = "header", text = "Queue", columns = "queue" })
-		for index, entry in ipairs(ns.db.queue) do
-			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
-			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
-		end
+	local number = 0
+	local function Step()
+		number = number + 1
+		return number .. ". "
+	end
+
+	local function Section(title, items, ...)
+		if next(items) == nil then return end
+		AddItemRows(list, Step() .. title, items, ...)
+	end
+
+	local names = {}
+	for name in pairs(plan.fetch) do table.insert(names, name) end
+	table.sort(names)
+	for _, name in ipairs(names) do Section("Get from " .. name .. " (log in there and mail them over)", plan.fetch[name]) end
+	Section("Take from your bank", plan.bank)
+	Section("Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
+	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
+	if farming then
+		AddGatherRows(list, plan, true, Step)
+		Section("Smelt with Mining", plan.smelt)
 	end
 	local autoHeader = false
 	for _, craft in ipairs(plan.crafts) do
 		if (craft.subCount or 0) > 0 then
 			if not autoHeader then
 				autoHeader = true
-				table.insert(list, { kind = "header", text = farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)" })
+				table.insert(list, { kind = "header",
+					text = Step() .. (farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)") })
 			end
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
-	if farming then
-		AddGatherRows(list, plan, true)
-		AddItemRows(list, "Smelt with Mining", plan.smelt)
+	if #ns.db.queue > 0 then
+		local ctx = ns.NewContext()
+		table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Craft your queue", columns = "queue" })
+		for index, entry in ipairs(ns.db.queue) do
+			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
+			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
+		end
 	end
-	AddItemRows(list, "Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
-	AddItemRows(list, "Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
-	AddItemRows(list, "Take from your bank", plan.bank)
-	local names = {}
-	for name in pairs(plan.fetch) do table.insert(names, name) end
-	table.sort(names)
-	for _, name in ipairs(names) do AddItemRows(list, "Get from " .. name, plan.fetch[name]) end
 	if #list == 0 then
 		table.insert(list, { kind = "note", text = "The queue is empty." })
 		table.insert(list, { kind = "note", text = "Press + on the Profit tab, or Queue on a recipe's page (under the favourite star)." })

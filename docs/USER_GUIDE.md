@@ -58,6 +58,16 @@ Materials you already hold count as free when it decides whether crafting a mate
 
 One queue shared by all your characters.
 
+The tab is a numbered to-do list in the order you'd work through it, so you reach the forge or the tanning rack with everything on you:
+
+1. **Get from** an alt: log in there and mail the materials over.
+2. **Take from your bank**.
+3. **Buy at auction house**, then **Buy from vendor**. With Farm It: what to gather, then what to smelt.
+4. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
+5. **Craft your queue**: the crafts you queued, at the bottom.
+
+Steps with nothing to do are left out and the rest renumbered.
+
 - **Adding:** **+** on the Profit tab, or **Queue** on a recipe's page (under the favourite star), which queues the number in the craft-count box.
 - **Columns:** **Materials** and **Profit** are for the whole entry, every queued craft. **Crafts** is the number queued. When another character has to craft an entry, their name follows the recipe in blue.
 - **Changing:** type the number of crafts in the row's box and press Enter (0 removes the entry), or use **-** and **+** (Shift for 10; Shift **-** stops at one). The red cross at the end of the row removes the entry.

@@ -350,6 +350,13 @@ local function QueueHeaders()
 end
 check("AH section subtotal", QueueHeaders():find("Buy at auction house: 90c", 1, true) ~= nil, true)
 check("vendor section subtotal", QueueHeaders():find("Buy from vendor: 20c", 1, true) ~= nil, true)
+-- The Queue tab reads as a to-do list: buy first, then the sub-crafts, and the queued crafts last.
+check("queue steps in order", (QueueHeaders():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")), table.concat({
+	"1. Buy at auction house: 90c (red: dearer since last scan, green: cheaper)",
+	"2. Buy from vendor: 20c",
+	"3. Sub-crafts (cheaper than buying)",
+	"4. Craft your queue",
+}, "\n"))
 
 -- Still to buy against the gold carried: 90c AH + 20c vendor = 1s 10c.
 check("plan cost", ns.plan.cost, 110)
