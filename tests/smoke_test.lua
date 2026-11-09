@@ -1311,6 +1311,30 @@ do
 	check("grey recipe left out", rows[30], nil)
 	check("grey counted", profit.list.trivial, 1)
 	check("yellow worth two points", rows[20].points, 2)
+	-- Sorted by cost per skill point, lowest first, unless a heading is clicked.
+	local function Order(field)
+		local values = {}
+		for _, data in ipairs(profit.list) do
+			if data.kind == "skill" then table.insert(values, data.row[field]) end
+		end
+		return values
+	end
+	check("default sort is per point", (ns.UI.ListSort("skill")), "profit")
+	check("default sort is lowest first", select(2, ns.UI.ListSort("skill")), true)
+	local perPoint = Order("perPoint")
+	check("cheapest skill point first", #perPoint == 2 and perPoint[1] <= perPoint[2], true)
+	local headings = profit.rows[1].sortHeadings
+	check("skill headings are buttons", headings.cost.shown and headings.profit.shown and headings.chance.shown, true)
+	check("per point underlined", headings.profit.edge.shown, true)
+	headings.chance.scripts.OnClick(headings.chance)
+	local chances = Order("chance")
+	check("chance sorts highest first", chances[1] >= chances[2], true)
+	headings.chance.scripts.OnClick(headings.chance)
+	chances = Order("chance")
+	check("chance reversed", chances[1] <= chances[2], true)
+	ns.UI.SortList("skill", "profit")
+	check("per point again starts lowest first", select(2, ns.UI.ListSort("skill")), true)
+	check("profit sort untouched", (ns.UI.ListSort("profit")), "profit")
 	check("status shows the skill level", profit.status.text:find("Tailoring 50/75", 1, true) ~= nil, true)
 	check("unprofitable box hidden in skill mode", profit.hideUnprofitable.shown, false)
 	local first

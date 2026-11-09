@@ -114,26 +114,40 @@ local function MatchesProfitSearch(result)
 		or false
 end
 
--- Sorting: a column and a direction, saved. Clicking a heading picks its column in its natural direction (names
--- A to Z, the rest highest first); clicking it again reverses.
-local SORT_ASCENDING = { name = true, chance = false, profit = false }
+-- Sorting, per mode of the Profit tab: a column and a direction, saved. Clicking a heading picks its column in its
+-- natural direction; clicking it again reverses. Profit: names A to Z, the rest highest first, by profit at first.
+-- Skill up: names A to Z, chance highest first, costs lowest first, by cost per skill point at first.
+local SORTS = {
+	profit = { key = "profitSort", asc = "profitSortAsc", default = "profit",
+		ascending = { name = true, chance = false, profit = false } },
+	skill = { key = "skillSort", asc = "skillSortAsc", default = "profit",
+		ascending = { name = true, chance = false, cost = true, profit = true } },
+}
+UI.SORTS = SORTS
 
-function UI.ProfitSort()
-	local key = ns.db.ui.profitSort
-	if SORT_ASCENDING[key] == nil then key = "profit" end
-	return key, ns.db.ui.profitSortAsc == true
+function UI.ListSort(mode)
+	local sort = SORTS[mode]
+	local key = ns.db.ui[sort.key]
+	if sort.ascending[key] == nil then key = sort.default end
+	local ascending = ns.db.ui[sort.asc]
+	if ascending == nil or ns.db.ui[sort.key] ~= key then ascending = sort.ascending[key] end
+	return key, ascending and true or false
 end
 
-function UI.SortProfit(key)
-	local current, ascending = UI.ProfitSort()
+function UI.SortList(mode, key)
+	local sort = SORTS[mode]
+	local current, ascending = UI.ListSort(mode)
 	if key == current then
-		ns.db.ui.profitSortAsc = not ascending
+		ns.db.ui[sort.key], ns.db.ui[sort.asc] = key, not ascending
 	else
-		ns.db.ui.profitSort, ns.db.ui.profitSortAsc = key, SORT_ASCENDING[key]
+		ns.db.ui[sort.key], ns.db.ui[sort.asc] = key, sort.ascending[key]
 	end
 	if windows.profit then windows.profit.offset = 0 end
 	UI.Refresh("profit")
 end
+
+function UI.ProfitSort() return UI.ListSort("profit") end
+function UI.SortProfit(key) UI.SortList("profit", key) end
 
 -- What a recipe sorts by. Nil (no price, no sales data, name still loading) always goes last.
 local function SortValue(result, key)
@@ -176,6 +190,29 @@ local function BuildSkillList()
 		end
 	end
 	local rows = ns.Planner.SkillUpRows(ns.NewContext(), entries)
+	-- The planner's order (cheapest per skill point) is the default and the tie-break.
+	local key, ascending = UI.ListSort("skill")
+	if key ~= "profit" or not ascending then
+		local order, values = {}, {}
+		for index, row in ipairs(rows) do
+			local recipe = ns.db.recipes[row.recipeID]
+			order[row] = index
+			values[row] = key == "name" and recipe and recipe.n and recipe.n:lower()
+				or key == "chance" and row.chance
+				or key == "cost" and row.cost
+				or key == "profit" and row.perPoint
+				or nil
+		end
+		table.sort(rows, function(a, b)
+			local va, vb = values[a], values[b]
+			if va ~= nil and vb ~= nil and va ~= vb then
+				if ascending then return va < vb end
+				return va > vb
+			end
+			if (va == nil) ~= (vb == nil) then return va ~= nil end
+			return order[a] < order[b]
+		end)
+	end
 	if #rows == 0 then
 		local text = recorded == 0 and "Open this profession on this character to read its recipe colours."
 			or list.trivial == recorded and "Every recipe is grey: none can give a skill point. Learn new ones from a trainer."
@@ -515,7 +552,8 @@ local COLUMN_TIPS = {
 		"Chance: of a skill point per craft. Orange always; yellow about half the time and green less often "
 			.. "(estimates).",
 		"Craft: materials for one craft at market prices, by the cheapest path.",
-		"Per point: what a skill point is expected to cost with that recipe. The list is cheapest first.",
+		"Per point: what a skill point is expected to cost with that recipe. The list starts cheapest first.",
+		"Click Recipe, Chance, Craft or Per point to sort by it; click again to reverse.",
 	},
 	restock = {
 		"Sells: the chance one sells within 24 hours, from your sales history.",
@@ -981,7 +1019,7 @@ local function CreateRow(parent)
 	-- The Profit headings are buttons, styled like the column headers of the game's own lists: a shaded box that lights
 	-- up under the mouse, and an arrow on every one (bright on the sorted column, faint on the others).
 	row.sortHeadings = {}
-	for _, key in ipairs({ "name", "chance", "profit" }) do
+	for _, key in ipairs({ "name", "chance", "cost", "profit" }) do
 		local heading = CreateFrame("Button", nil, row)
 		heading:SetHeight(ROW_HEIGHT - 4)
 		heading.key = key
@@ -1007,13 +1045,13 @@ local function CreateRow(parent)
 			heading.label:SetPoint("RIGHT", -4, 0)
 			heading.arrow:SetPoint("RIGHT", heading.label, "LEFT", -3, 0)
 		end
-		heading:SetScript("OnClick", function(self) UI.SortProfit(self.key) end)
+		heading:SetScript("OnClick", function(self) UI.SortList(self.mode, self.key) end)
 		heading:SetScript("OnEnter", function(self)
 			self.label:SetTextColor(1, 1, 1)
 			self.arrow:SetAlpha(1)
 			GameTooltip:SetOwner(self, "ANCHOR_TOP")
 			GameTooltip:SetText("Columns")
-			for _, line in ipairs(COLUMN_TIPS.profit) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+			for _, line in ipairs(COLUMN_TIPS[self.mode] or {}) do GameTooltip:AddLine(line, 1, 1, 1, true) end
 			GameTooltip:Show()
 		end)
 		heading:SetScript("OnLeave", function(self)
@@ -1075,7 +1113,8 @@ local function SetRow(row, data)
 	for _, heading in pairs(row.sortHeadings) do heading:Hide() end
 	-- The Profit headings light up one by one, so the row as a whole doesn't.
 	local rowGlow = row:GetHighlightTexture()
-	if rowGlow then rowGlow:SetAlpha(data.kind == "header" and data.columns == "profit" and 0 or 1) end
+	local sortable = data.kind == "header" and SORTS[data.columns] ~= nil
+	if rowGlow then rowGlow:SetAlpha(sortable and 0 or 1) end
 	row.tint:Hide()
 	row.amountLabel:Hide()
 	row.amount:SetTextColor(1, 1, 1)
@@ -1090,41 +1129,40 @@ local function SetRow(row, data)
 	if data.kind == "header" then
 		row.icon:Hide()
 		row.left:SetText(Color("ffffd100", data.text))
-		if data.columns == "profit" then
-			PlaceRight(row, ProfitControls(row), false)
+		if sortable then
+			-- Sortable headings: Profit has Recipe, Sells, Profit; Skill up has Recipe, Chance, Craft, Per point.
+			local mode = data.columns
+			PlaceRight(row, mode == "profit" and ProfitControls(row) or SkillControls(row), false)
 			row.left:SetText("")
-			local sortKey, ascending = UI.ProfitSort()
+			local columns = mode == "profit"
+				and { chance = { row.chance, "Sells" }, profit = { row.profit, "Profit" } }
+				or { chance = { row.chance, "Chance" }, cost = { row.cost, "Craft" }, profit = { row.profit, "Per point" } }
+			local sortKey, ascending = UI.ListSort(mode)
 			local headings = row.sortHeadings
 			headings.name.label:SetText(data.text)
-			headings.chance.label:SetText("Sells")
-			headings.profit.label:SetText("Profit")
 			headings.name:ClearAllPoints()
 			headings.name:SetPoint("LEFT", row, "LEFT", 0, 0)
 			headings.name:SetWidth((headings.name.label:GetStringWidth() or 40) + 26)
-			for key, region in pairs({ chance = row.chance, profit = row.profit }) do
+			for key, column in pairs(columns) do
+				headings[key].label:SetText(column[2])
 				headings[key]:ClearAllPoints()
-				headings[key]:SetPoint("LEFT", region, "LEFT", -2, 0)
-				headings[key]:SetPoint("RIGHT", region, "RIGHT", 2, 0)
+				headings[key]:SetPoint("LEFT", column[1], "LEFT", -2, 0)
+				headings[key]:SetPoint("RIGHT", column[1], "RIGHT", 2, 0)
 			end
 			for key, heading in pairs(headings) do
-				local sorted = key == sortKey
-				-- Up for ascending. Unsorted columns point the way a first click would sort them.
-				local up = sorted and ascending or (not sorted and key == "name")
-				if up then heading.arrow:SetTexCoord(0, 0.5625, 1, 0) else heading.arrow:SetTexCoord(0, 0.5625, 0, 1) end
-				heading.sorted = sorted
-				heading.arrow:SetAlpha(sorted and 1 or 0.3)
-				heading.edge:SetShown(sorted)
-				heading.label:SetTextColor(1, 0.82, 0)
-				heading:Show()
+				if key == "name" or columns[key] then
+					local sorted = key == sortKey
+					-- Up for ascending. Unsorted columns point the way a first click would sort them.
+					local up
+					if sorted then up = ascending else up = SORTS[mode].ascending[key] end
+					if up then heading.arrow:SetTexCoord(0, 0.5625, 1, 0) else heading.arrow:SetTexCoord(0, 0.5625, 0, 1) end
+					heading.mode, heading.sorted = mode, sorted
+					heading.arrow:SetAlpha(sorted and 1 or 0.3)
+					heading.edge:SetShown(sorted)
+					heading.label:SetTextColor(1, 0.82, 0)
+					heading:Show()
+				end
 			end
-		elseif data.columns == "skill" then
-			PlaceRight(row, SkillControls(row), false)
-			row.chance:SetText(Color("ffffd100", "Chance"))
-			row.cost:SetText(Color("ffffd100", "Craft"))
-			row.profit:SetText(Color("ffffd100", "Per point"))
-			row.chance:Show()
-			row.cost:Show()
-			row.profit:Show()
 		elseif data.columns == "restock" then
 			PlaceRight(row, RestockControls(row), false)
 			row.chance:SetText(Color("ffffd100", "Sells"))

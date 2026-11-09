@@ -39,6 +39,7 @@ Every known recipe, ranked by profit per craft:
 
 - Recipes are **coloured as in the profession window**. **Orange** always gives a skill point. **Yellow** gives one about half the time, and **green** only sometimes; both are estimates, as the real chance drops as your skill rises and the game doesn't say exactly. Grey recipes can't give skill and aren't listed; the footer counts them.
 - **Columns:** **Chance** of a point per craft (100%, ~50%, ~25%), **Craft** (materials for one craft at market prices, by the cheapest path) and **Per point** (craft cost divided by the chance, and by the points per craft for recipes worth more than one).
+- **Sorting:** the list starts with the lowest cost per skill point. The headings are buttons, as on the Profit list: click **Recipe**, **Chance**, **Craft** or **Per point** to sort by it, and click again to reverse. Your choice is remembered separately from the Profit list's.
 - The footer shows your skill, such as `Tailoring 87/150`.
 - Colours are per character and are read whenever the profession window is open, so they update as you level. For an alt, open its profession on that alt first.
 - **+** queues crafts as on the Profit list, and clicking a row opens the recipe.
