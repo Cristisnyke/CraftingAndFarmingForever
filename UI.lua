@@ -39,6 +39,15 @@ local function Color(hex, text)
 	return "|c" .. hex .. text .. "|r"
 end
 
+local COLOR_WARN = "ffff9933"
+
+local function ScanAgeText()
+	local age = ns.Prices.ScanAge()
+	if not age then return "No auction house scan yet." end
+	return ("Prices are %d hours old."):format(math.floor(age / 3600))
+end
+UI.ScanAgeText = ScanAgeText
+
 local windows = {}
 -- Selected profession tab per window; nil is the All tab.
 local selectedProfession = {}
@@ -352,6 +361,8 @@ local function BuildFarmList()
 	if #list == 0 then
 		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Press Buy It to craft." or "The queue is empty." })
 	end
+	-- This list stands in for the main window and its banner, and what to gather depends on prices too.
+	if ns.Prices.IsStale() then table.insert(list, 1, { kind = "warn", text = ScanAgeText() .. " Scan at the AH." }) end
 	return list
 end
 
@@ -486,10 +497,14 @@ local function StartItemTooltip(owner, itemID, recipeID)
 	end
 end
 
+-- Materials with their cost. An auction house price that's a day or more old says so, in orange: a recent scan can
+-- still have missed an item that had no listings at the time.
 local function AddPartLines(parts)
 	for _, part in ipairs(parts or {}) do
 		local name = ns.Items.Name(part.itemID) or "Loading..."
 		local value = part.unit and (ns.Money(part.unit * part.qty) .. " (" .. (KIND_LABEL[part.kind] or "?") .. ")") or "no price"
+		local age = part.kind == "ah" and ns.Prices.ItemAgeDays(part.itemID)
+		if age and age > 0 then value = value .. Color(COLOR_WARN, (" %dd old"):format(age)) end
 		GameTooltip:AddDoubleLine(part.qty .. " x " .. name, value, 0.85, 0.85, 0.85, 1, 1, 1)
 	end
 end
@@ -1078,6 +1093,9 @@ local function CreateRow(parent)
 			GameTooltip:AddDoubleLine(("Materials for x%d"):format(data.entry.qty), ns.Money(cost), 1, 1, 1, 1, 1, 1)
 			GameTooltip:AddDoubleLine(("Quote (+%d%%)"):format(ns.Queue.QuoteMargin()), ns.Money(price), 1, 1, 1, 1, 1, 1)
 		end
+		if ns.Prices.IsStale() then
+			GameTooltip:AddLine(ScanAgeText() .. " The quote may be off: scan the auction house first.", 1, 0.6, 0.2, true)
+		end
 		GameTooltip:AddLine("Fills in a reply to your last whisper with the price for the whole queued amount. "
 			.. ("The margin is %d%%; change it in the box at the bottom. You press Enter to send it."):format(ns.Queue.QuoteMargin()),
 			1, 1, 1, true)
@@ -1282,6 +1300,9 @@ local function SetRow(row, data)
 	elseif data.kind == "how" or data.kind == "note" then
 		row.icon:Hide()
 		row.left:SetText(Color(COLOR_MUTED, data.text))
+	elseif data.kind == "warn" then
+		row.icon:Hide()
+		row.left:SetText(Color(COLOR_WARN, data.text))
 	elseif data.kind == "item" then
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
 		row.left:SetText(ItemLabel(data.itemID))
@@ -1296,12 +1317,6 @@ local function SetRow(row, data)
 		end
 	end
 	row:Show()
-end
-
-local function ScanAgeText()
-	local age = ns.Prices.ScanAge()
-	if not age then return "No auction house scan yet." end
-	return ("Prices are %d hours old."):format(math.floor(age / 3600))
 end
 
 ---------------------------------------------------------------------------
@@ -2496,6 +2511,9 @@ local function NotifyStale()
 	ns.Print(ScanAgeText() .. " Scan at the auction house for accurate profit.")
 end
 
+-- Once a session: at login, or when a profession opens, whichever comes first.
+ns.On("PLAYER_LOGIN", function() C_Timer.After(10, NotifyStale) end)
+
 ns.On("TRADE_SKILL_SHOW", function()
 	HookProfessionWindow()
 	NotifyStale()
@@ -2584,6 +2602,10 @@ function Advertise.QuoteInWhisper(recipeID, crafts)
 	if not text then
 		ns.Print("A material has no price yet, so there's nothing to quote. Scan the auction house first.")
 		return
+	end
+	-- A customer gets this price, so say so every time, not once a session.
+	if ns.Prices.IsStale() then
+		ns.Print(Color(COLOR_WARN, UI.ScanAgeText() .. " This quote may be off: scan the auction house before you send it."))
 	end
 	local getTarget = (ChatFrameUtil and ChatFrameUtil.GetLastTellTarget) or ChatEdit_GetLastTellTarget
 	local target = getTarget and getTarget()

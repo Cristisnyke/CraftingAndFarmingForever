@@ -13,7 +13,7 @@ Drag the window's bottom-right corner to resize it; right-click that corner for 
 ## Before you start
 
 - **Record recipes.** Open each profession once on each character. Only recipes your characters know are listed, and a character's recipes are only read while its profession window is open.
-- **Fresh prices.** Prices come from Auctionator. If its data is more than 24 hours old, the add-on asks for a new scan: a popup at the auction house, a banner in the window, and one line in chat.
+- **Fresh prices.** Prices come from Auctionator. If its data is more than 24 hours old, the add-on asks for a new scan: a popup at the auction house, a banner in the window, an orange line at the top of the Farm list, and one line in chat after you log in (or open a profession). Quoting an order with old prices warns you in chat every time, and the Quote tooltip says so too. In material tooltips, an auction house price that's a day or more old is marked in orange, such as `3d old`, even after a recent scan, since a scan can miss items that had no listings.
 - **Auctionator and Syndicator are both needed.** Auctionator supplies every price and the shopping list; the add-on doesn't load without it. Syndicator counts your alts' bags and banks and sees what you have on the auction house. Without Syndicator only the logged-in character's bags and bank count (so it may tell you to buy what an alt already has), the Restock tab is turned off so it can't over-craft, and a reminder appears in chat at each login.
 - **TradeSkillMaster (TSM)** support is coming in a future update.
 

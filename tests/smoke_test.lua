@@ -527,7 +527,12 @@ check("quote button shown", QueueRow().quote:IsShown(), true)
 check("queue entry is 2 shirts", QueueRow().data.entry.qty, 2)
 local chatBefore = #sentChat
 function ChatEdit_GetLastTellTarget() return "Customer-Realm" end
+local printed = {}
+local realPrint = ns.Print
+ns.Print = function(text) table.insert(printed, text) end
 QueueRow().quote.scripts.OnClick(QueueRow().quote)
+ns.Print = realPrint
+check("quote warns about old prices", (printed[1] or ""):find("This quote may be off", 1, true) ~= nil, true)
 check("quote fills a whisper for the whole order", chatBoxText, "/w Customer-Realm link x2: 1s 54c")
 check("quote isn't sent", #sentChat, chatBefore)
 ChatEdit_GetLastTellTarget = function() return nil end
@@ -1627,8 +1632,11 @@ do
 	ns.UI.Show("farm")
 	local kinds = {}
 	for _, data in ipairs(ns.UI.windows.farm.list) do kinds[data.kind] = (kinds[data.kind] or 0) + 1 end
-	check("smelting listed", ns.UI.windows.farm.list[1].itemID, 2840)
-	check("says how", ns.UI.windows.farm.list[2].text, "Smelt with Mining")
+	-- Prices are stale here, so the list starts with the scan warning.
+	check("stale prices warned first", ns.UI.windows.farm.list[1].kind, "warn")
+	check("warning names the age", ns.UI.windows.farm.list[1].text:find("hours old", 1, true) ~= nil, true)
+	check("smelting listed", ns.UI.windows.farm.list[2].itemID, 2840)
+	check("says how", ns.UI.windows.farm.list[3].text, "Smelt with Mining")
 	ns.UI.windows.farm.frame:Hide()
 	ns.farmPlan = realPlan
 	ns.db.ui.farmMode = nil
