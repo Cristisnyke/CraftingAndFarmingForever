@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.2.1", lines = {
+		"- The Auctionator shopping list now only holds the materials you need to buy. It no longer lists the items you're crafting, which made it look like you should buy them",
+	} },
 	{ version = "1.2.0", lines = {
 		"- New: Skill up mode on the Profit tab, for levelling. It lists the recipes that can still give you a skill point, cheapest per skill point first. Recipes are coloured orange, yellow and green as in the game, with each colour's chance of a point",
 		"- New: Changelog tab after Sales, with what changed in each version. It turns green after an update until you've had a look",
