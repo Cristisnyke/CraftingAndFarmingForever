@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.2.2
 
 - Queue: when something you queued is also needed as a material for another queued craft (tin bars for bronze, for example), the extra crafts now show under Sub-crafts. Before, Craft Next asked for more than you could see in the queue
 

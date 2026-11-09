@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.2.2", lines = {
+		"- Queue: when something you queued is also needed as a material for another queued craft (tin bars for bronze, for example), the extra crafts now show under Sub-crafts. Before, Craft Next asked for more than you could see in the queue",
+	} },
 	{ version = "1.2.1", lines = {
 		"- The Auctionator shopping list now only holds the materials you need to buy. It no longer lists the items you're crafting, which made it look like you should buy them",
 	} },
