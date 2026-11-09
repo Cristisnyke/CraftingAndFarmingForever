@@ -10,7 +10,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 - Coming soon: TradeSkillMaster (TSM) support
 - Farm list: Buy It button switches back to buying and reopens the queue
 - Profit: click Recipe, Sells or Profit at the top of the list to sort by it; click again to reverse
-- Profit: tick Hide losing recipes to hide recipes that would lose money
+- Profit: tick Hide unprofitable recipes to hide recipes that would make no profit
 - Profit: the Advertise button moved under the profession tabs; hover it to see what it posts
 - Restock: proper columns for Sells, AH, Have, Craft and Goal
 - Restock: goals you set yourself are white with a button to go back to the default; default goals are grey

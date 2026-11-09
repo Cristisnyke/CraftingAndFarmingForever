@@ -1268,17 +1268,18 @@ do
 		return true
 	end)(), true)
 
-	-- Hide losing.
+	-- Hide unprofitable: losing and break-even recipes.
 	local results = Results()
 	results[1].net = -500
+	results[2].net = 0
 	ns.UI.Refresh("profit")
 	local count = #Results()
-	ns.db.ui.hideLosing = true
+	ns.db.ui.hideUnprofitable = true
 	ns.UI.Refresh("profit")
-	check("losing recipe hidden", #Results(), count - 1)
-	check("hidden count kept", profit.list.hiddenLosing, 1)
-	check("status says how many are hidden", profit.status.text:find("1 losing hidden", 1, true) ~= nil, true)
-	ns.db.ui.hideLosing = false
+	check("losing and break-even recipes hidden", #Results(), count - 2)
+	check("hidden count kept", profit.list.hiddenUnprofitable, 2)
+	check("status says how many are hidden", profit.status.text:find("2 unprofitable hidden", 1, true) ~= nil, true)
+	ns.db.ui.hideUnprofitable = false
 	ns.UI.Refresh("profit")
 	check("shown again", #Results(), count)
 	ns.InvalidateProfit()

@@ -146,13 +146,14 @@ end
 local function BuildProfitList()
 	profitCache = profitCache or ComputeProfit()
 	local selected = selectedProfession.profit
-	local hideLosing = ns.db.ui.hideLosing
+	local hideUnprofitable = ns.db.ui.hideUnprofitable
 	local results, order, values = {}, {}, {}
 	local key, ascending = UI.ProfitSort()
 	local hidden = 0
 	for index, result in ipairs(profitCache) do
 		if (not selected or result.profession == selected) and MatchesProfitSearch(result) then
-			if hideLosing and result.net and result.net < 0 then
+			-- Unprofitable: no profit at all, so a break-even recipe goes too. Unpriced and bind-on-pickup ones stay.
+			if hideUnprofitable and result.net and result.net <= 0 then
 				hidden = hidden + 1
 			else
 				table.insert(results, result)
@@ -172,7 +173,7 @@ local function BuildProfitList()
 			return order[a] < order[b]
 		end)
 	end
-	local list = { hiddenLosing = hidden }
+	local list = { hiddenUnprofitable = hidden }
 	for _, result in ipairs(results) do table.insert(list, { kind = "profit", result = result }) end
 	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Recipe", columns = "profit" }) end
 	return list
@@ -1431,19 +1432,19 @@ function CreateProfitPane()
 	advertise:SetScript("OnLeave", GameTooltip_Hide)
 	window.advertiseButton = advertise
 
-	local hideLosing = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
-	hideLosing:SetSize(24, 24)
-	hideLosing:SetPoint("TOPLEFT", 8, -PANE_ACTIONS_TOP + 1)
-	hideLosing:SetHitRectInsets(0, -120, 0, 0) -- the label is clickable too
-	local hideLabel = hideLosing:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	hideLabel:SetPoint("LEFT", hideLosing, "RIGHT", 2, 1)
-	hideLabel:SetText("Hide losing recipes")
-	hideLosing:SetScript("OnClick", function(self)
-		ns.db.ui.hideLosing = self:GetChecked() and true or false
+	local hideUnprofitable = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	hideUnprofitable:SetSize(24, 24)
+	hideUnprofitable:SetPoint("TOPLEFT", 8, -PANE_ACTIONS_TOP + 1)
+	hideUnprofitable:SetHitRectInsets(0, -150, 0, 0) -- the label is clickable too
+	local hideLabel = hideUnprofitable:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	hideLabel:SetPoint("LEFT", hideUnprofitable, "RIGHT", 2, 1)
+	hideLabel:SetText("Hide unprofitable recipes")
+	hideUnprofitable:SetScript("OnClick", function(self)
+		ns.db.ui.hideUnprofitable = self:GetChecked() and true or false
 		window.offset = 0
 		UI.Refresh("profit")
 	end)
-	window.hideLosing = hideLosing
+	window.hideUnprofitable = hideUnprofitable
 
 	local search = CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate")
 	search:SetSize(200, 20)
@@ -1478,9 +1479,9 @@ function CreateProfitPane()
 
 	window.update = function(self)
 		advertise:SetEnabled(ns.Advertise.Reason(UI.AdvertisedProfession()) == nil)
-		hideLosing:SetChecked(ns.db.ui.hideLosing and true or false)
+		hideUnprofitable:SetChecked(ns.db.ui.hideUnprofitable and true or false)
 		local shown = math.max(0, #self.list - 1) -- less the column headings
-		local hidden = self.list.hiddenLosing or 0
+		local hidden = self.list.hiddenUnprofitable or 0
 		local text
 		if profitSearch ~= "" then
 			text = ProfitSearchStatus(shown)
@@ -1489,7 +1490,7 @@ function CreateProfitPane()
 		else
 			text = ns.Plural(shown, "recipe", "recipes") .. " known across your characters."
 		end
-		if hidden > 0 then text = text .. " " .. Color(COLOR_MUTED, ("%d losing hidden."):format(hidden)) end
+		if hidden > 0 then text = text .. " " .. Color(COLOR_MUTED, ("%d unprofitable hidden."):format(hidden)) end
 		status:SetText(text)
 	end
 end
