@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.2.3
 
 - Queue: the tab is now a numbered to-do list in the order you'd do it. Getting materials from alts and your bank comes first, then buying, then sub-crafts, and your queued crafts last, so you reach the crafting station with everything on you. The Farm list follows the same order
 

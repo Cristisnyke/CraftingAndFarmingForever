@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.2.3", lines = {
+		"- Queue: the tab is now a numbered to-do list in the order you'd do it. Getting materials from alts and your bank comes first, then buying, then sub-crafts, and your queued crafts last, so you reach the crafting station with everything on you. The Farm list follows the same order",
+	} },
 	{ version = "1.2.2", lines = {
 		"- Queue: when something you queued is also needed as a material for another queued craft (tin bars for bronze, for example), the extra crafts now show under Sub-crafts. Before, Craft Next asked for more than you could see in the queue",
 	} },
