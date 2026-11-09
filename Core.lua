@@ -50,7 +50,9 @@ end
 ---------------------------------------------------------------------------
 -- db.recipes[recipeID] = { n = name, o = outputItemID, qmin, qmax, p = professionID, pn = professionName,
 --                          r = { { qty, itemID, altItemID, ... }, ... }, x = true if it also costs a currency }
--- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true }, links = { [professionID] = link } }
+-- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true }, links = { [professionID] = link },
+--                          skillUps = { [recipeID] = { d = colour 0-3, n = points per craft } },
+--                          skill = { [professionID] = { level, max } } } (both as of the profession's last opening)
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
@@ -100,9 +102,11 @@ local function Merge(loaded, session)
 		if target then
 			target.name, target.realm, target.class = char.name, char.realm, char.class
 			for id in pairs(char.recipes) do target.recipes[id] = true end
-			for id, link in pairs(char.links or {}) do
-				target.links = target.links or {}
-				target.links[id] = link
+			for _, field in ipairs({ "links", "skillUps", "skill" }) do
+				for id, value in pairs(char[field] or {}) do
+					target[field] = target[field] or {}
+					target[field][id] = value
+				end
 			end
 		else
 			loaded.chars[guid] = char

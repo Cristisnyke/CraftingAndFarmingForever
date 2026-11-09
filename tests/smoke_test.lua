@@ -189,7 +189,12 @@ C_TradeSkillUI = {
 	GetBaseProfessionInfo = function() return { professionID = 197, professionName = "Tailoring" } end,
 	GetChildProfessionInfo = function() return nil end,
 	GetAllRecipeIDs = function() return { 10, 20, 30, 40 } end,
-	GetRecipeInfo = function(id) return { recipeID = id, learned = id ~= 40, name = "Recipe" .. id } end,
+	-- Colours: 10 orange, 20 yellow giving 2 points, 30 grey.
+	GetRecipeInfo = function(id)
+		local difficulty = ({ [10] = 0, [20] = 1, [30] = 3 })[id]
+		return { recipeID = id, learned = id ~= 40, name = "Recipe" .. id, relativeDifficulty = difficulty,
+			numSkillUps = id == 20 and 2 or 1 }
+	end,
 	GetRecipeSchematic = function(id)
 		local s = {
 			[10] = { outputItemID = 2, quantityMin = 1, quantityMax = 1, reagentSlotSchematics = { { reagentType = 0, quantityRequired = 2, reagents = { { itemID = 1 } } } } },
@@ -260,7 +265,9 @@ page.CreateAllButton = NewFrame()
 page.CreateMultipleInputBox = NewFrame()
 page.CreateMultipleInputBox.GetValue = function() return 2 end
 ProfessionsFrame = NewFrame()
-ProfessionsFrame.GetProfessionInfo = function() return { professionID = 197, professionName = "Tailoring" } end
+ProfessionsFrame.GetProfessionInfo = function()
+	return { professionID = 197, professionName = "Tailoring", skillLevel = 50, maxSkillLevel = 75 }
+end
 ProfessionsFrame.CraftingPage = page
 AuctionHouseFrame = NewFrame()
 
@@ -1283,6 +1290,45 @@ do
 	ns.UI.Refresh("profit")
 	check("shown again", #Results(), count)
 	ns.InvalidateProfit()
+	ns.UI.SelectProfession("profit", 197)
+end
+
+-- Skill up: the cheapest skill points for the selected profession, coloured, grey left out.
+do
+	local profit = ns.UI.windows.profit
+	ns.UI.Show("profit")
+	ns.UI.SelectProfession("profit", 197)
+	profit.modeButtons[2].scripts.OnClick(profit.modeButtons[2])
+	check("skill mode saved", ns.db.ui.profitMode, "skill")
+	check("skill mode lit", profit.modeButtons[2].text, "|cffffffffSkill up|r")
+	check("skill headings first", profit.list[1].columns, "skill")
+	local rows = {}
+	for _, data in ipairs(profit.list) do
+		if data.kind == "skill" then rows[data.row.recipeID] = data.row end
+	end
+	check("orange recipe listed", rows[10] and rows[10].difficulty, 0)
+	check("yellow recipe listed", rows[20] and rows[20].difficulty, 1)
+	check("grey recipe left out", rows[30], nil)
+	check("grey counted", profit.list.trivial, 1)
+	check("yellow worth two points", rows[20].points, 2)
+	check("status shows the skill level", profit.status.text:find("Tailoring 50/75", 1, true) ~= nil, true)
+	check("unprofitable box hidden in skill mode", profit.hideUnprofitable.shown, false)
+	local first
+	for _, row in ipairs(profit.rows) do
+		if row.data and row.data.kind == "skill" then first = first or row end
+	end
+	check("orange text is orange", first.left.text:find("ffff8040", 1, true) ~= nil or first.left.text:find("ffffff00", 1, true) ~= nil, true)
+	local queued = #ns.db.queue
+	first.plus.scripts.OnClick(first.plus, "LeftButton")
+	check("skill row + queues", #ns.db.queue, queued + 1)
+	ns.Queue.Remove(#ns.db.queue)
+	local realOpen = ns.Recipes.OpenProfession
+	ns.Recipes.OpenProfession = function() return nil end
+	ns.UI.SelectProfession("profit", nil)
+	check("no profession, says how to pick one", profit.list[1].kind, "note")
+	ns.Recipes.OpenProfession = realOpen
+	profit.modeButtons[1].scripts.OnClick(profit.modeButtons[1])
+	check("back to profit mode", profit.list[1].columns, "profit")
 	ns.UI.SelectProfession("profit", 197)
 end
 

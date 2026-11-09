@@ -409,10 +409,19 @@ local function ScanOpenProfession()
 	if not char or not base or type(ids) ~= "table" then return end
 
 	local learned = {}
+	-- Each recipe's colour for this character right now, for levelling. It changes with every skill point.
+	char.skillUps = char.skillUps or {}
+	local skillChanged = false
 	for _, recipeID in ipairs(ids) do
 		local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
 		if info and info.learned then
 			learned[recipeID] = true
+			local old = char.skillUps[recipeID]
+			local difficulty, skillUps = info.relativeDifficulty, info.numSkillUps
+			if not old or old.d ~= difficulty or old.n ~= skillUps then
+				char.skillUps[recipeID] = { d = difficulty, n = skillUps }
+				skillChanged = true
+			end
 			if not readThisSession[recipeID] then
 				if Recipes.Read(recipeID, info, ProfessionKey(base)) then
 					readThisSession[recipeID] = true
@@ -424,6 +433,15 @@ local function ScanOpenProfession()
 	if not next(learned) then return end
 
 	local baseKey = ProfessionKey(base)
+	if base.skillLevel and base.maxSkillLevel then
+		char.skill = char.skill or {}
+		local old = char.skill[baseKey]
+		if not old or old.level ~= base.skillLevel or old.max ~= base.maxSkillLevel then
+			char.skill[baseKey] = { level = base.skillLevel, max = base.maxSkillLevel }
+			skillChanged = true
+		end
+	end
+	if skillChanged and ns.UI then ns.UI.Refresh("profit") end
 	-- The client only gives a profession's link while it's open, so keep it for advertising later.
 	local link = C_TradeSkillUI.GetTradeSkillListLink and C_TradeSkillUI.GetTradeSkillListLink()
 	if link then

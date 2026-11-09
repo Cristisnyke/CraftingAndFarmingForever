@@ -33,6 +33,16 @@ Every known recipe, ranked by profit per craft:
 - **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
 - Enchants that don't produce an item aren't listed.
 
+### Skill up (levelling)
+
+**Skill up** at the top of the Profit tab (beside **Profit**) switches the list to levelling: the selected profession's recipes that can still give a skill point, the cheapest expected cost per point first. On the All tab it uses the profession that's open.
+
+- Recipes are **coloured as in the profession window**. **Orange** always gives a skill point. **Yellow** gives one about half the time, and **green** only sometimes; both are estimates, as the real chance drops as your skill rises and the game doesn't say exactly. Grey recipes can't give skill and aren't listed; the footer counts them.
+- **Columns:** **Chance** of a point per craft (100%, ~50%, ~25%), **Craft** (materials for one craft at market prices, by the cheapest path) and **Per point** (craft cost divided by the chance, and by the points per craft for recipes worth more than one).
+- The footer shows your skill, such as `Tailoring 87/150`.
+- Colours are per character and are read whenever the profession window is open, so they update as you level. For an alt, open its profession on that alt first.
+- **+** queues crafts as on the Profit list, and clicking a row opens the recipe.
+
 ### Cheapest path
 
 For each material, the add-on picks the cheapest of:

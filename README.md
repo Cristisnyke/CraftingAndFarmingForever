@@ -7,6 +7,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 > **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** It won't work properly without both: Auctionator supplies every price and the shopping list, and Syndicator counts what your alts hold and what you have on the auction house. **TradeSkillMaster (TSM) support is coming.**
 
 - **Profit:** every recipe any of your characters knows, ranked by profit at current Auctionator prices, with a search box, a tab per profession, sorting by name, sell chance or profit, and an option to hide unprofitable recipes.
+- **Skill up:** a levelling view of the same list: the recipes that can still give a skill point, cheapest per point first, coloured orange, yellow and green as in the game.
 - **Cheapest path:** each material is costed as the cheapest of the auction house, a vendor, or crafting it yourself. Materials you already hold count as free.
 - **Queue:** one queue shared by all your characters, with total profit, what's still to buy, what to take from the bank, and a **Craft Next** button.
 - **Live shopping list:** one Auctionator list, `Crafting and Farming Forever Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks. It's edited in place as things change.

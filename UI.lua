@@ -108,7 +108,7 @@ UI.ComputeProfit = ComputeProfit
 local function MatchesProfitSearch(result)
 	if profitSearch == "" then return true end
 	local recipe = ns.db.recipes[result.recipeID]
-	local itemName, recipeName = ns.Items.Name(result.itemID), recipe and recipe.n
+	local itemName, recipeName = result.itemID and ns.Items.Name(result.itemID), recipe and recipe.n
 	return (itemName and itemName:lower():find(profitSearch, 1, true) ~= nil)
 		or (recipeName and recipeName:lower():find(profitSearch, 1, true) ~= nil)
 		or false
@@ -143,7 +143,53 @@ local function SortValue(result, key)
 	return result.net
 end
 
+-- Levelling mode: recipe colours as the game shows them, and what each colour means here.
+local SKILL_COLORS = { [0] = "ffff8040", [1] = "ffffff00", [2] = "ff40bf40" }
+local SKILL_CHANCE_TEXT = { [0] = "100%", [1] = "~50%", [2] = "~25%" }
+local SKILL_NAMES = { [0] = "Orange", [1] = "Yellow", [2] = "Green" }
+
+-- The profession levelling looks at: the selected tab, or on All the one that's open.
+function UI.SkillProfession()
+	return selectedProfession.profit or ns.Recipes.OpenProfession()
+end
+
+-- Recipes this character knows in that profession that can still give skill, cheapest per skill point first.
+-- Colours are per character and only known from the last time the profession was open on it.
+local function BuildSkillList()
+	local professionID = UI.SkillProfession()
+	local list = { skill = true, trivial = 0 }
+	if not professionID then
+		table.insert(list, { kind = "note", text = "Pick a profession on the left, or open one, to see its cheapest skill points." })
+		return list
+	end
+	local char = ns.db.chars[ns.CharKey()]
+	local entries, recorded = {}, 0
+	for recipeID, info in pairs(char and char.skillUps or {}) do
+		local recipe = ns.db.recipes[recipeID]
+		if recipe and recipe.p == professionID and char.recipes[recipeID] then
+			recorded = recorded + 1
+			if info.d == 3 then
+				list.trivial = list.trivial + 1
+			elseif MatchesProfitSearch({ recipeID = recipeID, itemID = recipe.o }) then
+				table.insert(entries, { recipeID = recipeID, difficulty = info.d, skillUps = info.n })
+			end
+		end
+	end
+	local rows = ns.Planner.SkillUpRows(ns.NewContext(), entries)
+	if #rows == 0 then
+		local text = recorded == 0 and "Open this profession on this character to read its recipe colours."
+			or list.trivial == recorded and "Every recipe is grey: none can give a skill point. Learn new ones from a trainer."
+			or "No recipes match your search."
+		table.insert(list, { kind = "note", text = text })
+		return list
+	end
+	table.insert(list, { kind = "header", text = "Recipe", columns = "skill" })
+	for _, row in ipairs(rows) do table.insert(list, { kind = "skill", row = row }) end
+	return list
+end
+
 local function BuildProfitList()
+	if ns.db.ui.profitMode == "skill" then return BuildSkillList() end
 	profitCache = profitCache or ComputeProfit()
 	local selected = selectedProfession.profit
 	local hideUnprofitable = ns.db.ui.hideUnprofitable
@@ -403,13 +449,35 @@ local function StartItemTooltip(owner, itemID, recipeID)
 	end
 end
 
-local function ShowProfitTooltip(row, result)
-	StartItemTooltip(row, result.itemID, result.recipeID)
-	for _, part in ipairs(result.parts or {}) do
+local function AddPartLines(parts)
+	for _, part in ipairs(parts or {}) do
 		local name = ns.Items.Name(part.itemID) or "Loading..."
 		local value = part.unit and (ns.Money(part.unit * part.qty) .. " (" .. (KIND_LABEL[part.kind] or "?") .. ")") or "no price"
 		GameTooltip:AddDoubleLine(part.qty .. " x " .. name, value, 0.85, 0.85, 0.85, 1, 1, 1)
 	end
+end
+
+local function ShowSkillTooltip(row, item)
+	StartItemTooltip(row, item.itemID, item.recipeID)
+	AddPartLines(item.parts)
+	GameTooltip:AddLine(" ")
+	local hex = SKILL_COLORS[item.difficulty]
+	GameTooltip:AddDoubleLine("Colour", Color(hex, SKILL_NAMES[item.difficulty]), 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL_CHANCE_TEXT[item.difficulty]), 1, 1, 1, 1, 1, 1)
+	if item.points > 1 then GameTooltip:AddDoubleLine("Skill points per craft", tostring(item.points), 1, 1, 1, 1, 1, 1) end
+	GameTooltip:AddDoubleLine("Materials per craft", item.cost and ns.Money(item.cost) or "no price", 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Expected cost per skill point", item.perPoint and ns.Money(item.perPoint) or "no price",
+		1, 1, 1, 1, 1, 1)
+	GameTooltip:AddLine("Orange always gives a skill point. Yellow and green are estimates: yellow about half the time, "
+		.. "green less often, and both get less likely as your skill rises.", 0.6, 0.6, 0.6, true)
+	GameTooltip:AddLine("Click to open the recipe. + queues one, Shift + queues ten, right-click + to type an amount.",
+		0.6, 0.6, 0.6, true)
+	GameTooltip:Show()
+end
+
+local function ShowProfitTooltip(row, result)
+	StartItemTooltip(row, result.itemID, result.recipeID)
+	AddPartLines(result.parts)
 	GameTooltip:AddLine(" ")
 	GameTooltip:AddDoubleLine("Cost", result.cost and ns.Money(result.cost) or "no price", 1, 1, 1, 1, 1, 1)
 	if result.bound then
@@ -442,6 +510,13 @@ local COLUMN_TIPS = {
 		"Profit: for one craft, after the 5% auction house cut, with materials by the cheapest path.",
 		"Click Recipe, Sells or Profit to sort by it; click again to reverse.",
 	},
+	skill = {
+		"Recipes are coloured as in the profession window. Grey ones can't give skill and aren't listed.",
+		"Chance: of a skill point per craft. Orange always; yellow about half the time and green less often "
+			.. "(estimates).",
+		"Craft: materials for one craft at market prices, by the cheapest path.",
+		"Per point: what a skill point is expected to cost with that recipe. The list is cheapest first.",
+	},
 	restock = {
 		"Sells: the chance one sells within 24 hours, from your sales history.",
 		"AH: how many you have on the auction house, across your characters. Updates when you visit the auction house.",
@@ -467,6 +542,8 @@ local function RowOnEnter(row)
 		GameTooltip:Show()
 	elseif data.kind == "profit" then
 		ShowProfitTooltip(row, data.result)
+	elseif data.kind == "skill" then
+		ShowSkillTooltip(row, data.row)
 	elseif data.kind == "how" or data.farm then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
@@ -553,9 +630,11 @@ local function RowOnClick(row)
 	local data = row.data
 	if data and data.kind == "post" then
 		ns.Posting.Select(data.row.itemID)
-	elseif data and data.kind == "profit" and ns.Recipes.Knows(ns.CharKey(), data.result.recipeID)
-		and ns.Recipes.OpenRecipes()[data.result.recipeID] then
-		C_TradeSkillUI.OpenRecipe(data.result.recipeID)
+	elseif data and (data.kind == "profit" or data.kind == "skill") then
+		local recipeID = data.kind == "profit" and data.result.recipeID or data.row.recipeID
+		if ns.Recipes.Knows(ns.CharKey(), recipeID) and ns.Recipes.OpenRecipes()[recipeID] then
+			C_TradeSkillUI.OpenRecipe(recipeID)
+		end
 	end
 end
 
@@ -574,6 +653,7 @@ local CHANCE_COLUMN_WIDTH = 44
 -- Tooltips for + and -, by the kind of row they're on: title, then the help line.
 local PLUS_TIPS = {
 	profit = { "Queue one craft", "Shift: ten. Right-click or Ctrl-click: type an amount." },
+	skill = { "Queue one craft", "Shift: ten. Right-click or Ctrl-click: type an amount." },
 	queue = { "Add one craft", "Shift: ten. Or type the amount in the box." },
 	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
 }
@@ -671,6 +751,11 @@ local function ProfitControls(row)
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.chance, 6 } }
 end
 
+local function SkillControls(row)
+	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
+	return { { row.plus, 2 }, { row.profit, 6 }, { row.cost, 6 }, { row.chance, 6 } }
+end
+
 local RESTOCK_COLUMN_WIDTH = 38
 
 local function RestockControls(row)
@@ -766,11 +851,12 @@ local function CreateRow(parent)
 	row.plus = SmallButton(row, "+", function(self, button)
 		local data = self:GetParent().data
 		if not data then return end
-		if data.kind == "profit" then
+		if data.kind == "profit" or data.kind == "skill" then
+			local recipeID = data.kind == "profit" and data.result.recipeID or data.row.recipeID
 			if button == "RightButton" or IsControlKeyDown() then
-				AskQueueAmount(self, data.result.recipeID)
+				AskQueueAmount(self, recipeID)
 			else
-				ns.Queue.Add(data.result.recipeID, IsShiftKeyDown() and 10 or 1)
+				ns.Queue.Add(recipeID, IsShiftKeyDown() and 10 or 1)
 			end
 		elseif data.kind == "queue" then
 			ns.Queue.Change(data.index, IsShiftKeyDown() and 10 or 1)
@@ -1031,6 +1117,14 @@ local function SetRow(row, data)
 				heading.label:SetTextColor(1, 0.82, 0)
 				heading:Show()
 			end
+		elseif data.columns == "skill" then
+			PlaceRight(row, SkillControls(row), false)
+			row.chance:SetText(Color("ffffd100", "Chance"))
+			row.cost:SetText(Color("ffffd100", "Craft"))
+			row.profit:SetText(Color("ffffd100", "Per point"))
+			row.chance:Show()
+			row.cost:Show()
+			row.profit:Show()
 		elseif data.columns == "restock" then
 			PlaceRight(row, RestockControls(row), false)
 			row.chance:SetText(Color("ffffd100", "Sells"))
@@ -1063,6 +1157,19 @@ local function SetRow(row, data)
 		else
 			row.profit:SetText(Color(COLOR_MUTED, "no data"))
 		end
+	elseif data.kind == "skill" then
+		local item = data.row
+		local recipe = ns.db.recipes[item.recipeID]
+		local spellIcon = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(item.recipeID))
+			or (GetSpellTexture and GetSpellTexture(item.recipeID))
+		row.icon:SetTexture(item.itemID and ns.Items.Icon(item.itemID) or spellIcon or 134400)
+		local hex = SKILL_COLORS[item.difficulty]
+		row.left:SetText(Color(hex, recipe and recipe.n or "?")
+			.. (item.points > 1 and Color(COLOR_MUTED, (" +%d per craft"):format(item.points)) or ""))
+		PlaceRight(row, SkillControls(row), true)
+		row.chance:SetText(Color(hex, SKILL_CHANCE_TEXT[item.difficulty]))
+		row.cost:SetText(item.cost and ns.Money(item.cost) or Color(COLOR_MUTED, "no price"))
+		row.profit:SetText(item.perPoint and ns.Money(item.perPoint) or Color(COLOR_MUTED, "?"))
 	elseif data.kind == "queue" then
 		local entry = data.entry
 		local recipe = ns.db.recipes[entry.recipeID]
@@ -1432,9 +1539,38 @@ function CreateProfitPane()
 	advertise:SetScript("OnLeave", GameTooltip_Hide)
 	window.advertiseButton = advertise
 
+	-- Profit or Skill up, the current one lit, like Buy It and Farm It on the Queue tab.
+	local modes = {}
+	for index, mode in ipairs({
+		{ key = "profit", label = "Profit", tip = "Every recipe ranked by what it earns on the auction house." },
+		{ key = "skill", label = "Skill up", tip = "Levelling: the selected profession's recipes that can still give "
+			.. "a skill point, cheapest per point first, coloured as in the profession window." },
+	}) do
+		local button = HeaderButton(window.frame, mode.label, 70, function()
+			ns.db.ui.profitMode = mode.key
+			window.offset = 0
+			UI.Refresh("profit")
+		end)
+		if index == 1 then
+			button:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
+		else
+			button:SetPoint("LEFT", modes[1], "RIGHT", 0, 0)
+		end
+		button:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			GameTooltip:SetText(mode.label)
+			GameTooltip:AddLine(mode.tip, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		button:SetScript("OnLeave", GameTooltip_Hide)
+		button.mode = mode
+		modes[index] = button
+	end
+	window.modeButtons = modes
+
 	local hideUnprofitable = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
 	hideUnprofitable:SetSize(24, 24)
-	hideUnprofitable:SetPoint("TOPLEFT", 8, -PANE_ACTIONS_TOP + 1)
+	hideUnprofitable:SetPoint("LEFT", modes[2], "RIGHT", 10, 0)
 	hideUnprofitable:SetHitRectInsets(0, -150, 0, 0) -- the label is clickable too
 	local hideLabel = hideUnprofitable:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	hideLabel:SetPoint("LEFT", hideUnprofitable, "RIGHT", 2, 1)
@@ -1479,7 +1615,28 @@ function CreateProfitPane()
 
 	window.update = function(self)
 		advertise:SetEnabled(ns.Advertise.Reason(UI.AdvertisedProfession()) == nil)
+		local skillMode = ns.db.ui.profitMode == "skill"
+		for _, button in ipairs(modes) do
+			local on = (button.mode.key == "skill") == skillMode
+			button:SetText(on and ("|cffffffff" .. button.mode.label .. "|r") or button.mode.label)
+			if on then button:LockHighlight() else button:UnlockHighlight() end
+		end
+		hideUnprofitable:SetShown(not skillMode)
 		hideUnprofitable:SetChecked(ns.db.ui.hideUnprofitable and true or false)
+		if self.list.skill then
+			local professionID = UI.SkillProfession()
+			local char = ns.db.chars[ns.CharKey()]
+			local level = professionID and char and char.skill and char.skill[professionID]
+			local parts = {}
+			if level then
+				table.insert(parts, ("%s %d/%d."):format(ns.Recipes.ProfessionName(professionID) or "Skill", level.level, level.max))
+			end
+			if self.list.trivial > 0 then
+				table.insert(parts, Color(COLOR_MUTED, ("%d grey not shown."):format(self.list.trivial)))
+			end
+			status:SetText(table.concat(parts, " "))
+			return
+		end
 		local shown = math.max(0, #self.list - 1) -- less the column headings
 		local hidden = self.list.hiddenUnprofitable or 0
 		local text

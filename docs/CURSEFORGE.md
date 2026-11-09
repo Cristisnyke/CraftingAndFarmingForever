@@ -17,6 +17,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - Materials you already hold count as free, so ore in your bank means it smelts bars instead of buying them.
 - A tab per profession, a search box, and sorting by name, sell chance or profit.
 - Hide unprofitable recipes with one tick.
+- **Skill up** mode for levelling: the cheapest recipes per skill point, coloured orange, yellow and green as in the game, with each colour's chance of a point.
 - Bind-on-pickup crafts are listed with their crafting cost, so you can still plan them.
 
 ### One queue for every character

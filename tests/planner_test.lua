@@ -345,6 +345,30 @@ check("whole silver rounds an odd lowest down", (Planner.PostPrice({ lowest = 36
 check("whole silver keeps your own", (Planner.PostPrice({ lowest = 500, lowestIsMine = true, wholeSilver = true })), 500)
 check("whole silver scan rounds down", (Planner.PostPrice({ scanned = 750, wholeSilver = true })), 700)
 check("whole silver at least 1s", (Planner.PostPrice({ lowest = 100, wholeSilver = true })), 100)
+
+-- Levelling: cheapest expected cost per skill point first; grey and unknown colours left out.
+do
+	local ctx = Context()
+	local rows = Planner.SkillUpRows(ctx, {
+		{ recipeID = 300, difficulty = 0 }, -- shirt: 3 bolts (20 each crafted) + thread 5 = 65 per point
+		{ recipeID = 200, difficulty = 2 }, -- bolt: 20, green 25% = 80 per point
+		{ recipeID = 100, difficulty = 1, skillUps = 2 }, -- bar: 20, yellow 50%, 2 points = 20 per point
+		{ recipeID = 999, difficulty = 0 }, -- unknown recipe
+	})
+	check("skill rows", #rows, 3)
+	check("cheapest per point first", rows[1].recipeID, 100)
+	check("per point uses chance and points", rows[1].perPoint, 20)
+	check("orange next", rows[2].recipeID, 300)
+	check("orange per point is the cost", rows[2].perPoint, 65)
+	check("green last", rows[3].recipeID, 200)
+	check("green per point", rows[3].perPoint, 80)
+	check("grey gives nothing", #Planner.SkillUpRows(ctx, { { recipeID = 100, difficulty = 3 } }), 0)
+	check("no colour, not listed", #Planner.SkillUpRows(ctx, { { recipeID = 100 } }), 0)
+	local unpriced = Planner.SkillUpRows(Context({ ah = { [ORE] = 10 } }), {
+		{ recipeID = 200, difficulty = 0 }, { recipeID = 100, difficulty = 2 },
+	})
+	check("no price goes last", unpriced[2].perPoint, nil)
+end
 do
 	local price, wasRaised = Planner.PostPrice({ lowest = 300, breakEven = 391, wholeSilver = true })
 	check("whole silver break-even rounds up", price, 400)

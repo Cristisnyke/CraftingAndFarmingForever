@@ -115,6 +115,37 @@ function Planner.Profit(ctx, recipeID)
 	return result
 end
 
+-- Chance of a skill point per craft, by the recipe's colour (the client's relativeDifficulty: 0 orange, 1 yellow,
+-- 2 green, 3 grey). Orange always gives one; yellow and green are estimates, since the real chance falls as skill rises
+-- and the client doesn't report it.
+Planner.SKILL_CHANCE = { [0] = 1, [1] = 0.5, [2] = 0.25 }
+
+-- Levelling: entries are { recipeID, difficulty, skillUps } for one character's recipes. Returns the ones that can
+-- still give skill, cheapest expected cost per skill point first, at market prices. A recipe with a material that has
+-- no price goes last, as its cost is unknown.
+function Planner.SkillUpRows(ctx, entries)
+	local rows = {}
+	for _, entry in ipairs(entries) do
+		local chance = Planner.SKILL_CHANCE[entry.difficulty]
+		local recipe = ctx.recipes[entry.recipeID]
+		if chance and recipe then
+			local cost, parts = Planner.RecipeCost(ctx, entry.recipeID)
+			local points = math.max(1, entry.skillUps or 1)
+			rows[#rows + 1] = {
+				recipeID = entry.recipeID, itemID = recipe.o, difficulty = entry.difficulty, chance = chance,
+				points = points, cost = cost, parts = parts, perPoint = cost and cost / (chance * points),
+			}
+		end
+	end
+	table.sort(rows, function(a, b)
+		if (a.perPoint == nil) ~= (b.perPoint == nil) then return a.perPoint ~= nil end
+		if a.perPoint and a.perPoint ~= b.perPoint then return a.perPoint < b.perPoint end
+		if a.difficulty ~= b.difficulty then return a.difficulty < b.difficulty end
+		return a.recipeID < b.recipeID
+	end)
+	return rows
+end
+
 -- Expected result of selling everything in the queue, at the same prices as the profit list. isSellable(itemID)
 -- returns false for results that can't go on the AH, nil while unknown. Those can't earn anything, so only their
 -- material cost is reported, apart from the profit. Entries without a usable price are counted, not guessed.

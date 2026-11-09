@@ -12,6 +12,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 - Profit: click Recipe, Sells or Profit at the top of the list to sort by it; click again to reverse
 - Profit: tick Hide unprofitable recipes to hide recipes that would make no profit
 - Profit: the Advertise button moved under the profession tabs; hover it to see what it posts
+- New: Skill up mode on the Profit tab for levelling. It lists the recipes that can still give you a skill point, cheapest per point first. Orange, yellow and green are coloured as in the game, with the chance of a point for each
 - Restock: proper columns for Sells, AH, Have, Craft and Goal
 - Restock: goals you set yourself are white with a button to go back to the default; default goals are grey
 - The window can be resized: drag the bottom-right corner, right-click it for the default size
