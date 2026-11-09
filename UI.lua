@@ -380,7 +380,7 @@ local function BuildQueueList()
 	end
 	local autoHeader = false
 	for _, craft in ipairs(plan.crafts) do
-		if craft.auto then
+		if (craft.subCount or 0) > 0 then
 			if not autoHeader then
 				autoHeader = true
 				table.insert(list, { kind = "header", text = farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)" })
@@ -673,8 +673,13 @@ local function RowOnEnter(row)
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		StartItemTooltip(row, recipe and recipe.o, data.craft.recipeID)
-		GameTooltip:AddLine(("Sub-craft: %d needed by the queue, made by %s."):format(data.craft.count,
+		GameTooltip:AddLine(("Sub-craft: %d needed by the queue, made by %s."):format(data.craft.subCount,
 			ns.CharLabel(data.craft.char)), 0.6, 0.8, 1, true)
+		local queued = data.craft.count - data.craft.subCount
+		if queued > 0 then
+			GameTooltip:AddLine(("You also queued %d yourself, so Craft Next makes %d in all."):format(queued,
+				data.craft.count), 1, 1, 1, true)
+		end
 		GameTooltip:Show()
 	end
 end
@@ -1295,7 +1300,11 @@ local function SetRow(row, data)
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
-		row.left:SetText(RecipeName(data.craft.recipeID) .. " x" .. data.craft.count)
+		local text = RecipeName(data.craft.recipeID) .. " x" .. data.craft.subCount
+		if data.craft.count > data.craft.subCount then
+			text = text .. Color(COLOR_MUTED, (" (+%d queued)"):format(data.craft.count - data.craft.subCount))
+		end
+		row.left:SetText(text)
 		row.right:SetText(Color(COLOR_MUTED, ns.CharLabel(data.craft.char)))
 	elseif data.kind == "how" or data.kind == "note" then
 		row.icon:Hide()

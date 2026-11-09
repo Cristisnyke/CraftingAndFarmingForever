@@ -461,11 +461,15 @@ function Planner.BuildPlan(ctx, queue, farming)
 		local char = ctx.crafter(recipeID, preferredChar)
 		local key = tostring(recipeID) .. "|" .. tostring(char)
 		local entry = craftIndex[key]
+		-- A recipe that is both queued and needed for another craft is one craft of the combined count. subCount is
+		-- the part only needed as a material, so the Queue window can still list it as a sub-craft.
+		local sub = isAuto and count or 0
 		if entry then
 			entry.count = entry.count + count
+			entry.subCount = entry.subCount + sub
 			entry.auto = entry.auto and isAuto
 		else
-			entry = { recipeID = recipeID, count = count, char = char, auto = isAuto }
+			entry = { recipeID = recipeID, count = count, subCount = sub, char = char, auto = isAuto }
 			craftIndex[key] = entry
 			table.insert(plan.crafts, entry)
 		end

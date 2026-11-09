@@ -128,6 +128,22 @@ check("plan final craft", plan.crafts[2].recipeID, 300)
 check("plan final not auto", plan.crafts[2].auto, false)
 check("plan buys raw", plan.buy[CLOTH], 12)
 check("plan no finished mat", plan.buy[BOLT], nil)
+check("plan sub-craft subCount", plan.crafts[1].subCount, 6)
+check("plan final subCount", plan.crafts[2].subCount, 0)
+
+-- A recipe queued by hand and also needed for another queued craft: one craft of the combined count, with the
+-- material part kept apart so it can still be listed as a sub-craft. Seen 2026-11-09: 20 Smelt Tin queued plus
+-- bronze needing 10 more tin bars, Craft Next said x30 and the window showed only the 20.
+do
+	local merged = Planner.BuildPlan(Context(), {
+		{ recipeID = 200, qty = 20, char = "me" },
+		{ recipeID = 300, qty = 2, char = "me" },
+	})
+	check("merged: one bolt craft", merged.crafts[1].recipeID, 200)
+	check("merged: combined count", merged.crafts[1].count, 26)
+	check("merged: sub-craft part", merged.crafts[1].subCount, 6)
+	check("merged: not only a sub-craft", merged.crafts[1].auto, false)
+end
 check("plan vendor", plan.vendor[THREAD], 2)
 
 -- Own stock reduces purchases and sub-crafts at each level.
