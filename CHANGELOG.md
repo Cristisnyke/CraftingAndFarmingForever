@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.5.1
 
 - Fixed the Craft Next progress bar counting one craft too many during a batch (2 / 7 when you queued 6)
 - New look for the Craft Next bar: one blue colour scheme on the window's dark background, with a thin blue edge, instead of the grey-white bar

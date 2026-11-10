@@ -4,6 +4,12 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.5.1", lines = {
+		"- Fixed the Craft Next progress bar counting one craft too many during a batch (2 / 7 when you queued 6)",
+		"- New look for the Craft Next bar: one blue colour scheme on the window's dark background, with a thin blue edge, instead of the grey-white bar",
+		"- Restocking no longer undercuts: it suggests the same price as the lowest listing",
+		"- Fixed known recipes being forgotten (your smelting recipes could vanish, so the add-on bought bars instead of smelting them and the profit for bar recipes came out too low). A recipe is now only removed when the game clearly says you no longer know it. Open the affected profession once to get missing recipes back",
+	} },
 	{ version = "1.5.0", lines = {
 		"- Craft Next is now a progress bar too. While you craft it fills through the crafts of that recipe (say 7 / 20) and shows how long until all 20 are done, plus how long all your queued crafts will take. A thin blue line under it fills as you work through the whole queue. Before you start, it says how long the next batch takes. Times are learned from your own casts. Hover it for the time per recipe",
 		"- Craft Next opens the profession it needs: no more \"Open Mining to finish Smelt Bronze\". The button says \"Open Mining: Smelt Bronze x12\", opens it (switching from the one you have open) and starts crafting once it has loaded",
