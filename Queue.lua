@@ -17,6 +17,10 @@ local function NewContext()
 		bankStock = ns.Stock.Bank,
 		altStock = ns.Stock.Alts,
 		crafter = Recipes.Crafter,
+		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
+		me = ns.CharKey(),
+		knows = Recipes.Knows,
+		charName = function(key) return ns.db.chars[key] and ns.db.chars[key].name end,
 		ahCut = ns.AH_CUT,
 	})
 end
@@ -318,7 +322,13 @@ end)
 -- Returns the next craft this character can do now, with its batch size; or nil and the reason why not.
 function Queue.NextCraft()
 	local plan = ns.ActivePlan()
-	if #plan.crafts == 0 then return nil, nil, "The queue is empty." end
+	if #plan.crafts == 0 then
+		local others = {}
+		for char in pairs(plan.elsewhere or {}) do table.insert(others, ns.CharLabel(char)) end
+		table.sort(others)
+		if #others > 0 then return nil, nil, "Nothing left to craft here. Log in to " .. table.concat(others, " or ") .. "." end
+		return nil, nil, "The queue is empty."
+	end
 	local me = ns.CharKey()
 	local openRecipes = Recipes.OpenRecipes()
 	local reason

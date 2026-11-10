@@ -64,7 +64,10 @@ The tab is a numbered to-do list in the order you'd work through it, so you reac
 2. **Take from your bank**.
 3. **Buy at auction house**, then **Buy from vendor**. With Farm It: what to gather, then what to smelt.
 4. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
-5. **Craft your queue**: the crafts you queued, at the bottom.
+5. **Craft your queue**: the crafts this character makes.
+6. **Log in to** another character: one step per alt with crafts in the queue, listing them.
+
+The list is for the character you're logged in on. Crafts another character makes, such as your tailor's shirts while you're on your blacksmith, are only listed under **Log in to**: nothing is bought, gathered or made for them here. Log in to that character and its own list shows what to get, buy and craft there. What an alt holds for its own crafts isn't asked for by your other characters, and a sub-craft only an alt knows is bought instead (or gathered, with Farm It). This also goes for **Queue restock** on the All tab, the Auctionator shopping list, Still to buy and the Next step bar.
 
 Steps with nothing to do are left out and the rest renumbered.
 

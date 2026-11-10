@@ -7,6 +7,8 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 - New Next step bar at the top of the screen: while anything is queued it shows the next thing to do (get from an alt, take from the bank, buy, sub-craft or craft), with a Craft Next button when it's time to craft. Fold it to one line with the - button; it disappears when the queue is empty. Drag to move it, or type `/cff next` to fold or unfold it. It stays out of the way in combat, dungeons, raids and battlegrounds
 - Farm It: the separate Farm list is gone. The Next step bar now shows everything to gather and where (mining, herbs, skinning and so on together), with a Buy It button to go back to buying
 
+- Queue with several characters: the to-do list, shopping list and Next step bar are now for the character you're logged in on. Crafts another character makes (say your tailor's, while you're on your blacksmith) aren't bought or made here; they're listed last as "Log in to <character>", and that character's list shows what to buy and craft when you log in there
+
 ## 1.2.3
 
 - Queue: the tab is now a numbered to-do list in the order you'd do it. Getting materials from alts and your bank comes first, then buying, then sub-crafts, and your queued crafts last, so you reach the crafting station with everything on you. The Farm list follows the same order

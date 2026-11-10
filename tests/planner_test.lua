@@ -279,6 +279,52 @@ check("restock stocked needs none", restockRows[2].crafts, 0)
 check("restock best recipe", restockRows[2].recipeID, 1)
 
 -- Zero-quantity entries are ignored; empty queue gives an empty plan.
+-- Per character: on the paladin (blacksmith and miner) the plan holds only the paladin's crafts and purchases. The
+-- tailor alt's shirt is only noted for later; its bolts in the tailor's bags are kept for it, and the paladin's own
+-- recipe needing bolts buys them, since only the tailor can make bolts.
+do
+	local knows = { pal = { [100] = true, [400] = true }, tai = { [200] = true, [300] = true } }
+	local function Split(over)
+		local ctx = Context(over)
+		ctx.recipes[400] = { o = GEM, qmin = 1, qmax = 1, r = { { 2, BOLT } } }
+		ctx.known[GEM] = { 400 }
+		ctx.me = "pal"
+		ctx.knows = function(char, recipeID) return knows[char] ~= nil and knows[char][recipeID] == true end
+		ctx.charName = function(char) return ({ pal = "Pal", tai = "Tai" })[char] end
+		ctx.crafter = function(recipeID, preferred)
+			if ctx.knows("pal", recipeID) then return "pal" end
+			if ctx.knows(preferred, recipeID) then return preferred end
+			return "tai"
+		end
+		return ctx
+	end
+	local queue = { { recipeID = 100, qty = 2, char = "pal" }, { recipeID = 300, qty = 1, char = "tai" } }
+	local split = Planner.BuildPlan(Split(), queue)
+	check("only own crafts planned", #split.crafts, 1)
+	check("own craft kept", split.crafts[1].recipeID, 100)
+	check("own materials bought", split.buy[ORE], 4)
+	check("alt's cloth not bought here", split.buy[CLOTH], nil)
+	check("alt's bolts not bought here", split.buy[BOLT], nil)
+	check("alt's thread not bought here", split.vendor[THREAD], nil)
+	check("alt's crafts noted", split.elsewhere.tai, 1)
+	check("cost is only this character's", split.cost, 40)
+
+	local reserve = Planner.BuildPlan(Split({ alts = { [BOLT] = { { name = "Tai", count = 3 } } } }),
+		{ { recipeID = 300, qty = 1, char = "tai" }, { recipeID = 400, qty = 1, char = "pal" } })
+	check("alt's bolts kept for its shirt", reserve.fetch.Tai, nil)
+	check("bolts the alt makes are bought here", reserve.buy[BOLT], 2)
+	check("no bolt crafting on the paladin", #reserve.crafts, 1)
+
+	local spare = Planner.BuildPlan(Split({ alts = { [BOLT] = { { name = "Tai", count = 5 } } } }),
+		{ { recipeID = 300, qty = 1, char = "tai" }, { recipeID = 400, qty = 1, char = "pal" } })
+	check("alt's spare bolts can be mailed", spare.fetch.Tai and spare.fetch.Tai[BOLT], 2)
+	check("nothing to buy then", spare.buy[BOLT], nil)
+
+	local farmed = Planner.BuildPlan(Split(), queue, true)
+	check("farming: alt's cloth not gathered here", farmed.farm[CLOTH], nil)
+	check("farming: own ore gathered", farmed.farm[ORE], 4)
+end
+
 check("empty plan", #Planner.BuildPlan(Context(), {}).crafts, 0)
 check("zero qty", #Planner.BuildPlan(Context(), { { recipeID = 300, qty = 0 } }).crafts, 0)
 

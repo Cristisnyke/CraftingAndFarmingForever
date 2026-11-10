@@ -375,13 +375,37 @@ local function BuildQueueList()
 			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
+	-- Your own queued crafts, then one step per other character: log in there, where their list continues with
+	-- what they need to get and buy.
 	if #ns.db.queue > 0 then
 		local ctx = ns.NewContext()
-		table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Craft your queue", columns = "queue",
-			crafting = true })
+		local me = ns.CharKey()
+		local mine, others, order = {}, {}, {}
 		for index, entry in ipairs(ns.db.queue) do
-			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
-			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
+			local row = { kind = "queue", index = index, entry = entry, matCost = ns.Planner.RecipeCost(ctx, entry.recipeID) }
+			local crafter = ns.Recipes.Crafter(entry.recipeID, entry.char)
+			if crafter == me then
+				table.insert(mine, row)
+			else
+				if not others[crafter] then
+					others[crafter] = {}
+					table.insert(order, crafter)
+				end
+				table.insert(others[crafter], row)
+			end
+		end
+		local function NumberedStep()
+			return (number > 0 or #order > 0) and Step() or ""
+		end
+		if #mine > 0 then
+			table.insert(list, { kind = "header", text = NumberedStep() .. "Craft your queue", columns = "queue", crafting = true })
+			for _, row in ipairs(mine) do table.insert(list, row) end
+		end
+		table.sort(order, function(a, b) return ns.CharLabel(a) < ns.CharLabel(b) end)
+		for _, crafter in ipairs(order) do
+			table.insert(list, { kind = "header", columns = "queue", elsewhere = crafter,
+				text = Step() .. "Log in to " .. ns.CharLabel(crafter) .. " (their materials are bought and made there)" })
+			for _, row in ipairs(others[crafter]) do table.insert(list, row) end
 		end
 	end
 	if #list == 0 then

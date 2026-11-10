@@ -274,11 +274,23 @@ end
 -- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
 -- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.
 -- Materials already held are used first in both plans; what has to come out of the bank goes on plan.bank.
+-- The to-do list for the logged-in character (ctx.me): their own queued crafts, the sub-crafts and materials those
+-- need, and where to get them. Queued crafts another character makes are only noted in plan.elsewhere (crafts per
+-- character): their materials are bought, gathered and made on that character, when you log in there. Sub-crafts are
+-- made by the character who needs them, so a material only an alt can make is bought (or gathered) instead. Without
+-- ctx.me every entry is planned here, as before.
 function Planner.BuildPlan(ctx, queue, farming)
-	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = {}, cost = 0 }
+	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = {}, cost = 0, elsewhere = {} }
 	local bags, bank, alts = {}, {}, {}
 	local craftIndex = {}
 	local active = {}
+
+	-- A recipe this character can use for a material right now.
+	local function Usable(recipeID, char)
+		local recipe = ctx.recipes[recipeID]
+		if not recipe or recipe.x or active[recipeID] then return false end
+		return not (ctx.knows and char) or ctx.knows(char, recipeID)
+	end
 
 	local function Load(itemID)
 		if bags[itemID] ~= nil then return end
@@ -364,22 +376,21 @@ function Planner.BuildPlan(ctx, queue, farming)
 	end
 
 	-- The known recipe to farm for, the cheapest when prices can tell. Nil when none can be used right now.
-	local function FarmRecipe(itemID)
+	local function FarmRecipe(itemID, char)
 		local _, kind, cheapest = Planner.ItemCost(ctx, itemID)
-		if kind == "craft" and not active[cheapest] then return cheapest end
+		if kind == "craft" and Usable(cheapest, char) then return cheapest end
 		for _, candidate in ipairs(ctx.known[itemID] or {}) do
-			local recipe = ctx.recipes[candidate]
-			if recipe and not recipe.x and not active[candidate] then return candidate end
+			if Usable(candidate, char) then return candidate end
 		end
 		return nil
 	end
 
-	local function AcquireByFarming(itemID, count)
-		local recipeID = FarmRecipe(itemID)
+	local function AcquireByFarming(itemID, count, char)
+		local recipeID = FarmRecipe(itemID, char)
 		if recipeID then
 			local yield = MinimumYield(ctx.recipes[recipeID])
 			local crafts = math.ceil(count / yield)
-			Require(recipeID, crafts, nil, true)
+			Require(recipeID, crafts, char, true)
 			AddToBags(itemID, crafts * yield - count)
 			return
 		end
@@ -389,7 +400,7 @@ function Planner.BuildPlan(ctx, queue, farming)
 			plan.smelt[itemID] = (plan.smelt[itemID] or 0) + smelts * smelt.yield
 			for _, material in ipairs(smelt) do
 				local missing = TakeFromStock(material[2], material[1] * smelts)
-				if missing > 0 then Acquire(material[2], missing) end
+				if missing > 0 then Acquire(material[2], missing, char) end
 			end
 			AddToBags(itemID, smelts * smelt.yield - count)
 			return
@@ -403,8 +414,8 @@ function Planner.BuildPlan(ctx, queue, farming)
 		end
 	end
 
-	Acquire = function(itemID, count)
-		if farming then return AcquireByFarming(itemID, count) end
+	Acquire = function(itemID, count, char)
+		if farming then return AcquireByFarming(itemID, count, char) end
 		local ah, vendor = ctx.ahPrice(itemID), ctx.vendorPrice(itemID)
 		local useVendor = vendor and (not ah or vendor < ah)
 		local buyUnit = useVendor and vendor or ah
@@ -413,9 +424,8 @@ function Planner.BuildPlan(ctx, queue, farming)
 		-- lower, and materials you already hold cost nothing more. Compare what each way would actually spend.
 		local bestRecipe, bestCrafts, bestSpend
 		for _, candidate in ipairs(ctx.known[itemID] or {}) do
-			local recipe = ctx.recipes[candidate]
-			if recipe and not recipe.x and not active[candidate] then
-				local crafts = math.ceil(count / MinimumYield(recipe))
+			if Usable(candidate, char) then
+				local crafts = math.ceil(count / MinimumYield(ctx.recipes[candidate]))
 				local spend = CraftSpend(candidate, crafts)
 				if spend and (not bestSpend or spend < bestSpend) then
 					bestRecipe, bestCrafts, bestSpend = candidate, crafts, spend
@@ -423,7 +433,7 @@ function Planner.BuildPlan(ctx, queue, farming)
 			end
 		end
 		if bestRecipe and (not buyUnit or bestSpend < buyUnit * count) then
-			Require(bestRecipe, bestCrafts, nil, true)
+			Require(bestRecipe, bestCrafts, char, true)
 			AddToBags(itemID, bestCrafts * MinimumYield(ctx.recipes[bestRecipe]) - count)
 			return
 		end
@@ -439,6 +449,8 @@ function Planner.BuildPlan(ctx, queue, farming)
 	Require = function(recipeID, count, preferredChar, isAuto)
 		local recipe = ctx.recipes[recipeID]
 		if not recipe then return end
+		-- A sub-craft stays with the character who needs it (Usable checked they know it).
+		local char = (isAuto and ctx.knows and preferredChar) or ctx.crafter(recipeID, preferredChar)
 		active[recipeID] = (active[recipeID] or 0) + 1
 		for _, slot in ipairs(recipe.r or {}) do
 			local missing = (slot[1] or 1) * count
@@ -452,13 +464,12 @@ function Planner.BuildPlan(ctx, queue, farming)
 					local unit = Planner.ItemCost(ctx, slot[i])
 					if unit and (not bestUnit or unit < bestUnit) then bestID, bestUnit = slot[i], unit end
 				end
-				Acquire(bestID, missing)
+				Acquire(bestID, missing, char)
 			end
 		end
 		active[recipeID] = active[recipeID] - 1
 		if active[recipeID] == 0 then active[recipeID] = nil end
 
-		local char = ctx.crafter(recipeID, preferredChar)
 		local key = tostring(recipeID) .. "|" .. tostring(char)
 		local entry = craftIndex[key]
 		-- A recipe that is both queued and needed for another craft is one craft of the combined count. subCount is
@@ -475,9 +486,33 @@ function Planner.BuildPlan(ctx, queue, farming)
 		end
 	end
 
+	-- Other characters' crafts first, only to set aside what they hold for them: what's in an alt's bags for its own
+	-- crafts isn't offered to this character. The rest of their planning happens when you log in there.
+	local mine = {}
 	for _, queued in ipairs(queue) do
-		if (queued.qty or 0) > 0 then Require(queued.recipeID, queued.qty, queued.char, false) end
+		if (queued.qty or 0) > 0 then
+			local char = ctx.crafter(queued.recipeID, queued.char)
+			if not ctx.me or char == ctx.me then
+				table.insert(mine, queued)
+			else
+				plan.elsewhere[char] = (plan.elsewhere[char] or 0) + queued.qty
+				local name = ctx.charName and ctx.charName(char)
+				local recipe = ctx.recipes[queued.recipeID]
+				for _, slot in ipairs(name and recipe and recipe.r or {}) do
+					local need = (slot[1] or 1) * queued.qty
+					for i = 2, #slot do
+						for _, alt in ipairs(AltsLeft(slot[i])) do
+							if alt.name == name and need > 0 then
+								local take = math.min(alt.count, need)
+								alt.count, need = alt.count - take, need - take
+							end
+						end
+					end
+				end
+			end
+		end
 	end
+	for _, queued in ipairs(mine) do Require(queued.recipeID, queued.qty, queued.char, false) end
 	return plan
 end
 

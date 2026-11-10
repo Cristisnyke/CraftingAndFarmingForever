@@ -2032,6 +2032,21 @@ do
 	RunTimers()
 	check("alt's craft names the alt", EntryRow(500).left.text:find("Alt", 1, true) ~= nil, true)
 	check("own craft names no one", EntryRow(20).left.text:find("Snic", 1, true), nil)
+	-- The alt's entry is its own step after yours, and none of its materials are on this character's list.
+	local headers = {}
+	for _, data in ipairs(queue.list) do if data.kind == "header" then table.insert(headers, data.text) end end
+	check("alt's step comes last", headers[#headers]:find("Log in to Alt", 1, true) ~= nil, true)
+	check("own crafts before it", headers[#headers - 1]:find("Craft your queue", 1, true) ~= nil, true)
+	check("alt's craft not in this character's plan", ns.plan.elsewhere["Player-2-ALT"], 1)
+	for _, craft in ipairs(ns.plan.crafts) do check("no alt craft planned here", craft.recipeID ~= 500, true) end
+	ns.Queue.Remove(2)
+	RunTimers()
+	local bar = ns.UI.windows.next
+	check("only the alt left: bar says log in", bar.list[1].text, "Log in to Alt")
+	check("bar lists the alt's craft", bar.list[2].kind, "next")
+	local _, _, reason = ns.Queue.NextCraft()
+	check("Craft Next says log in", reason, "Nothing left to craft here. Log in to Alt.")
+	check("nothing bought here for the alt", next(ns.plan.buy), nil)
 	ns.Queue.Clear()
 	ns.db.chars["Player-2-ALT"] = nil
 	ns.db.recipes[500] = nil
