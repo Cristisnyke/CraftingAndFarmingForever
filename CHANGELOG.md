@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - Fixed the Craft Next progress bar counting one craft too many during a batch (2 / 7 when you queued 6)
+- Cleaner colours on the Craft Next bar: dark background with a thin coloured edge instead of the grey border and white sheen, and a brighter blue line for all your crafts
 - Restocking no longer undercuts: it suggests the same price as the lowest listing
 - Fixed known recipes being forgotten (your smelting recipes could vanish, so the add-on bought bars instead of smelting them and the profit for bar recipes came out too low). A recipe is now only removed when the game clearly says you no longer know it. Open the affected profession once to get missing recipes back
 

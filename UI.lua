@@ -1870,14 +1870,18 @@ end
 -- The Craft Next bar: the Craft Next button and a progress bar in one. Idle it glows green and says what Craft Next
 -- makes and how long that takes; while you craft it fills amber through the crafts of that recipe (7 of 20), with
 -- the time left on them and on all your crafts, and a thin blue line under it fills through all crafts.
-local CRAFT_BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+-- Flat fills on a dark slate track with a thin border in the state's colour: no textured status bar, no white sheen.
+local CRAFT_BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
+local CRAFT_BAR_TRACK = { 0.055, 0.065, 0.085 }
 local CRAFT_BAR_STYLES = {
-	--            fill from          fill to            border
-	ready    = { { 0.05, 0.42, 0.12 }, { 0.30, 0.90, 0.35 }, { 0.35, 0.85, 0.40 } },
-	crafting = { { 0.75, 0.32, 0.02 }, { 1.00, 0.82, 0.20 }, { 1.00, 0.75, 0.20 } },
-	paused   = { { 0.45, 0.25, 0.05 }, { 0.70, 0.55, 0.20 }, { 0.75, 0.60, 0.30 } },
-	blocked  = { { 0.22, 0.22, 0.22 }, { 0.38, 0.38, 0.38 }, { 0.45, 0.45, 0.45 } },
+	--            fill from             fill to               border
+	ready    = { { 0.04, 0.30, 0.16 }, { 0.12, 0.62, 0.32 }, { 0.20, 0.70, 0.40 } },
+	crafting = { { 0.78, 0.36, 0.04 }, { 1.00, 0.72, 0.18 }, { 0.95, 0.62, 0.15 } },
+	paused   = { { 0.40, 0.22, 0.06 }, { 0.62, 0.40, 0.12 }, { 0.62, 0.42, 0.16 } },
+	blocked  = { { 0.13, 0.15, 0.20 }, { 0.17, 0.20, 0.27 }, { 0.24, 0.27, 0.35 } },
 }
+-- The all-crafts line: deep blue to cyan on a darker blue track.
+local CRAFT_ALL_FROM, CRAFT_ALL_TO, CRAFT_ALL_TRACK = { 0.10, 0.35, 0.90 }, { 0.30, 0.85, 1.00 }, { 0.04, 0.08, 0.15 }
 local craftBars = {}
 
 local function PaintFill(statusBar, from, to)
@@ -1958,7 +1962,7 @@ local function RenderCraftBar(bar)
 			if state == "ready" then bar.cf.pulse:Play() else bar.cf.pulse:Stop() end
 		end
 		bar.glow:SetShown(state == "ready")
-		bar.fill:SetAlpha(state == "ready" and 0.55 or 1)
+		bar.fill:SetAlpha(state == "ready" and 0.9 or 1)
 	end
 	bar.fill:SetValue(fill)
 	bar.spark:SetShown(state == "crafting" and fill > 0.01 and fill < 0.995)
@@ -2044,19 +2048,19 @@ local function CreateCraftBar(parent, height)
 	bar:SetHeight(height)
 	bar:SetBackdrop({
 		bgFile = "Interface\\Buttons\\WHITE8X8",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 12,
-		insets = { left = 3, right = 3, top = 3, bottom = 3 },
+		edgeFile = "Interface\\Buttons\\WHITE8X8",
+		edgeSize = 1,
+		insets = { left = 1, right = 1, top = 1, bottom = 1 },
 	})
-	bar:SetBackdropColor(0.04, 0.035, 0.03, 0.95)
+	bar:SetBackdropColor(CRAFT_BAR_TRACK[1], CRAFT_BAR_TRACK[2], CRAFT_BAR_TRACK[3], 0.97)
 	bar:RegisterForClicks("LeftButtonUp")
 	bar:SetScript("OnClick", function(self)
 		if self.cf.state == "ready" or self.cf.state == "paused" then ns.Queue.CraftNext() end
 	end)
 
 	local fill = CreateFrame("StatusBar", nil, bar)
-	fill:SetPoint("TOPLEFT", 4, -4)
-	fill:SetPoint("BOTTOMRIGHT", -4, 4)
+	fill:SetPoint("TOPLEFT", 2, -2)
+	fill:SetPoint("BOTTOMRIGHT", -2, 2)
 	fill:SetStatusBarTexture(CRAFT_BAR_TEXTURE)
 	fill:SetMinMaxValues(0, 1)
 	fill:SetValue(0)
@@ -2067,25 +2071,29 @@ local function CreateCraftBar(parent, height)
 	over:SetAllPoints(fill)
 	over:SetFrameLevel((fill:GetFrameLevel() or 0) + 2)
 
-	local gloss = over:CreateTexture(nil, "BACKGROUND")
-	gloss:SetTexture("Interface\\Buttons\\WHITE8X8")
-	gloss:SetPoint("TOPLEFT")
-	gloss:SetPoint("TOPRIGHT")
-	gloss:SetHeight(math.floor((height - 8) / 2))
-	gloss:SetVertexColor(1, 1, 1, 0.07)
+	-- A soft shade at the bottom gives the flat fill some depth without greying it.
+	local shade = over:CreateTexture(nil, "BACKGROUND")
+	shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+	shade:SetPoint("BOTTOMLEFT")
+	shade:SetPoint("BOTTOMRIGHT")
+	shade:SetHeight(math.floor((height - 4) / 2))
+	shade:SetVertexColor(0, 0, 0, 0.18)
+	if shade.SetGradient and CreateColor then
+		pcall(shade.SetGradient, shade, "VERTICAL", CreateColor(0, 0, 0, 0.28), CreateColor(0, 0, 0, 0))
+	end
 
 	local glow = over:CreateTexture(nil, "ARTWORK")
 	glow:SetTexture("Interface\\Buttons\\WHITE8X8")
 	glow:SetAllPoints()
 	glow:SetBlendMode("ADD")
-	glow:SetAlpha(0.15)
+	glow:SetAlpha(0.12)
 	bar.glow = glow
 	local pulse = glow.CreateAnimationGroup and glow:CreateAnimationGroup()
 	if pulse then
 		pulse:SetLooping("BOUNCE")
 		local fade = pulse:CreateAnimation("Alpha")
-		fade:SetFromAlpha(0.05)
-		fade:SetToAlpha(0.3)
+		fade:SetFromAlpha(0.03)
+		fade:SetToAlpha(0.2)
 		fade:SetDuration(1.1)
 		if fade.SetSmoothing then fade:SetSmoothing("IN_OUT") end
 		bar.cf.pulse = pulse
@@ -2094,7 +2102,7 @@ local function CreateCraftBar(parent, height)
 	local spark = over:CreateTexture(nil, "OVERLAY")
 	spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
 	spark:SetBlendMode("ADD")
-	spark:SetSize(24, (height - 8) * 2.2)
+	spark:SetSize(20, (height - 4) * 1.9)
 	local fillTexture = fill:GetStatusBarTexture()
 	if fillTexture then spark:SetPoint("CENTER", fillTexture, "RIGHT", 0, 0) end
 	spark:Hide()
@@ -2103,10 +2111,14 @@ local function CreateCraftBar(parent, height)
 	local allStrip = CreateFrame("StatusBar", nil, over)
 	allStrip:SetPoint("BOTTOMLEFT", 0, 0)
 	allStrip:SetPoint("BOTTOMRIGHT", 0, 0)
-	allStrip:SetHeight(3)
+	allStrip:SetHeight(4)
 	allStrip:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-	allStrip:SetStatusBarColor(0.35, 0.75, 1)
 	allStrip:SetMinMaxValues(0, 1)
+	local allTrack = allStrip:CreateTexture(nil, "BACKGROUND")
+	allTrack:SetTexture("Interface\\Buttons\\WHITE8X8")
+	allTrack:SetAllPoints()
+	allTrack:SetVertexColor(CRAFT_ALL_TRACK[1], CRAFT_ALL_TRACK[2], CRAFT_ALL_TRACK[3], 0.9)
+	PaintFill(allStrip, CRAFT_ALL_FROM, CRAFT_ALL_TO)
 	allStrip:Hide()
 	bar.allStrip = allStrip
 
@@ -2131,10 +2143,10 @@ local function CreateCraftBar(parent, height)
 
 	local highlight = bar:CreateTexture(nil, "HIGHLIGHT")
 	highlight:SetTexture("Interface\\Buttons\\WHITE8X8")
-	highlight:SetPoint("TOPLEFT", 4, -4)
-	highlight:SetPoint("BOTTOMRIGHT", -4, 4)
+	highlight:SetPoint("TOPLEFT", 2, -2)
+	highlight:SetPoint("BOTTOMRIGHT", -2, 2)
 	highlight:SetBlendMode("ADD")
-	highlight:SetVertexColor(1, 1, 1, 0.08)
+	highlight:SetVertexColor(1, 1, 1, 0.05)
 
 	bar:SetScript("OnMouseDown", function()
 		if bar.cf.state == "ready" or bar.cf.state == "paused" then over:SetPoint("TOPLEFT", fill, "TOPLEFT", 1, -1) end
