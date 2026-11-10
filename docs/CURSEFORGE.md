@@ -25,6 +25,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - Queue from the profit list, or with the **Queue** button on any recipe page.
 - Sub-crafts like bars, bolts and leather are worked out for you, and shrink as your stock grows.
 - **Total profit** for the whole queue, and **Still to buy** compared with the gold you're carrying.
+- **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. Fold it to one line; it disappears when the queue is empty.
 - **Craft Next** crafts the next thing this character can make. If it can't, it tells you why (the next craft is on your alt, or you need to open a profession).
 - After each scan, prices show what they were before: **was 1s 20c, now 1s 45c**, red when it hurts your profit and green when it helps.
 
@@ -81,6 +82,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 
 - `/cff` or `/craftfarm`: show or hide the window
 - `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`: open a tab
+- `/cff next`: fold or unfold the Next step bar
 - `/cff refresh`: re-read recipes, stock and prices
 - `/cff clear`: empty the queue
 - `/cff changelog`: open the Changelog tab

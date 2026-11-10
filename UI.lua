@@ -57,6 +57,7 @@ UI.windows = windows
 local main
 -- Defined further down, used by code above them.
 local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane, ShowFarm
+local UpdateNextStep
 local profitCache
 local profitSearch = "" -- the Profit search box's text, trimmed and lowercase
 local scanNotified = false
@@ -402,7 +403,7 @@ local function BuildQueueList()
 		if (craft.subCount or 0) > 0 then
 			if not autoHeader then
 				autoHeader = true
-				table.insert(list, { kind = "header",
+				table.insert(list, { kind = "header", crafting = true,
 					text = Step() .. (farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)") })
 			end
 			table.insert(list, { kind = "auto", craft = craft })
@@ -410,7 +411,8 @@ local function BuildQueueList()
 	end
 	if #ns.db.queue > 0 then
 		local ctx = ns.NewContext()
-		table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Craft your queue", columns = "queue" })
+		table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Craft your queue", columns = "queue",
+			crafting = true })
 		for index, entry in ipairs(ns.db.queue) do
 			local matCost = ns.Planner.RecipeCost(ctx, entry.recipeID)
 			table.insert(list, { kind = "queue", index = index, entry = entry, matCost = matCost })
@@ -421,6 +423,37 @@ local function BuildQueueList()
 		table.insert(list, { kind = "note", text = "Press + on the Profit tab, or Queue on a recipe's page (under the favourite star)." })
 	end
 	return list
+end
+
+-- The Next step bar: the first step of the Queue tab's to-do list, cut down to fit a small window. Every header in
+-- that list is a step. Returns the step's header, how many steps there are, and its rows: items without prices,
+-- queue entries as plain crafts.
+local function BuildNextStep()
+	local current, steps, rows = nil, 0, {}
+	for _, data in ipairs(BuildQueueList()) do
+		if data.kind == "header" then
+			steps = steps + 1
+			if steps == 1 then current = data end
+		elseif steps == 1 then
+			if data.kind == "queue" then
+				table.insert(rows, { kind = "next", recipeID = data.entry.recipeID, count = data.entry.qty, char = data.entry.char })
+			elseif data.kind == "item" then
+				local copy = {}
+				for key, value in pairs(data) do copy[key] = value end
+				copy.priceLabel, copy.price = nil, nil
+				table.insert(rows, copy)
+			else
+				table.insert(rows, data)
+			end
+		end
+	end
+	return current, steps, rows
+end
+
+-- "3. Buy at auction house: 1g (red: dearer ...)" becomes "Buy at auction house: 1g".
+local function ShortStepTitle(text)
+	local short = text:gsub("^%d+%. ", ""):gsub("%s*%b()$", "")
+	return short
 end
 
 ---------------------------------------------------------------------------
@@ -686,6 +719,11 @@ local function RowOnEnter(row)
 		end
 		GameTooltip:AddLine("Type the number of crafts in the box, or use - and + (Shift: ten). The red cross removes the entry.",
 			0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	elseif data.kind == "next" then
+		local recipe = ns.db.recipes[data.recipeID]
+		StartItemTooltip(row, recipe and recipe.o, data.recipeID)
+		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.recipeID, data.char)), 0.6, 0.8, 1)
 		GameTooltip:Show()
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
@@ -1323,6 +1361,13 @@ local function SetRow(row, data)
 		end
 		row.left:SetText(text)
 		row.right:SetText(Color(COLOR_MUTED, ns.CharLabel(data.craft.char)))
+	elseif data.kind == "next" then
+		local recipe = ns.db.recipes[data.recipeID]
+		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
+		row.left:SetText(RecipeName(data.recipeID))
+		local crafter = ns.Recipes.Crafter(data.recipeID, data.char)
+		row.right:SetText("x" .. data.count
+			.. (crafter ~= ns.CharKey() and ("  " .. Color("ff99ccff", ns.CharLabel(crafter))) or ""))
 	elseif data.kind == "how" or data.kind == "note" then
 		row.icon:Hide()
 		row.left:SetText(Color(COLOR_MUTED, data.text))
@@ -1351,7 +1396,7 @@ end
 
 local function RenderRows(window)
 	local visible = math.min(ROW_COUNT, math.floor(window.container:GetHeight() / ROW_HEIGHT))
-	if window.mini then visible = math.min(#window.list, MINI_MAX_ROWS) end
+	if window.mini then visible = math.min(#window.list, window.maxRows or MINI_MAX_ROWS) end
 	local maxOffset = math.max(0, #window.list - visible)
 	window.offset = math.min(window.offset, maxOffset)
 	for i = 1, ROW_COUNT do
@@ -1478,6 +1523,7 @@ function UI.RefreshQueue()
 	UI.Refresh("farm")
 	UI.Refresh("posting")
 	UpdateTabStrip()
+	UpdateNextStep()
 end
 
 local function SavePosition(key, frame)
@@ -2010,6 +2056,144 @@ function ShowFarm()
 	end
 	UI.Refresh("farm")
 end
+
+-- The Next step bar: a small window at the top of the screen with the first step of the queue's to-do list. It
+-- exists only while something is queued, opens by itself, and can be folded down to its title line, which still
+-- names the step. Not a tab: like the Farm list it stays up while you play.
+local NEXT_WIDTH = 300
+local NEXT_MAX_ROWS = 10
+local NEXT_BUTTON_ROOM = 30
+
+local function CreateNextWindow()
+	local frame = CreateFrame("Frame", "CFFNextStep", UIParent, "BackdropTemplate")
+	local window = { key = "next", frame = frame, list = {}, offset = 0, rows = {}, mini = true, maxRows = NEXT_MAX_ROWS }
+	windows.next = window
+	MakeMovable(frame, "next")
+	frame:SetFrameStrata("MEDIUM") -- under the main window and dialogs, as it's always there
+	frame:SetSize(NEXT_WIDTH, MINI_TOP + 8)
+	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.85)
+
+	local fold = HeaderButton(frame, "-", 22, function()
+		ns.db.ui.nextMinimized = not ns.db.ui.nextMinimized or nil
+		UI.Refresh("next")
+	end)
+	fold:SetHeight(18)
+	fold:SetPoint("TOPRIGHT", -6, -5)
+	fold:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(ns.db.ui.nextMinimized and "Show the step" or "Fold away")
+		GameTooltip:AddLine("Folded, the title line still names the step. It goes away by itself when the queue is "
+			.. "empty. Drag the window to move it.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	fold:SetScript("OnLeave", GameTooltip_Hide)
+	window.foldButton = fold
+
+	local count = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	count:SetPoint("RIGHT", fold, "LEFT", -6, 0)
+	window.countText = count
+
+	local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	title:SetPoint("TOPLEFT", 12, -8)
+	title:SetPoint("RIGHT", count, "LEFT", -6, 0)
+	title:SetJustifyH("LEFT")
+	title:SetHeight(14)
+	if title.SetWordWrap then title:SetWordWrap(false) end
+	window.titleText = title
+
+	CreateListArea(window, frame, 10, MINI_TOP, 6, MINI_ROW_HEIGHT)
+	for _, row in ipairs(window.rows) do row.icon:SetSize(14, 14) end
+
+	local craft = HeaderButton(frame, "Craft Next", NEXT_WIDTH - 20, function() ns.Queue.CraftNext() end)
+	craft:SetPoint("BOTTOMLEFT", 10, 8)
+	craft:SetPoint("BOTTOMRIGHT", -10, 8)
+	window.craftButton = craft
+
+	-- The list area's bottom moves up when the Craft Next button is there.
+	local function SetFooter(footer)
+		window.container:SetPoint("BOTTOMRIGHT", -24, footer)
+		window.slider:SetPoint("BOTTOMRIGHT", -10, footer)
+	end
+
+	window.build = function()
+		local step, steps, rows = BuildNextStep()
+		window.step, window.steps = step, steps
+		local folded = ns.db.ui.nextMinimized
+		local list = {}
+		window.nextCraft, window.nextCount = nil, nil
+		if step and not folded then
+			table.insert(list, { kind = "header", text = ShortStepTitle(step.text) })
+			for _, row in ipairs(rows) do table.insert(list, row) end
+			if step.crafting then
+				local nextCraft, nextCount, reason = ns.Queue.NextCraft()
+				window.nextCraft, window.nextCount = nextCraft, nextCount
+				if not nextCraft and reason then table.insert(list, { kind = "note", text = reason }) end
+			end
+		end
+		local button = window.nextCraft and true or false
+		local footer = button and NEXT_BUTTON_ROOM + 6 or 6
+		SetFooter(footer)
+		window.container:SetShown(not folded)
+		frame:SetHeight(folded and (MINI_TOP + 2)
+			or (MINI_TOP + math.min(#list, NEXT_MAX_ROWS) * MINI_ROW_HEIGHT + footer + 2))
+		return list
+	end
+
+	window.update = function()
+		local folded = ns.db.ui.nextMinimized
+		local step = window.step
+		fold:SetText(folded and "+" or "-")
+		if folded and step then
+			title:SetText("Next: " .. Color("ffffffff", ShortStepTitle(step.text)))
+		else
+			title:SetText("Next step")
+		end
+		count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
+		if window.nextCraft and not folded then
+			craft:SetText(("Craft Next: %s x%d"):format(RecipeName(window.nextCraft.recipeID), window.nextCount))
+			craft:Show()
+		else
+			craft:Hide()
+		end
+	end
+
+	frame:HookScript("OnShow", function() UI.Refresh("next") end)
+end
+
+-- Shown while anything is queued, gone the moment the queue is empty.
+function UpdateNextStep()
+	if not ns.db or #ns.db.queue == 0 then
+		if windows.next then windows.next.frame:Hide() end
+		return
+	end
+	if not windows.next then CreateNextWindow() end
+	local frame = windows.next.frame
+	if frame:IsShown() then
+		UI.Refresh("next")
+		return
+	end
+	local saved = ns.db.ui.positions and ns.db.ui.positions.next
+	frame:ClearAllPoints()
+	if saved then
+		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", saved.x, saved.y)
+	else
+		frame:SetPoint("TOP", UIParent, "TOP", 0, -12)
+	end
+	frame:Show()
+end
+
+function UI.ToggleNextStep()
+	if #ns.db.queue == 0 then
+		ns.Print("The queue is empty, so there's no next step.")
+		return
+	end
+	ns.db.ui.nextMinimized = not ns.db.ui.nextMinimized or nil
+	UpdateNextStep()
+	UI.Refresh("next")
+end
+
+-- Craft Next depends on which profession is open.
+ns.On("TRADE_SKILL_CLOSE", function() UI.Refresh("next") end)
 
 -- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
 
@@ -2942,6 +3126,8 @@ SlashCmdList.CFF = function(input)
 	if command == "new" then command = "changelog" end
 	if command == "queue" or command == "profit" or command == "restock" or command == "sales" or command == "changelog" then
 		UI.Toggle(command)
+	elseif command == "next" then
+		UI.ToggleNextStep()
 	elseif command == "advertise" then
 		ns.Advertise.Send(UI.AdvertisedProfession())
 	elseif command == "refresh" then
@@ -2956,6 +3142,6 @@ SlashCmdList.CFF = function(input)
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/cff [profit | queue | restock | sales | changelog | advertise | refresh | clear | auto | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | changelog | next | advertise | refresh | clear | auto | diag]")
 	end
 end

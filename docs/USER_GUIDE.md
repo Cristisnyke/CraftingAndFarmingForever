@@ -83,6 +83,14 @@ Steps with nothing to do are left out and the rest renumbered.
 - **Quote** on each row fills in a whisper to the last person who whispered you, with one price for the whole queued amount: the material cost of every craft plus your margin, for example `[Healing Potion] x20: 5g 20s`. The count is the number of items made, so a recipe that makes 5 queued twice says x10. Hover **Quote** to see the material cost and the quote before sending. Press Enter to send it.
 - **Quote margin %** at the bottom right sets the margin: 10% by default, anything from 0 to 1000%. Type a number and press Enter; it's remembered.
 
+### Next step bar
+
+While anything is in the queue, a small bar at the top of the screen shows the first step of the Queue tab's to-do list: what to get from an alt, take from the bank, buy, gather (in Farm It mode), sub-craft or craft. When that step is done it moves on to the next; "1 of 4" says how many steps are left. On a crafting step it has its own **Craft Next** button, or says why it can't craft yet.
+
+- The **-** button folds it to a single line that still names the step; **+** opens it again. It remembers which you chose.
+- Drag it anywhere; it remembers the place.
+- It opens by itself when you queue something and disappears when the queue is empty. `/cff next` folds or unfolds it.
+
 ### Price changes
 
 Each material and sale price shows what it was before the latest scan: **was X, now Y**. Red means worse for your profit (a material got dearer or the sale price dropped). Green means better. Nothing is removed from the queue automatically; you decide.
@@ -158,6 +166,7 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
 | `/cff profit`, `queue`, `restock`, `sales` | Open that tab, or close the window if that tab is already showing |
+| `/cff next` | Fold or unfold the Next step bar |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |

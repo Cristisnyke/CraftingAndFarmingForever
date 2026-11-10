@@ -1984,6 +1984,79 @@ do
 	RunTimers()
 end
 
+-- Next step bar: only there while something is queued, opens on the first step of the to-do list, folds to its
+-- title line, and comes back folded or not as it was left.
+do
+	ns.Queue.Clear()
+	RunTimers()
+	check("no bar before anything is queued", ns.UI.windows.next == nil or not ns.UI.windows.next.frame:IsShown(), true)
+	ns.Queue.Add(20, 2)
+	RunTimers()
+	local bar = ns.UI.windows.next
+	check("bar appears with a queue", bar ~= nil and bar.frame:IsShown(), true)
+	ns.UI.Show("queue")
+	local firstHeader
+	for _, data in ipairs(ns.UI.windows.queue.list) do
+		if data.kind == "header" then firstHeader = firstHeader or data.text end
+	end
+	ns.UI.Hide()
+	check("bar shows the first step", bar.list[1].kind, "header")
+	check("first step without its number", firstHeader:find(bar.list[1].text, 1, true) ~= nil, true)
+	check("step title is short", bar.list[1].text:find("(", 1, true), nil)
+	check("step title unnumbered", bar.list[1].text:find("^%d"), nil)
+	for _, data in ipairs(bar.list) do
+		if data.kind == "item" then check("bar rows carry no prices", data.priceLabel, nil) end
+	end
+	check("bar names the step count", bar.countText.text ~= nil, true)
+	check("bar title", bar.titleText.text, "Next step")
+	local openHeight = bar.frame:GetHeight()
+
+	bar.foldButton.scripts.OnClick(bar.foldButton)
+	check("folding is remembered", ns.db.ui.nextMinimized, true)
+	check("folded bar has no rows", #bar.list, 0)
+	check("folded bar is shorter", bar.frame:GetHeight() < openHeight, true)
+	check("folded title names the step", bar.titleText.text:find("Next: ", 1, true) ~= nil, true)
+	check("folded bar still there", bar.frame:IsShown(), true)
+	SlashCmdList.CFF("next")
+	check("slash command unfolds", ns.db.ui.nextMinimized, nil)
+	check("unfolded rows back", #bar.list > 0, true)
+
+	-- Materials in the bags: the step is crafting the entry, as a plain row with its count, with Craft Next.
+	local itemCount = C_Item.GetItemCount
+	C_Item.GetItemCount = function(id) return id == 1 and 10 or 0 end
+	ns.Queue.Clear()
+	ns.Queue.Add(10, 3)
+	RunTimers()
+	check("bar still up", bar.frame:IsShown(), true)
+	check("craft step title", bar.list[1].text, "Craft your queue")
+	local craftRow = bar.list[2]
+	check("craft row", craftRow and craftRow.kind, "next")
+	check("craft row counts the entry", craftRow and craftRow.count, 3)
+	check("craft row text", bar.rows[2].right.text, "x3")
+	bar.rows[2].scripts.OnEnter(bar.rows[2])
+	check("Craft Next on the bar", bar.craftButton.shown, true)
+	check("Craft Next names the craft", bar.craftButton.text:find("Recipe10", 1, true) ~= nil, true)
+	ns.db.ui.nextMinimized = true
+	ns.UI.Refresh("next")
+	check("no Craft Next when folded", bar.craftButton.shown, false)
+	ns.db.ui.nextMinimized = nil
+	C_Item.GetItemCount = itemCount
+
+	ns.Queue.Clear()
+	RunTimers()
+	check("bar gone with an empty queue", bar.frame:IsShown(), false)
+	SlashCmdList.CFF("next")
+	check("slash command on empty queue doesn't fold", ns.db.ui.nextMinimized, nil)
+	check("and doesn't bring the bar back", bar.frame:IsShown(), false)
+	ns.db.ui.nextMinimized = true
+	ns.Queue.Add(20, 1)
+	RunTimers()
+	check("comes back folded", bar.frame:IsShown() and #bar.list == 0, true)
+	ns.db.ui.nextMinimized = nil
+	ns.Queue.Clear()
+	RunTimers()
+end
+
 -- Plurals.
 check("plural of one", ns.Plural(1, "entry", "entries"), "1 entry")
 check("plural of many", ns.Plural(3, "entry", "entries"), "3 entries")

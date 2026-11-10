@@ -10,6 +10,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Skill up:** a levelling view of the same list: the recipes that can still give a skill point, cheapest per point first, coloured orange, yellow and green as in the game.
 - **Cheapest path:** each material is costed as the cheapest of the auction house, a vendor, or crafting it yourself. Materials you already hold count as free.
 - **Queue:** one queue shared by all your characters, with total profit, what's still to buy, what to take from the bank, and a **Craft Next** button.
+- **Next step bar:** while anything is queued, a small bar at the top of the screen shows the next thing to do, with Craft Next when it's time to craft. Fold it to one line; it goes away when the queue is empty.
 - **Live shopping list:** one Auctionator list, `Crafting and Farming Forever Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks. It's edited in place as things change.
 - **Farm It:** turns the queue into a gathering list: which vein or herb, which zones, which creatures, what to disenchant. It stays on screen and counts down as you gather.
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference.
@@ -69,6 +70,7 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
 | `/cff profit`, `queue`, `restock`, `sales`, `changelog` | Open that tab, or close the window if that tab is already showing |
+| `/cff next` | Fold or unfold the Next step bar |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |
