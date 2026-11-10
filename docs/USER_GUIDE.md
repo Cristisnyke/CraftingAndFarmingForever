@@ -61,9 +61,9 @@ One queue shared by all your characters.
 The tab is a numbered to-do list in the order you'd work through it, so you reach the forge or the tanning rack with everything on you:
 
 1. **Get from** an alt: log in there and mail the materials over.
-2. **Collect from your mailbox**: what you bought, or mailed over, waiting there.
-3. **Take from your bank**.
-4. **Buy at auction house** (in Auctionator's Shopping tab, see [The shopping list](#the-shopping-list)), then **Buy from vendor**. With Farm It: what to gather, then what to smelt.
+2. **Take from your bank**.
+3. **Buy at auction house** (in Auctionator's Shopping tab, see [The shopping list](#the-shopping-list)), then **Buy from vendor**.
+4. **Collect from your mailbox**: what you bought, or had mailed over. It comes after buying, so you finish the whole shopping list first. With Farm It: what to gather, then what to smelt.
 5. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
 6. **Craft your queue**: the crafts this character makes.
 7. **Log in to** another character: one step per alt with crafts in the queue, listing them.
@@ -109,7 +109,7 @@ The add-on keeps one Auctionator shopping list, **Crafting and Farming Forever Q
 
 **Where to find it:** go to an auction house, click the **Shopping** tab at the bottom of the auction house window (Auctionator adds it), then click the list **Crafting and Farming Forever Queue**. The Queue tab and the Next step bar say this under the buying step (hover it for the steps), and a line in chat repeats it when you open the auction house with something to buy.
 
-**What you buy leaves the list at once.** Auction house purchases go to your mailbox, so the add-on counts them as waiting in the mail as soon as the purchase goes through, and the queue gets a **Collect from your mailbox** step. When you open the mailbox, what's really there replaces that count; take the items out and they count as being in your bags.
+**What you buy leaves the list at once.** Auction house purchases go to your mailbox, so the add-on counts them as waiting in the mail as soon as the purchase goes through, and once everything is bought the queue tells you to **Collect from your mailbox**. When you open the mailbox, what's really there replaces that count; take the items out and they count as being in your bags.
 
 Guild bank, warband bank, mail on other characters and your own auctions don't count as stock. Quantities aren't capped, because a cap would hide dearer listings you might still want.
 

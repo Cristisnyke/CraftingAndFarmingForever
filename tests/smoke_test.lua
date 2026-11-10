@@ -2215,6 +2215,15 @@ do
 	check("part bought: the rest still to buy", ns.plan.buy[itemID], 1)
 	check("part bought: waiting in the mail", ns.plan.mail[itemID], needed - 1)
 	check("still listed for the rest", Listed(), true)
+	check("part bought: the bar still says buy", ns.UI.windows.next.list[1].text:find("^Buy at auction house") ~= nil, true)
+	ns.UI.Show("queue")
+	local buyStep, mailStep
+	for index, data in ipairs(ns.UI.windows.queue.list) do
+		if data.kind == "header" and data.text:find("Buy at auction house", 1, true) then buyStep = index end
+		if data.kind == "header" and data.text:find("Collect from your mailbox", 1, true) then mailStep = index end
+	end
+	check("collect only after buying", buyStep < mailStep, true)
+	ns.UI.Hide()
 
 	-- A single item (not a commodity), bought out from a search's results.
 	C_AuctionHouse.GetNumItemSearchResults = function() return #itemResults end
@@ -2238,7 +2247,7 @@ do
 	end
 	check("mailbox step listed", collect, true)
 	ns.UI.Hide()
-	check("bar starts with the mailbox", ns.UI.windows.next.list[1].text, "Collect from your mailbox")
+	check("all bought: the bar moves past the AH", ns.UI.windows.next.list[1].text:find("auction house", 1, true), nil)
 
 	-- At the mailbox: what's there is counted once, and taking it out moves it to the bags.
 	inbox = { { subject = "Auction won: " .. names[itemID], money = 0, daysLeft = 30, itemID = itemID, count = needed } }
