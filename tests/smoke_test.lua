@@ -2260,6 +2260,9 @@ do
 	progress = ns.Queue.CraftProgress()
 	check("stale plan: still of three", progress.total, 3)
 	check("stale plan: third craft", progress.done, 2)
+	-- Craft Next takes the finished craft off too, so a click now wouldn't make a fourth.
+	local _, staleCount = ns.Queue.NextCraft()
+	check("stale plan: Craft Next batch is the one left", staleCount, 1)
 	RunTimers()
 	ns.UI.UpdateCraftBars()
 	check("third craft", button.text:find("3 / 3", 1, true) ~= nil, true)

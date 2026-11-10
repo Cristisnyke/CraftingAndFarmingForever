@@ -349,14 +349,18 @@ function Queue.NextCraft()
 	if craft.char ~= me then return nil, nil, "Next craft is on " .. ns.CharLabel(craft.char) .. ".", craft end
 	local recipe = ns.db.recipes[craft.recipeID]
 	local name = (recipe and recipe.n) or "the next craft"
-	local left = ("%s (%d left)"):format(name, craft.count)
+	-- Crafts finished since the plan was built come off, or a click between a batch's end and the rebuild would
+	-- craft one more than queued.
+	local count = craft.count - (craftedSinceBuild[craft.recipeID] or 0)
+	if count <= 0 then return nil, nil, ("%s is done. Updating the plan."):format(name), craft end
+	local left = ("%s (%d left)"):format(name, count)
 	if not Recipes.OpenRecipes()[craft.recipeID] then
 		local open = recipe and recipe.p and C_TradeSkillUI.OpenTradeSkill and recipe.p or nil
 		return nil, nil, ("Open %s to finish %s."):format((recipe and recipe.pn) or "the profession", left), craft, open
 	end
 	local available = C_TradeSkillUI.GetCraftableCount(craft.recipeID) or 0
 	local unmet = Recipes.UnmetRequirements(craft.recipeID)
-	if available > 0 and #unmet == 0 then return craft, math.min(craft.count, available) end
+	if available > 0 and #unmet == 0 then return craft, math.min(count, available) end
 	local needs = {}
 	if available <= 0 then table.insert(needs, "materials") end
 	if #unmet > 0 then table.insert(needs, table.concat(unmet, ", ")) end
