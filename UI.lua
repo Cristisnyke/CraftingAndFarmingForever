@@ -1867,35 +1867,24 @@ function UI.CraftButtonText(craft, count, blocking, open)
 	return "Craft Next"
 end
 
--- The Craft Next bar: the Craft Next button and a progress bar in one. Idle it glows green and says what Craft Next
--- makes and how long that takes; while you craft it fills amber through the crafts of that recipe (7 of 20), with
--- the time left on them and on all your crafts, and a thin blue line under it fills through all crafts.
--- Flat fills on a dark slate track with a thin border in the state's colour: no textured status bar, no white sheen.
+-- The Craft Next bar: the Craft Next button and a progress bar in one. Idle it glows and says what Craft Next makes
+-- and how long that takes; while you craft it fills through the crafts of that recipe (7 of 20), with the time left
+-- on them and on all your crafts, and a thin light line under it fills through all crafts.
+-- One blue palette on the main window's dark background, solid colours only: a status bar's texture takes its colour
+-- from SetStatusBarColor, and the earlier gradient attempt (SetVertexColor(1, 1, 1) after SetGradient) left it white.
 local CRAFT_BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
-local CRAFT_BAR_TRACK = { 0.055, 0.065, 0.085 }
+local CRAFT_BAR_TRACK = { 0.05, 0.05, 0.07 }
 local CRAFT_BAR_STYLES = {
-	--            fill from             fill to               border
-	ready    = { { 0.04, 0.30, 0.16 }, { 0.12, 0.62, 0.32 }, { 0.20, 0.70, 0.40 } },
-	crafting = { { 0.78, 0.36, 0.04 }, { 1.00, 0.72, 0.18 }, { 0.95, 0.62, 0.15 } },
-	paused   = { { 0.40, 0.22, 0.06 }, { 0.62, 0.40, 0.12 }, { 0.62, 0.42, 0.16 } },
-	blocked  = { { 0.13, 0.15, 0.20 }, { 0.17, 0.20, 0.27 }, { 0.24, 0.27, 0.35 } },
+	--            fill                  border
+	ready    = { { 0.13, 0.36, 0.70 }, { 0.28, 0.56, 0.95 } },
+	crafting = { { 0.18, 0.48, 0.90 }, { 0.38, 0.68, 1.00 } },
+	paused   = { { 0.10, 0.24, 0.46 }, { 0.20, 0.38, 0.65 } },
+	blocked  = { { 0.11, 0.12, 0.16 }, { 0.20, 0.22, 0.28 } },
 }
--- The all-crafts line: deep blue to cyan on a darker blue track.
-local CRAFT_ALL_FROM, CRAFT_ALL_TO, CRAFT_ALL_TRACK = { 0.10, 0.35, 0.90 }, { 0.30, 0.85, 1.00 }, { 0.04, 0.08, 0.15 }
+-- The all-crafts line: pale ice blue on a near-black blue track, so it stands out against the fill above it.
+local CRAFT_ALL_COLOR, CRAFT_ALL_TRACK = { 0.62, 0.88, 1.00 }, { 0.02, 0.04, 0.08 }
 local craftBars = {}
 
-local function PaintFill(statusBar, from, to)
-	local texture = statusBar:GetStatusBarTexture()
-	if texture and texture.SetGradient and CreateColor then
-		local ok = pcall(texture.SetGradient, texture, "HORIZONTAL",
-			CreateColor(from[1], from[2], from[3], 1), CreateColor(to[1], to[2], to[3], 1))
-		if ok then
-			texture:SetVertexColor(1, 1, 1, 1)
-			return
-		end
-	end
-	statusBar:SetStatusBarColor(to[1], to[2], to[3])
-end
 
 local function CraftIcon(recipeID)
 	local recipe = recipeID and ns.db.recipes[recipeID]
@@ -1955,14 +1944,14 @@ local function RenderCraftBar(bar)
 	local style = CRAFT_BAR_STYLES[state]
 	if bar.cf.paintedState ~= state then
 		bar.cf.paintedState = state
-		PaintFill(bar.fill, style[1], style[2])
-		bar:SetBackdropBorderColor(style[3][1], style[3][2], style[3][3], 1)
+		bar.fill:SetStatusBarColor(style[1][1], style[1][2], style[1][3])
+		bar:SetBackdropBorderColor(style[2][1], style[2][2], style[2][3], 1)
 		bar.glow:SetVertexColor(style[2][1], style[2][2], style[2][3])
 		if bar.cf.pulse then
 			if state == "ready" then bar.cf.pulse:Play() else bar.cf.pulse:Stop() end
 		end
 		bar.glow:SetShown(state == "ready")
-		bar.fill:SetAlpha(state == "ready" and 0.9 or 1)
+		bar.fill:SetAlpha(1)
 	end
 	bar.fill:SetValue(fill)
 	bar.spark:SetShown(state == "crafting" and fill > 0.01 and fill < 0.995)
@@ -2036,7 +2025,7 @@ local function CraftBarTooltip(bar)
 		GameTooltip:AddDoubleLine("All crafts", ns.Planner.FormatDuration(progress.allSeconds), 1, 0.82, 0, 1, 0.82, 0)
 	end
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine("The amber fill is the recipe you're crafting, the blue line under it all your crafts. Times "
+	GameTooltip:AddLine("The fill is the recipe you're crafting, the light line under it all your crafts. Times "
 		.. "come from your own casts; a recipe you haven't cast yet uses its spell's cast time. Crafts on other "
 		.. "characters aren't counted.", 0.6, 0.6, 0.6, true)
 	GameTooltip:Show()
@@ -2118,7 +2107,7 @@ local function CreateCraftBar(parent, height)
 	allTrack:SetTexture("Interface\\Buttons\\WHITE8X8")
 	allTrack:SetAllPoints()
 	allTrack:SetVertexColor(CRAFT_ALL_TRACK[1], CRAFT_ALL_TRACK[2], CRAFT_ALL_TRACK[3], 0.9)
-	PaintFill(allStrip, CRAFT_ALL_FROM, CRAFT_ALL_TO)
+	allStrip:SetStatusBarColor(CRAFT_ALL_COLOR[1], CRAFT_ALL_COLOR[2], CRAFT_ALL_COLOR[3])
 	allStrip:Hide()
 	bar.allStrip = allStrip
 
