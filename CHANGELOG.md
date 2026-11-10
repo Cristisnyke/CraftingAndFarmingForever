@@ -6,6 +6,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 - Shopping list: what you buy at the auction house leaves the list as soon as the purchase goes through. It counts as waiting in your mailbox, and once everything on the list is bought the queue says "Collect from your mailbox"; opening the mailbox counts what's really there
 - Buying is easier to find: the buying step in the Queue tab and the Next step bar says to open the auction house's Shopping tab (Auctionator) and click the "Crafting and Farming Forever Queue" list, hover it for step-by-step help, and chat says the same when you open the auction house with something to buy
+- Craft Next goes strictly in order: it never jumps ahead to a later craft while the current one (smelting bars, say) isn't finished. When it can't craft, the button says what to finish and how many are left, such as "Finish Smelt Bronze: 8 left", and the Next step bar keeps it on screen
 
 ## 1.3.0
 

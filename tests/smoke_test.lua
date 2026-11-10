@@ -679,21 +679,31 @@ ProfessionsFrame.GetProfessionInfo = function() return { professionID = 2437, pr
 local _, _, reason = nil, nil, nil
 C_TradeSkillUI.GetCraftableCount = function() return 0 end
 _, _, reason = ns.Queue.NextCraft()
-check("no materials reason", reason, "Recipe10 needs: materials.")
+check("no materials reason", reason, "Finish Recipe10 (6 left) first: needs materials.")
 C_TradeSkillUI.GetRecipeRequirements = function() return { { name = "Anvil", met = false } } end
 _, _, reason = ns.Queue.NextCraft()
-check("station reason", reason, "Recipe10 needs: materials and Anvil.")
+check("station reason", reason, "Finish Recipe10 (6 left) first: needs materials and Anvil.")
 C_TradeSkillUI.GetCraftableCount = function(id) return id == 10 and 5 or 0 end
 _, _, reason = ns.Queue.NextCraft()
-check("station blocks craft", reason, "Recipe10 needs: Anvil.")
+check("station blocks craft", reason, "Finish Recipe10 (6 left) first: needs Anvil.")
 ProfessionsFrame.GetProfessionInfo = realInfo
 C_TradeSkillUI.GetRecipeRequirements = nil
+
+-- The sub-craft can't be made right now but the queued craft could: Craft Next waits, and says what to finish.
+C_TradeSkillUI.GetCraftableCount = function(id) return id == 20 and 1 or 0 end
+local skipped, _, blockedReason, blocking = ns.Queue.NextCraft()
+check("never skips ahead", skipped, nil)
+check("names the craft to finish", blocking and blocking.recipeID, 10)
+check("says how many are left", blockedReason:find("6 left", 1, true) ~= nil, true)
+ns.UI.Refresh("queue")
+check("Queue tab button says finish", ns.UI.windows.queue.craftButton.text, "Finish Recipe10: 6 left")
+C_TradeSkillUI.GetCraftableCount = function(id) return id == 10 and 5 or 0 end
 
 -- A recipe that isn't in the open window does ask for its profession.
 local realIDs = C_TradeSkillUI.GetAllRecipeIDs
 C_TradeSkillUI.GetAllRecipeIDs = function() return { 40 } end
 _, _, reason = ns.Queue.NextCraft()
-check("other profession reason", reason, "Open Tailoring to continue.")
+check("other profession reason", reason, "Open Tailoring to finish Recipe10 (6 left).")
 C_TradeSkillUI.GetAllRecipeIDs = realIDs
 
 -- Queue countdown: craft of the entry itself removes it at zero.
@@ -2111,6 +2121,13 @@ do
 	bar.rows[2].scripts.OnEnter(bar.rows[2])
 	check("Craft Next on the bar", bar.craftButton.shown, true)
 	check("Craft Next names the craft", bar.craftButton.text:find("Recipe10", 1, true) ~= nil, true)
+	local craftable = C_TradeSkillUI.GetCraftableCount
+	C_TradeSkillUI.GetCraftableCount = function() return 0 end
+	ns.UI.Refresh("next")
+	check("blocked: bar button stays", bar.craftButton.shown, true)
+	check("blocked: bar button says finish", bar.craftButton.text, "Finish Recipe10: 3 left")
+	C_TradeSkillUI.GetCraftableCount = craftable
+	ns.UI.Refresh("next")
 	ns.db.ui.nextMinimized = true
 	ns.UI.Refresh("next")
 	check("no Craft Next when folded", bar.craftButton.shown, false)

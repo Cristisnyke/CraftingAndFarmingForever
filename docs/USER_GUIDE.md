@@ -80,7 +80,7 @@ Steps with nothing to do are left out and the rest renumbered.
 - **Losing entries** (ones that would now sell for less than their materials) are shaded red. **Remove losing (N)** appears when there are any, and removes them after asking.
 - **Buy It** / **Farm It** picks how materials are planned. The lit one is the current mode; see [Farm It](#farm-it).
 - **Sub-crafts** (smelting bars for a recipe, say) aren't stored in the queue. They're worked out from it each time and shrink as your stock grows.
-- **Craft Next** crafts the next thing this character can make now. If it can't, it says why: the next craft is on another character, or you need to open a profession.
+- **Craft Next** crafts the next thing on the list, strictly in order: sub-crafts first, then your queue. It never skips ahead to a later craft. While the current one can't be made (missing materials, the wrong profession open, no anvil nearby), the button says what to finish and how many are left, for example **Finish Smelt Bronze: 8 left**, and the line above it says why.
 - **Total profit**: sale prices after the auction house cut, minus materials at market price. Bind-on-pickup crafts show their cost and aren't counted.
 - **Still to buy**: what you'll actually spend after what you own, compared with the gold you're carrying.
 - **Take from your bank**: materials the plan uses that are in your bank, not your bags.

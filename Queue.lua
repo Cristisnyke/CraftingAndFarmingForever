@@ -320,7 +320,9 @@ end)
 -- Craft Next
 ---------------------------------------------------------------------------
 
--- Returns the next craft this character can do now, with its batch size; or nil and the reason why not.
+-- Returns the next craft this character can do now, with its batch size; or nil, the reason why not, and the craft
+-- that has to be finished first. Strictly in plan order: sub-crafts come before what they're for, and a craft that
+-- can't be made right now is never skipped for a later one, so you finish one step before moving on.
 function Queue.NextCraft()
 	local plan = ns.ActivePlan()
 	if #plan.crafts == 0 then
@@ -331,27 +333,27 @@ function Queue.NextCraft()
 		return nil, nil, "The queue is empty."
 	end
 	local me = ns.CharKey()
-	local openRecipes = Recipes.OpenRecipes()
-	local reason
-	for _, craft in ipairs(plan.crafts) do
-		local recipe = ns.db.recipes[craft.recipeID]
-		if craft.char ~= me then
-			reason = reason or ("Next craft is on " .. ns.CharLabel(craft.char) .. ".")
-		elseif not openRecipes[craft.recipeID] then
-			reason = reason or ("Open " .. (recipe.pn or "the profession") .. " to continue.")
-		else
-			local available = C_TradeSkillUI.GetCraftableCount(craft.recipeID) or 0
-			local unmet = Recipes.UnmetRequirements(craft.recipeID)
-			if available > 0 and #unmet == 0 then
-				return craft, math.min(craft.count, available)
-			end
-			local needs = {}
-			if available <= 0 then table.insert(needs, "materials") end
-			if #unmet > 0 then table.insert(needs, table.concat(unmet, ", ")) end
-			reason = reason or ((recipe.n or "Next craft") .. " needs: " .. table.concat(needs, " and ") .. ".")
+	local craft = plan.crafts[1]
+	for _, candidate in ipairs(plan.crafts) do
+		if candidate.char == me then
+			craft = candidate
+			break
 		end
 	end
-	return nil, nil, reason
+	if craft.char ~= me then return nil, nil, "Next craft is on " .. ns.CharLabel(craft.char) .. ".", craft end
+	local recipe = ns.db.recipes[craft.recipeID]
+	local name = (recipe and recipe.n) or "the next craft"
+	local left = ("%s (%d left)"):format(name, craft.count)
+	if not Recipes.OpenRecipes()[craft.recipeID] then
+		return nil, nil, ("Open %s to finish %s."):format((recipe and recipe.pn) or "the profession", left), craft
+	end
+	local available = C_TradeSkillUI.GetCraftableCount(craft.recipeID) or 0
+	local unmet = Recipes.UnmetRequirements(craft.recipeID)
+	if available > 0 and #unmet == 0 then return craft, math.min(craft.count, available) end
+	local needs = {}
+	if available <= 0 then table.insert(needs, "materials") end
+	if #unmet > 0 then table.insert(needs, table.concat(unmet, ", ")) end
+	return nil, nil, ("Finish %s first: needs %s."):format(left, table.concat(needs, " and ")), craft
 end
 
 function Queue.CraftNext()

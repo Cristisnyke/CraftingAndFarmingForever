@@ -1854,6 +1854,13 @@ local function NumberBox(parent, labelText, previous, read, write, paneKey)
 	return box, label
 end
 
+-- "Craft Next: Smelt Bronze x12", or, while that craft can't be made, "Finish Smelt Bronze: 8 left" (disabled).
+function UI.CraftButtonText(craft, count, blocking)
+	if craft then return ("Craft Next: %s x%d"):format(RecipeName(craft.recipeID), count) end
+	if blocking then return ("Finish %s: %d left"):format(RecipeName(blocking.recipeID), blocking.count) end
+	return "Craft Next"
+end
+
 function CreateQueuePane()
 	local window = CreatePane("queue", 128)
 	window.build = BuildQueueList
@@ -1909,6 +1916,7 @@ function CreateQueuePane()
 	window.removeLosingButton = removeLosing
 
 	local craftButton = HeaderButton(window.frame, "Craft Next", 100, function() ns.Queue.CraftNext() end)
+	window.craftButton = craftButton
 	craftButton:SetHeight(26)
 	craftButton:ClearAllPoints()
 	craftButton:SetPoint("BOTTOMLEFT", 10, 10)
@@ -1984,14 +1992,9 @@ function CreateQueuePane()
 			detail:SetText("")
 		end
 
-		local craft, count, reason = ns.Queue.NextCraft()
-		if craft then
-			craftButton:SetText(("Craft Next: %s x%d"):format(RecipeName(craft.recipeID), count))
-			craftButton:Enable()
-		else
-			craftButton:SetText("Craft Next")
-			craftButton:Disable()
-		end
+		local craft, count, reason, blocking = ns.Queue.NextCraft()
+		craftButton:SetText(UI.CraftButtonText(craft, count, blocking))
+		craftButton:SetEnabled(craft ~= nil)
 
 		local notes = {}
 		if reason then table.insert(notes, reason) end
@@ -2098,7 +2101,7 @@ local function CreateNextWindow()
 		window.step, window.steps = step, steps
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
-		window.nextCraft, window.nextCount = nil, nil
+		window.nextCraft, window.nextCount, window.blocking, window.crafting = nil, nil, nil, false
 		window.maxRows = ns.db.ui.farmMode and NEXT_MAX_ROWS_FARMING or NEXT_MAX_ROWS
 		window.gatherGroups = 0
 		if step and step.gather then
@@ -2115,12 +2118,14 @@ local function CreateNextWindow()
 			table.insert(list, { kind = "header", text = ShortStepTitle(step.text) })
 			for _, row in ipairs(rows) do table.insert(list, row) end
 			if step.crafting then
-				local nextCraft, nextCount, reason = ns.Queue.NextCraft()
-				window.nextCraft, window.nextCount = nextCraft, nextCount
+				local nextCraft, nextCount, reason, blocking = ns.Queue.NextCraft()
+				window.nextCraft, window.nextCount, window.blocking = nextCraft, nextCount, blocking
+				window.crafting = true
 				if not nextCraft and reason then table.insert(list, { kind = "note", text = reason }) end
 			end
 		end
-		local button = window.nextCraft and true or false
+		-- On a crafting step the button stays, saying what to finish while it can't craft.
+		local button = window.crafting
 		local footer = button and NEXT_BUTTON_ROOM + 6 or 6
 		SetFooter(footer)
 		window.container:SetShown(not folded)
@@ -2144,8 +2149,9 @@ local function CreateNextWindow()
 			title:SetText(farming and "Next step  " .. Color(COLOR_MUTED, "Farm It") or "Next step")
 		end
 		count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
-		if window.nextCraft and not folded then
-			craft:SetText(("Craft Next: %s x%d"):format(RecipeName(window.nextCraft.recipeID), window.nextCount))
+		if window.crafting and not folded then
+			craft:SetText(UI.CraftButtonText(window.nextCraft, window.nextCount, window.blocking))
+			craft:SetEnabled(window.nextCraft ~= nil)
 			craft:Show()
 		else
 			craft:Hide()
