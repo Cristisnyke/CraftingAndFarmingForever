@@ -4,6 +4,12 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.5.2", lines = {
+		"- Materials you hold now count however deep down they're used: wool in your bags makes the cloth that makes the bolt your queue needs, instead of the bolt being bought because cloth has a market price",
+		"- When what you hold covers only part of a material, that part is crafted and only the rest is bought (6 ore in the bank: smelt 6 bars, buy the other 4), instead of buying all of them whenever the missing ore is dearer than bars",
+		"- A price of zero (a bad scan result) no longer makes a material free or a result worthless; it counts as no price",
+		"- Craft Next no longer makes one craft too many when clicked right after a batch ends, before the plan has caught up",
+	} },
 	{ version = "1.5.1", lines = {
 		"- Fixed the Craft Next progress bar counting one craft too many during a batch (2 / 7 when you queued 6)",
 		"- New look for the Craft Next bar: one blue colour scheme on the window's dark background, with a thin blue edge, instead of the grey-white bar",

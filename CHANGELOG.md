@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.5.2
 
 - Materials you hold now count however deep down they're used: wool in your bags makes the cloth that makes the bolt your queue needs, instead of the bolt being bought because cloth has a market price
 - When what you hold covers only part of a material, that part is crafted and only the rest is bought (6 ore in the bank: smelt 6 bars, buy the other 4), instead of buying all of them whenever the missing ore is dearer than bars
