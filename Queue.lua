@@ -35,7 +35,12 @@ ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}
 ns.farmPlan = ns.plan
 ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
 
+-- recipeID -> crafts finished since the plan was last built. The rebuild waits a moment, and a batch's next cast
+-- often starts before it, so craft progress takes these off the plan's count.
+local craftedSinceBuild = {}
+
 local function RebuildPlan()
+	wipe(craftedSinceBuild)
 	local ctx = NewContext()
 	ns.plan = ns.Planner.BuildPlan(ctx, ns.db.queue)
 	ctx.smelting = ns.Farm.Smelting
@@ -441,11 +446,15 @@ function Queue.CraftSeconds(recipeID)
 	return castSeconds + (ns.db.craftGap or Queue.DEFAULT_GAP)
 end
 
--- This character's crafts of the recipe still in the plan, or nil.
+-- This character's crafts of the recipe still in the plan, or nil. Crafts finished since the plan was built are
+-- taken off: without that, a batch's next cast saw one more than queued and the bar said 2 / 7 for 6.
 local function PlanCount(recipeID)
 	local me = ns.CharKey()
 	for _, craft in ipairs(ns.ActivePlan().crafts) do
-		if craft.recipeID == recipeID and craft.char == me then return craft.count end
+		if craft.recipeID == recipeID and craft.char == me then
+			local left = craft.count - (craftedSinceBuild[recipeID] or 0)
+			return left > 0 and left or nil
+		end
 	end
 end
 
@@ -489,6 +498,7 @@ ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 	if not IsCraft(unit, spellID) then return end
 	if cast and cast.recipeID == spellID then cast = nil end
 	if run and run.recipeID == spellID then run.done = run.done + 1 end
+	craftedSinceBuild[spellID] = (craftedSinceBuild[spellID] or 0) + 1
 	lastDone = { recipeID = spellID, at = GetTime() }
 	Changed()
 end)

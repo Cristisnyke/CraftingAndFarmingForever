@@ -291,10 +291,15 @@ for line in io.lines("CraftingAndFarmingForever.toc") do
 	end
 end
 
-local function Fire(event, ...)
+-- Without running timers: what the add-on sees before its debounced work (like the plan rebuild) has happened.
+local function FireNow(event, ...)
 	for frame in pairs(eventFrames) do
 		if frame.scripts.OnEvent then frame.scripts.OnEvent(frame, event, ...) end
 	end
+end
+
+local function Fire(event, ...)
+	FireNow(event, ...)
 	RunTimers()
 end
 
@@ -2191,6 +2196,32 @@ do
 	Fire("UNIT_SPELLCAST_START", "player", "cast", 10)
 	check("pause between casts learned", math.abs(ns.db.craftGap - (0.25 * 0.7 + 0.2 * 0.3)) < 1e-9, true)
 	check("second craft", button.text:find("2 / 3", 1, true) ~= nil, true)
+	-- The batch's next cast starts before the plan is rebuilt: the plan still counts the craft just finished,
+	-- which isn't more queued (it said 3 / 4 here).
+	now = 104.2
+	FireNow("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 10)
+	FireNow("UNIT_SPELLCAST_STOP", "player", "cast", 10)
+	UnitCastingInfo = function() return "Recipe10", nil, nil, 104400, 106400 end
+	now = 104.4
+	FireNow("UNIT_SPELLCAST_START", "player", "cast", 10)
+	progress = ns.Queue.CraftProgress()
+	check("stale plan: still of three", progress.total, 3)
+	check("stale plan: third craft", progress.done, 2)
+	RunTimers()
+	ns.UI.UpdateCraftBars()
+	check("third craft", button.text:find("3 / 3", 1, true) ~= nil, true)
+	ns.Queue.Add(10, 2)
+	RunTimers()
+	UnitCastingInfo = function() return nil end
+	now = 106.4
+	FireNow("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 10)
+	UnitCastingInfo = function() return "Recipe10", nil, nil, 106600, 108600 end
+	now = 106.6
+	Fire("UNIT_SPELLCAST_START", "player", "cast", 10)
+	-- 3 done, 2 more queued during the last one: a new run of the 2, though the plan still counts 3.
+	progress = ns.Queue.CraftProgress()
+	check("queued more: new run of two", progress.total, 2)
+	check("queued more: first of them", progress.done, 0)
 	UnitCastingInfo = function() return nil end
 	Fire("UNIT_SPELLCAST_INTERRUPTED", "player", "cast", 10)
 	check("interrupted: not casting", ns.Queue.CraftProgress().casting, nil)
