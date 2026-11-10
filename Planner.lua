@@ -32,6 +32,11 @@ local function MinimumYield(recipe)
 	return qmin > 0 and qmin or 1
 end
 
+-- A price of nothing is no price: it would make a material free or a result worthless.
+local function Priced(copper)
+	return copper and copper > 0 and copper or nil
+end
+
 function Planner.NewContext(ctx)
 	ctx.ahCut = ctx.ahCut or 0.05
 	ctx.costMemo = {}
@@ -46,7 +51,7 @@ function Planner.ItemCost(ctx, itemID)
 	if memo then return memo.unit, memo.kind, memo.recipeID end
 
 	local hitsBefore = ctx.cycleHits
-	local ah, vendor = ctx.ahPrice(itemID), ctx.vendorPrice(itemID)
+	local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
 	local unit, kind, recipeID
 	if ah then unit, kind = ah, "ah" end
 	if vendor and (not unit or vendor < unit) then unit, kind = vendor, "vendor" end
@@ -107,7 +112,7 @@ function Planner.Profit(ctx, recipeID)
 	if not recipe or not recipe.o then return nil end
 	local cost, parts = Planner.RecipeCost(ctx, recipeID)
 	local yield = AverageYield(recipe)
-	local saleUnit = ctx.ahPrice(recipe.o)
+	local saleUnit = Priced(ctx.ahPrice(recipe.o))
 	local result = { recipeID = recipeID, itemID = recipe.o, yield = yield, cost = cost, parts = parts, saleUnit = saleUnit }
 	if cost and saleUnit then
 		result.net = saleUnit * yield * (1 - ctx.ahCut) - cost
@@ -362,25 +367,90 @@ function Planner.BuildPlan(ctx, queue, farming)
 		return count
 	end
 
-	-- Gold actually spent to make count of an item with this recipe: materials already held cost nothing, the rest
-	-- at the cheapest market price. Nil when a material still to get has no price.
-	local function CraftSpend(recipeID, crafts)
+	-- Gold actually spent to get count of an item, the cheapest way this character has: what's held (bags, mail,
+	-- bank, alts) costs nothing, the rest is bought or crafted, whichever spends less, with a craft's own materials
+	-- costed the same way. So wool in the bank makes the cloth that makes the bolt for nothing, two steps down.
+	-- taken[itemID] = stock an estimate in progress already counts on, so it isn't counted twice by two materials
+	-- that need the same thing; each branch works on its own copy, as a branch not chosen takes nothing. Returns the
+	-- spend (nil when something still to get has no price), the recipe to craft with and its crafts (nil: buy), and
+	-- the taken table after it.
+	local SPEND_DEPTH = 8
+	local Spend
+
+	local function CopyTaken(taken)
+		local copy = {}
+		for itemID, count in pairs(taken) do copy[itemID] = count end
+		return copy
+	end
+
+	local function CraftSpend(recipeID, crafts, char, taken, depth)
 		local recipe = ctx.recipes[recipeID]
 		local spend = 0
 		for _, slot in ipairs(recipe.r or {}) do
 			local missing = (slot[1] or 1) * crafts
-			for i = 2, #slot do missing = missing - math.min(missing, Available(slot[i])) end
+			for i = 2, #slot do
+				local have = Available(slot[i]) - (taken[slot[i]] or 0)
+				local use = math.min(math.max(have, 0), missing)
+				taken[slot[i]] = (taken[slot[i]] or 0) + use
+				missing = missing - use
+			end
 			if missing > 0 then
-				local bestUnit
+				local bestSpend, bestTaken
 				for i = 2, #slot do
-					local unit = Planner.ItemCost(ctx, slot[i])
-					if unit and (not bestUnit or unit < bestUnit) then bestUnit = unit end
+					local cost, _, _, after = Spend(slot[i], missing, char, CopyTaken(taken), depth + 1)
+					if cost and (not bestSpend or cost < bestSpend) then bestSpend, bestTaken = cost, after end
 				end
-				if not bestUnit then return nil end
-				spend = spend + bestUnit * missing
+				if not bestSpend then return nil end
+				spend, taken = spend + bestSpend, bestTaken
 			end
 		end
-		return spend
+		return spend, taken
+	end
+
+	Spend = function(itemID, count, char, taken, depth)
+		local have = Available(itemID) - (taken[itemID] or 0)
+		local use = math.min(math.max(have, 0), count)
+		taken[itemID] = (taken[itemID] or 0) + use
+		count = count - use
+		if count <= 0 then return 0, nil, nil, taken end
+		local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
+		local buyUnit = vendor and (not ah or vendor < ah) and vendor or ah
+		local best, bestRecipe, bestCrafts, bestTaken = buyUnit and buyUnit * count, nil, nil, taken
+		if depth >= SPEND_DEPTH then return best, nil, nil, taken end
+		local function Consider(spend, recipeID, crafts, after)
+			if spend and (not best or spend < best) then best, bestRecipe, bestCrafts, bestTaken = spend, recipeID, crafts, after end
+		end
+		for _, candidate in ipairs(ctx.known[itemID] or {}) do
+			if Usable(candidate, char) then
+				local yield = MinimumYield(ctx.recipes[candidate])
+				local crafts = math.ceil(count / yield)
+				local function Estimate(n)
+					active[candidate] = (active[candidate] or 0) + 1
+					local spend, after = CraftSpend(candidate, n, char, CopyTaken(taken), depth)
+					active[candidate] = active[candidate] - 1
+					if active[candidate] == 0 then active[candidate] = nil end
+					return spend, after
+				end
+				-- Crafting comes in whole batches, so a small need can cost more than buying even when the unit cost
+				-- is lower.
+				local spend, after = Estimate(crafts)
+				Consider(spend, candidate, crafts, after)
+				-- When the batch isn't free, what's held may still cover part of it: make that part and buy the rest,
+				-- if that spends less. The largest free batch is found by halving, as spends only grow with crafts.
+				if buyUnit and spend and spend > 0 and crafts > 1 then
+					local low, high = 0, crafts - 1
+					while low < high do
+						local mid = math.ceil((low + high) / 2)
+						if Estimate(mid) == 0 then low = mid else high = mid - 1 end
+					end
+					if low > 0 then
+						local part, partTaken = Estimate(low)
+						Consider(part + buyUnit * (count - low * yield), candidate, low, partTaken)
+					end
+				end
+			end
+		end
+		return best, bestRecipe, bestCrafts, bestTaken
 	end
 
 	-- The known recipe to farm for, the cheapest when prices can tell. Nil when none can be used right now.
@@ -413,7 +483,7 @@ function Planner.BuildPlan(ctx, queue, farming)
 			AddToBags(itemID, smelts * smelt.yield - count)
 			return
 		end
-		local vendor = ctx.vendorPrice(itemID)
+		local vendor = Priced(ctx.vendorPrice(itemID))
 		if vendor then
 			plan.vendor[itemID] = (plan.vendor[itemID] or 0) + count
 			plan.cost = plan.cost + vendor * count
@@ -424,26 +494,22 @@ function Planner.BuildPlan(ctx, queue, farming)
 
 	Acquire = function(itemID, count, char)
 		if farming then return AcquireByFarming(itemID, count, char) end
-		local ah, vendor = ctx.ahPrice(itemID), ctx.vendorPrice(itemID)
+		local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
 		local useVendor = vendor and (not ah or vendor < ah)
 		local buyUnit = useVendor and vendor or ah
 
-		-- Crafting comes in whole batches, so a small need can cost more than buying even when the unit cost is
-		-- lower, and materials you already hold cost nothing more. Compare what each way would actually spend.
-		local bestRecipe, bestCrafts, bestSpend
-		for _, candidate in ipairs(ctx.known[itemID] or {}) do
-			if Usable(candidate, char) then
-				local crafts = math.ceil(count / MinimumYield(ctx.recipes[candidate]))
-				local spend = CraftSpend(candidate, crafts)
-				if spend and (not bestSpend or spend < bestSpend) then
-					bestRecipe, bestCrafts, bestSpend = candidate, crafts, spend
-				end
-			end
-		end
-		if bestRecipe and (not buyUnit or bestSpend < buyUnit * count) then
+		-- Materials you already hold cost nothing more, however deep down they're used: compare what buying and
+		-- each usable recipe would actually spend, for the whole need or for the part what's held covers. Equal
+		-- spends buy, which is fewer steps.
+		local _, bestRecipe, bestCrafts = Spend(itemID, count, char, {}, 0)
+		if bestRecipe then
 			Require(bestRecipe, bestCrafts, char, true)
-			AddToBags(itemID, bestCrafts * MinimumYield(ctx.recipes[bestRecipe]) - count)
-			return
+			local made = bestCrafts * MinimumYield(ctx.recipes[bestRecipe])
+			if made >= count then
+				AddToBags(itemID, made - count)
+				return
+			end
+			count = count - made -- the part held materials didn't cover is bought
 		end
 
 		if useVendor then

@@ -52,7 +52,7 @@ For each material, the add-on picks the cheapest of:
 - buying it from a vendor,
 - crafting it from its own materials, if one of your characters knows the recipe.
 
-Materials you already hold count as free when it decides whether crafting a material beats buying it. So 6 Tin Ore in your bank means it plans to smelt Tin Bars rather than buy them.
+Materials you already hold count as free when it decides whether crafting a material beats buying it, however deep down they're used: Wool in your bags makes the Bolt of Woolen Cloth your recipe needs by way of the cloth. So 6 Tin Ore in your bank means it plans to smelt 6 Tin Bars rather than buy them, and when you need 10, the other 4 are smelted from bought ore or bought as bars, whichever costs less.
 
 ## Queue
 

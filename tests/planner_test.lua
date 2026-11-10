@@ -104,14 +104,23 @@ do
 	check("held ore: says to take it from the bank", held.bank[ORE], 4)
 	check("held ore: spends nothing", held.cost, 0)
 
-	-- Some ore held: the rest is bought only if that beats buying the bars. 2 ore short x 30 = 60 vs 2 bars = 100.
+	-- Some ore held: it makes one bar for nothing, and the other is bought (50) rather than smelted from bought ore
+	-- (2 x 30 = 60).
 	local partial = Planner.BuildPlan(StockContext({ [ORE] = 2 }), queue)
-	check("some ore: buys the missing ore", partial.buy[ORE], 2)
-	check("some ore: no bars bought", partial.buy[BAR], nil)
+	check("some ore: smelts one bar", partial.crafts[1].count, 1)
+	check("some ore: buys the other bar", partial.buy[BAR], 1)
+	check("some ore: buys no ore", partial.buy[ORE], nil)
 	check("some ore: bags need no bank trip", next(partial.bank), nil)
-	-- With dear ore buying the bars wins: 2 ore short x 80 = 160 vs 100.
+	-- With cheap ore the other bar is smelted from bought ore: 2 x 20 = 40 < 50.
+	local cheap = Planner.BuildPlan(StockContext({ [ORE] = 2 }, nil, { [ORE] = 20, [BAR] = 50, [SHIRT] = 1000 }), queue)
+	check("cheap ore: smelts both", cheap.crafts[1].count, 2)
+	check("cheap ore: buys the missing ore", cheap.buy[ORE], 2)
+	check("cheap ore: no bars bought", cheap.buy[BAR], nil)
+	-- With dear ore the held ore still makes its bar; the other is bought, not smelted from 2 x 80 ore.
 	local dear = Planner.BuildPlan(StockContext({ [ORE] = 2 }, nil, { [ORE] = 80, [BAR] = 50, [SHIRT] = 1000 }), queue)
-	check("dear ore: buys bars", dear.buy[BAR], 2)
+	check("dear ore: buys one bar", dear.buy[BAR], 1)
+	check("dear ore: smelts the other", dear.crafts[1].count, 1)
+	check("dear ore: cost is one bar", dear.cost, 50)
 
 	-- Farming takes from the bags before the bank and lists only what the bank must supply.
 	local farm = Planner.BuildPlan(StockContext({ [ORE] = 4 }, { [ORE] = 3 }), queue, true)
@@ -178,6 +187,62 @@ local surplusCtx = Context({
 })
 plan = Planner.BuildPlan(surplusCtx, { { recipeID = 2, qty = 1 }, { recipeID = 3, qty = 1 } })
 check("surplus used", plan.buy[ORE], 1)
+
+-- Held materials count however deep they're used. Wool makes cloth makes bolt; the shirt's bolt is dearer to craft
+-- at market (2 cloth x 10 = 20 vs 18 on the AH), but with wool in the bags it costs nothing: craft all the way down.
+do
+	local WOOL = 9
+	local recipes = {
+		[10] = { o = CLOTH, qmin = 1, qmax = 1, r = { { 2, WOOL } } },
+		[20] = { o = BOLT, qmin = 1, qmax = 1, r = { { 2, CLOTH } } },
+		[30] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, BOLT } } },
+	}
+	local known = { [CLOTH] = { 10 }, [BOLT] = { 20 }, [SHIRT] = { 30 } }
+	local ah = { [WOOL] = 8, [CLOTH] = 10, [BOLT] = 18, [SHIRT] = 100 }
+	local bare = Planner.BuildPlan(Context({ recipes = recipes, known = known, ah = ah }), { { recipeID = 30, qty = 1 } })
+	check("no wool: buys the bolt", bare.buy[BOLT], 1)
+	local deep = Planner.BuildPlan(Context({ recipes = recipes, known = known, ah = ah, own = { [WOOL] = 4 } }),
+		{ { recipeID = 30, qty = 1 } })
+	check("held wool: no bolt bought", deep.buy[BOLT], nil)
+	check("held wool: nothing bought", next(deep.buy), nil)
+	check("held wool: makes the cloth", deep.crafts[1].recipeID, 10)
+	check("held wool: two cloth", deep.crafts[1].count, 2)
+	check("held wool: then the bolt", deep.crafts[2].recipeID, 20)
+	check("held wool: spends nothing", deep.cost, 0)
+
+	-- Two bolts, 4 wool: the second bolt's wool can't be counted again. With cheap wool (4 more at 4 = 16 < a bolt
+	-- at 18) both bolts are crafted and the wool bought.
+	local cheapWool = { [WOOL] = 4, [CLOTH] = 10, [BOLT] = 18, [SHIRT] = 100 }
+	local shared = Planner.BuildPlan(Context({ recipes = recipes, known = known, ah = cheapWool, own = { [WOOL] = 4 } }),
+		{ { recipeID = 30, qty = 2 } })
+	check("shared wool: no bolt bought", shared.buy[BOLT], nil)
+	check("shared wool: buys the missing wool", shared.buy[WOOL], 4)
+	check("shared wool: both bolts crafted", shared.crafts[2].count, 2)
+	-- With wool at 8 (32 for the missing wool, more than a bolt) the held wool still makes one bolt for nothing,
+	-- and only the other is bought: 18, not 32 or 36.
+	local part = Planner.BuildPlan(Context({ recipes = recipes, known = known, ah = ah, own = { [WOOL] = 4 } }),
+		{ { recipeID = 30, qty = 2 } })
+	check("part wool: one bolt bought", part.buy[BOLT], 1)
+	check("part wool: no wool bought", part.buy[WOOL], nil)
+	check("part wool: one bolt crafted", part.crafts[2].count, 1)
+	check("part wool: cost is one bolt", part.cost, 18)
+	-- Smelting with 6 ore held when ore is dearer than bars: smelt 6, buy 4 bars, not 10 bars.
+	local ore = Planner.BuildPlan(Context({
+		recipes = { [1] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } }, [2] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 10, BAR } } } },
+		known = { [BAR] = { 1 }, [SHIRT] = { 2 } }, ah = { [ORE] = 200, [BAR] = 50, [SHIRT] = 5000 }, own = { [ORE] = 6 },
+	}), { { recipeID = 2, qty = 1 } })
+	check("held ore, dear ore: smelts the six", ore.crafts[1].count, 6)
+	check("held ore, dear ore: buys four bars", ore.buy[BAR], 4)
+	check("held ore, dear ore: buys no ore", ore.buy[ORE], nil)
+end
+
+-- A price of zero is no price, not a free material or a worthless result.
+do
+	local zero = Context({ ah = { [ORE] = 0, [BAR] = 50, [CLOTH] = 10, [BOLT] = 100, [SHIRT] = 0 } })
+	local bar = Planner.Profit(zero, 100)
+	check("zero material price: no cost", bar.cost, nil)
+	check("zero sale price: no sale", Planner.Profit(zero, 300).saleUnit, nil)
+end
 
 -- Whole-batch crafting that costs more than buying the small amount needed: buy instead.
 local batchCtx = Context({
