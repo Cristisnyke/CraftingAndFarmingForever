@@ -13,7 +13,7 @@ Drag the window's bottom-right corner to resize it; right-click that corner for 
 ## Before you start
 
 - **Record recipes.** Open each profession once on each character. Only recipes your characters know are listed, and a character's recipes are only read while its profession window is open.
-- **Fresh prices.** Prices come from Auctionator. If its data is more than 24 hours old, the add-on asks for a new scan: a popup at the auction house, a banner in the window, an orange line at the top of the Farm list, and one line in chat after you log in (or open a profession). Quoting an order with old prices warns you in chat every time, and the Quote tooltip says so too. In material tooltips, an auction house price that's a day or more old is marked in orange, such as `3d old`, even after a recent scan, since a scan can miss items that had no listings.
+- **Fresh prices.** Prices come from Auctionator. If its data is more than 24 hours old, the add-on asks for a new scan: a popup at the auction house, a banner in the window, an orange line at the top of the Next step bar while farming, and one line in chat after you log in (or open a profession). Quoting an order with old prices warns you in chat every time, and the Quote tooltip says so too. In material tooltips, an auction house price that's a day or more old is marked in orange, such as `3d old`, even after a recent scan, since a scan can miss items that had no listings.
 - **Auctionator and Syndicator are both needed.** Auctionator supplies every price and the shopping list; the add-on doesn't load without it. Syndicator counts your alts' bags and banks and sees what you have on the auction house. Without Syndicator only the logged-in character's bags and bank count (so it may tell you to buy what an alt already has), the Restock tab is turned off so it can't over-craft, and a reminder appears in chat at each login.
 - **TradeSkillMaster (TSM)** support is coming in a future update.
 
@@ -105,13 +105,13 @@ Guild bank, warband bank, mail and your own auctions don't count as stock. Quant
 
 ## Farm It
 
-**Farm It** at the top of the Queue tab turns the plan into what to gather yourself, and swaps the window for a small list you can leave on screen while you play:
+**Farm It** at the top of the Queue tab turns the plan into what to gather yourself, and closes the window. The [Next step bar](#next-step-bar) at the top of the screen then walks you through it, one group at a time:
 
 - **Mine**, **Pick herbs**, **Skin creatures**, **Fish**: which veins, herbs or creatures, and in which zones.
 - **Kill for drops**: which creatures drop it.
 - **Disenchant**, and **Other sources** for anything else.
 
-Your current zone comes first. Hover a row to see everything known about where the item comes from. The list counts down as you gather. **Buy It** at the top of the list switches back to buying and reopens the queue. Closing the list (×) also ends farm mode, without reopening anything. The Auctionator list is the same in both modes.
+Your current zone comes first. Hover a row to see everything known about where the item comes from. Errands (alts, bank, vendor) come before gathering, and smelting after it. The bar counts down as you gather and moves on when a group is done. While farming, the bar has a **Buy It** button that switches back to buying and reopens the queue; the Queue tab's **Buy It** does the same. The Auctionator list is the same in both modes.
 
 ## Restock
 

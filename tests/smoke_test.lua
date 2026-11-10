@@ -1539,19 +1539,42 @@ do
 	check("farm plan buys nothing at AH", next(ns.farmPlan.buy), nil)
 	check("farm plan lists what to gather", next(ns.farmPlan.farm) ~= nil, true)
 
-	local farm, queue = ns.UI.windows.farm, ns.UI.windows.queue
+	-- No separate Farm list: the Next step bar is the one window left up, and shows the first thing to gather.
+	RunTimers()
+	local bar, queue = ns.UI.windows.next, ns.UI.windows.queue
+	check("no Farm list window", ns.UI.windows.farm, nil)
 	check("main window makes way", ns.UI.IsOpen(), false)
-	check("small list opens", farm.frame:IsShown(), true)
+	check("bar stays up", bar.frame:IsShown(), true)
+	check("bar offers Buy It while farming", bar.buyButton.shown, true)
+	check("bar says Farm It", bar.titleText.text:find("Farm It", 1, true) ~= nil, true)
+	-- Errands come before gathering, so here the first step is the vendor, then the gathering group.
+	local barHeader
+	for _, data in ipairs(bar.list) do if data.kind == "header" then barHeader = barHeader or data.text end end
+	check("bar's first step is the errand", barHeader:find("^Buy from vendor") ~= nil, true)
+	local vendorPlan = ns.farmPlan.vendor
+	ns.farmPlan.vendor = {}
+	ns.UI.RefreshQueue()
+	barHeader = nil
+	for _, data in ipairs(bar.list) do if data.kind == "header" then barHeader = barHeader or data.text end end
+	local firstGroup
+	for _, group in ipairs(ns.Farm.GROUPS) do
+		for itemID in pairs(ns.farmPlan.farm) do
+			if not firstGroup and ns.Farm.Describe(itemID) == group.key then firstGroup = group end
+		end
+	end
+	check("then the first gathering group", barHeader, firstGroup.title)
 	local count = 0
-	for _ in pairs(ns.farmPlan.farm) do count = count + 1 end
-	check("each item says how to get it", #Rows("farm", "how"), count)
-	check("small list has no price rows", #Rows("farm", "header"), 0)
-	check("small list height follows it", farm.frame:GetHeight() < 200, true)
-	check("small list is narrow", farm.frame:GetWidth() < ns.UI.main.frame:GetWidth() / 2, true)
-	for _, row in ipairs(farm.rows) do
+	for itemID in pairs(ns.farmPlan.farm) do
+		if ns.Farm.Describe(itemID) == firstGroup.key then count = count + 1 end
+	end
+	check("each item says how to get it", #Rows("next", "how"), count)
+	for _, row in ipairs(bar.rows) do
 		if row.data and row.data.kind == "how" then row.scripts.OnEnter(row) break end
 	end
+	ns.farmPlan.vendor = vendorPlan
 	check("farm choice is remembered", ns.db.ui.farmMode, true)
+	count = 0
+	for _ in pairs(ns.farmPlan.farm) do count = count + 1 end
 
 	-- The profession window can bring the full Queue back while farming, for Craft Next.
 	ns.UI.Show("queue")
@@ -1561,28 +1584,21 @@ do
 	check("pressing the lit Farm It changes nothing", ns.ActivePlan(), ns.farmPlan)
 	ns.UI.Hide()
 
-	farm.buyButton.scripts.OnClick(farm.buyButton)
+	bar.buyButton.scripts.OnClick(bar.buyButton)
+	RunTimers()
 	check("Buy It returns to buying", ns.ActivePlan(), ns.plan)
-	check("Buy It closes the small list", farm.frame:IsShown(), false)
 	check("Buy It reopens the Queue", queue.frame:IsVisible(), true)
 	check("how rows gone when buying", #Rows("queue", "how"), 0)
+	check("bar's Buy It gone when buying", bar.buyButton.shown, false)
+	check("bar back to buying steps", #Rows("next", "how"), 0)
+	ns.UI.ToggleMain()
+	check("hide-all leaves the bar alone", bar.frame:IsShown(), true)
 
 	ns.ToggleFarmMode()
-	farm.close.scripts.OnClick(farm.close)
-	check("closing leaves farm mode", ns.ActivePlan(), ns.plan)
-	check("closing hides the small list", farm.frame:IsShown(), false)
-	ns.UI.ToggleMain()
-	ns.UI.Show("farm")
-	ns.UI.ToggleMain()
-	check("hide-all leaves the small list alone", farm.frame:IsShown(), true)
-	farm.frame:Hide()
-
 	ns.Queue.Clear()
 	RunTimers()
-	ns.db.ui.farmMode = true
-	ns.UI.Show("farm")
-	check("empty queue says so", Rows("farm", "note")[1].text, "The queue is empty.")
-	farm.close.scripts.OnClick(farm.close)
+	check("no bar with an empty queue, farming or not", bar.frame:IsShown(), false)
+	ns.db.ui.farmMode = nil
 end
 for barID, smelt in pairs(ns.Farm.Smelting) do
 	check("smelt yield set for " .. barID, smelt.yield >= 1 and #smelt >= 1, true)
@@ -1632,22 +1648,23 @@ do
 	ns.db.sales.lots = {}
 end
 
--- The small Farm list includes smelting, so it can't say all gathered while bars are still to make.
+-- Farming, the bar includes smelting, so it can't skip to crafting while bars are still to make.
 do
 	ns.db.ui.farmMode = true
 	local realPlan = ns.farmPlan
 	ns.farmPlan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = { [2840] = 4 }, cost = 0 }
-	ns.UI.Show("farm")
-	local kinds = {}
-	for _, data in ipairs(ns.UI.windows.farm.list) do kinds[data.kind] = (kinds[data.kind] or 0) + 1 end
-	-- Prices are stale here, so the list starts with the scan warning.
-	check("stale prices warned first", ns.UI.windows.farm.list[1].kind, "warn")
-	check("warning names the age", ns.UI.windows.farm.list[1].text:find("hours old", 1, true) ~= nil, true)
-	check("smelting listed", ns.UI.windows.farm.list[2].itemID, 2840)
-	check("says how", ns.UI.windows.farm.list[3].text, "Smelt with Mining")
-	ns.UI.windows.farm.frame:Hide()
+	table.insert(ns.db.queue, { recipeID = 20, qty = 1, char = ns.CharKey() })
+	ns.UI.RefreshQueue()
+	local list = ns.UI.windows.next.list
+	-- Prices are stale here, and farming the bar is the only window up, so it starts with the scan warning.
+	check("stale prices warned first", list[1].kind, "warn")
+	check("warning names the age", list[1].text:find("hours old", 1, true) ~= nil, true)
+	check("smelting is the step", list[2].text, "Smelt with Mining")
+	check("smelting listed", list[3].itemID, 2840)
 	ns.farmPlan = realPlan
 	ns.db.ui.farmMode = nil
+	ns.Queue.Clear()
+	RunTimers()
 end
 
 -- Restocking tab: lists what's craftable in the bags, searches, suggests a price, posts and moves on.

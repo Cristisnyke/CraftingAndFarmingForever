@@ -12,7 +12,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Queue:** one queue shared by all your characters, with total profit, what's still to buy, what to take from the bank, and a **Craft Next** button.
 - **Next step bar:** while anything is queued, a small bar at the top of the screen shows the next thing to do, with Craft Next when it's time to craft. Fold it to one line; it goes away when the queue is empty.
 - **Live shopping list:** one Auctionator list, `Crafting and Farming Forever Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks. It's edited in place as things change.
-- **Farm It:** turns the queue into a gathering list: which vein or herb, which zones, which creatures, what to disenchant. It stays on screen and counts down as you gather.
+- **Farm It:** turns the queue into a gathering list: which vein or herb, which zones, which creatures, what to disenchant. The Next step bar at the top of the screen walks you through it and counts down as you gather.
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference.
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests a price just under the lowest listing, and posts it.
 - **Sales:** what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours.

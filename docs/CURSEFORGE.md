@@ -38,7 +38,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 ### Farm It
 
 - One click turns the queue into what to gather yourself: which veins, herbs and creatures, in which zones, and what to disenchant.
-- A small list you can leave on screen while you farm. It puts your current zone first and counts down as you gather.
+- The Next step bar at the top of the screen tells you what to gather and where, one group at a time. It puts your current zone first and counts down as you gather.
 - Where each material comes from is built from **[AllTheThings](https://www.curseforge.com/wow/addons/all-the-things)** data and ships with the add-on, so you don't need AllTheThings installed.
 
 ### Restock the auction house

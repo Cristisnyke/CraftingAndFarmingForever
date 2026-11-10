@@ -1,6 +1,6 @@
 -- Crafting and Farming Forever :: UI
 -- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales, Changelog; the queue can sit beside Restock), the small
--- Farm list, the Queue button on the crafting page, the stale-price prompts and the slash command.
+-- Next step bar, the Queue button on the crafting page, the stale-price prompts and the slash command.
 
 local _, ns = ...
 
@@ -29,9 +29,7 @@ local PANE_ACTIONS_TOP = 4
 local PANE_LIST_TOP = 30
 local TAB_WIDTH = 112
 local TAB_COUNT = 16
-local MINI_WIDTH = 280
 local MINI_ROW_HEIGHT = 15
-local MINI_MAX_ROWS = 24 -- about twelve materials, then it scrolls
 local MINI_TOP = 26
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED = "ff55dd55", "ffff6655", "ff999999"
 
@@ -56,7 +54,7 @@ UI.windows = windows
 -- The one tabbed window; each tab's contents are a pane in `windows`. Created when first opened.
 local main
 -- Defined further down, used by code above them.
-local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane, ShowFarm
+local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane
 local UpdateNextStep
 local profitCache
 local profitSearch = "" -- the Profit search box's text, trimmed and lowercase
@@ -315,9 +313,9 @@ local function AddItemRows(list, title, items, priceLabel, priceOf)
 	for _, row in ipairs(sorted) do table.insert(list, row) end
 end
 
--- What's left to get yourself, grouped by how: one row for the item, one saying where to get it. step, when given,
--- numbers each group's header.
-local function AddGatherRows(list, plan, withHeaders, step)
+-- What's left to get yourself, grouped by how, each group a numbered step: one row for the item, one saying where to
+-- get it.
+local function AddGatherRows(list, plan, step)
 	local groups = {}
 	for itemID, count in pairs(plan.farm) do
 		local group, line = ns.Farm.Describe(itemID)
@@ -328,45 +326,13 @@ local function AddGatherRows(list, plan, withHeaders, step)
 		local rows = groups[group.key]
 		if rows then
 			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
-			if withHeaders then table.insert(list, { kind = "header", text = (step and step() or "") .. group.title }) end
+			table.insert(list, { kind = "header", text = step() .. group.title })
 			for _, row in ipairs(rows) do
 				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
 				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
 			end
 		end
 	end
-end
-
--- The small Farm window: only what's still needed, item on one line and how to get it under it.
-local function BuildFarmList()
-	local list = {}
-	local plan = ns.farmPlan
-
-	local function AddItems(items, note)
-		local sorted = {}
-		for itemID, count in pairs(items) do table.insert(sorted, { itemID = itemID, count = count }) end
-		table.sort(sorted, function(a, b) return a.itemID < b.itemID end)
-		for _, row in ipairs(sorted) do
-			table.insert(list, { kind = "item", itemID = row.itemID, count = row.count })
-			table.insert(list, { kind = "note", text = note })
-		end
-	end
-
-	-- In the order you'd do it: errands in town first, then gathering, then smelting what was gathered.
-	local names = {}
-	for name in pairs(plan.fetch) do table.insert(names, name) end
-	table.sort(names)
-	for _, name in ipairs(names) do AddItems(plan.fetch[name], "Get from " .. name) end
-	AddItems(plan.bank, "Take from your bank")
-	AddItems(plan.vendor, "Buy from a vendor")
-	AddGatherRows(list, plan, false)
-	AddItems(plan.smelt, "Smelt with Mining")
-	if #list == 0 then
-		table.insert(list, { kind = "note", text = #ns.db.queue > 0 and "All gathered. Press Buy It to craft." or "The queue is empty." })
-	end
-	-- This list stands in for the main window and its banner, and what to gather depends on prices too.
-	if ns.Prices.IsStale() then table.insert(list, 1, { kind = "warn", text = ScanAgeText() .. " Scan at the AH." }) end
-	return list
 end
 
 -- The Queue tab is a to-do list in the order you'd work through it, numbered: fetch from alts, the bank, buy, gather
@@ -395,7 +361,7 @@ local function BuildQueueList()
 	Section("Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
 	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	if farming then
-		AddGatherRows(list, plan, true, Step)
+		AddGatherRows(list, plan, Step)
 		Section("Smelt with Mining", plan.smelt)
 	end
 	local autoHeader = false
@@ -1396,7 +1362,7 @@ end
 
 local function RenderRows(window)
 	local visible = math.min(ROW_COUNT, math.floor(window.container:GetHeight() / ROW_HEIGHT))
-	if window.mini then visible = math.min(#window.list, window.maxRows or MINI_MAX_ROWS) end
+	if window.mini then visible = math.min(#window.list, window.maxRows) end
 	local maxOffset = math.max(0, #window.list - visible)
 	window.offset = math.min(window.offset, maxOffset)
 	for i = 1, ROW_COUNT do
@@ -1520,7 +1486,6 @@ end
 function UI.RefreshQueue()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
-	UI.Refresh("farm")
 	UI.Refresh("posting")
 	UpdateTabStrip()
 	UpdateNextStep()
@@ -1541,7 +1506,7 @@ local function HeaderButton(frame, text, width, onClick)
 	return button
 end
 
--- The look and dragging shared by the main window and the Farm list.
+-- The look and dragging shared by the main window and the Next step bar.
 local function MakeMovable(frame, key)
 	frame:SetFrameStrata("HIGH")
 	frame:SetToplevel(true)
@@ -1842,8 +1807,8 @@ function CreateQueuePane()
 	local modes = {}
 	for index, mode in ipairs({
 		{ farm = false, label = "Buy It", tip = "Plan to buy materials at the auction house and from vendors." },
-		{ farm = true, label = "Farm It", tip = "Plan to gather materials yourself. Swaps this window for a small list "
-			.. "of what to gather and where, to keep on screen while you play." },
+		{ farm = true, label = "Farm It", tip = "Plan to gather materials yourself. Closes this window; the Next step bar "
+			.. "at the top of the screen then says what to gather and where." },
 	}) do
 		local button = HeaderButton(window.frame, mode.label, 62, function()
 			if (ns.db.ui.farmMode and true or false) ~= mode.farm then ns.ToggleFarmMode() end
@@ -1994,72 +1959,10 @@ function CreateQueuePane()
 	end
 end
 
--- The small list to leave on screen while gathering. It's the one thing that isn't a tab: the main window is too big
--- to keep up while out in the world.
-local function CreateFarmWindow()
-	local frame = CreateFrame("Frame", "CFFFarmWindow", UIParent, "BackdropTemplate")
-	local window = { key = "farm", frame = frame, list = {}, offset = 0, rows = {}, mini = true }
-	windows.farm = window
-	MakeMovable(frame, "farm")
-	frame:SetSize(MINI_WIDTH, WINDOW_HEIGHT)
-	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.85) -- a little see-through, as it stays up out in the world
-
-	local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	titleText:SetPoint("TOPLEFT", 12, -10)
-	titleText:SetText("Farm")
-
-	-- Closing it is leaving farm mode too, or Craft Next would keep following a list you can't see. Buy It beside it
-	-- does the same and brings the queue back, named like the Queue tab's mode button.
-	window.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-	window.close:SetPoint("TOPRIGHT", 0, 0)
-	window.close:SetScript("OnClick", function()
-		ns.db.ui.farmMode = nil
-		frame:Hide()
-		UI.RefreshQueue()
-	end)
-
-	local buy = HeaderButton(frame, "Buy It", 60, function() ns.ToggleFarmMode() end)
-	buy:SetHeight(20)
-	buy:SetPoint("RIGHT", window.close, "LEFT", -2, 0)
-	buy:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText("Buy It")
-		GameTooltip:AddLine("Back to buying materials: closes this list and opens the queue.", 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	buy:SetScript("OnLeave", GameTooltip_Hide)
-	window.buyButton = buy
-
-	CreateListArea(window, frame, 10, MINI_TOP, 6, MINI_ROW_HEIGHT)
-	for _, row in ipairs(window.rows) do row.icon:SetSize(14, 14) end
-
-	window.build = function()
-		local list = BuildFarmList()
-		frame:SetHeight(MINI_TOP + math.min(#list, MINI_MAX_ROWS) * MINI_ROW_HEIGHT + 8)
-		return list
-	end
-	window.update = function() end
-end
-
-function ShowFarm()
-	if not windows.farm then CreateFarmWindow() end
-	local frame = windows.farm.frame
-	if not frame:IsShown() then
-		local saved = ns.db.ui.positions and ns.db.ui.positions.farm
-		frame:ClearAllPoints()
-		if saved then
-			frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", saved.x, saved.y)
-		else
-			frame:SetPoint("RIGHT", UIParent, "RIGHT", -40, 120)
-		end
-		frame:Show()
-	end
-	UI.Refresh("farm")
-end
-
 -- The Next step bar: a small window at the top of the screen with the first step of the queue's to-do list. It
 -- exists only while something is queued, opens by itself, and can be folded down to its title line, which still
--- names the step. Not a tab: like the Farm list it stays up while you play.
+-- names the step. Not a tab: it stays up while you play. In Farm It mode it's also the list of what to gather and
+-- where, with a Buy It button to go back to buying.
 local NEXT_WIDTH = 300
 local NEXT_MAX_ROWS = 10
 local NEXT_BUTTON_ROOM = 30
@@ -2089,8 +1992,19 @@ local function CreateNextWindow()
 	fold:SetScript("OnLeave", GameTooltip_Hide)
 	window.foldButton = fold
 
+	local buy = HeaderButton(frame, "Buy It", 54, function() ns.ToggleFarmMode() end)
+	buy:SetHeight(18)
+	buy:SetPoint("RIGHT", fold, "LEFT", -2, 0)
+	buy:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Buy It")
+		GameTooltip:AddLine("Back to buying materials instead of gathering them: opens the queue.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	buy:SetScript("OnLeave", GameTooltip_Hide)
+	window.buyButton = buy
+
 	local count = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	count:SetPoint("RIGHT", fold, "LEFT", -6, 0)
 	window.countText = count
 
 	local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -2121,6 +2035,10 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount = nil, nil
+		-- Farming, this is the only window up, and what's worth gathering depends on prices too.
+		if ns.db.ui.farmMode and not folded and ns.Prices.IsStale() then
+			table.insert(list, { kind = "warn", text = ScanAgeText() .. " Scan at the AH." })
+		end
 		if step and not folded then
 			table.insert(list, { kind = "header", text = ShortStepTitle(step.text) })
 			for _, row in ipairs(rows) do table.insert(list, row) end
@@ -2143,10 +2061,14 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local step = window.step
 		fold:SetText(folded and "+" or "-")
+		local farming = ns.db.ui.farmMode and true or false
+		buy:SetShown(farming)
+		count:ClearAllPoints()
+		count:SetPoint("RIGHT", farming and buy or fold, "LEFT", -6, 0)
 		if folded and step then
 			title:SetText("Next: " .. Color("ffffffff", ShortStepTitle(step.text)))
 		else
-			title:SetText("Next step")
+			title:SetText(farming and "Next step  " .. Color(COLOR_MUTED, "Farm It") or "Next step")
 		end
 		count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
 		if window.nextCraft and not folded then
@@ -2580,10 +2502,6 @@ end
 -- Opens the window on that tab. Already open and already showing it, nothing moves.
 -- withProfession: the window closes again with the profession window. Opened by command, it stays until closed.
 function UI.Show(key, withProfession)
-	if key == "farm" then
-		ShowFarm()
-		return
-	end
 	if not main then CreateMain() end
 	if not UI.IsOpen() then
 		ns.db.ui.tab = key
@@ -2604,7 +2522,7 @@ function UI.Toggle(key)
 	end
 end
 
--- The Farm list stays up on its own, so this leaves it alone.
+-- The Next step bar stays up on its own, so this leaves it alone.
 function UI.ToggleMain()
 	if UI.IsOpen() then
 		UI.Hide()
@@ -2613,26 +2531,17 @@ function UI.ToggleMain()
 	end
 end
 
--- Farm It swaps the main window for the small list, and Buy It swaps them again.
+-- Farm It closes the main window, leaving the Next step bar to follow while you gather; Buy It brings the queue back.
 function UI.FarmModeChanged()
 	if ns.db.ui.farmMode then
 		UI.Hide()
-		UI.Show("farm")
 	else
-		if windows.farm then windows.farm.frame:Hide() end
 		UI.Show("queue")
 	end
 	UI.RefreshQueue()
 end
 
 ns.On("ZONE_CHANGED_NEW_AREA", function() UI.RefreshQueue() end)
-
--- Still farming from last session: bring the list back. Saved data can arrive just after login.
-ns.On("PLAYER_LOGIN", function()
-	ns.Debounce("farmlist", 1, function()
-		if ns.db.ui.farmMode then UI.Show("farm") end
-	end)
-end)
 
 ---------------------------------------------------------------------------
 -- Profession window integration
