@@ -59,6 +59,8 @@ end
 -- db.restock           = { stackGoal, singleGoal, minProfitSilver, duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
+-- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents
+-- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { [window] = { x, y } } }
 --
@@ -86,6 +88,8 @@ local function Normalize(db)
 	db.restock.minProfitSilver = db.restock.minProfitSilver or 1
 	db.restock.goals = db.restock.goals or {}
 	db.restock.duration = db.restock.duration or 2
+	db.mail = db.mail or {}
+	db.purchases = db.purchases or {}
 	-- Mail records used to include the count, which can change between scans of one mail.
 	for _, records in pairs(db.sales.seen) do
 		for _, record in ipairs(records) do

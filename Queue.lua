@@ -15,6 +15,7 @@ local function NewContext()
 		vendorPrice = ns.Prices.Vendor,
 		ownStock = ns.Stock.Own,
 		bankStock = ns.Stock.Bank,
+		mailStock = ns.Stock.Mail,
 		altStock = ns.Stock.Alts,
 		crafter = Recipes.Crafter,
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
@@ -30,7 +31,7 @@ ns.NewContext = NewContext
 -- Plan
 ---------------------------------------------------------------------------
 
-ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = {}, cost = 0 }
+ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0, elsewhere = {} }
 ns.farmPlan = ns.plan
 ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
 

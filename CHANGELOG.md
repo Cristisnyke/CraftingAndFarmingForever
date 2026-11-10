@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Shopping list: what you buy at the auction house leaves the list as soon as the purchase goes through. It counts as waiting in your mailbox, and the queue gets a "Collect from your mailbox" step; opening the mailbox counts what's really there
+- Buying is easier to find: the buying step in the Queue tab and the Next step bar says to open the auction house's Shopping tab (Auctionator) and click the "Crafting and Farming Forever Queue" list, hover it for step-by-step help, and chat says the same when you open the auction house with something to buy
+
 ## 1.3.0
 
 - New Next step bar at the top of the screen: while anything is queued it shows the next thing to do (get from an alt, take from the bank, buy, sub-craft or craft), with a Craft Next button when it's time to craft. Fold it to one line with the - button; it disappears when the queue is empty. Drag to move it, or type `/cff next` to fold or unfold it. It stays out of the way in combat, dungeons, raids and battlegrounds

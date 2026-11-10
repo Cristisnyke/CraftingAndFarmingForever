@@ -335,6 +335,13 @@ local function AddGatherRows(list, plan, step)
 	end
 end
 
+-- Where to buy, under the auction house step and in chat when the auction house opens.
+UI.SHOPPING_HOW = {
+	"At the auction house, open the Shopping tab",
+	"(Auctionator) and click the list",
+	'"' .. ns.LIST_NAME .. '".',
+}
+
 -- The Queue tab is a to-do list in the order you'd work through it, numbered: fetch from alts, the bank, buy, gather
 -- and smelt, sub-crafts, and only then the queued crafts themselves, so you reach the crafting station with
 -- everything on you.
@@ -349,7 +356,7 @@ local function BuildQueueList()
 	end
 
 	local function Section(title, items, ...)
-		if next(items) == nil then return end
+		if not items or next(items) == nil then return end
 		AddItemRows(list, Step() .. title, items, ...)
 	end
 
@@ -357,8 +364,16 @@ local function BuildQueueList()
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
 	for _, name in ipairs(names) do Section("Get from " .. name .. " (log in there and mail them over)", plan.fetch[name]) end
+	Section("Collect from your mailbox", plan.mail)
 	Section("Take from your bank", plan.bank)
+	local beforeBuy = #list
 	Section("Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
+	-- New players don't know where the list is: say it under the heading, short enough for the Next step bar.
+	if #list > beforeBuy then
+		for offset, text in ipairs(UI.SHOPPING_HOW) do
+			table.insert(list, beforeBuy + 1 + offset, { kind = "tip", text = text })
+		end
+	end
 	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	if farming then
 		AddGatherRows(list, plan, Step)
@@ -719,6 +734,15 @@ local function RowOnEnter(row)
 		end
 		GameTooltip:AddLine("Type the number of crafts in the box, or use - and + (Shift: ten). The red cross removes the entry.",
 			0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	elseif data.kind == "tip" then
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetText("Buying your materials")
+		GameTooltip:AddLine("1. Go to an auction house and talk to the auctioneer.", 1, 1, 1, true)
+		GameTooltip:AddLine("2. At the bottom of the auction house window, click the Shopping tab. Auctionator adds it.", 1, 1, 1, true)
+		GameTooltip:AddLine(('3. In the list of shopping lists, click "%s". It searches everything on it.'):format(ns.LIST_NAME), 1, 1, 1, true)
+		GameTooltip:AddLine("4. Click a result to buy it. What you buy leaves the list right away.", 1, 1, 1, true)
+		GameTooltip:AddLine("The list only holds what you still need after your bags, bank, mailbox and alts.", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
 	elseif data.kind == "next" then
 		local recipe = ns.db.recipes[data.recipeID]
@@ -1374,6 +1398,9 @@ local function SetRow(row, data)
 	elseif data.kind == "warn" then
 		row.icon:Hide()
 		row.left:SetText(Color(COLOR_WARN, data.text))
+	elseif data.kind == "tip" then
+		row.icon:Hide()
+		row.left:SetText(Color("ff66ccff", data.text))
 	elseif data.kind == "item" then
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
 		row.left:SetText(ItemLabel(data.itemID))
@@ -3050,6 +3077,11 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 	C_Timer.After(1.5, function()
 		if ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
 			StaticPopup_Show("CFF_SCAN", ScanAgeText())
+		end
+		-- Once per visit, the way to the list, when there's something on it.
+		if next(ns.plan.buy) and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+			ns.Print(('Materials to buy: click the Shopping tab at the bottom of the auction house (Auctionator), '
+				.. 'then the list "%s".'):format(ns.LIST_NAME))
 		end
 		UI.RefreshAll()
 	end)

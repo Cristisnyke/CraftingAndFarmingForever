@@ -10,6 +10,7 @@
 -- and, for planning:
 --   ownStock(itemID)   -> count on the current character (bags + bank)
 --   bankStock(itemID)  -> the part of ownStock that's in the bank (optional), so the plan can say to fetch it
+--   mailStock(itemID)  -> count waiting in the current character's mailbox, on top of ownStock (optional)
 --   altStock(itemID)   -> { { name = label, count = n }, ... }
 --   crafter(recipeID, preferredChar) -> character key
 --   smelting[itemID]   = { yield, { count, itemID }, ... }   only used by a farming plan
@@ -280,8 +281,9 @@ end
 -- made by the character who needs them, so a material only an alt can make is bought (or gathered) instead. Without
 -- ctx.me every entry is planned here, as before.
 function Planner.BuildPlan(ctx, queue, farming)
-	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, farm = {}, smelt = {}, cost = 0, elsewhere = {} }
-	local bags, bank, alts = {}, {}, {}
+	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0,
+		elsewhere = {} }
+	local bags, bank, mail, alts = {}, {}, {}, {}
 	local craftIndex = {}
 	local active = {}
 
@@ -297,11 +299,12 @@ function Planner.BuildPlan(ctx, queue, farming)
 		local total = ctx.ownStock(itemID) or 0
 		local inBank = math.min(ctx.bankStock and ctx.bankStock(itemID) or 0, total)
 		bags[itemID], bank[itemID] = total - inBank, inBank
+		mail[itemID] = ctx.mailStock and ctx.mailStock(itemID) or 0
 	end
 
 	local function OwnLeft(itemID)
 		Load(itemID)
-		return bags[itemID] + bank[itemID]
+		return bags[itemID] + mail[itemID] + bank[itemID]
 	end
 
 	-- Crafted leftovers end up in the bags.
@@ -320,12 +323,19 @@ function Planner.BuildPlan(ctx, queue, farming)
 		return alts[itemID]
 	end
 
-	-- Takes up to count of an item from stock, own first. Returns how many are still missing.
+	-- Takes up to count of an item from stock: bags, mailbox (what you just bought waits there), bank, then alts.
+	-- Returns how many are still missing.
 	local function TakeFromStock(itemID, count)
 		Load(itemID)
 		local fromBags = math.min(bags[itemID], count)
 		bags[itemID] = bags[itemID] - fromBags
 		count = count - fromBags
+		local fromMail = math.min(mail[itemID], count)
+		if fromMail > 0 then
+			mail[itemID] = mail[itemID] - fromMail
+			count = count - fromMail
+			plan.mail[itemID] = (plan.mail[itemID] or 0) + fromMail
+		end
 		local fromBank = math.min(bank[itemID], count)
 		if fromBank > 0 then
 			bank[itemID] = bank[itemID] - fromBank

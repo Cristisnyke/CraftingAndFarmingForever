@@ -31,7 +31,8 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 
 ### A shopping list that knows what you own
 
-- One Auctionator shopping list, kept up to date as you craft, loot and buy.
+- One Auctionator shopping list, kept up to date as you craft, loot and buy. Find it in the auction house's **Shopping** tab (Auctionator), list **Crafting and Farming Forever Queue**.
+- What you buy leaves the list the moment the purchase goes through, and the queue reminds you to collect it from your mailbox.
 - It counts your bags and bank, and with Syndicator your alts' bags and banks too, so you never buy what's already sitting on an alt.
 - Vendor materials are listed separately, so you don't search the auction house for thread.
 

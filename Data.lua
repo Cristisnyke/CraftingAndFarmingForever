@@ -267,6 +267,115 @@ function Stock.Alts(itemID)
 	return result
 end
 
+-- Mailbox: what the last look in this character's mailbox found, plus auction house purchases made since, which go
+-- to the mailbox. Bought items count as soon as the purchase succeeds, so they drop off the shopping list at once.
+-- db.mail[charKey]      = { items = { [itemID] = count }, scanned = time }
+-- db.purchases[charKey] = { { itemID, count, at }, ... }  bought since that look
+local PURCHASE_LIFETIME = 30 * 24 * 3600 -- mail is deleted after 30 days
+
+local function MailRecord()
+	local key = ns.CharKey()
+	if not key then return nil end
+	ns.db.mail[key] = ns.db.mail[key] or { items = {}, scanned = 0 }
+	return ns.db.mail[key], key
+end
+
+function Stock.Mail(itemID)
+	local key = ns.CharKey()
+	local record = key and ns.db.mail[key]
+	local count = record and record.items[itemID] or 0
+	for _, purchase in ipairs(key and ns.db.purchases[key] or {}) do
+		if purchase.itemID == itemID then count = count + purchase.count end
+	end
+	return count
+end
+
+-- Reads every attachment in the open mailbox. Cash-on-delivery mail isn't yours until paid, so it doesn't count.
+function Stock.ScanMailbox()
+	local record, key = MailRecord()
+	if not record then return end
+	local items = {}
+	local slots = ATTACHMENTS_MAX_RECEIVE or 16
+	for index = 1, GetInboxNumItems() do
+		local _, _, _, _, _, cod, _, hasItem = GetInboxHeaderInfo(index)
+		if hasItem and (cod or 0) == 0 then
+			for slot = 1, slots do
+				local _, itemID, _, count = GetInboxItem(index, slot)
+				if itemID then items[itemID] = (items[itemID] or 0) + (count or 1) end
+			end
+		end
+	end
+	record.items, record.scanned = items, time()
+	-- Purchases made before this look are in it now.
+	local pending = {}
+	for _, purchase in ipairs(ns.db.purchases[key] or {}) do
+		if purchase.at > record.scanned then table.insert(pending, purchase) end
+	end
+	ns.db.purchases[key] = pending
+	ns.RequestPlan()
+end
+
+function Stock.AddPurchase(itemID, count)
+	local _, key = MailRecord()
+	if not (key and itemID and count and count > 0) then return end
+	ns.db.purchases[key] = ns.db.purchases[key] or {}
+	local now = time()
+	local kept = {}
+	for _, purchase in ipairs(ns.db.purchases[key]) do
+		if now - purchase.at < PURCHASE_LIFETIME then table.insert(kept, purchase) end
+	end
+	table.insert(kept, { itemID = itemID, count = count, at = now })
+	ns.db.purchases[key] = kept
+	ns.RequestPlan()
+end
+
+ns.On("MAIL_SHOW", function() Stock.ScanMailbox() end)
+ns.On("MAIL_INBOX_UPDATE", function() ns.Debounce("mailbox", 0.3, Stock.ScanMailbox) end)
+
+-- Commodities (stackable goods): the amount confirmed is bought when the server says it succeeded.
+local commodityPurchase
+-- Other items: buyouts of listings seen in a search, completed when the server confirms that auction.
+local listings, buyouts = {}, {}
+
+local function NoteListings(itemKey)
+	if not (itemKey and itemKey.itemID) then return end
+	for index = 1, C_AuctionHouse.GetNumItemSearchResults(itemKey) do
+		local info = C_AuctionHouse.GetItemSearchResultInfo(itemKey, index)
+		if info and info.auctionID then
+			listings[info.auctionID] = { itemID = itemKey.itemID, count = info.quantity or 1, buyout = info.buyoutAmount }
+		end
+	end
+end
+
+ns.On("PLAYER_LOGIN", function()
+	if not C_AuctionHouse then return end
+	if C_AuctionHouse.ConfirmCommoditiesPurchase then
+		hooksecurefunc(C_AuctionHouse, "ConfirmCommoditiesPurchase", function(itemID, quantity)
+			commodityPurchase = { itemID = itemID, count = quantity }
+		end)
+	end
+	if C_AuctionHouse.PlaceBid then
+		hooksecurefunc(C_AuctionHouse, "PlaceBid", function(auctionID, bid)
+			local listing = listings[auctionID]
+			-- A bid below the buyout isn't a purchase yet.
+			if listing and listing.buyout and bid and bid >= listing.buyout then buyouts[auctionID] = listing end
+		end)
+	end
+end)
+ns.On("COMMODITY_PURCHASE_SUCCEEDED", function()
+	if commodityPurchase then Stock.AddPurchase(commodityPurchase.itemID, commodityPurchase.count) end
+	commodityPurchase = nil
+end)
+ns.On("COMMODITY_PURCHASE_FAILED", function() commodityPurchase = nil end)
+ns.On("ITEM_SEARCH_RESULTS_UPDATED", NoteListings)
+ns.On("ITEM_SEARCH_RESULTS_ADDED", NoteListings)
+ns.On("AUCTION_HOUSE_PURCHASE_COMPLETED", function(auctionID)
+	local bought = buyouts[auctionID]
+	buyouts[auctionID] = nil
+	if bought then Stock.AddPurchase(bought.itemID, bought.count) end
+end)
+ns.On("AUCTION_HOUSE_CLOSED", function() wipe(listings) end)
+
 -- For restocking: units on the AH across characters (nil if they can't be seen), and units held anywhere else:
 -- bags and banks of all characters, plus mail, since expired auctions come back that way.
 function Stock.ForRestock(itemID)

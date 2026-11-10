@@ -325,6 +325,22 @@ do
 	check("farming: own ore gathered", farmed.farm[ORE], 4)
 end
 
+-- Bought items waiting in the mailbox count as owned: taken after the bags, before the bank, and never bought again.
+do
+	local ctx = Context({ own = { [CLOTH] = 1 } })
+	ctx.mailStock = function(id) return ({ [CLOTH] = 2 })[id] or 0 end
+	ctx.bankStock = function() return 0 end
+	local mailed = Planner.BuildPlan(ctx, { { recipeID = 200, qty = 2 } })
+	check("mail used after bags", mailed.mail[CLOTH], 2)
+	check("only the rest bought", mailed.buy[CLOTH], 1)
+	ctx = Context({ own = { [CLOTH] = 4 } })
+	ctx.bankStock = function(id) return ({ [CLOTH] = 4 })[id] or 0 end
+	ctx.mailStock = function(id) return ({ [CLOTH] = 3 })[id] or 0 end
+	local order = Planner.BuildPlan(ctx, { { recipeID = 200, qty = 2 } })
+	check("mailbox before the bank", order.mail[CLOTH], 3)
+	check("bank for the rest", order.bank[CLOTH], 1)
+end
+
 check("empty plan", #Planner.BuildPlan(Context(), {}).crafts, 0)
 check("zero qty", #Planner.BuildPlan(Context(), { { recipeID = 300, qty = 0 } }).crafts, 0)
 

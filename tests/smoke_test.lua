@@ -143,7 +143,13 @@ C_AuctionHouse = {
 	SendSellSearchQuery = function() end,
 	PostItem = function() end,
 	PostCommodity = function() end,
+	ConfirmCommoditiesPurchase = function() end,
+	PlaceBid = function() end,
+	GetNumItemSearchResults = function() return #itemResults end,
+	GetItemSearchResultInfo = function(_, index) return itemResults[index] end,
 }
+itemResults = {}
+ATTACHMENTS_MAX_RECEIVE = 1
 local tocVersion
 for line in io.lines("CraftingAndFarmingForever.toc") do tocVersion = tocVersion or line:match("^## Version: *(%S+)") end
 syndicatorLoaded = true
@@ -2145,6 +2151,107 @@ do
 	check("reloading mid-fight keeps it hidden", bar.frame:IsShown(), false)
 	inCombat = false
 	Fire("PLAYER_REGEN_ENABLED")
+	ns.Queue.Clear()
+	RunTimers()
+end
+
+-- Bought at the auction house: counts as in the mailbox right away, so it leaves the shopping list, and the queue
+-- says to collect it. Opening the mailbox replaces the guess with what's really there, without counting it twice.
+do
+	ns.Queue.Clear()
+	ns.Queue.Add(20, 2)
+	RunTimers()
+	local itemID, needed = next(ns.plan.buy)
+	check("something to buy", itemID ~= nil, true)
+	local function Listed()
+		local found = false
+		for _, entry in ipairs(lists[ns.LIST_NAME] or {}) do
+			if entry:lower():find(names[itemID]:lower(), 1, true) then found = true end
+		end
+		return found
+	end
+	check("on the shopping list before buying", Listed(), true)
+
+	-- Where to buy is spelled out under the step, in the Queue tab and the Next step bar, and in chat at the AH.
+	ns.UI.Show("queue")
+	local qlist = ns.UI.windows.queue.list
+	local buyAt
+	for index, data in ipairs(qlist) do
+		if data.kind == "header" and data.text:find("Buy at auction house", 1, true) then buyAt = index end
+	end
+	check("tip right under the buy step", qlist[buyAt + 1].kind, "tip")
+	check("tip names the Shopping tab", qlist[buyAt + 1].text:find("Shopping tab", 1, true) ~= nil, true)
+	local tips = {}
+	for _, data in ipairs(qlist) do if data.kind == "tip" then table.insert(tips, data.text) end end
+	check("tip names the list", table.concat(tips, " "):find(ns.LIST_NAME, 1, true) ~= nil, true)
+	ns.UI.Hide()
+	local barTips = 0
+	for _, data in ipairs(ns.UI.windows.next.list) do if data.kind == "tip" then barTips = barTips + 1 end end
+	check("bar shows the tip too", barTips, #tips)
+	for _, row in ipairs(ns.UI.windows.next.rows) do
+		if row.data and row.data.kind == "tip" then row.scripts.OnEnter(row) break end
+	end
+	local printed = {}
+	local realPrint = ns.Print
+	ns.Print = function(text) table.insert(printed, text) end
+	local ahShown = AuctionHouseFrame.shown
+	AuctionHouseFrame.shown = true
+	Fire("AUCTION_HOUSE_SHOW")
+	RunTimers()
+	local told = false
+	for _, text in ipairs(printed) do if text:find("Shopping tab", 1, true) then told = true end end
+	check("chat says where at the AH", told, true)
+	AuctionHouseFrame.shown = ahShown
+	ns.Print = realPrint
+
+	C_AuctionHouse.ConfirmCommoditiesPurchase(itemID, needed)
+	Fire("COMMODITY_PURCHASE_FAILED")
+	RunTimers()
+	check("a failed purchase changes nothing", ns.plan.buy[itemID], needed)
+
+	C_AuctionHouse.ConfirmCommoditiesPurchase(itemID, needed - 1)
+	Fire("COMMODITY_PURCHASE_SUCCEEDED")
+	RunTimers()
+	check("part bought: the rest still to buy", ns.plan.buy[itemID], 1)
+	check("part bought: waiting in the mail", ns.plan.mail[itemID], needed - 1)
+	check("still listed for the rest", Listed(), true)
+
+	-- A single item (not a commodity), bought out from a search's results.
+	C_AuctionHouse.GetNumItemSearchResults = function() return #itemResults end
+	C_AuctionHouse.GetItemSearchResultInfo = function(_, index) return itemResults[index] end
+	itemResults = { { auctionID = 77, quantity = 1, buyoutAmount = 500 } }
+	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = itemID })
+	C_AuctionHouse.PlaceBid(77, 400)
+	Fire("AUCTION_HOUSE_PURCHASE_COMPLETED", 77)
+	RunTimers()
+	check("a bid below buyout isn't a purchase", ns.plan.buy[itemID], 1)
+	C_AuctionHouse.PlaceBid(77, 500)
+	Fire("AUCTION_HOUSE_PURCHASE_COMPLETED", 77)
+	RunTimers()
+	check("bought out: nothing left to buy", ns.plan.buy[itemID], nil)
+	check("leaves the shopping list", Listed(), false)
+	check("queue says collect it", ns.plan.mail[itemID], needed)
+	ns.UI.Show("queue")
+	local collect = false
+	for _, data in ipairs(ns.UI.windows.queue.list) do
+		if data.kind == "header" and data.text:find("Collect from your mailbox", 1, true) then collect = true end
+	end
+	check("mailbox step listed", collect, true)
+	ns.UI.Hide()
+	check("bar starts with the mailbox", ns.UI.windows.next.list[1].text, "Collect from your mailbox")
+
+	-- At the mailbox: what's there is counted once, and taking it out moves it to the bags.
+	inbox = { { subject = "Auction won: " .. names[itemID], money = 0, daysLeft = 30, itemID = itemID, count = needed } }
+	Fire("MAIL_SHOW")
+	RunTimers()
+	check("mailbox seen: not counted twice", ns.plan.mail[itemID], needed)
+	check("purchases folded into the mailbox", #ns.db.purchases[ns.CharKey()], 0)
+	inbox = {}
+	Fire("MAIL_INBOX_UPDATE")
+	RunTimers()
+	check("taken out: nothing in the mail", ns.plan.mail[itemID], nil)
+	check("taken out: to buy again until the bags show it", ns.plan.buy[itemID], needed)
+	itemResults = {}
 	ns.Queue.Clear()
 	RunTimers()
 end
