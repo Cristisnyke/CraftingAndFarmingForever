@@ -401,6 +401,11 @@ end
 local Recipes = {}
 ns.Recipes = Recipes
 local readThisSession = {}
+-- [charKey|recipeID] = GetTime() when the open profession first listed a known recipe as not learned. It's only
+-- forgotten when a scan at least FORGET_AFTER seconds later still says so, so a list that's still loading or switching
+-- can't wipe it. Not saved: a real unlearn is confirmed the next time the window is open long enough.
+local notLearnedSince = {}
+local FORGET_AFTER = 10
 
 -- The profession the client currently has open. The window's own answer is what other Forever add-ons rely on;
 -- the API calls are fallbacks. An ID of 0 means no profession.
@@ -520,9 +525,10 @@ local function ScanOpenProfession()
 	if not char or not base or type(ids) ~= "table" then return end
 
 	local baseKey, baseName = ProfessionKey(base)
-	local learned, filedHere, filedElsewhere = {}, 0, 0
+	local learned, notLearned, filedHere, filedElsewhere = {}, {}, 0, 0
 	for _, recipeID in ipairs(ids) do
 		local info = C_TradeSkillUI.GetRecipeInfo(recipeID)
+		if info and info.learned == false then notLearned[recipeID] = true end
 		if info and info.learned then
 			learned[recipeID] = info
 			local stored = ns.db.recipes[recipeID]
@@ -571,11 +577,24 @@ local function ScanOpenProfession()
 		char.links[baseKey] = link
 	end
 	local changed = false
+	-- Forgetting needs the game to say outright, twice and FORGET_AFTER seconds apart, that a recipe of this
+	-- profession isn't learned. Missing from the list is never enough: that's what a list still loading or still
+	-- showing another profession looks like.
+	local charKey, now = ns.CharKey(), GetTime()
 	for recipeID in pairs(char.recipes) do
 		local recipe = ns.db.recipes[recipeID]
-		if not learned[recipeID] and recipe and recipe.p == baseKey then
-			char.recipes[recipeID] = nil
-			changed = true
+		local key = charKey .. "|" .. recipeID
+		if notLearned[recipeID] and recipe and recipe.p == baseKey then
+			local since = notLearnedSince[key]
+			if not since then
+				notLearnedSince[key] = now
+			elseif now - since >= FORGET_AFTER then
+				char.recipes[recipeID] = nil
+				notLearnedSince[key] = nil
+				changed = true
+			end
+		elseif learned[recipeID] then
+			notLearnedSince[key] = nil
 		end
 	end
 	for recipeID in pairs(learned) do

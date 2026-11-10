@@ -6,7 +6,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 - Fixed the Craft Next progress bar counting one craft too many during a batch (2 / 7 when you queued 6)
 - Restocking no longer undercuts: it suggests the same price as the lowest listing
-- Fixed recipes being forgotten when you switch from one profession to another (your smelting recipes could vanish, so the add-on bought bars instead of smelting them and the profit for bar recipes came out too low). Open the affected profession once to get them back
+- Fixed known recipes being forgotten (your smelting recipes could vanish, so the add-on bought bars instead of smelting them and the profit for bar recipes came out too low). A recipe is now only removed when the game clearly says you no longer know it. Open the affected profession once to get missing recipes back
 
 ## 1.5.0
 

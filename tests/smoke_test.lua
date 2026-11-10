@@ -339,6 +339,45 @@ do
 	ns.db.recipes[50], ns.db.chars[me].recipes[50] = nil, nil
 end
 
+-- A known recipe is only forgotten when the game says outright, twice and 10 s apart, that it isn't learned.
+do
+	local realIDs, realRecipeInfo = C_TradeSkillUI.GetAllRecipeIDs, C_TradeSkillUI.GetRecipeInfo
+	-- Missing from the list (still loading): kept, however often it's read.
+	C_TradeSkillUI.GetAllRecipeIDs = function() return { 10, 20, 40 } end
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	clock = clock + 60
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("missing from the list: kept", ns.db.chars[me].recipes[30], true)
+	C_TradeSkillUI.GetAllRecipeIDs = realIDs
+	-- Listed as not learned for a moment (the list still loading): kept.
+	C_TradeSkillUI.GetRecipeInfo = function(id)
+		local info = realRecipeInfo(id)
+		if id == 30 then info.learned = false end
+		return info
+	end
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("not learned once: kept", ns.db.chars[me].recipes[30], true)
+	C_TradeSkillUI.GetRecipeInfo = realRecipeInfo
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	C_TradeSkillUI.GetRecipeInfo = function(id)
+		local info = realRecipeInfo(id)
+		if id == 30 then info.learned = false end
+		return info
+	end
+	clock = clock + 60
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("learned in between: the wait starts over", ns.db.chars[me].recipes[30], true)
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("not learned again within 10 s: kept", ns.db.chars[me].recipes[30], true)
+	-- Still not learned 10 s later: really unlearned.
+	clock = clock + 10
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("not learned 10 s later: forgotten", ns.db.chars[me].recipes[30], nil)
+	C_TradeSkillUI.GetRecipeInfo = realRecipeInfo
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("learned again: back", ns.db.chars[me].recipes[30], true)
+end
+
 -- Item data not loaded yet: nothing is sent to Auctionator without a name.
 ns.Queue.Add(20, 2)
 RunTimers()
