@@ -1854,9 +1854,15 @@ local function NumberBox(parent, labelText, previous, read, write, paneKey)
 	return box, label
 end
 
--- "Craft Next: Smelt Bronze x12", or, while that craft can't be made, "Finish Smelt Bronze: 8 left" (disabled).
-function UI.CraftButtonText(craft, count, blocking)
+-- "Craft Next: Smelt Bronze x12"; "Open Mining: Smelt Bronze x12" when Craft Next opens its profession first; or,
+-- while that craft can't be made, "Finish Smelt Bronze: 8 left" (disabled).
+function UI.CraftButtonText(craft, count, blocking, open)
 	if craft then return ("Craft Next: %s x%d"):format(RecipeName(craft.recipeID), count) end
+	if blocking and open then
+		local recipe = ns.db.recipes[blocking.recipeID]
+		return ("Open %s: %s x%d"):format((recipe and recipe.pn) or "profession", RecipeName(blocking.recipeID),
+			blocking.count)
+	end
 	if blocking then return ("Finish %s: %d left"):format(RecipeName(blocking.recipeID), blocking.count) end
 	return "Craft Next"
 end
@@ -1904,7 +1910,7 @@ end
 
 local function RenderCraftBar(bar)
 	local progress = ns.Queue.CraftProgress()
-	local craft, count, blocking = bar.cf.craft, bar.cf.count, bar.cf.blocking
+	local craft, count, blocking, open = bar.cf.craft, bar.cf.count, bar.cf.blocking, bar.cf.open
 	local state, fill, title, detail, iconRecipe
 	local onlyThis = progress.runSeconds and math.abs(progress.runSeconds - progress.allSeconds) < 0.5
 	if progress.casting or progress.betweenCasts then
@@ -1924,6 +1930,14 @@ local function RenderCraftBar(bar)
 			detail = Color(COLOR_MUTED, ("%d / %d done"):format(progress.done, progress.total)) .. "  " .. detail
 		end
 		onlyThis = math.abs(craft.count * ns.Queue.CraftSeconds(craft.recipeID) - (progress.allSeconds or 0)) < 0.5
+	elseif blocking and open then
+		-- Clicking opens the profession and starts crafting.
+		state, iconRecipe = "ready", blocking.recipeID
+		fill = 1
+		title = UI.CraftButtonText(nil, nil, blocking, open)
+		local seconds = blocking.count * ns.Queue.CraftSeconds(blocking.recipeID)
+		detail = ("x%d takes %s"):format(blocking.count, Color("ffffffff", ns.Planner.FormatDuration(seconds)))
+		onlyThis = math.abs(seconds - (progress.allSeconds or 0)) < 0.5
 	else
 		state, iconRecipe = "blocked", blocking and blocking.recipeID
 		fill = (blocking and progress.recipeID == blocking.recipeID) and progress.done / progress.total or 0
@@ -1990,6 +2004,10 @@ local function CraftBarTooltip(bar)
 			progress.total, ns.Planner.FormatDuration(progress.runSeconds)), 1, 1, 1, true)
 	elseif bar.cf.craft then
 		GameTooltip:AddLine(("Click to craft %s x%d."):format(RecipeName(bar.cf.craft.recipeID), bar.cf.count), 1, 1, 1, true)
+	elseif bar.cf.blocking and bar.cf.open then
+		local recipe = ns.db.recipes[bar.cf.blocking.recipeID]
+		GameTooltip:AddLine(("Click to open %s and craft %s."):format((recipe and recipe.pn) or "the profession",
+			RecipeName(bar.cf.blocking.recipeID)), 1, 1, 1, true)
 	elseif bar.cf.blocking then
 		GameTooltip:AddLine(("%s has to be finished first: %d left."):format(RecipeName(bar.cf.blocking.recipeID),
 			bar.cf.blocking.count), 1, 1, 1, true)
@@ -2136,9 +2154,9 @@ local function CreateCraftBar(parent, height)
 	end
 	bar.GetText = function(self) return self.text end
 	-- Called with what Craft Next would do; the bar adds the progress and the times.
-	bar.Update = function(self, craft, count, blocking)
-		self.cf.craft, self.cf.count, self.cf.blocking = craft, count, blocking
-		self:SetEnabled(craft ~= nil)
+	bar.Update = function(self, craft, count, blocking, open)
+		self.cf.craft, self.cf.count, self.cf.blocking, self.cf.open = craft, count, blocking, open
+		self:SetEnabled(craft ~= nil or open ~= nil)
 		RenderCraftBar(self)
 	end
 	table.insert(craftBars, bar)
@@ -2281,8 +2299,9 @@ function CreateQueuePane()
 			detail:SetText("")
 		end
 
-		local craft, count, reason, blocking = ns.Queue.NextCraft()
-		craftButton:Update(craft, count, blocking)
+		local craft, count, reason, blocking, open = ns.Queue.NextCraft()
+		craftButton:Update(craft, count, blocking, open)
+		if open then reason = nil end -- the button itself says it opens the profession
 
 		local notes = {}
 		if reason then table.insert(notes, reason) end
@@ -2389,7 +2408,7 @@ local function CreateNextWindow()
 		window.step, window.steps = step, steps
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
-		window.nextCraft, window.nextCount, window.blocking, window.crafting = nil, nil, nil, false
+		window.nextCraft, window.nextCount, window.blocking, window.open, window.crafting = nil, nil, nil, nil, false
 		window.maxRows = ns.db.ui.farmMode and NEXT_MAX_ROWS_FARMING or NEXT_MAX_ROWS
 		window.gatherGroups = 0
 		if step and step.gather then
@@ -2406,10 +2425,10 @@ local function CreateNextWindow()
 			table.insert(list, { kind = "header", text = ShortStepTitle(step.text) })
 			for _, row in ipairs(rows) do table.insert(list, row) end
 			if step.crafting then
-				local nextCraft, nextCount, reason, blocking = ns.Queue.NextCraft()
-				window.nextCraft, window.nextCount, window.blocking = nextCraft, nextCount, blocking
+				local nextCraft, nextCount, reason, blocking, open = ns.Queue.NextCraft()
+				window.nextCraft, window.nextCount, window.blocking, window.open = nextCraft, nextCount, blocking, open
 				window.crafting = true
-				if not nextCraft and reason then table.insert(list, { kind = "note", text = reason }) end
+				if not nextCraft and reason and not open then table.insert(list, { kind = "note", text = reason }) end
 			end
 		end
 		-- On a crafting step the button stays, saying what to finish while it can't craft.
@@ -2439,7 +2458,7 @@ local function CreateNextWindow()
 		count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
 		if window.crafting and not folded then
 			craft:Show()
-			craft:Update(window.nextCraft, window.nextCount, window.blocking)
+			craft:Update(window.nextCraft, window.nextCount, window.blocking, window.open)
 		else
 			craft:Hide()
 		end

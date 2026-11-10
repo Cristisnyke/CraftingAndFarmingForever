@@ -704,7 +704,33 @@ local realIDs = C_TradeSkillUI.GetAllRecipeIDs
 C_TradeSkillUI.GetAllRecipeIDs = function() return { 40 } end
 _, _, reason = ns.Queue.NextCraft()
 check("other profession reason", reason, "Open Tailoring to finish Recipe10 (6 left).")
+-- Craft Next opens that profession, then crafts once its recipes have loaded.
+local openedSkill
+C_TradeSkillUI.OpenTradeSkill = function(id) openedSkill = id end
+local _, _, _, _, openID = ns.Queue.NextCraft()
+check("Craft Next can open the profession", openID ~= nil and openID == ns.db.recipes[10].p, true)
+ns.UI.Refresh("queue")
+check("button offers to open", ns.UI.windows.queue.craftButton.text, "Open Tailoring: Recipe10 x6")
+local craftedBefore = #crafted
+ns.Queue.CraftNext()
+check("opened the profession", openedSkill, ns.db.recipes[10].p)
+check("nothing crafted before it's open", #crafted, craftedBefore)
 C_TradeSkillUI.GetAllRecipeIDs = realIDs
+Fire("TRADE_SKILL_LIST_UPDATE")
+check("crafted once open", #crafted, craftedBefore + 1)
+check("crafted the waiting recipe", crafted[#crafted].id, 10)
+Fire("TRADE_SKILL_LIST_UPDATE")
+check("crafted only once", #crafted, craftedBefore + 1)
+-- If the game blocks that, the next opens wait for a second click.
+Fire("ADDON_ACTION_BLOCKED", "CraftingAndFarmingForever", "CraftRecipe")
+check("craft after open turned off", ns.db.ui.noCraftAfterOpen, true)
+C_TradeSkillUI.GetAllRecipeIDs = function() return { 40 } end
+ns.Queue.CraftNext()
+C_TradeSkillUI.GetAllRecipeIDs = realIDs
+Fire("TRADE_SKILL_LIST_UPDATE")
+check("blocked once: opens only", #crafted, craftedBefore + 1)
+ns.db.ui.noCraftAfterOpen = nil
+C_TradeSkillUI.OpenTradeSkill = nil
 
 -- Queue countdown: craft of the entry itself removes it at zero.
 Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 20)

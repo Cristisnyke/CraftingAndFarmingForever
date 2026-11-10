@@ -1,7 +1,7 @@
 -- Crafting and Farming Forever :: Queue
 -- The shared craft queue, the plan derived from it and the Craft Next action.
 
-local _, ns = ...
+local addonName, ns = ...
 
 local Queue = {}
 ns.Queue = Queue
@@ -320,9 +320,10 @@ end)
 -- Craft Next
 ---------------------------------------------------------------------------
 
--- Returns the next craft this character can do now, with its batch size; or nil, the reason why not, and the craft
--- that has to be finished first. Strictly in plan order: sub-crafts come before what they're for, and a craft that
--- can't be made right now is never skipped for a later one, so you finish one step before moving on.
+-- Returns the next craft this character can do now, with its batch size; or nil, the reason why not, the craft
+-- that has to be finished first and, when only its profession isn't open, that profession's ID (Craft Next opens
+-- it). Strictly in plan order: sub-crafts come before what they're for, and a craft that can't be made right now
+-- is never skipped for a later one, so you finish one step before moving on.
 function Queue.NextCraft()
 	local plan = ns.ActivePlan()
 	if #plan.crafts == 0 then
@@ -345,7 +346,8 @@ function Queue.NextCraft()
 	local name = (recipe and recipe.n) or "the next craft"
 	local left = ("%s (%d left)"):format(name, craft.count)
 	if not Recipes.OpenRecipes()[craft.recipeID] then
-		return nil, nil, ("Open %s to finish %s."):format((recipe and recipe.pn) or "the profession", left), craft
+		local open = recipe and recipe.p and C_TradeSkillUI.OpenTradeSkill and recipe.p or nil
+		return nil, nil, ("Open %s to finish %s."):format((recipe and recipe.pn) or "the profession", left), craft, open
 	end
 	local available = C_TradeSkillUI.GetCraftableCount(craft.recipeID) or 0
 	local unmet = Recipes.UnmetRequirements(craft.recipeID)
@@ -356,9 +358,50 @@ function Queue.NextCraft()
 	return nil, nil, ("Finish %s first: needs %s."):format(left, table.concat(needs, " and ")), craft
 end
 
+-- Opening a profession for Craft Next: the craft follows as soon as its recipes have loaded, unless the game
+-- blocked that once (a craft not started by a click), after which it waits for the next click.
+local pendingOpen -- { recipeID, at }
+
+local function CraftAfterOpen()
+	if not pendingOpen then return end
+	if GetTime() - pendingOpen.at > 10 then
+		pendingOpen = nil
+		return
+	end
+	if not C_TradeSkillUI.IsTradeSkillReady() or not Recipes.OpenRecipes()[pendingOpen.recipeID] then return end
+	pendingOpen = nil
+	if ns.db.ui.noCraftAfterOpen or UnitCastingInfo("player") then return end
+	local craft, count = Queue.NextCraft()
+	if craft then C_TradeSkillUI.CraftRecipe(craft.recipeID, count) end
+end
+
+local function CraftAfterOpenSoon()
+	if not pendingOpen then return end
+	CraftAfterOpen()
+	C_Timer.After(0.5, CraftAfterOpen) -- the window may show a moment after the event
+end
+ns.On("TRADE_SKILL_SHOW", CraftAfterOpenSoon)
+ns.On("TRADE_SKILL_LIST_UPDATE", CraftAfterOpenSoon)
+
+local function Blocked(addon)
+	if addon ~= addonName then return end
+	if not ns.db.ui.noCraftAfterOpen then
+		ns.db.ui.noCraftAfterOpen = true
+		ns.Print("The game doesn't let add-ons craft by themselves right after opening a profession, so Craft Next "
+			.. "now opens it on the first click and crafts on the second.")
+	end
+end
+ns.On("ADDON_ACTION_BLOCKED", Blocked)
+ns.On("ADDON_ACTION_FORBIDDEN", Blocked)
+
 function Queue.CraftNext()
 	if UnitCastingInfo("player") then return end
-	local craft, count, reason = Queue.NextCraft()
+	local craft, count, reason, blocking, open = Queue.NextCraft()
+	if not craft and open then
+		pendingOpen = { recipeID = blocking.recipeID, at = GetTime() }
+		C_TradeSkillUI.OpenTradeSkill(open)
+		return
+	end
 	if not craft then
 		ns.Print(reason)
 		return
