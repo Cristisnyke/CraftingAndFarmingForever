@@ -198,17 +198,15 @@ function Planner.CraftUnitCost(ctx, itemID)
 end
 
 -- The price to suggest for one unit, and whether it was raised to stop a post losing money. opts supplies:
---   lowest, lowestIsMine   the cheapest listing right now, if any. Your own isn't undercut.
+--   lowest                 the cheapest listing right now, if any. Matched, not undercut (the user's choice).
 --   scanned                the last scanned price, used with no listing to go on
 --   breakEven              the price that just covers materials and the AH cut, if known
---   wholeSilver            the price can't contain copper. Rounds down to undercut, and up to cover the break-even.
+--   wholeSilver            the price can't contain copper. Rounds down, and up to cover the break-even.
 -- Nil when there's nothing to base a price on, for the user to decide.
 function Planner.PostPrice(opts)
 	local step = opts.wholeSilver and 100 or 1
 	local price = opts.scanned
-	if opts.lowest then
-		price = opts.lowestIsMine and opts.lowest or (opts.lowest - 1)
-	end
+	if opts.lowest then price = opts.lowest end
 	if not price then return nil end
 	price = math.max(step, math.floor(price / step) * step)
 	if opts.breakEven and price < opts.breakEven then

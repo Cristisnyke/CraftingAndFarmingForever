@@ -47,7 +47,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - A goal for each item you sell: how many you want listed. Your auctions, bags, banks and mail count towards it.
 - Clear columns for what's listed, what you hold and what to craft. Goals you set yourself stand out from the defaults, and one click puts them back.
 - One button queues whatever is missing.
-- A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests just under the lowest listing, never below break-even, and posts with one click.
+- A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.
 - It warns you before you post below what a vendor would pay.
 
 ### Sales history

@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - Fixed the Craft Next progress bar counting one craft too many during a batch (2 / 7 when you queued 6)
+- Restocking no longer undercuts: it suggests the same price as the lowest listing
 
 ## 1.5.0
 

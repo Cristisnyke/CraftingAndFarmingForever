@@ -1839,14 +1839,14 @@ do
 	check("items sort by buyout", lastSearch.sort, 4)
 	check("items use the plain search", lastSearch.kind, "plain")
 
-	-- Someone else sells at 500: an item can't have copper, so 1s under. Below break-even raises it instead.
+	-- Someone else sells at 500: posted at the same price, no undercut. Below break-even raises it instead.
 	listings[shirt] = { { buyoutAmount = 700, containsOwnerItem = false }, { buyoutAmount = 500, containsOwnerItem = false } }
 	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
 	local posted = #posts
 	ns.Posting.PostSelected()
 	check("posted", #posts, posted + 1)
 	local last = posts[#posts]
-	check("item undercut by 1s", last.price, 400)
+	check("item matches the lowest", last.price, 500)
 	check("suggested quantity", last.quantity, 2)
 	check("saved duration", last.duration, 2)
 	check("item post has no bid", last.bid, nil)
@@ -1870,7 +1870,7 @@ do
 	listings[shirt] = { { buyoutAmount = 400, containsOwnerItem = true } }
 	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
 	ns.Posting.PostSelected()
-	check("own listing isn't undercut", posts[#posts].price, 400)
+	check("own listing matched", posts[#posts].price, 400)
 	Fire("AUCTION_HOUSE_AUCTION_CREATED")
 
 	-- The queue's materials are held back.
@@ -1899,7 +1899,7 @@ do
 		Fire("COMMODITY_SEARCH_RESULTS_UPDATED", bolts)
 		local commodityPosts = #posts
 		ns.Posting.PostSelected()
-		check("commodity undercut by 1c", posts[commodityPosts + 1].price, 499)
+		check("commodity matches the lowest", posts[commodityPosts + 1].price, 500)
 		Fire("AUCTION_HOUSE_AUCTION_CREATED")
 		commodity[bolts] = nil
 

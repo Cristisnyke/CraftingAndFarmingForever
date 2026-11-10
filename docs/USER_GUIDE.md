@@ -146,9 +146,9 @@ A **Restocking** tab beside Auctionator's tabs at the bottom of the auction hous
 Select an item and it searches the live listings:
 
 - **Quantity** suggested: the goal minus what's already listed, up to what's in your bags and not needed by the queue.
-- **Price each** suggested: just under the lowest listing, or the lowest itself if that listing is yours. With no listings it uses the last scan; with nothing to go on it stays blank.
+- **Price each** suggested: the same as the lowest listing (no undercutting). With no listings it uses the last scan; with nothing to go on it stays blank.
 - It never suggests a price below break-even (material cost after the cut).
-- Stackable goods are priced to the copper and undercut by 1 copper. Gear and bags only accept whole silver, so they undercut by 1 silver.
+- Stackable goods are priced to the copper. Gear and bags only accept whole silver, so their price is rounded down to the silver.
 - If a vendor would pay more than the price earns after the cut, it warns you and asks before posting, but leaves the price as you set it.
 - **Duration** chooses the auction length.
 

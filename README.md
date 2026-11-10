@@ -14,7 +14,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Live shopping list:** one Auctionator list, `Crafting and Farming Forever Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks. It's edited in place as things change, and what you buy leaves it at once (it counts as waiting in your mailbox). Find it in the auction house's **Shopping** tab.
 - **Farm It:** turns the queue into a gathering list: which vein or herb, which zones, which creatures, what to disenchant. The Next step bar at the top of the screen walks you through it and counts down as you gather.
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference.
-- **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests a price just under the lowest listing, and posts it.
+- **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests the lowest listing's price, and posts it.
 - **Sales:** what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours.
 - **Changelog:** a tab listing what changed in each version. It lights up after an update; nothing pops up.
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set.

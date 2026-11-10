@@ -146,7 +146,6 @@ local function ApplyLookup(row)
 	if form.priceEdited then return end
 	local price, raised = ns.Planner.PostPrice({
 		lowest = live.lowest,
-		lowestIsMine = live.mine,
 		scanned = ns.Prices.AH(row.itemID),
 		breakEven = BreakEven(row),
 		wholeSilver = NeedsWholeSilver(),
