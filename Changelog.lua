@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.5.0", lines = {
+		"- Craft Next is now a progress bar too. While you craft it fills through the crafts of that recipe (say 7 / 20) and shows how long until all 20 are done, plus how long all your queued crafts will take. A thin blue line under it fills as you work through the whole queue. Before you start, it says how long the next batch takes. Times are learned from your own casts. Hover it for the time per recipe",
+		"- Craft Next opens the profession it needs: no more \"Open Mining to finish Smelt Bronze\". The button says \"Open Mining: Smelt Bronze x12\", opens it (switching from the one you have open) and starts crafting once it has loaded",
+	} },
 	{ version = "1.4.0", lines = {
 		"- Shopping list: what you buy at the auction house leaves the list as soon as the purchase goes through. It counts as waiting in your mailbox, and once everything on the list is bought the queue says \"Collect from your mailbox\"; opening the mailbox counts what's really there",
 		"- Buying is easier to find: the buying step in the Queue tab and the Next step bar says to open the auction house's Shopping tab (Auctionator) and click the \"Crafting and Farming Forever Queue\" list, hover it for step-by-step help, and chat says the same when you open the auction house with something to buy",
