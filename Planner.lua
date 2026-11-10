@@ -526,4 +526,45 @@ function Planner.BuildPlan(ctx, queue, farming)
 	return plan
 end
 
+-- Time left on the crafting this character can do. crafts = the plan's crafts ({ recipeID, count, char }); only
+-- those with char == me count. secondsOf(recipeID) = one craft, cast plus the pause before the next.
+-- current (optional) = { recipeID, left = crafts of it still to make including the one being cast, castLeft =
+-- seconds until that cast finishes, or nil when not casting }: its time replaces the plan's count for that recipe,
+-- which lags a moment behind each finished craft. Returns this recipe's seconds, all seconds, all crafts.
+function Planner.TimeLeft(crafts, me, secondsOf, current)
+	local function Seconds(recipeID, left, castLeft)
+		if left <= 0 then return 0 end
+		if castLeft then return math.max(castLeft, 0) + (left - 1) * secondsOf(recipeID) end
+		return left * secondsOf(recipeID)
+	end
+	local total, count, runSeconds, seenCurrent = 0, 0, nil, false
+	for _, craft in ipairs(crafts) do
+		if craft.char == me and craft.count > 0 then
+			if current and craft.recipeID == current.recipeID and not seenCurrent then
+				seenCurrent = true
+				local left = math.min(current.left, craft.count)
+				runSeconds = Seconds(craft.recipeID, left, current.castLeft)
+				total, count = total + runSeconds, count + left
+			else
+				total, count = total + Seconds(craft.recipeID, craft.count), count + craft.count
+			end
+		end
+	end
+	-- Casting something the plan doesn't have (not queued, or already crossed off): just this cast.
+	if current and not seenCurrent then
+		runSeconds = Seconds(current.recipeID, current.left, current.castLeft)
+		total, count = total + runSeconds, count + current.left
+	end
+	return runSeconds, total, count
+end
+
+-- "45s", "3:07", "1:02:05".
+function Planner.FormatDuration(seconds)
+	seconds = math.max(0, math.floor((seconds or 0) + 0.5))
+	if seconds < 60 then return seconds .. "s" end
+	local hours, minutes, secs = math.floor(seconds / 3600), math.floor(seconds / 60) % 60, seconds % 60
+	if hours > 0 then return ("%d:%02d:%02d"):format(hours, minutes, secs) end
+	return ("%d:%02d"):format(minutes, secs)
+end
+
 return Planner

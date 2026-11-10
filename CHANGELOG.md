@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Craft Next is now a progress bar too. While you craft it fills through the crafts of that recipe (say 7 / 20) and shows how long until all 20 are done, plus how long all your queued crafts will take. A thin blue line under it fills as you work through the whole queue. Before you start, it says how long the next batch takes. Times are learned from your own casts. Hover it for the time per recipe
+
 ## 1.4.0
 
 - Shopping list: what you buy at the auction house leaves the list as soon as the purchase goes through. It counts as waiting in your mailbox, and once everything on the list is bought the queue says "Collect from your mailbox"; opening the mailbox counts what's really there

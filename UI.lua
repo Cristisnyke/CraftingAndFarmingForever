@@ -1861,8 +1861,299 @@ function UI.CraftButtonText(craft, count, blocking)
 	return "Craft Next"
 end
 
+-- The Craft Next bar: the Craft Next button and a progress bar in one. Idle it glows green and says what Craft Next
+-- makes and how long that takes; while you craft it fills amber through the crafts of that recipe (7 of 20), with
+-- the time left on them and on all your crafts, and a thin blue line under it fills through all crafts.
+local CRAFT_BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+local CRAFT_BAR_STYLES = {
+	--            fill from          fill to            border
+	ready    = { { 0.05, 0.42, 0.12 }, { 0.30, 0.90, 0.35 }, { 0.35, 0.85, 0.40 } },
+	crafting = { { 0.75, 0.32, 0.02 }, { 1.00, 0.82, 0.20 }, { 1.00, 0.75, 0.20 } },
+	paused   = { { 0.45, 0.25, 0.05 }, { 0.70, 0.55, 0.20 }, { 0.75, 0.60, 0.30 } },
+	blocked  = { { 0.22, 0.22, 0.22 }, { 0.38, 0.38, 0.38 }, { 0.45, 0.45, 0.45 } },
+}
+local craftBars = {}
+
+local function PaintFill(statusBar, from, to)
+	local texture = statusBar:GetStatusBarTexture()
+	if texture and texture.SetGradient and CreateColor then
+		local ok = pcall(texture.SetGradient, texture, "HORIZONTAL",
+			CreateColor(from[1], from[2], from[3], 1), CreateColor(to[1], to[2], to[3], 1))
+		if ok then
+			texture:SetVertexColor(1, 1, 1, 1)
+			return
+		end
+	end
+	statusBar:SetStatusBarColor(to[1], to[2], to[3])
+end
+
+local function CraftIcon(recipeID)
+	local recipe = recipeID and ns.db.recipes[recipeID]
+	if recipe and recipe.o then return ns.Items.Icon(recipe.o) end
+	return recipeID and ((C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(recipeID))
+		or (GetSpellTexture and GetSpellTexture(recipeID))) or nil
+end
+
+-- "all crafts 3:10 (45)", or nothing when the recipe on the bar is all there is.
+local function AllCraftsText(progress, onlyThis)
+	if not progress.allSeconds or progress.allCount == 0 then return nil end
+	if onlyThis then return Color(COLOR_MUTED, "nothing else queued") end
+	return ("all crafts %s %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.allSeconds)),
+		Color(COLOR_MUTED, ("(%d)"):format(progress.allCount)))
+end
+
+local function RenderCraftBar(bar)
+	local progress = ns.Queue.CraftProgress()
+	local craft, count, blocking = bar.cf.craft, bar.cf.count, bar.cf.blocking
+	local state, fill, title, detail, iconRecipe
+	local onlyThis = progress.runSeconds and math.abs(progress.runSeconds - progress.allSeconds) < 0.5
+	if progress.casting or progress.betweenCasts then
+		state, iconRecipe = "crafting", progress.recipeID
+		fill = (progress.done + (progress.castFraction or 0)) / math.max(progress.total, 1)
+		title = ("%s  %s"):format(RecipeName(progress.recipeID),
+			Color("ffffffff", ("%d / %d"):format(progress.done + 1, progress.total)))
+		detail = Color("ffffffff", ns.Planner.FormatDuration(progress.runSeconds)) .. " left"
+	elseif craft then
+		local paused = progress.recipeID == craft.recipeID and progress.done > 0
+		state, iconRecipe = paused and "paused" or "ready", craft.recipeID
+		fill = paused and progress.done / progress.total or 1
+		title = UI.CraftButtonText(craft, count)
+		local seconds = count * ns.Queue.CraftSeconds(craft.recipeID)
+		detail = ("x%d takes %s"):format(count, Color("ffffffff", ns.Planner.FormatDuration(seconds)))
+		if paused then
+			detail = Color(COLOR_MUTED, ("%d / %d done"):format(progress.done, progress.total)) .. "  " .. detail
+		end
+		onlyThis = math.abs(craft.count * ns.Queue.CraftSeconds(craft.recipeID) - (progress.allSeconds or 0)) < 0.5
+	else
+		state, iconRecipe = "blocked", blocking and blocking.recipeID
+		fill = (blocking and progress.recipeID == blocking.recipeID) and progress.done / progress.total or 0
+		title = UI.CraftButtonText(nil, nil, blocking)
+		onlyThis = false
+	end
+	local all = AllCraftsText(progress, onlyThis)
+	if all then detail = detail and (detail .. "   " .. all) or all end
+
+	bar.cf.state = state
+	local style = CRAFT_BAR_STYLES[state]
+	if bar.cf.paintedState ~= state then
+		bar.cf.paintedState = state
+		PaintFill(bar.fill, style[1], style[2])
+		bar:SetBackdropBorderColor(style[3][1], style[3][2], style[3][3], 1)
+		bar.glow:SetVertexColor(style[2][1], style[2][2], style[2][3])
+		if bar.cf.pulse then
+			if state == "ready" then bar.cf.pulse:Play() else bar.cf.pulse:Stop() end
+		end
+		bar.glow:SetShown(state == "ready")
+		bar.fill:SetAlpha(state == "ready" and 0.55 or 1)
+	end
+	bar.fill:SetValue(fill)
+	bar.spark:SetShown(state == "crafting" and fill > 0.01 and fill < 0.995)
+	bar.allStrip:SetShown(progress.allFraction ~= nil)
+	if progress.allFraction then bar.allStrip:SetValue(progress.allFraction) end
+	bar.icon:SetTexture(CraftIcon(iconRecipe))
+	bar.icon:SetShown(iconRecipe ~= nil)
+	bar.icon:SetDesaturated(state == "blocked")
+	bar:SetText(title)
+	bar.detail:SetText(detail or "")
+	bar.cf.progress = progress
+
+	-- Animate only while crafting: the fill moves every frame, the times every quarter second.
+	if progress.casting or progress.betweenCasts then
+		if not bar.cf.animating then
+			bar.cf.animating = true
+			bar.cf.sinceText = 0
+			bar:SetScript("OnUpdate", function(self, elapsed)
+				self.cf.sinceText = self.cf.sinceText + elapsed
+				if self.cf.sinceText >= 0.25 then
+					self.cf.sinceText = 0
+					RenderCraftBar(self)
+					return
+				end
+				local p = ns.Queue.CraftProgress()
+				if not p.casting then return end
+				self.fill:SetValue((p.done + p.castFraction) / math.max(p.total, 1))
+				if p.allFraction then self.allStrip:SetValue(p.allFraction) end
+			end)
+		end
+	elseif bar.cf.animating then
+		bar.cf.animating = false
+		bar:SetScript("OnUpdate", nil)
+	end
+end
+
+local function CraftBarTooltip(bar)
+	GameTooltip:SetOwner(bar, "ANCHOR_TOP")
+	GameTooltip:SetText("Craft Next")
+	local progress = bar.cf.progress or ns.Queue.CraftProgress()
+	if bar.cf.state == "crafting" then
+		GameTooltip:AddLine(("Crafting %s: %d of %d, %s left."):format(RecipeName(progress.recipeID), progress.done + 1,
+			progress.total, ns.Planner.FormatDuration(progress.runSeconds)), 1, 1, 1, true)
+	elseif bar.cf.craft then
+		GameTooltip:AddLine(("Click to craft %s x%d."):format(RecipeName(bar.cf.craft.recipeID), bar.cf.count), 1, 1, 1, true)
+	elseif bar.cf.blocking then
+		GameTooltip:AddLine(("%s has to be finished first: %d left."):format(RecipeName(bar.cf.blocking.recipeID),
+			bar.cf.blocking.count), 1, 1, 1, true)
+	end
+	local me = ns.CharKey()
+	local lines = 0
+	for _, craft in ipairs(ns.ActivePlan().crafts) do
+		if craft.char == me and craft.count > 0 then
+			if lines == 0 then
+				GameTooltip:AddLine(" ")
+				GameTooltip:AddLine("Still to craft here")
+			end
+			lines = lines + 1
+			if lines <= 12 then
+				GameTooltip:AddDoubleLine(("%s x%d"):format(RecipeName(craft.recipeID), craft.count),
+					ns.Planner.FormatDuration(craft.count * ns.Queue.CraftSeconds(craft.recipeID)), 1, 1, 1, 1, 1, 1)
+			end
+		end
+	end
+	if lines > 12 then GameTooltip:AddLine(("and %d more"):format(lines - 12), 0.6, 0.6, 0.6) end
+	if lines > 0 then
+		GameTooltip:AddDoubleLine("All crafts", ns.Planner.FormatDuration(progress.allSeconds), 1, 0.82, 0, 1, 0.82, 0)
+	end
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine("The amber fill is the recipe you're crafting, the blue line under it all your crafts. Times "
+		.. "come from your own casts; a recipe you haven't cast yet uses its spell's cast time. Crafts on other "
+		.. "characters aren't counted.", 0.6, 0.6, 0.6, true)
+	GameTooltip:Show()
+end
+
+local function CreateCraftBar(parent, height)
+	local bar = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	bar.cf = {} -- the bar's own state, apart from the frame's fields
+	bar:SetHeight(height)
+	bar:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8X8",
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+		edgeSize = 12,
+		insets = { left = 3, right = 3, top = 3, bottom = 3 },
+	})
+	bar:SetBackdropColor(0.04, 0.035, 0.03, 0.95)
+	bar:RegisterForClicks("LeftButtonUp")
+	bar:SetScript("OnClick", function(self)
+		if self.cf.state == "ready" or self.cf.state == "paused" then ns.Queue.CraftNext() end
+	end)
+
+	local fill = CreateFrame("StatusBar", nil, bar)
+	fill:SetPoint("TOPLEFT", 4, -4)
+	fill:SetPoint("BOTTOMRIGHT", -4, 4)
+	fill:SetStatusBarTexture(CRAFT_BAR_TEXTURE)
+	fill:SetMinMaxValues(0, 1)
+	fill:SetValue(0)
+	bar.fill = fill
+
+	-- Everything drawn over the fill sits on its own layer above it.
+	local over = CreateFrame("Frame", nil, bar)
+	over:SetAllPoints(fill)
+	over:SetFrameLevel((fill:GetFrameLevel() or 0) + 2)
+
+	local gloss = over:CreateTexture(nil, "BACKGROUND")
+	gloss:SetTexture("Interface\\Buttons\\WHITE8X8")
+	gloss:SetPoint("TOPLEFT")
+	gloss:SetPoint("TOPRIGHT")
+	gloss:SetHeight(math.floor((height - 8) / 2))
+	gloss:SetVertexColor(1, 1, 1, 0.07)
+
+	local glow = over:CreateTexture(nil, "ARTWORK")
+	glow:SetTexture("Interface\\Buttons\\WHITE8X8")
+	glow:SetAllPoints()
+	glow:SetBlendMode("ADD")
+	glow:SetAlpha(0.15)
+	bar.glow = glow
+	local pulse = glow.CreateAnimationGroup and glow:CreateAnimationGroup()
+	if pulse then
+		pulse:SetLooping("BOUNCE")
+		local fade = pulse:CreateAnimation("Alpha")
+		fade:SetFromAlpha(0.05)
+		fade:SetToAlpha(0.3)
+		fade:SetDuration(1.1)
+		if fade.SetSmoothing then fade:SetSmoothing("IN_OUT") end
+		bar.cf.pulse = pulse
+	end
+
+	local spark = over:CreateTexture(nil, "OVERLAY")
+	spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+	spark:SetBlendMode("ADD")
+	spark:SetSize(24, (height - 8) * 2.2)
+	local fillTexture = fill:GetStatusBarTexture()
+	if fillTexture then spark:SetPoint("CENTER", fillTexture, "RIGHT", 0, 0) end
+	spark:Hide()
+	bar.spark = spark
+
+	local allStrip = CreateFrame("StatusBar", nil, over)
+	allStrip:SetPoint("BOTTOMLEFT", 0, 0)
+	allStrip:SetPoint("BOTTOMRIGHT", 0, 0)
+	allStrip:SetHeight(3)
+	allStrip:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+	allStrip:SetStatusBarColor(0.35, 0.75, 1)
+	allStrip:SetMinMaxValues(0, 1)
+	allStrip:Hide()
+	bar.allStrip = allStrip
+
+	local icon = over:CreateTexture(nil, "OVERLAY")
+	local iconSize = height - 12
+	icon:SetSize(iconSize, iconSize)
+	icon:SetPoint("LEFT", 3, 0)
+	icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+	bar.icon = icon
+
+	local title = over:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	title:SetPoint("TOPLEFT", iconSize + 8, -2)
+	title:SetPoint("TOPRIGHT", -6, -2)
+	title:SetJustifyH("CENTER")
+	if title.SetWordWrap then title:SetWordWrap(false) end
+	local detail = over:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	detail:SetPoint("BOTTOMLEFT", iconSize + 8, 4)
+	detail:SetPoint("BOTTOMRIGHT", -6, 4)
+	detail:SetJustifyH("CENTER")
+	if detail.SetWordWrap then detail:SetWordWrap(false) end
+	bar.detail = detail
+
+	local highlight = bar:CreateTexture(nil, "HIGHLIGHT")
+	highlight:SetTexture("Interface\\Buttons\\WHITE8X8")
+	highlight:SetPoint("TOPLEFT", 4, -4)
+	highlight:SetPoint("BOTTOMRIGHT", -4, 4)
+	highlight:SetBlendMode("ADD")
+	highlight:SetVertexColor(1, 1, 1, 0.08)
+
+	bar:SetScript("OnMouseDown", function()
+		if bar.cf.state == "ready" or bar.cf.state == "paused" then over:SetPoint("TOPLEFT", fill, "TOPLEFT", 1, -1) end
+	end)
+	bar:SetScript("OnMouseUp", function() over:SetAllPoints(fill) end)
+	bar:SetScript("OnEnter", CraftBarTooltip)
+	bar:SetScript("OnLeave", GameTooltip_Hide)
+	bar:HookScript("OnShow", function(self) RenderCraftBar(self) end)
+	bar:HookScript("OnHide", function(self)
+		self.cf.animating = false
+		self:SetScript("OnUpdate", nil)
+	end)
+
+	bar.SetText = function(self, text)
+		self.text = text
+		title:SetText(text)
+	end
+	bar.GetText = function(self) return self.text end
+	-- Called with what Craft Next would do; the bar adds the progress and the times.
+	bar.Update = function(self, craft, count, blocking)
+		self.cf.craft, self.cf.count, self.cf.blocking = craft, count, blocking
+		self:SetEnabled(craft ~= nil)
+		RenderCraftBar(self)
+	end
+	table.insert(craftBars, bar)
+	return bar
+end
+
+-- Casts starting, finishing or stopping: every Craft Next bar on screen catches up at once.
+function UI.UpdateCraftBars()
+	for _, bar in ipairs(craftBars) do
+		if bar:IsVisible() then RenderCraftBar(bar) end
+	end
+end
+
 function CreateQueuePane()
-	local window = CreatePane("queue", 128)
+	local window = CreatePane("queue", 142)
 	window.build = BuildQueueList
 
 	local clear = HeaderButton(window.frame, "Clear", 70, function()
@@ -1904,7 +2195,7 @@ function CreateQueuePane()
 		if losing > 0 then StaticPopup_Show("CFF_REMOVE_LOSING", ns.Plural(losing, "entry", "entries")) end
 	end)
 	-- In the footer beside the note about losing entries: the top row's right side belongs to the stale-price banner.
-	removeLosing:SetPoint("BOTTOMRIGHT", -10, 41)
+	removeLosing:SetPoint("BOTTOMRIGHT", -10, 55)
 	removeLosing:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText("Remove losing entries")
@@ -1915,31 +2206,29 @@ function CreateQueuePane()
 	removeLosing:SetScript("OnLeave", GameTooltip_Hide)
 	window.removeLosingButton = removeLosing
 
-	local craftButton = HeaderButton(window.frame, "Craft Next", 100, function() ns.Queue.CraftNext() end)
+	local craftButton = CreateCraftBar(window.frame, 40)
 	window.craftButton = craftButton
-	craftButton:SetHeight(26)
-	craftButton:ClearAllPoints()
 	craftButton:SetPoint("BOTTOMLEFT", 10, 10)
 	craftButton:SetPoint("BOTTOMRIGHT", -10, 10)
 
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	status:SetPoint("BOTTOMLEFT", 12, 40)
-	status:SetPoint("BOTTOMRIGHT", -12, 40)
+	status:SetPoint("BOTTOMLEFT", 12, 54)
+	status:SetPoint("BOTTOMRIGHT", -12, 54)
 	status:SetHeight(24)
 	status:SetJustifyH("LEFT")
 	status:SetJustifyV("BOTTOM")
 
 	local detail = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	detail:SetPoint("BOTTOMLEFT", 12, 66)
-	detail:SetPoint("BOTTOMRIGHT", -12, 66)
+	detail:SetPoint("BOTTOMLEFT", 12, 80)
+	detail:SetPoint("BOTTOMRIGHT", -12, 80)
 	detail:SetHeight(26)
 	detail:SetJustifyH("LEFT")
 	detail:SetJustifyV("BOTTOM")
 
 	local total = window.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	window.totalText = total
-	total:SetPoint("BOTTOMLEFT", 12, 96)
-	total:SetPoint("BOTTOMRIGHT", -150, 96)
+	total:SetPoint("BOTTOMLEFT", 12, 110)
+	total:SetPoint("BOTTOMRIGHT", -150, 110)
 	total:SetJustifyH("LEFT")
 
 	-- Quote margin, beside the total: the top row's right side belongs to the stale-price banner.
@@ -1947,7 +2236,7 @@ function CreateQueuePane()
 		ns.Queue.SetQuoteMargin, "queue")
 	window.marginBox = margin
 	margin:ClearAllPoints()
-	margin:SetPoint("BOTTOMRIGHT", -14, 94)
+	margin:SetPoint("BOTTOMRIGHT", -14, 108)
 	marginLabel:ClearAllPoints()
 	marginLabel:SetPoint("RIGHT", margin, "LEFT", -8, 0)
 	margin:SetScript("OnEnter", function(self)
@@ -1993,8 +2282,7 @@ function CreateQueuePane()
 		end
 
 		local craft, count, reason, blocking = ns.Queue.NextCraft()
-		craftButton:SetText(UI.CraftButtonText(craft, count, blocking))
-		craftButton:SetEnabled(craft ~= nil)
+		craftButton:Update(craft, count, blocking)
 
 		local notes = {}
 		if reason then table.insert(notes, reason) end
@@ -2003,7 +2291,7 @@ function CreateQueuePane()
 			if net < 0 then losing = losing + 1 end
 		end
 		removeLosing:SetShown(losing > 0)
-		status:SetPoint("BOTTOMRIGHT", losing > 0 and -140 or -12, 40)
+		status:SetPoint("BOTTOMRIGHT", losing > 0 and -140 or -12, 54)
 		removeLosing:SetText(("Remove losing (%d)"):format(losing))
 		if losing > 0 then
 			table.insert(notes, losing == 1 and "1 entry would now lose money (shaded red)."
@@ -2032,7 +2320,7 @@ end
 local NEXT_WIDTH = 300
 local NEXT_MAX_ROWS = 10
 local NEXT_MAX_ROWS_FARMING = 16 -- every gathering group at once
-local NEXT_BUTTON_ROOM = 30
+local NEXT_BUTTON_ROOM = 42
 
 local function CreateNextWindow()
 	local frame = CreateFrame("Frame", "CFFNextStep", UIParent, "BackdropTemplate")
@@ -2085,7 +2373,7 @@ local function CreateNextWindow()
 	CreateListArea(window, frame, 10, MINI_TOP, 6, MINI_ROW_HEIGHT)
 	for _, row in ipairs(window.rows) do row.icon:SetSize(14, 14) end
 
-	local craft = HeaderButton(frame, "Craft Next", NEXT_WIDTH - 20, function() ns.Queue.CraftNext() end)
+	local craft = CreateCraftBar(frame, 38)
 	craft:SetPoint("BOTTOMLEFT", 10, 8)
 	craft:SetPoint("BOTTOMRIGHT", -10, 8)
 	window.craftButton = craft
@@ -2150,9 +2438,8 @@ local function CreateNextWindow()
 		end
 		count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
 		if window.crafting and not folded then
-			craft:SetText(UI.CraftButtonText(window.nextCraft, window.nextCount, window.blocking))
-			craft:SetEnabled(window.nextCraft ~= nil)
 			craft:Show()
+			craft:Update(window.nextCraft, window.nextCount, window.blocking)
 		else
 			craft:Hide()
 		end

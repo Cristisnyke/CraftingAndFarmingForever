@@ -464,5 +464,35 @@ do
 	check("result not reserved", reserved[SHIRT], nil)
 end
 
+-- Craft time left: own crafts only, the casting recipe from its live count and cast.
+do
+	local crafts = {
+		{ recipeID = 100, count = 5, char = "me" },
+		{ recipeID = 200, count = 20, char = "me" },
+		{ recipeID = 300, count = 4, char = "alt" },
+	}
+	local function secondsOf(id) return id == 100 and 2 or 3 end
+	local run, all, count = Planner.TimeLeft(crafts, "me", secondsOf)
+	check("idle: no run", run, nil)
+	check("idle: all seconds", all, 5 * 2 + 20 * 3)
+	check("idle: all crafts, alt's left out", count, 25)
+	-- Crafting the 20: 13 to go including the one being cast, 1.5 s left on it; the plan still says 14.
+	crafts[2].count = 14
+	run, all, count = Planner.TimeLeft(crafts, "me", secondsOf, { recipeID = 200, left = 13, castLeft = 1.5 })
+	check("run seconds", run, 1.5 + 12 * 3)
+	check("all includes run", all, 10 + 1.5 + 12 * 3)
+	check("all count uses live count", count, 18)
+	-- Paused between batches: no cast.
+	run = Planner.TimeLeft(crafts, "me", secondsOf, { recipeID = 200, left = 13 })
+	check("paused run seconds", run, 39)
+	-- Casting something not in the plan.
+	run, all, count = Planner.TimeLeft(crafts, "me", secondsOf, { recipeID = 900, left = 1, castLeft = 2 })
+	check("unplanned cast", run, 2)
+	check("unplanned cast in all", all, 5 * 2 + 14 * 3 + 2)
+	check("duration seconds", Planner.FormatDuration(44.6), "45s")
+	check("duration minutes", Planner.FormatDuration(187), "3:07")
+	check("duration hours", Planner.FormatDuration(3725), "1:02:05")
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

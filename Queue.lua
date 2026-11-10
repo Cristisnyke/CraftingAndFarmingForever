@@ -365,3 +365,152 @@ function Queue.CraftNext()
 	end
 	C_TradeSkillUI.CraftRecipe(craft.recipeID, count)
 end
+
+---------------------------------------------------------------------------
+-- Craft timing: how long the current recipe and all crafts still take
+---------------------------------------------------------------------------
+
+-- One craft = its cast plus the short pause before the next cast of a batch. Casts are measured on every craft
+-- (they change with haste); until a recipe has been cast once, its spell's cast time stands in.
+Queue.DEFAULT_CAST = 2
+Queue.DEFAULT_GAP = 0.25
+local MAX_GAP = 3 -- a longer pause between two casts isn't part of a batch
+
+local cast    -- { recipeID, start, finish } in GetTime() seconds, while a recipe is being cast
+local run     -- { recipeID, total, done }: the crafts of one recipe you're working through
+local overall -- { total = seconds }: all crafts, from when you started, for the "all crafts" fill
+local lastDone -- { recipeID, at }
+
+local function SpellCastSeconds(recipeID)
+	local ms
+	if C_Spell and C_Spell.GetSpellInfo then
+		local info = C_Spell.GetSpellInfo(recipeID)
+		ms = type(info) == "table" and info.castTime or nil
+	elseif GetSpellInfo then
+		ms = select(4, GetSpellInfo(recipeID))
+	end
+	if type(ms) == "number" and ms > 0 then return ms / 1000 end
+end
+
+function Queue.CraftSeconds(recipeID)
+	local times = ns.db.craftTimes
+	local castSeconds = (times and times[recipeID]) or SpellCastSeconds(recipeID) or Queue.DEFAULT_CAST
+	return castSeconds + (ns.db.craftGap or Queue.DEFAULT_GAP)
+end
+
+-- This character's crafts of the recipe still in the plan, or nil.
+local function PlanCount(recipeID)
+	local me = ns.CharKey()
+	for _, craft in ipairs(ns.ActivePlan().crafts) do
+		if craft.recipeID == recipeID and craft.char == me then return craft.count end
+	end
+end
+
+local function Changed()
+	if ns.UI and ns.UI.UpdateCraftBars then ns.UI.UpdateCraftBars() end
+end
+
+local function IsCraft(unit, spellID)
+	if unit ~= "player" then return false end
+	if issecretvalue and issecretvalue(spellID) then return false end
+	return ns.db and ns.db.recipes[spellID] ~= nil
+end
+
+ns.On("UNIT_SPELLCAST_START", function(unit, _, spellID)
+	if not IsCraft(unit, spellID) then return end
+	local now = GetTime()
+	local _, _, _, startMS, endMS = UnitCastingInfo("player")
+	local start, finish = now, nil
+	if type(startMS) == "number" and type(endMS) == "number" and endMS > startMS then
+		start, finish = startMS / 1000, endMS / 1000
+		ns.db.craftTimes = ns.db.craftTimes or {}
+		ns.db.craftTimes[spellID] = finish - start
+	end
+	finish = finish or (start + Queue.CraftSeconds(spellID) - (ns.db.craftGap or Queue.DEFAULT_GAP))
+	-- The pause after the last craft, when this cast carries on a batch: smoothed, one slow click barely moves it.
+	if lastDone and start - lastDone.at >= 0 and start - lastDone.at < MAX_GAP then
+		local gap = start - lastDone.at
+		ns.db.craftGap = (ns.db.craftGap or Queue.DEFAULT_GAP) * 0.7 + gap * 0.3
+	end
+	cast = { recipeID = spellID, start = start, finish = finish }
+	local planned = PlanCount(spellID)
+	if not run or run.recipeID ~= spellID or run.done >= run.total then
+		run = { recipeID = spellID, total = planned or 1, done = 0 }
+	elseif planned and run.done + planned > run.total then
+		run.total = run.done + planned -- more were queued meanwhile
+	end
+	Changed()
+end)
+
+ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+	if not IsCraft(unit, spellID) then return end
+	if cast and cast.recipeID == spellID then cast = nil end
+	if run and run.recipeID == spellID then run.done = run.done + 1 end
+	lastDone = { recipeID = spellID, at = GetTime() }
+	Changed()
+end)
+
+local function CastEnded(unit, _, spellID)
+	if unit ~= "player" or not cast then return end
+	if spellID and not (issecretvalue and issecretvalue(spellID)) and spellID ~= cast.recipeID then return end
+	cast = nil
+	Changed()
+end
+ns.On("UNIT_SPELLCAST_STOP", CastEnded)
+ns.On("UNIT_SPELLCAST_FAILED", CastEnded)
+ns.On("UNIT_SPELLCAST_INTERRUPTED", CastEnded)
+
+-- Where the crafting stands, for the Craft Next bar:
+--   casting      recipe being cast now, or nil;  castFraction 0..1
+--   betweenCasts true for a moment after a craft of the recipe finished, when the batch's next cast is due
+--   recipeID     the recipe being worked through (cast now, or paused in the middle of it), or nil
+--   done, total  crafts of it finished / in all since you started on it
+--   runSeconds   time left on that recipe, or nil
+--   allSeconds, allCount   time and crafts left on everything this character crafts in the queue
+--   allFraction  0..1 of all crafts done since you started crafting, or nil
+function Queue.CraftProgress()
+	local now = GetTime()
+	local progress = {}
+	local plan = ns.ActivePlan()
+	if run then
+		local planned = PlanCount(run.recipeID)
+		local left = run.total - run.done
+		-- The plan lags a moment behind each craft; a smaller plan count means it was finished another way.
+		if planned and planned < left and not (cast and cast.recipeID == run.recipeID) then left = planned end
+		if left <= 0 or (not planned and not cast) then
+			run = nil
+		else
+			progress.recipeID, progress.done, progress.total = run.recipeID, run.total - left, run.total
+		end
+	end
+	-- Just finished one of a batch: the next cast follows in a moment, so the bar shouldn't flicker to idle.
+	progress.betweenCasts = not cast and progress.recipeID ~= nil and lastDone ~= nil
+		and lastDone.recipeID == progress.recipeID and now - lastDone.at < 0.75
+	local current
+	if cast then
+		local length = math.max(cast.finish - cast.start, 0.01)
+		progress.casting = cast.recipeID
+		progress.castFraction = math.min(math.max((now - cast.start) / length, 0), 1)
+		local left = (run and run.recipeID == cast.recipeID) and (progress.total - progress.done) or 1
+		current = { recipeID = cast.recipeID, left = math.max(left, 1), castLeft = cast.finish - now }
+		if not progress.recipeID then progress.recipeID, progress.done, progress.total = cast.recipeID, 0, 1 end
+	elseif progress.recipeID then
+		current = { recipeID = progress.recipeID, left = progress.total - progress.done }
+	end
+	progress.runSeconds, progress.allSeconds, progress.allCount =
+		ns.Planner.TimeLeft(plan.crafts, ns.CharKey(), Queue.CraftSeconds, current)
+	-- The all-crafts fill starts with your first craft and ends when nothing's left; queuing more widens it
+	-- without losing what's done.
+	if progress.allCount == 0 then
+		overall = nil
+	elseif cast or overall then
+		if not overall then
+			overall = { total = progress.allSeconds, last = progress.allSeconds }
+		elseif progress.allSeconds > overall.last + 0.5 then
+			overall.total = overall.total + progress.allSeconds - overall.last
+		end
+		overall.last = progress.allSeconds
+		progress.allFraction = math.min(math.max(1 - progress.allSeconds / math.max(overall.total, 0.01), 0), 1)
+	end
+	return progress
+end

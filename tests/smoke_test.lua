@@ -2128,6 +2128,50 @@ do
 	check("blocked: bar button says finish", bar.craftButton.text, "Finish Recipe10: 3 left")
 	C_TradeSkillUI.GetCraftableCount = craftable
 	ns.UI.Refresh("next")
+
+	-- The Craft Next bar is also the progress bar: crafting 3, it counts through them with the time left.
+	local button = bar.craftButton
+	check("idle bar says how long", button.detail.text:find("x3 takes", 1, true) ~= nil, true)
+	local realTime, realCasting = GetTime, UnitCastingInfo
+	local now = 100
+	GetTime = function() return now end
+	UnitCastingInfo = function() return "Recipe10", nil, nil, 100000, 102000 end
+	Fire("UNIT_SPELLCAST_START", "player", "cast", 10)
+	check("cast time measured", ns.db.craftTimes[10], 2)
+	check("bar shows the craft in progress", button.text:find("1 / 3", 1, true) ~= nil, true)
+	now = 101
+	ns.UI.UpdateCraftBars()
+	-- 1 s left on this cast, then two more crafts of 2 s cast + 0.25 s pause.
+	check("bar shows time left on the recipe", button.detail.text:find("6s", 1, true) ~= nil, true)
+	local progress = ns.Queue.CraftProgress()
+	check("progress: casting", progress.casting, 10)
+	check("progress: all crafts time", progress.allSeconds, 5.5)
+	check("progress: all fill started", progress.allFraction ~= nil, true)
+	UnitCastingInfo = function() return nil end
+	now = 102
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 10)
+	Fire("UNIT_SPELLCAST_STOP", "player", "cast", 10)
+	RunTimers()
+	progress = ns.Queue.CraftProgress()
+	check("progress: one done", progress.done, 1)
+	check("progress: of three", progress.total, 3)
+	check("right after a craft: still crafting look", button.text:find("2 / 3", 1, true) ~= nil, true)
+	now = 103
+	ns.UI.UpdateCraftBars()
+	check("paused bar is Craft Next again", button.text:find("Craft Next", 1, true) ~= nil, true)
+	check("paused bar says how far", button.detail.text:find("1 / 3 done", 1, true) ~= nil, true)
+	UnitCastingInfo = function() return "Recipe10", nil, nil, 102200, 104200 end
+	now = 102.2
+	Fire("UNIT_SPELLCAST_START", "player", "cast", 10)
+	check("pause between casts learned", math.abs(ns.db.craftGap - (0.25 * 0.7 + 0.2 * 0.3)) < 1e-9, true)
+	check("second craft", button.text:find("2 / 3", 1, true) ~= nil, true)
+	UnitCastingInfo = function() return nil end
+	Fire("UNIT_SPELLCAST_INTERRUPTED", "player", "cast", 10)
+	check("interrupted: not casting", ns.Queue.CraftProgress().casting, nil)
+	GetTime, UnitCastingInfo = realTime, realCasting
+	ns.Queue.Add(10, 2) -- back to 3 queued
+	RunTimers()
+
 	ns.db.ui.nextMinimized = true
 	ns.UI.Refresh("next")
 	check("no Craft Next when folded", bar.craftButton.shown, false)
