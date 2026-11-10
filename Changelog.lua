@@ -4,6 +4,11 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.4.0", lines = {
+		"- Shopping list: what you buy at the auction house leaves the list as soon as the purchase goes through. It counts as waiting in your mailbox, and once everything on the list is bought the queue says \"Collect from your mailbox\"; opening the mailbox counts what's really there",
+		"- Buying is easier to find: the buying step in the Queue tab and the Next step bar says to open the auction house's Shopping tab (Auctionator) and click the \"Crafting and Farming Forever Queue\" list, hover it for step-by-step help, and chat says the same when you open the auction house with something to buy",
+		"- Craft Next goes strictly in order: it never jumps ahead to a later craft while the current one (smelting bars, say) isn't finished. When it can't craft, the button says what to finish and how many are left, such as \"Finish Smelt Bronze: 8 left\", and the Next step bar keeps it on screen",
+	} },
 	{ version = "1.3.0", lines = {
 		"- New Next step bar at the top of the screen: while anything is queued it shows the next thing to do (get from an alt, take from the bank, buy, sub-craft or craft), with a Craft Next button when it's time to craft. Fold it to one line with the - button; it disappears when the queue is empty. Drag to move it, or type /cff next to fold or unfold it. It stays out of the way in combat, dungeons, raids and battlegrounds",
 		"- Farm It: the separate Farm list is gone. The Next step bar now shows everything to gather and where (mining, herbs, skinning and so on together), with a Buy It button to go back to buying",

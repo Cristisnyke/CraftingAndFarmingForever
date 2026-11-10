@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.4.0
 
 - Shopping list: what you buy at the auction house leaves the list as soon as the purchase goes through. It counts as waiting in your mailbox, and once everything on the list is bought the queue says "Collect from your mailbox"; opening the mailbox counts what's really there
 - Buying is easier to find: the buying step in the Queue tab and the Next step bar says to open the auction house's Shopping tab (Auctionator) and click the "Crafting and Farming Forever Queue" list, hover it for step-by-step help, and chat says the same when you open the auction house with something to buy
