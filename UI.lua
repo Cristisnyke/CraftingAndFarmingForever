@@ -342,8 +342,8 @@ UI.SHOPPING_HOW = {
 	'"' .. ns.LIST_NAME .. '".',
 }
 
--- The Queue tab is a to-do list in the order you'd work through it, numbered: fetch from alts, the bank, buy, collect
--- from the mailbox, gather and smelt, sub-crafts, and only then the queued crafts themselves, so you reach the crafting station with
+-- The Queue tab is a to-do list in the order you'd work through it, numbered: fetch from alts, the bank, the auction
+-- house and the mailbox beside it, vendors, gather and smelt, sub-crafts, and only then the queued crafts themselves, so you reach the crafting station with
 -- everything on you.
 local function BuildQueueList()
 	local list = {}
@@ -373,10 +373,10 @@ local function BuildQueueList()
 			table.insert(list, beforeBuy + 1 + offset, { kind = "tip", text = text })
 		end
 	end
-	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
-	-- After buying, not before: purchases land in the mailbox one by one, and collecting halfway through the list
-	-- would send you away from the auction house with things still to buy.
+	-- Right after the auction house, which always has a mailbox beside it; not before, as purchases land there one by
+	-- one and collecting halfway through would send you away with things still to buy.
 	Section("Collect from your mailbox", plan.mail)
+	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	if farming then
 		AddGatherRows(list, plan, Step)
 		Section("Smelt with Mining", plan.smelt)

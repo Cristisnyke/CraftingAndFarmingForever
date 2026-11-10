@@ -2247,7 +2247,7 @@ do
 	end
 	check("mailbox step listed", collect, true)
 	ns.UI.Hide()
-	check("all bought: the bar moves past the AH", ns.UI.windows.next.list[1].text:find("auction house", 1, true), nil)
+	check("all bought: the bar says collect, before the vendor", ns.UI.windows.next.list[1].text, "Collect from your mailbox")
 
 	-- At the mailbox: what's there is counted once, and taking it out moves it to the bags.
 	inbox = { { subject = "Auction won: " .. names[itemID], money = 0, daysLeft = 30, itemID = itemID, count = needed } }
