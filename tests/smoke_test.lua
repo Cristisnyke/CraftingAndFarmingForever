@@ -325,6 +325,20 @@ check("learned recipe recorded", ns.db.chars[me].recipes[10], true)
 check("unlearned recipe not recorded", ns.db.chars[me].recipes[40], nil)
 check("optional reagent excluded", #ns.db.recipes[20].r, 2)
 
+-- Switching professions: the window already says Blacksmithing while the list is still Tailoring's. Reading it
+-- then forgot the new profession's recipes and filed the old ones under it; it now waits for the right list.
+do
+	local realInfo = ProfessionsFrame.GetProfessionInfo
+	ns.db.recipes[50] = { n = "Smelt", o = 6, p = 164, pn = "Blacksmithing", r = { { 1, 1 } } }
+	ns.db.chars[me].recipes[50] = true
+	ProfessionsFrame.GetProfessionInfo = function() return { professionID = 164, professionName = "Blacksmithing" } end
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("switching: other profession's recipes kept", ns.db.chars[me].recipes[50], true)
+	check("switching: list not filed under the new one", ns.db.recipes[10].p, 197)
+	ProfessionsFrame.GetProfessionInfo = realInfo
+	ns.db.recipes[50], ns.db.chars[me].recipes[50] = nil, nil
+end
+
 -- Item data not loaded yet: nothing is sent to Auctionator without a name.
 ns.Queue.Add(20, 2)
 RunTimers()
