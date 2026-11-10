@@ -4,8 +4,8 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- New Next step bar at the top of the screen: while anything is queued it shows the next thing to do (get from an alt, take from the bank, buy, sub-craft or craft), with a Craft Next button when it's time to craft. Fold it to one line with the - button; it disappears when the queue is empty. Drag to move it, or type `/cff next` to fold or unfold it
-- Farm It: the separate Farm list is gone. The Next step bar now shows what to gather and where, one group at a time, with a Buy It button to go back to buying
+- New Next step bar at the top of the screen: while anything is queued it shows the next thing to do (get from an alt, take from the bank, buy, sub-craft or craft), with a Craft Next button when it's time to craft. Fold it to one line with the - button; it disappears when the queue is empty. Drag to move it, or type `/cff next` to fold or unfold it. It stays out of the way in combat, dungeons, raids and battlegrounds
+- Farm It: the separate Farm list is gone. The Next step bar now shows everything to gather and where (mining, herbs, skinning and so on together), with a Buy It button to go back to buying
 
 ## 1.2.3
 

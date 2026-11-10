@@ -106,6 +106,8 @@ playerMoney = 0
 function GetMoney() return playerMoney end
 inCombat = false
 function InCombatLockdown() return inCombat end
+inInstance = false
+function IsInInstance() return inInstance, inInstance and "party" or "none" end
 useKeyDown = false
 function GetCVarBool() return useKeyDown end
 sentChat = {}
@@ -1563,11 +1565,18 @@ do
 		end
 	end
 	check("then the first gathering group", barHeader, firstGroup.title)
-	local count = 0
+	-- Every gathering group at once, each under its own heading, as one step.
+	local count, groups = 0, {}
 	for itemID in pairs(ns.farmPlan.farm) do
-		if ns.Farm.Describe(itemID) == firstGroup.key then count = count + 1 end
+		count = count + 1
+		groups[ns.Farm.Describe(itemID)] = true
 	end
-	check("each item says how to get it", #Rows("next", "how"), count)
+	local groupCount = 0
+	for _ in pairs(groups) do groupCount = groupCount + 1 end
+	check("each item says how to get it, all groups", #Rows("next", "how"), count)
+	local headers = 0
+	for _, data in ipairs(bar.list) do if data.kind == "header" then headers = headers + 1 end end
+	check("a heading per gathering group", headers, groupCount)
 	for _, row in ipairs(bar.rows) do
 		if row.data and row.data.kind == "how" then row.scripts.OnEnter(row) break end
 	end
@@ -1646,6 +1655,34 @@ do
 	check("second post matched", ns.db.sales.lots[2].itemID, 1)
 	time = realTime
 	ns.db.sales.lots = {}
+end
+
+-- Farming, every gathering group is on the bar at once as one step, each under its heading, before smelting.
+do
+	ns.db.ui.farmMode = true
+	local realPlan = ns.farmPlan
+	ns.farmPlan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, smelt = { [2840] = 4 }, cost = 0,
+		farm = { [2770] = 6, [2447] = 3, [2318] = 2 } }
+	table.insert(ns.db.queue, { recipeID = 20, qty = 1, char = ns.CharKey() })
+	ns.UI.RefreshQueue()
+	local bar = ns.UI.windows.next
+	local headers, how = {}, 0
+	for _, data in ipairs(bar.list) do
+		if data.kind == "header" then table.insert(headers, data.text) end
+		if data.kind == "how" then how = how + 1 end
+	end
+	check("three gathering headings", table.concat(headers, ","), "Mine,Pick herbs,Skin")
+	check("every item says where", how, 3)
+	check("gathering, smelting, crafting: three steps", bar.steps, 3)
+	check("bar grows for farming", bar.maxRows > 10, true)
+	ns.db.ui.nextMinimized = true
+	ns.UI.Refresh("next")
+	check("folded title sums it up", bar.titleText.text:find("Gather materials", 1, true) ~= nil, true)
+	ns.db.ui.nextMinimized = nil
+	ns.farmPlan = realPlan
+	ns.db.ui.farmMode = nil
+	ns.Queue.Clear()
+	RunTimers()
 end
 
 -- Farming, the bar includes smelting, so it can't skip to crafting while bars are still to make.
@@ -2070,6 +2107,29 @@ do
 	RunTimers()
 	check("comes back folded", bar.frame:IsShown() and #bar.list == 0, true)
 	ns.db.ui.nextMinimized = nil
+
+	-- Out of the way in combat and instances, back afterwards.
+	Fire("PLAYER_REGEN_DISABLED")
+	check("hidden in combat", bar.frame:IsShown(), false)
+	ns.Queue.Add(20, 1)
+	RunTimers()
+	check("queue changes in combat don't bring it back", bar.frame:IsShown(), false)
+	SlashCmdList.CFF("next")
+	check("slash command in combat doesn't fold", ns.db.ui.nextMinimized, nil)
+	Fire("PLAYER_REGEN_ENABLED")
+	check("back after combat", bar.frame:IsShown(), true)
+	inInstance = true
+	Fire("PLAYER_ENTERING_WORLD")
+	check("hidden in a dungeon", bar.frame:IsShown(), false)
+	inInstance = false
+	Fire("ZONE_CHANGED_NEW_AREA")
+	RunTimers()
+	check("back outside", bar.frame:IsShown(), true)
+	inCombat = true
+	Fire("PLAYER_ENTERING_WORLD")
+	check("reloading mid-fight keeps it hidden", bar.frame:IsShown(), false)
+	inCombat = false
+	Fire("PLAYER_REGEN_ENABLED")
 	ns.Queue.Clear()
 	RunTimers()
 end

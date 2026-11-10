@@ -90,6 +90,8 @@ While anything is in the queue, a small bar at the top of the screen shows the f
 - The **-** button folds it to a single line that still names the step; **+** opens it again. It remembers which you chose.
 - Drag it anywhere; it remembers the place.
 - It opens by itself when you queue something and disappears when the queue is empty. `/cff next` folds or unfolds it.
+- It hides in combat and in dungeons, raids, battlegrounds and arenas, and comes back when you leave.
+- In Farm It mode all gathering (mining, herbs, skinning, drops) is one step, each kind under its own heading, since you gather whatever you come across.
 
 ### Price changes
 
@@ -105,13 +107,13 @@ Guild bank, warband bank, mail and your own auctions don't count as stock. Quant
 
 ## Farm It
 
-**Farm It** at the top of the Queue tab turns the plan into what to gather yourself, and closes the window. The [Next step bar](#next-step-bar) at the top of the screen then walks you through it, one group at a time:
+**Farm It** at the top of the Queue tab turns the plan into what to gather yourself, and closes the window. The [Next step bar](#next-step-bar) at the top of the screen then shows everything to gather at once, grouped:
 
 - **Mine**, **Pick herbs**, **Skin creatures**, **Fish**: which veins, herbs or creatures, and in which zones.
 - **Kill for drops**: which creatures drop it.
 - **Disenchant**, and **Other sources** for anything else.
 
-Your current zone comes first. Hover a row to see everything known about where the item comes from. Errands (alts, bank, vendor) come before gathering, and smelting after it. The bar counts down as you gather and moves on when a group is done. While farming, the bar has a **Buy It** button that switches back to buying and reopens the queue; the Queue tab's **Buy It** does the same. The Auctionator list is the same in both modes.
+Your current zone comes first. Hover a row to see everything known about where the item comes from. Errands (alts, bank, vendor) come before gathering, and smelting after it. The bar counts down as you gather and moves on to smelting and crafting when everything is gathered. While farming, the bar has a **Buy It** button that switches back to buying and reopens the queue; the Queue tab's **Buy It** does the same. The Auctionator list is the same in both modes.
 
 ## Restock
 

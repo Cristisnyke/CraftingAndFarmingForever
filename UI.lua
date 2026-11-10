@@ -326,7 +326,7 @@ local function AddGatherRows(list, plan, step)
 		local rows = groups[group.key]
 		if rows then
 			table.sort(rows, function(a, b) return a.itemID < b.itemID end)
-			table.insert(list, { kind = "header", text = step() .. group.title })
+			table.insert(list, { kind = "header", text = step() .. group.title, gather = true })
 			for _, row in ipairs(rows) do
 				table.insert(list, { kind = "item", itemID = row.itemID, count = row.count, farm = true })
 				table.insert(list, { kind = "how", itemID = row.itemID, text = row.line })
@@ -391,15 +391,30 @@ local function BuildQueueList()
 	return list
 end
 
+-- "3. Buy at auction house: 1g (red: dearer ...)" becomes "Buy at auction house: 1g".
+local function ShortStepTitle(text)
+	local short = text:gsub("^%d+%. ", ""):gsub("%s*%b()$", "")
+	return short
+end
+
 -- The Next step bar: the first step of the Queue tab's to-do list, cut down to fit a small window. Every header in
--- that list is a step. Returns the step's header, how many steps there are, and its rows: items without prices,
--- queue entries as plain crafts.
+-- that list is a step, except that the gathering groups (Mine, Pick herbs, ...) count as one: you gather whatever
+-- you come across, so they're shown together, each under its own heading. Returns the step's header, how many steps
+-- there are, and its rows: items without prices, queue entries as plain crafts.
 local function BuildNextStep()
 	local current, steps, rows = nil, 0, {}
+	local lastGather = false
 	for _, data in ipairs(BuildQueueList()) do
 		if data.kind == "header" then
-			steps = steps + 1
-			if steps == 1 then current = data end
+			if not (data.gather and lastGather) then steps = steps + 1 end
+			lastGather = data.gather or false
+			if steps == 1 then
+				if not current then
+					current = data
+				else
+					table.insert(rows, { kind = "header", text = ShortStepTitle(data.text) })
+				end
+			end
 		elseif steps == 1 then
 			if data.kind == "queue" then
 				table.insert(rows, { kind = "next", recipeID = data.entry.recipeID, count = data.entry.qty, char = data.entry.char })
@@ -416,11 +431,6 @@ local function BuildNextStep()
 	return current, steps, rows
 end
 
--- "3. Buy at auction house: 1g (red: dearer ...)" becomes "Buy at auction house: 1g".
-local function ShortStepTitle(text)
-	local short = text:gsub("^%d+%. ", ""):gsub("%s*%b()$", "")
-	return short
-end
 
 ---------------------------------------------------------------------------
 -- Rows
@@ -1965,6 +1975,7 @@ end
 -- where, with a Buy It button to go back to buying.
 local NEXT_WIDTH = 300
 local NEXT_MAX_ROWS = 10
+local NEXT_MAX_ROWS_FARMING = 16 -- every gathering group at once
 local NEXT_BUTTON_ROOM = 30
 
 local function CreateNextWindow()
@@ -2035,6 +2046,14 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount = nil, nil
+		window.maxRows = ns.db.ui.farmMode and NEXT_MAX_ROWS_FARMING or NEXT_MAX_ROWS
+		window.gatherGroups = 0
+		if step and step.gather then
+			window.gatherGroups = 1
+			for _, row in ipairs(rows) do
+				if row.kind == "header" then window.gatherGroups = window.gatherGroups + 1 end
+			end
+		end
 		-- Farming, this is the only window up, and what's worth gathering depends on prices too.
 		if ns.db.ui.farmMode and not folded and ns.Prices.IsStale() then
 			table.insert(list, { kind = "warn", text = ScanAgeText() .. " Scan at the AH." })
@@ -2053,7 +2072,7 @@ local function CreateNextWindow()
 		SetFooter(footer)
 		window.container:SetShown(not folded)
 		frame:SetHeight(folded and (MINI_TOP + 2)
-			or (MINI_TOP + math.min(#list, NEXT_MAX_ROWS) * MINI_ROW_HEIGHT + footer + 2))
+			or (MINI_TOP + math.min(#list, window.maxRows) * MINI_ROW_HEIGHT + footer + 2))
 		return list
 	end
 
@@ -2066,7 +2085,8 @@ local function CreateNextWindow()
 		count:ClearAllPoints()
 		count:SetPoint("RIGHT", farming and buy or fold, "LEFT", -6, 0)
 		if folded and step then
-			title:SetText("Next: " .. Color("ffffffff", ShortStepTitle(step.text)))
+			local name = window.gatherGroups > 1 and "Gather materials" or ShortStepTitle(step.text)
+			title:SetText("Next: " .. Color("ffffffff", name))
 		else
 			title:SetText(farming and "Next step  " .. Color(COLOR_MUTED, "Farm It") or "Next step")
 		end
@@ -2083,8 +2103,17 @@ local function CreateNextWindow()
 end
 
 -- Shown while anything is queued, gone the moment the queue is empty.
+local inCombat = false
+
+-- Out of the way in combat, dungeons, raids, battlegrounds and arenas: nothing to craft or gather there.
+local function NextStepAllowed()
+	if inCombat then return false end
+	local inInstance = IsInInstance()
+	return not inInstance
+end
+
 function UpdateNextStep()
-	if not ns.db or #ns.db.queue == 0 then
+	if not ns.db or #ns.db.queue == 0 or not NextStepAllowed() then
 		if windows.next then windows.next.frame:Hide() end
 		return
 	end
@@ -2109,6 +2138,10 @@ function UI.ToggleNextStep()
 		ns.Print("The queue is empty, so there's no next step.")
 		return
 	end
+	if not NextStepAllowed() then
+		ns.Print("The Next step bar is hidden in combat and in dungeons, raids and battlegrounds.")
+		return
+	end
 	ns.db.ui.nextMinimized = not ns.db.ui.nextMinimized or nil
 	UpdateNextStep()
 	UI.Refresh("next")
@@ -2116,6 +2149,19 @@ end
 
 -- Craft Next depends on which profession is open.
 ns.On("TRADE_SKILL_CLOSE", function() UI.Refresh("next") end)
+ns.On("PLAYER_REGEN_DISABLED", function()
+	inCombat = true
+	UpdateNextStep()
+end)
+ns.On("PLAYER_REGEN_ENABLED", function()
+	inCombat = false
+	UpdateNextStep()
+end)
+-- Logging in or reloading mid-fight, and entering or leaving an instance (zone changes refresh the queue already).
+ns.On("PLAYER_ENTERING_WORLD", function()
+	inCombat = InCombatLockdown() and true or false
+	UpdateNextStep()
+end)
 
 -- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
 
