@@ -342,8 +342,8 @@ UI.SHOPPING_HOW = {
 	'"' .. ns.LIST_NAME .. '".',
 }
 
--- The Queue tab is a to-do list in the order you'd work through it, numbered: fetch from alts, the bank, the auction
--- house and the mailbox beside it, vendors, gather and smelt, sub-crafts, and only then the queued crafts themselves, so you reach the crafting station with
+-- The Queue tab is a to-do list in the order you'd work through it, numbered: (Farm It: gather first), fetch from
+-- alts, the bank, the auction house and the mailbox beside it, vendors, (Farm It: smelt), sub-crafts, and only then the queued crafts themselves, so you reach the crafting station with
 -- everything on you.
 local function BuildQueueList()
 	local list = {}
@@ -360,6 +360,9 @@ local function BuildQueueList()
 		AddItemRows(list, Step() .. title, items, ...)
 	end
 
+	-- Farming, gather first: what you pick up out there shrinks every errand after it, so you only go to town (alts,
+	-- bank, auction house, mailbox, vendor) once, for what's still missing.
+	if farming then AddGatherRows(list, plan, Step) end
 	local names = {}
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
@@ -377,10 +380,7 @@ local function BuildQueueList()
 	-- one and collecting halfway through would send you away with things still to buy.
 	Section("Collect from your mailbox", plan.mail)
 	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
-	if farming then
-		AddGatherRows(list, plan, Step)
-		Section("Smelt with Mining", plan.smelt)
-	end
+	if farming then Section("Smelt with Mining", plan.smelt) end
 	local autoHeader = false
 	for _, craft in ipairs(plan.crafts) do
 		if (craft.subCount or 0) > 0 then

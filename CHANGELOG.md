@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Farm It: gathering is now the first step. Fetching from alts, the bank, the auction house, the mailbox and the vendor come after it, so you only go to town once for what's still missing
+
 ## 1.5.2
 
 - Materials you hold now count however deep down they're used: wool in your bags makes the cloth that makes the bolt your queue needs, instead of the bolt being bought because cloth has a market price

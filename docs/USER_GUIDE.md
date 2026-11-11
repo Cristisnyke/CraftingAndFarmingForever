@@ -60,11 +60,14 @@ One queue shared by all your characters.
 
 The tab is a numbered to-do list in the order you'd work through it, so you reach the forge or the tanning rack with everything on you:
 
+With Farm It, gathering comes first (step 0 below), so the trip to town covers only what you didn't find; smelting comes after the vendor.
+
+0. With Farm It: what to **gather**, every group (Mine, Pick herbs, Skin, ...) at once.
 1. **Get from** an alt: log in there and mail the materials over.
 2. **Take from your bank**.
 3. **Buy at auction house** (in Auctionator's Shopping tab, see [The shopping list](#the-shopping-list)).
 4. **Collect from your mailbox**: what you bought, or had mailed over. It comes once the whole shopping list is bought, and the mailbox is right beside the auction house.
-5. **Buy from vendor**. With Farm It: what to gather, then what to smelt.
+5. **Buy from vendor**. With Farm It, then what to smelt.
 6. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
 7. **Craft your queue**: the crafts this character makes.
 8. **Log in to** another character: one step per alt with crafts in the queue, listing them.
@@ -123,7 +126,7 @@ Guild bank, warband bank, mail on other characters and your own auctions don't c
 - **Kill for drops**: which creatures drop it.
 - **Disenchant**, and **Other sources** for anything else.
 
-Your current zone comes first. Hover a row to see everything known about where the item comes from. Errands (alts, bank, vendor) come before gathering, and smelting after it. The bar counts down as you gather and moves on to smelting and crafting when everything is gathered. While farming, the bar has a **Buy It** button that switches back to buying and reopens the queue; the Queue tab's **Buy It** does the same. The Auctionator list is the same in both modes.
+Your current zone comes first. Hover a row to see everything known about where the item comes from. Gathering comes first; errands (alts, bank, auction house, mailbox, vendor) after it, then smelting. The bar counts down as you gather and moves on to the errands, smelting and crafting when everything is gathered. While farming, the bar has a **Buy It** button that switches back to buying and reopens the queue; the Queue tab's **Buy It** does the same. The Auctionator list is the same in both modes.
 
 ## Restock
 

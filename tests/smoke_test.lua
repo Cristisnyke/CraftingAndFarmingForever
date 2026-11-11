@@ -1649,22 +1649,17 @@ do
 	check("bar stays up", bar.frame:IsShown(), true)
 	check("bar offers Buy It while farming", bar.buyButton.shown, true)
 	check("bar says Farm It", bar.titleText.text:find("Farm It", 1, true) ~= nil, true)
-	-- Errands come before gathering, so here the first step is the vendor, then the gathering group.
+	-- Gathering comes first, the errands (vendor included) after it, so the bar opens on the first gathering group.
 	local barHeader
 	for _, data in ipairs(bar.list) do if data.kind == "header" then barHeader = barHeader or data.text end end
-	check("bar's first step is the errand", barHeader:find("^Buy from vendor") ~= nil, true)
-	local vendorPlan = ns.farmPlan.vendor
-	ns.farmPlan.vendor = {}
-	ns.UI.RefreshQueue()
-	barHeader = nil
-	for _, data in ipairs(bar.list) do if data.kind == "header" then barHeader = barHeader or data.text end end
+	check("vendor in the farm plan", next(ns.farmPlan.vendor) ~= nil, true)
 	local firstGroup
 	for _, group in ipairs(ns.Farm.GROUPS) do
 		for itemID in pairs(ns.farmPlan.farm) do
 			if not firstGroup and ns.Farm.Describe(itemID) == group.key then firstGroup = group end
 		end
 	end
-	check("then the first gathering group", barHeader, firstGroup.title)
+	check("bar starts with the first gathering group", barHeader, firstGroup.title)
 	-- Every gathering group at once, each under its own heading, as one step.
 	local count, groups = 0, {}
 	for itemID in pairs(ns.farmPlan.farm) do
@@ -1774,6 +1769,20 @@ do
 	check("three gathering headings", table.concat(headers, ","), "Mine,Pick herbs,Skin")
 	check("every item says where", how, 3)
 	check("gathering, smelting, crafting: three steps", bar.steps, 3)
+	-- Errands (alts, bank, vendor) come after gathering, smelting after them.
+	ns.farmPlan.fetch = { Alt = { [2589] = 2 } }
+	ns.farmPlan.bank = { [2589] = 1 }
+	ns.farmPlan.vendor = { [2320] = 1 }
+	ns.UI.RefreshQueue()
+	local titles = {}
+	for _, data in ipairs(ns.UI.windows.queue.build()) do
+		if data.kind == "header" then table.insert(titles, (data.text:gsub(":.*", ""))) end
+	end
+	local order = table.concat(titles, "\n")
+	check("farm steps: gather, then errands", order, table.concat({
+		"1. Mine", "2. Pick herbs", "3. Skin", "4. Get from Alt (log in there and mail them over)",
+		"5. Take from your bank", "6. Buy from vendor", "7. Smelt with Mining", "8. Craft your queue",
+	}, "\n"))
 	check("bar grows for farming", bar.maxRows > 10, true)
 	ns.db.ui.nextMinimized = true
 	ns.UI.Refresh("next")
