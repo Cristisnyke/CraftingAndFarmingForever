@@ -1,6 +1,6 @@
 # User guide
 
-Crafting and Farming Forever is one window with five tabs (**Profit**, **Queue**, **Restock**, **Sales**, **Changelog**), plus a small **Farm** list, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
+Crafting and Farming Forever is one window with five tabs (**Profit**, **Queue**, **Restock**, **Sales**, **Changelog**), plus a small **Next step** bar, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
 
 The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. `/cff auto` turns opening with the profession window off or on.
 

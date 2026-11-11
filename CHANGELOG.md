@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - Farm It: gathering is now the first step. Fetching from alts, the bank, the auction house, the mailbox and the vendor come after it, so you only go to town once for what's still missing
+- Removed a leftover troubleshooting log that recorded every auction house search, and old settings from earlier versions, so your saved data is smaller
 
 ## 1.5.2
 

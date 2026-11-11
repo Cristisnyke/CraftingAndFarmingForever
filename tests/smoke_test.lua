@@ -1537,7 +1537,9 @@ RunTimers()
 
 -- Late saved data: the session's queue is merged into the table the client hands over.
 ns.Queue.Add(10, 1)
-CraftingAndFarmingForeverDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {}, ui = {},
+CraftingAndFarmingForeverDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {},
+	ui = { hideLosing = true, manualChat = {}, positions = { main = { x = 1, y = 2 }, next = { x = 3, y = 4 }, farm = { x = 5, y = 6 } } },
+	auctionLog = { "old" },
 	sales = { seen = { someone = { { key = "sold|Copper Axe|2|500", expires = 1 }, { key = "sold|Copper Axe|500", expires = 1 } } } } }
 RunTimers()
 Fire("PLAYER_LOGOUT")
@@ -1545,6 +1547,11 @@ check("late data adopted", ns.db, CraftingAndFarmingForeverDB)
 check("old mail record loses its count", ns.db.sales.seen.someone[1].key, "sold|Copper Axe|500")
 check("new mail record left alone", ns.db.sales.seen.someone[2].key, "sold|Copper Axe|500")
 ns.db.sales.seen.someone = nil
+check("old auction log dropped", ns.db.auctionLog, nil)
+check("old options dropped", ns.db.ui.hideLosing == nil and ns.db.ui.manualChat == nil, true)
+check("old window positions dropped", ns.db.ui.positions.farm, nil)
+check("main position kept", ns.db.ui.positions.main.y, 2)
+check("next position kept", ns.db.ui.positions.next.x, 3)
 check("session queue merged", #ns.db.queue, 2)
 
 -- Changelog tab.
@@ -2055,20 +2062,6 @@ do
 		C_Item.GetItemInfo = realInfo
 	end
 
-	-- The log keeps requests with what the server said after them, and can't break a post.
-	check("posts are logged", (function()
-		for _, line in ipairs(ns.db.auctionLog) do
-			if line:find("PostItem(2,", 1, true) then return true end
-		end
-		return false
-	end)(), true)
-	check("searches are logged", (function()
-		for _, line in ipairs(ns.db.auctionLog) do
-			if line:find("SendSellSearchQuery(item", 1, true) then return true end
-		end
-		return false
-	end)(), true)
-	check("log stays short", #ns.db.auctionLog <= 60, true)
 
 	-- Busy: the search waits until the auction house can take it.
 	ready = false

@@ -62,7 +62,7 @@ end
 -- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents
 -- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
--- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { [window] = { x, y } } }
+-- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } }, ... }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -90,6 +90,14 @@ local function Normalize(db)
 	db.restock.duration = db.restock.duration or 2
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
+	-- Left behind by older versions: the auction debug log, the separate windows before the tabbed one, renamed options.
+	db.auctionLog = nil
+	db.ui.hideLosing, db.ui.manualChat = nil, nil
+	if db.ui.positions then
+		for window in pairs(db.ui.positions) do
+			if window ~= "main" and window ~= "next" then db.ui.positions[window] = nil end
+		end
+	end
 	-- Mail records used to include the count, which can change between scans of one mail.
 	for _, records in pairs(db.sales.seen) do
 		for _, record in ipairs(records) do
