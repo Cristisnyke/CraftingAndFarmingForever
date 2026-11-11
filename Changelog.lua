@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.5.3", lines = {
+		"- Farm It: gathering is now the first step. Fetching from alts, the bank, the auction house, the mailbox and the vendor come after it, so you only go to town once for what's still missing",
+		"- Removed a leftover troubleshooting log that recorded every auction house search, and old settings from earlier versions, so your saved data is smaller",
+	} },
 	{ version = "1.5.2", lines = {
 		"- Materials you hold now count however deep down they're used: wool in your bags makes the cloth that makes the bolt your queue needs, instead of the bolt being bought because cloth has a market price",
 		"- When what you hold covers only part of a material, that part is crafted and only the rest is bought (6 ore in the bank: smelt 6 bars, buy the other 4), instead of buying all of them whenever the missing ore is dearer than bars",
