@@ -2857,7 +2857,7 @@ function CreateSalesPane()
 		end
 		local soldEver, expiredEver = ns.Sales.Totals(nil, true)
 		if soldEver + expiredEver == 0 and #incoming == 0 then
-			hint:SetText("Nothing recorded yet. Sales and expiries are read from your mailbox, so open it on each character.")
+			hint:SetText("Nothing yet. Profit is counted from this version on; sales are read from your mailbox on each character.")
 		elseif not showAll and #ns.Sales.AllItems(false) == 0 then
 			hint:SetText("None of your crafts has sold or expired yet. Tick the box above to see your other auctions.")
 		else
@@ -3667,7 +3667,10 @@ local function Diagnostics()
 	Add("queue entries: " .. #ns.db.queue .. ", crafts planned: " .. #ns.plan.crafts)
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
 	local status = ns.Shopping.status
-	local soldTotal, expiredTotal = ns.Sales.Totals(nil, true)
+	local soldTotal, expiredTotal = 0, 0
+	for _, item in pairs(ns.db.sales.items) do
+		soldTotal, expiredTotal = soldTotal + item.sold, expiredTotal + item.expired
+	end
 	Add(("sales recorded: %d sold, %d expired; open posts tracked: %d"):format(soldTotal, expiredTotal, #ns.db.sales.lots))
 	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.LIST_NAME, status.items, status.loading, tostring(status.error)))
 	Add(("queue profit: %s from %d entries, %d without a price, %d bind on pickup"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded, ns.totals.bound))

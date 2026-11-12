@@ -93,13 +93,12 @@ local function Normalize(db)
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
 	db.costs = db.costs or {}
-	-- Sales recorded before costs were: every sold unit's cost is unknown.
-	for _, item in pairs(db.sales.items) do
-		item.cost = item.cost or 0
-		item.unknown = item.unknown or item.sold or 0
-		for _, day in pairs(item.days or {}) do
-			day.c = day.c or 0
-			day.u = day.u or day.s or 0
+	-- Profit starts counting when costs do. Earlier results (x) only feed the chance to sell and the tooltips.
+	if not db.sales.profitFrom then
+		db.sales.profitFrom = time()
+		for _, item in pairs(db.sales.items) do
+			item.cost, item.unknown = nil, nil
+			for _, day in pairs(item.days or {}) do day.x = true end
 		end
 	end
 	-- Left behind by older versions: the auction debug log, the separate windows before the tabbed one, renamed options.

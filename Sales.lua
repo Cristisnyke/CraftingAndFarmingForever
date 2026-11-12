@@ -6,10 +6,11 @@
 -- Time on the AH comes from recording each post. A sale or expiry is matched to the oldest post of that item.
 --
 -- db.sales.items[lowercase name] = { name, itemID, sold, expired, gold, exposure = unit-days listed,
---                                    cost = copper paid for the sold units whose cost is known,
---                                    unknown = sold units with no cost on record,
---                                    days = { [day number] = { s = sold, e = expired, g = copper, c = cost,
---                                                              u = unknown } } }
+--                                    days = { [day number] = { s = sold, e = expired, g = copper,
+--                                               c = copper paid for the sold units whose cost is known,
+--                                               u = sold units with no cost on record,
+--                                               x = true for results from before profit was counted } } }
+-- db.sales.profitFrom            = when profit began to be counted
 -- db.costs[itemID]               = { q = units held with a cost on record, c = copper paid for them }
 -- db.sales.lots[i]               = { itemID, name, qty, at = posted time, dur = seconds, char,
 --                                    price = copper per unit, commodity = true for stackable goods }
@@ -75,7 +76,7 @@ local function ItemRecord(name, itemID)
 	local key = name:lower()
 	local item = items[key]
 	if not item then
-		item = { name = name, sold = 0, expired = 0, gold = 0, exposure = 0, cost = 0, unknown = 0, days = {} }
+		item = { name = name, sold = 0, expired = 0, gold = 0, exposure = 0, days = {} }
 		items[key] = item
 	end
 	item.itemID = item.itemID or itemID
@@ -133,8 +134,6 @@ function Sales.Record(kind, name, count, money, when, char, itemID)
 		local cost, covered = 0, 0
 		local costID = item.itemID or Sales.CraftedID(item)
 		if costID then cost, covered = Sales.TakeCost(costID, count) end
-		item.cost = (item.cost or 0) + cost
-		item.unknown = (item.unknown or 0) + count - covered
 		day.c = (day.c or 0) + cost
 		day.u = (day.u or 0) + count - covered
 	else
@@ -165,15 +164,27 @@ function Sales.Chance(name)
 	return 1 - math.exp(-rate), item.sold + item.expired
 end
 
--- Sold, expired and copper earned over the last N calendar days, today included, then the known cost of the sold
--- units and how many of them have no cost on record. Nil for all time.
+-- Sold, expired and copper earned over the last N calendar days, today included. Nil for all time.
 function Sales.Counts(item, days)
-	if not days then return item.sold, item.expired, item.gold, item.cost or 0, item.unknown or 0 end
+	if not days then return item.sold, item.expired, item.gold end
 	local today = DayNumber(time())
-	local sold, expired, gold, cost, unknown = 0, 0, 0, 0, 0
+	local sold, expired, gold = 0, 0, 0
 	for dayNumber = today - days + 1, today do
 		local day = item.days[dayNumber]
 		if day then
+			sold, expired, gold = sold + day.s, expired + day.e, gold + day.g
+		end
+	end
+	return sold, expired, gold
+end
+
+-- The same, but only results from since profit is counted, then the known cost of the sold units and how many of
+-- them have no cost on record.
+local function Tracked(item, days)
+	local first = days and DayNumber(time()) - days + 1
+	local sold, expired, gold, cost, unknown = 0, 0, 0, 0, 0
+	for dayNumber, day in pairs(item.days) do
+		if not day.x and (not first or dayNumber >= first) then
 			sold, expired, gold = sold + day.s, expired + day.e, gold + day.g
 			cost, unknown = cost + (day.c or 0), unknown + (day.u or 0)
 		end
@@ -215,10 +226,11 @@ function Sales.CraftedID(item)
 end
 
 -- Profit over the last N days (nil for all time): the money received, after the AH cut, less what the sold units
--- cost you. Then whether part of that cost is an estimate, and sold, expired and copper received. Units with no
--- cost on record (made before costs were tracked) are estimated at today's cost to craft one.
+-- cost you. Then whether part of that cost is an estimate, and sold, expired and copper received. Only results
+-- from since profit is counted. Units with no cost on record (made before then) are estimated at today's cost to
+-- craft one.
 function Sales.Profit(item, days)
-	local sold, expired, gold, cost, unknown = Sales.Counts(item, days)
+	local sold, expired, gold, cost, unknown = Tracked(item, days)
 	local rough = false
 	if unknown > 0 then
 		local itemID = Sales.CraftedID(item)
@@ -250,7 +262,8 @@ end
 function Sales.AllItems(everything)
 	local list, recent = {}, {}
 	for _, item in pairs(ns.db.sales.items) do
-		if item.sold + item.expired > 0 and (everything or Sales.CraftedID(item)) then
+		local sold, expired = Tracked(item)
+		if sold + expired > 0 and (everything or Sales.CraftedID(item)) then
 			table.insert(list, item)
 			recent[item] = Sales.Profit(item, 30)
 		end

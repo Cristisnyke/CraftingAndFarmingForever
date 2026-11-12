@@ -2550,6 +2550,14 @@ do
 	check("totals: crafts only", select(4, ns.Sales.Totals(1, false)), 550)
 	check("totals: everything", select(4, ns.Sales.Totals(1, true)), 650)
 
+	-- Results from before profit was counted stay out of it, and out of the list.
+	ns.Sales.Record("sold", "Old Thing", 3, 900, now, me, 904)
+	for _, day in pairs(ns.Sales.Item("old thing").days) do day.x = true end
+	check("earlier sales not listed", #ns.Sales.AllItems(true), 2)
+	check("earlier sales not in the profit", select(4, ns.Sales.Totals(nil, true)), 650)
+	check("earlier sales kept for the history", ns.Sales.Item("old thing").sold, 3)
+	ns.db.sales.items["old thing"] = nil
+
 	-- A crafted item sold with no cost on record is marked as an estimate.
 	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
 	check("no cost on record: estimate", select(2, ns.Sales.Profit(thing, 1)), true)
