@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.6.0
 
 - Money on its way: the game mails a sale's money an hour after it sells. When one of your auctions sells, the add-on now tells you in chat how much is coming, counts down the hour on the Sales tab and the minimap button, and tells you when it's in your mailbox, wherever you are in the world
 - Sales tab: four summary boxes along the top show the money on its way and what you earned today, in the last 7 days and in the last 30
