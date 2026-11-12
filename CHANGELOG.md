@@ -4,6 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- Minimap button: left-click opens or closes the window, right-click folds the Next step bar, drag moves it. It works with minimap button collectors and broker bars, and `/cff minimap` hides it
 - New look: the windows, buttons, tabs and lists share one flat dark-blue style that matches the Craft Next bar, with striped rows, marked section headings and cleaner item icons
 - Sales tab: Sells, Sold and Expired are now lined-up columns under a heading, and expired counts stand out in red
 

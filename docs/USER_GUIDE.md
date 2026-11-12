@@ -4,6 +4,8 @@ Crafting and Farming Forever is one window with five tabs (**Profit**, **Queue**
 
 The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. `/cff auto` turns opening with the profession window off or on.
 
+The minimap button opens or closes the window with a left-click and folds or unfolds the Next step bar with a right-click. Drag it round the minimap to move it. Minimap button collectors (such as MinimapButtonButton) and broker bars pick it up like any other button. `/cff minimap` hides or shows it.
+
 Hover any row with an item icon to see the game's item tooltip followed by the add-on's own details. Hover a row of column headings to see what each column means.
 
 Drag the window's bottom-right corner to resize it; right-click that corner for the default size. The window alone and the window with the queue beside Restock each keep their own width.

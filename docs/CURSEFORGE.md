@@ -84,6 +84,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 - `/cff` or `/craftfarm`: show or hide the window
 - `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`: open a tab
 - `/cff next`: fold or unfold the Next step bar
+- `/cff minimap`: hide or show the minimap button
 - `/cff refresh`: re-read recipes, stock and prices
 - `/cff clear`: empty the queue
 - `/cff changelog`: open the Changelog tab

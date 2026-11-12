@@ -73,6 +73,8 @@ function CreateFrame(_, _, parent)
 end
 
 UIParent = NewFrame()
+Minimap = NewFrame()
+Minimap.GetWidth = function() return 140 end
 UIParent.shown = true
 UIParent.GetWidth = function() return 2000 end
 ChatFrame1 = NewFrame()
@@ -2447,6 +2449,25 @@ end
 check("plural of one", ns.Plural(1, "entry", "entries"), "1 entry")
 check("plural of many", ns.Plural(3, "entry", "entries"), "3 entries")
 check("plural of none", ns.Plural(0, "item", "items"), "0 items")
+
+-- Minimap button: without the broker libraries it's the add-on's own button, under the name collectors look for.
+do
+	local mini = ns.MinimapButton
+	check("own minimap button without the libraries", mini.Kind(), "own")
+	check("minimap button shown", mini.button:IsShown(), true)
+	local x, y = mini.Offset(90, 80)
+	check("minimap button at the top for 90 degrees", math.abs(x) < 0.001 and math.abs(y - 80) < 0.001, true)
+	ns.UI.Hide()
+	mini.button.scripts.OnClick(mini.button, "LeftButton")
+	check("left-click opens the window", ns.UI.IsOpen(), true)
+	mini.button.scripts.OnClick(mini.button, "LeftButton")
+	check("left-click again closes it", ns.UI.IsOpen(), false)
+	SlashCmdList.CFF("minimap")
+	check("/cff minimap hides the button", mini.button:IsShown(), false)
+	check("hidden is remembered", ns.db.ui.minimap.hide, true)
+	SlashCmdList.CFF("minimap")
+	check("/cff minimap shows it again", mini.button:IsShown(), true)
+end
 
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -3552,11 +3552,13 @@ SlashCmdList.CFF = function(input)
 	elseif command == "auto" then
 		ns.db.ui.autoOpen = not ns.db.ui.autoOpen
 		ns.Print("Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
+	elseif command == "minimap" then
+		ns.MinimapButton.Toggle()
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/cff [profit | queue | restock | sales | changelog | next | advertise | refresh | clear | auto | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | changelog | next | minimap | advertise | refresh | clear | auto | diag]")
 	end
 end
