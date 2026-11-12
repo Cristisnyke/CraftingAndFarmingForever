@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.7.1
 
 - Sales profit now follows your gold: items crafted before 1.7.0, and materials you already had then, cost nothing instead of today's market price. Selling things made from your own gathered or old stock no longer shows a loss. Profit counted since 1.7.0 is worked out again this way
 
