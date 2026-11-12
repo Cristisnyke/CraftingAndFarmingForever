@@ -51,6 +51,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - It warns you before you post below what a vendor would pay.
 
 ### Sales history
+- Money on its way: when an auction sells, you're told in chat how much is coming, and the Sales tab and the minimap button count down the hour until it reaches your mailbox. No trip to the auction house needed.
 
 - What sold and what expired today, this week, this month and all time, read from your auction house mail, including sales made while you were offline.
 - Each item's chance of selling within 24 hours, which gets more accurate the more you sell.

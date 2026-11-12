@@ -82,6 +82,7 @@ local function Normalize(db)
 	db.sales.items = db.sales.items or {}
 	db.sales.lots = db.sales.lots or {}
 	db.sales.seen = db.sales.seen or {}
+	db.sales.incoming = db.sales.incoming or {}
 	db.restock = db.restock or {}
 	db.restock.stackGoal = db.restock.stackGoal or 10
 	db.restock.singleGoal = db.restock.singleGoal or 1

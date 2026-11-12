@@ -2449,6 +2449,74 @@ check("plural of one", ns.Plural(1, "entry", "entries"), "1 entry")
 check("plural of many", ns.Plural(3, "entry", "entries"), "3 entries")
 check("plural of none", ns.Plural(0, "item", "items"), "0 items")
 
+-- Money on its way: the game's "buyer found" chat line starts the hour before a sale's money is mailed.
+do
+	local realTime, realPrint = time, ns.Print
+	local base = realTime()
+	local said = {}
+	ns.Print = function(text) table.insert(said, text) end
+	time = function() return base end
+	ns.db.sales.incoming = {}
+	ns.db.sales.lots = {
+		{ itemID = 1, name = "Test Sword", qty = 1, at = base - 600, dur = 86400, char = me, price = 10000 },
+		{ itemID = 9, name = "Test Ore", qty = 20, at = base - 600, dur = 86400, char = me, price = 200, commodity = true },
+	}
+	Fire("CHAT_MSG_SYSTEM", "A buyer has been found for your auction of Test Sword.")
+	local list, onItsWay, waiting, nextDue, rough = ns.Sales.Incoming()
+	check("sold message noted", #list, 1)
+	check("amount is the posted price after the cut", list[1].amount, 9500)
+	check("posted item price is exact", rough, false)
+	check("on its way", onItsWay, 9500)
+	check("nothing waiting yet", waiting, 0)
+	check("due in an hour", nextDue, base + 3600)
+	check("sale said in chat", (said[1] or ""):find("Sold: Test Sword", 1, true) ~= nil, true)
+	check("the post is left for the mail to match", #ns.db.sales.lots, 2)
+	Fire("CHAT_MSG_SYSTEM", "You have learned a new spell.")
+	check("other system messages ignored", #ns.Sales.Incoming(), 1)
+
+	-- Stackable goods: the message doesn't say how many sold, so one unit, marked as an estimate.
+	Fire("CHAT_MSG_SYSTEM", "A buyer has been found for your auction of Test Ore.")
+	list, onItsWay, _, _, rough = ns.Sales.Incoming()
+	check("commodity counted as one unit", list[2].amount, 190)
+	check("commodity amount is an estimate", rough, true)
+	check("both on their way", onItsWay, 9690)
+
+	check("wait under an hour", ns.Sales.WaitText(42 * 60), "42 min")
+	check("wait rounds up", ns.Sales.WaitText(61), "2 min")
+	check("wait over an hour", ns.Sales.WaitText(65 * 60), "1 h 05 min")
+
+	-- The Sales tab lists them above the sold items.
+	ns.UI.Show("sales")
+	check("incoming section first", ns.UI.windows.sales.list[1].columns, "incoming")
+	check("incoming row", ns.UI.windows.sales.list[2].kind, "incoming")
+	ns.UI.Hide()
+
+	-- An hour on: waiting in the mailbox, announced once.
+	said = {}
+	time = function() return base + 3700 end
+	RunTimers()
+	_, onItsWay, waiting, nextDue = ns.Sales.Incoming()
+	check("nothing on its way after the hour", onItsWay, 0)
+	check("waiting in the mailbox", waiting, 9690)
+	check("no next arrival", nextDue, nil)
+	local announced = 0
+	for _, text in ipairs(said) do if text:find("waiting in the mailbox", 1, true) then announced = announced + 1 end end
+	check("arrival announced once", announced, 1)
+
+	-- Opening the mailbox collects them.
+	Fire("MAIL_SHOW")
+	check("collected at the mailbox", #ns.Sales.Incoming(), 0)
+
+	-- One still on its way stays through a mailbox visit.
+	Fire("CHAT_MSG_SYSTEM", "A buyer has been found for your auction of Test Sword.")
+	Fire("MAIL_SHOW")
+	check("not yet due: kept", #ns.Sales.Incoming(), 1)
+
+	ns.db.sales.incoming = {}
+	ns.db.sales.lots = {}
+	time, ns.Print = realTime, realPrint
+end
+
 -- Minimap button: without the broker libraries it's the add-on's own button, under the name collectors look for.
 do
 	local mini = ns.MinimapButton

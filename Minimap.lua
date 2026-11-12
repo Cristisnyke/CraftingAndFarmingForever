@@ -13,6 +13,7 @@ local DEFAULT_ANGLE = 200 -- degrees round the minimap, counter-clockwise from t
 local BUTTON_NAME = "LibDBIcon10_" .. addonName
 
 local libIcon -- LibDBIcon, when the button is registered with it
+local dataObject -- the broker object, whose text broker bars show
 local button -- the add-on's own button otherwise
 
 local function Settings()
@@ -34,6 +35,15 @@ local function AddTooltipLines(tooltip)
 	local queued = #ns.db.queue
 	if queued > 0 then
 		tooltip:AddLine(("%s in the queue"):format(ns.Plural(queued, "recipe", "recipes")), 0.6, 0.8, 1)
+	end
+	local _, onItsWay, waiting, nextDue, rough = ns.Sales.Incoming()
+	local about = rough and "about " or ""
+	if nextDue then
+		tooltip:AddDoubleLine("Sales money on its way", about .. ns.Money(onItsWay), 1, 0.82, 0, 1, 1, 1)
+		tooltip:AddDoubleLine("Next arrives in", ns.Sales.WaitText(nextDue - time()), 1, 1, 1, 1, 1, 1)
+	end
+	if waiting > 0 then
+		tooltip:AddDoubleLine("Waiting in a mailbox", about .. ns.Money(waiting), 0.33, 0.87, 0.33, 1, 1, 1)
 	end
 	tooltip:AddLine("Left-click: open or close the window", 1, 1, 1)
 	tooltip:AddLine("Right-click: fold or unfold the Next step bar", 1, 1, 1)
@@ -130,6 +140,7 @@ local function Setup()
 		if object then
 			icons:Register(addonName, object, Settings())
 			libIcon = icons
+			dataObject = object
 		end
 	end
 	if not libIcon then
@@ -137,6 +148,15 @@ local function Setup()
 		CreateOwnButton()
 	end
 	Apply()
+	MinimapButton.Update()
+end
+
+-- Broker bars show the money on its way from sales, or the add-on's short name when there's none.
+function MinimapButton.Update()
+	if not dataObject then return end
+	local _, onItsWay, waiting = ns.Sales.Incoming()
+	local total = onItsWay + waiting
+	dataObject.text = total > 0 and ns.Money(total) or "CFF"
 end
 
 function MinimapButton.Toggle()

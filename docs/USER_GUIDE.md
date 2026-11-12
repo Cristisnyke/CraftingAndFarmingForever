@@ -161,7 +161,12 @@ Select an item and it searches the live listings:
 
 ## Sales
 
-Sold and expired auctions per item, for **Today**, **Last 7 days**, **Last 30 days** and **All time**, plus each item's chance of selling within 24 hours.
+Sold and expired auctions per item, for **Today**, **Last 7 days**, **Last 30 days** and **All time**, plus each item's chance of selling within 24 hours. Four boxes along the top sum it up: the money on its way, and what you earned today, in the last 7 days and in the last 30.
+
+**Money on its way.** The game mails a sale's money an hour after the item sells. When one of your auctions sells while you're online, anywhere in the world, the add-on says so in chat with the amount, lists it at the top of the Sales tab with the time left, and says again when the money has reached your mailbox. The minimap button's tooltip (and a broker bar, if you use one) shows the total on its way and when the next arrives. Opening the mailbox clears what has arrived.
+
+- The amount is the price you posted the item for, less the auction house cut. An amount marked **~** is an estimate: the game only says which item sold, so stackable goods count as one unit, and items posted before this version use the market price. The mail always has the real amount.
+- Sales made while that character is offline aren't seen until you open the mailbox, as before.
 
 - Results are read from auction house mail, so they appear when that character opens the mailbox, including sales made while you were offline.
 - Time on the auction house comes from your posts.

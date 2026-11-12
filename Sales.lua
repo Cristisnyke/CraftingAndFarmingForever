@@ -7,7 +7,11 @@
 --
 -- db.sales.items[lowercase name] = { name, itemID, sold, expired, gold, exposure = unit-days listed,
 --                                    days = { [day number] = { s = sold, e = expired, g = copper } } }
--- db.sales.lots[i]               = { itemID, name, qty, at = posted time, dur = seconds, char }
+-- db.sales.lots[i]               = { itemID, name, qty, at = posted time, dur = seconds, char,
+--                                    price = copper per unit, commodity = true for stackable goods }
+-- db.sales.incoming[i]           = { name, itemID, char, at = sold time, due = when the money arrives,
+--                                    amount = copper after the AH cut (nil if unknown), rough = true when estimated,
+--                                    told = true once its arrival has been announced }
 -- db.sales.seen[char][i]         = { key, expires }
 
 local _, ns = ...
@@ -199,12 +203,14 @@ local PENDING_POST_SECONDS = 60
 -- Oldest first: posts sent quickly can still be waiting for the server when the next one goes.
 local pendingPosts = {}
 
-local function OnPost(itemLocation, duration, quantity)
+local function OnPost(itemLocation, duration, quantity, price, commodity)
 	local post = {
 		itemID = C_Item.GetItemID(itemLocation),
 		qty = quantity or 1,
 		dur = Sales.DurationHours(duration or 2) * 60 * 60,
 		at = time(),
+		price = type(price) == "number" and price > 0 and price or nil,
+		commodity = commodity or nil,
 	}
 	if post.itemID then ns.Items.Name(post.itemID) end
 	table.insert(pendingPosts, post)
@@ -229,19 +235,151 @@ ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
 end)
 
 ns.On("PLAYER_LOGIN", function()
-	hooksecurefunc(C_AuctionHouse, "PostItem", OnPost)
-	hooksecurefunc(C_AuctionHouse, "PostCommodity", OnPost)
+	hooksecurefunc(C_AuctionHouse, "PostItem", function(itemLocation, duration, quantity, bid, buyout)
+		OnPost(itemLocation, duration, quantity, buyout or bid, false)
+	end)
+	hooksecurefunc(C_AuctionHouse, "PostCommodity", function(itemLocation, duration, quantity, unitPrice)
+		OnPost(itemLocation, duration, quantity, unitPrice, true)
+	end)
 end)
-
----------------------------------------------------------------------------
--- Mail
----------------------------------------------------------------------------
 
 -- Turns a client subject format such as "Auction successful: %s" into a pattern that captures the item.
 local function SubjectPattern(format)
 	local escaped = format:gsub("[%^%$%(%)%.%[%]%*%+%-%?]", "%%%0")
 	return "^" .. escaped:gsub("%%s", "(.+)") .. "$"
 end
+
+---------------------------------------------------------------------------
+-- Money on its way
+---------------------------------------------------------------------------
+
+-- The game holds a sale's money for an hour before mailing it, and says "A buyer has been found for your auction of
+-- X" in chat the moment it sells, wherever the character is. That message starts the hour. It names the item only,
+-- so the amount comes from the price recorded when it was posted; stackable goods are counted as one unit sold,
+-- since the message doesn't say how many.
+Sales.PAYOUT_DELAY = 60 * 60
+local INCOMING_LIFETIME = 30 * DAY
+
+local function SoldPattern()
+	return SubjectPattern(_G.ERR_AUCTION_SOLD_S or "A buyer has been found for your auction of %s.")
+end
+
+-- What one sale of this item pays after the AH cut, and whether that's an estimate.
+local function ExpectedPayout(name, char)
+	local key = name:lower()
+	local fallbackID
+	for _, lot in ipairs(ns.db.sales.lots) do
+		if lot.char == char and lot.name and lot.name:lower() == key then
+			if lot.price then return math.floor(lot.price * (1 - ns.AH_CUT)), lot.commodity and true or false, lot.itemID end
+			fallbackID = fallbackID or lot.itemID
+		end
+	end
+	local item = ns.db.sales.items[key]
+	local itemID = fallbackID or (item and item.itemID)
+	local market = itemID and ns.Prices.AH(itemID)
+	if market then return math.floor(market * (1 - ns.AH_CUT)), true, itemID end
+	return nil, true, itemID
+end
+
+local dueTimerAt
+
+-- Says once, in chat, when money has reached a mailbox, and keeps the displays counting down.
+local function AnnounceArrivals()
+	local now = time()
+	local count, total, nextDue = 0, 0, nil
+	for _, entry in ipairs(ns.db.sales.incoming) do
+		if entry.due <= now then
+			if not entry.told then
+				entry.told = true
+				count = count + 1
+				total = total + (entry.amount or 0)
+			end
+		elseif not nextDue or entry.due < nextDue then
+			nextDue = entry.due
+		end
+	end
+	if count > 0 then
+		ns.Print(("%s from %s is waiting in the mailbox."):format(total > 0 and ns.Money(total) or "Money",
+			ns.Plural(count, "sale", "sales")))
+	end
+	if nextDue and dueTimerAt ~= nextDue then
+		dueTimerAt = nextDue
+		C_Timer.After(nextDue - now + 1, function()
+			if dueTimerAt == nextDue then dueTimerAt = nil end
+			AnnounceArrivals()
+		end)
+	end
+	if ns.UI then ns.UI.Refresh("sales") end
+	if ns.MinimapButton and ns.MinimapButton.Update then ns.MinimapButton.Update() end
+end
+
+function Sales.NoteSold(name, when)
+	local char = ns.CharKey()
+	if not char or not name or name == "" then return end
+	local amount, rough, itemID = ExpectedPayout(name, char)
+	table.insert(ns.db.sales.incoming, {
+		name = name, itemID = itemID, char = char, at = when, due = when + Sales.PAYOUT_DELAY,
+		amount = amount, rough = rough or nil,
+	})
+	local _, total = Sales.Incoming()
+	ns.Print(("Sold: %s. %s arrives in the mailbox in an hour%s."):format(name,
+		amount and ((rough and "About " or "") .. ns.Money(amount)) or "The money",
+		total > (amount or 0) and (" (" .. ns.Money(total) .. " on its way in all)") or ""))
+	AnnounceArrivals()
+end
+
+-- Every sale whose money hasn't been collected, soonest first, then: copper still on its way, copper waiting in a
+-- mailbox, when the next one arrives (nil if none is on its way), and whether any amount is an estimate.
+function Sales.Incoming()
+	local now = time()
+	local list = {}
+	local onItsWay, waiting, nextDue, rough = 0, 0, nil, false
+	for _, entry in ipairs(ns.db.sales.incoming) do
+		table.insert(list, entry)
+		if entry.due > now then
+			onItsWay = onItsWay + (entry.amount or 0)
+			if not nextDue or entry.due < nextDue then nextDue = entry.due end
+		else
+			waiting = waiting + (entry.amount or 0)
+		end
+		rough = rough or entry.rough or not entry.amount
+	end
+	table.sort(list, function(a, b) return a.due < b.due end)
+	return list, onItsWay, waiting, nextDue, rough
+end
+
+-- "12 min", "1 h 05 min", for a time that's still ahead.
+function Sales.WaitText(seconds)
+	local minutes = math.max(1, math.ceil(seconds / 60))
+	if minutes < 60 then return minutes .. " min" end
+	return ("%d h %02d min"):format(math.floor(minutes / 60), minutes % 60)
+end
+
+-- Opening the mailbox collects what has arrived for this character.
+local function ClearCollected()
+	local char, now = ns.CharKey(), time()
+	local incoming = ns.db.sales.incoming
+	for index = #incoming, 1, -1 do
+		local entry = incoming[index]
+		if (entry.char == char and entry.due <= now) or now - entry.at > INCOMING_LIFETIME then
+			table.remove(incoming, index)
+		end
+	end
+	if ns.UI then ns.UI.Refresh("sales") end
+	if ns.MinimapButton and ns.MinimapButton.Update then ns.MinimapButton.Update() end
+end
+
+ns.On("CHAT_MSG_SYSTEM", function(text)
+	if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return end
+	local name = text:match(SoldPattern())
+	if name then Sales.NoteSold(name, time()) end
+end)
+ns.On("MAIL_SHOW", ClearCollected)
+ns.On("PLAYER_LOGIN", function() ns.WhenDataReady(AnnounceArrivals) end)
+
+---------------------------------------------------------------------------
+-- Mail
+---------------------------------------------------------------------------
 
 local function MailKinds()
 	return {

@@ -28,6 +28,7 @@ local MAIN_TABS = {
 }
 local PANE_ACTIONS_TOP = 4
 local PANE_LIST_TOP = 30
+local SALES_TILE_TOP, SALES_TILE_HEIGHT = 32, 54 -- the summary boxes above the Sales list
 local TAB_WIDTH = 112
 local TAB_COUNT = 16
 local MINI_ROW_HEIGHT = 15
@@ -567,8 +568,15 @@ end
 
 local function BuildSalesList()
 	local list = {}
-	for _, item in ipairs(ns.Sales.AllItems()) do table.insert(list, { kind = "sales", item = item }) end
-	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Item (last 7 days)", columns = "sales" }) end
+	-- First the money that hasn't been collected: on its way, or already in a mailbox.
+	local incoming = ns.Sales.Incoming()
+	if #incoming > 0 then
+		table.insert(list, { kind = "header", text = "Money on its way", columns = "incoming" })
+		for _, entry in ipairs(incoming) do table.insert(list, { kind = "incoming", entry = entry }) end
+	end
+	local items = ns.Sales.AllItems()
+	if #items > 0 then table.insert(list, { kind = "header", text = "Item (last 7 days)", columns = "sales" }) end
+	for _, item in ipairs(items) do table.insert(list, { kind = "sales", item = item }) end
 	return list
 end
 
@@ -779,6 +787,23 @@ local function RowOnEnter(row)
 		GameTooltip:SetItemByID(data.row.itemID)
 		AddSalesLines(ns.Items.Name(data.row.itemID))
 		GameTooltip:Show()
+	elseif data.kind == "incoming" then
+		local entry = data.entry
+		if entry.itemID then
+			StartItemTooltip(row, entry.itemID)
+		else
+			GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+			GameTooltip:SetText(entry.name)
+		end
+		GameTooltip:AddLine(" ")
+		GameTooltip:AddDoubleLine("Sold", date("%H:%M", entry.at), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("Money arrives", date("%H:%M", entry.due), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("Mailbox of", ns.CharLabel(entry.char), 1, 1, 1, 1, 1, 1)
+		if entry.rough or not entry.amount then
+			GameTooltip:AddLine("The game only says which item sold, so this amount is an estimate: one unit at the "
+				.. "price you posted it for, or the market price. The mail has the real amount.", 0.6, 0.6, 0.6, true)
+		end
+		GameTooltip:Show()
 	elseif data.kind == "sales" then
 		if data.item.itemID then
 			StartItemTooltip(row, data.item.itemID)
@@ -972,6 +997,10 @@ end
 
 local function SalesControls(row)
 	return { { row.cost, 6 }, { row.colHave, 6 }, { row.chance, 6 } }
+end
+
+local function IncomingControls(row)
+	return { { row.cost, 6 }, { row.profit, 6 } }
 end
 
 local function QueueControls(row)
@@ -1355,6 +1384,10 @@ local function SetRow(row, data)
 			for _, region in ipairs({ row.chance, row.colAH, row.colHave, row.colCraft, row.amountLabel }) do
 				region:Show()
 			end
+		elseif data.columns == "incoming" then
+			PlaceRight(row, IncomingControls(row), true)
+			row.profit:SetText(Color("ffffd100", "Amount"))
+			row.cost:SetText(Color("ffffd100", "Arrives in"))
 		elseif data.columns == "sales" then
 			PlaceRight(row, SalesControls(row), true)
 			row.chance:SetText(Color("ffffd100", "Sells"))
@@ -1437,6 +1470,17 @@ local function SetRow(row, data)
 		else
 			row.colCraft:SetText(Color(COLOR_PROFIT, "0"))
 		end
+	elseif data.kind == "incoming" then
+		local entry = data.entry
+		row.icon:SetTexture(entry.itemID and ns.Items.Icon(entry.itemID) or 134400)
+		local label = entry.itemID and ItemLabel(entry.itemID) or entry.name
+		if entry.char ~= ns.CharKey() then label = label .. Color(COLOR_MUTED, "  " .. ns.CharLabel(entry.char)) end
+		row.left:SetText(label)
+		PlaceRight(row, IncomingControls(row), true)
+		row.profit:SetText(entry.amount and ((entry.rough and Color(COLOR_MUTED, "~") or "") .. ns.Money(entry.amount))
+			or Color(COLOR_MUTED, "?"))
+		local wait = entry.due - time()
+		row.cost:SetText(wait > 0 and ns.Sales.WaitText(wait) or Color(COLOR_PROFIT, "in mailbox"))
 	elseif data.kind == "sales" then
 		local item = data.item
 		if item.itemID then
@@ -1728,12 +1772,12 @@ UI.ROW_HEIGHT = ROW_HEIGHT
 
 -- One tab's contents inside the main window, which sizes and places it. A row of the pane's own buttons runs along
 -- its top. withTabs adds the column of profession tabs on the left.
-local function CreatePane(key, footerHeight, withTabs)
+local function CreatePane(key, footerHeight, withTabs, listTop)
 	local frame = CreateFrame("Frame", nil, main.frame)
 	frame:Hide()
 	local window = { key = key, frame = frame, list = {}, offset = 0, rows = {} }
 	windows[key] = window
-	CreateListArea(window, frame, withTabs and (10 + TAB_WIDTH) or 10, PANE_LIST_TOP, footerHeight, ROW_HEIGHT)
+	CreateListArea(window, frame, withTabs and (10 + TAB_WIDTH) or 10, listTop or PANE_LIST_TOP, footerHeight, ROW_HEIGHT)
 
 	if withTabs then
 		window.tabs = {}
@@ -2693,28 +2737,94 @@ function CreateRestockPane()
 	end
 end
 
+-- A summary box on the Sales tab: a small label, a large figure and a line of detail.
+local function StatTile(parent, labelText, bright)
+	local tile = CreateFrame("Frame", nil, parent)
+	tile:SetHeight(SALES_TILE_HEIGHT)
+	FlatBox(tile, THEME.header, bright and THEME.primaryEdge or THEME.border)
+	tile.label = tile:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	tile.label:SetPoint("TOPLEFT", 8, -6)
+	tile.label:SetText(Color(bright and "ff7fb8ff" or COLOR_MUTED, labelText))
+	tile.value = tile:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	tile.value:SetPoint("TOPLEFT", 8, -19)
+	tile.detail = tile:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	tile.detail:SetPoint("BOTTOMLEFT", 8, 6)
+	tile.detail:SetPoint("BOTTOMRIGHT", -6, 6)
+	tile.detail:SetJustifyH("LEFT")
+	tile.detail:SetWordWrap(false)
+	return tile
+end
+
 function CreateSalesPane()
-	local window = CreatePane("sales", 76)
+	local window = CreatePane("sales", 28, false, SALES_TILE_TOP + SALES_TILE_HEIGHT + 8)
 	window.build = BuildSalesList
 
-	local totals = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	totals:SetPoint("BOTTOMLEFT", 12, 12)
-	totals:SetPoint("BOTTOMRIGHT", -12, 12)
-	totals:SetHeight(56)
-	totals:SetJustifyH("LEFT")
-	totals:SetJustifyV("BOTTOM")
+	-- Money on its way first, then what the sales earned.
+	local tiles = {
+		StatTile(window.frame, "ON ITS WAY", true),
+		StatTile(window.frame, "TODAY"),
+		StatTile(window.frame, "LAST 7 DAYS"),
+		StatTile(window.frame, "LAST 30 DAYS"),
+	}
+	window.tiles = tiles
+	local function PlaceTiles()
+		local width = window.frame:GetWidth()
+		if type(width) ~= "number" or width <= 0 then width = MAIN_WIDTH end
+		local gap = 6
+		local each = (width - 20 - gap * (#tiles - 1)) / #tiles
+		for index, tile in ipairs(tiles) do
+			tile:ClearAllPoints()
+			tile:SetPoint("TOPLEFT", 10 + (index - 1) * (each + gap), -SALES_TILE_TOP)
+			tile:SetWidth(each)
+		end
+	end
+	window.frame:SetScript("OnSizeChanged", PlaceTiles)
 
-	window.update = function(self)
-		local lines = {}
-		if #self.list == 0 then
-			table.insert(lines, "Nothing recorded yet. Sales and expiries are read from your mailbox, so open it on each character.")
+	local hint = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	hint:SetPoint("BOTTOMLEFT", 12, 9)
+	hint:SetPoint("BOTTOMRIGHT", -24, 9)
+	hint:SetJustifyH("LEFT")
+	hint:SetWordWrap(false)
+
+	-- The waits count down while the tab is open.
+	local sinceRefresh = 0
+	window.frame:SetScript("OnUpdate", function(_, elapsed)
+		sinceRefresh = sinceRefresh + (elapsed or 0)
+		if sinceRefresh >= 20 then
+			sinceRefresh = 0
+			UI.Refresh("sales")
+		end
+	end)
+
+	window.update = function()
+		PlaceTiles()
+		local incoming, onItsWay, waiting, nextDue, rough = ns.Sales.Incoming()
+		local about = rough and "~" or ""
+		local way = tiles[1]
+		if #incoming == 0 then
+			way.value:SetText(Color(COLOR_MUTED, "nothing"))
+			way.detail:SetText(Color(COLOR_MUTED, "no sales waiting to pay out"))
 		else
-			for _, period in ipairs({ { "Today", 1 }, { "Last 7 days", 7 }, { "Last 30 days", 30 } }) do
-				local sold, expired, gold = ns.Sales.Totals(period[2])
-				table.insert(lines, ("%s: %d sold, %d expired, earned %s"):format(period[1], sold, expired, ns.Money(gold)))
+			way.value:SetText(about .. ns.Money(onItsWay + waiting))
+			if nextDue then
+				way.detail:SetText(("next in %s%s"):format(ns.Sales.WaitText(nextDue - time()),
+					waiting > 0 and Color(COLOR_PROFIT, ", " .. ns.Money(waiting) .. " in mailbox") or ""))
+			else
+				way.detail:SetText(Color(COLOR_PROFIT, "all waiting in the mailbox"))
 			end
 		end
-		totals:SetText(table.concat(lines, "\n"))
+		for index, days in ipairs({ 1, 7, 30 }) do
+			local sold, expired, gold = ns.Sales.Totals(days)
+			local tile = tiles[index + 1]
+			tile.value:SetText(ns.Money(gold))
+			tile.detail:SetText(("%d sold"):format(sold)
+				.. (expired > 0 and Color(COLOR_LOSS, (", %d expired"):format(expired)) or Color(COLOR_MUTED, ", 0 expired")))
+		end
+		if ns.Sales.Totals(nil) == 0 and #incoming == 0 then
+			hint:SetText("Nothing recorded yet. Sales and expiries are read from your mailbox, so open it on each character.")
+		else
+			hint:SetText(Color(COLOR_MUTED, "Money from a sale reaches the mailbox an hour after it sells. ~ marks an estimate."))
+		end
 	end
 end
 
