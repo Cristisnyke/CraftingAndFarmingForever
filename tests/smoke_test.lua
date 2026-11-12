@@ -2517,6 +2517,58 @@ do
 	time, ns.Print = realTime, realPrint
 end
 
+-- Sales profit: what was paid for materials follows them through the craft to the sale.
+do
+	ns.db.sales.items, ns.db.sales.lots, ns.db.costs, ns.db.costsSeeded = {}, {}, {}, 1
+	Fire("COMMODITY_PRICE_UPDATED", 100, 1000)
+	C_AuctionHouse.ConfirmCommoditiesPurchase(901, 10)
+	Fire("COMMODITY_PURCHASE_SUCCEEDED")
+	check("purchase recorded at the price paid", ns.db.costs[901].c, 1000)
+	check("purchase units recorded", ns.db.costs[901].q, 10)
+
+	-- 4 bought units and 2 gathered ones make one item.
+	ns.db.recipes[9001] = { n = "Crafted Thing", o = 902, qmin = 1, qmax = 1, r = { { 4, 901 }, { 2, 903 } } }
+	ns.db.chars[me].recipes[9001] = true
+	ns.Sales.ForgetCraftInfo()
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 9001)
+	check("craft takes its materials' cost", ns.db.costs[901].c, 600)
+	check("craft result carries the cost", ns.db.costs[902].c, 400)
+
+	local now = os.time()
+	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
+	local thing = ns.Sales.Item("crafted thing")
+	local profit, rough, sold, _, gold = ns.Sales.Profit(thing, 1)
+	check("profit is the sale less what was paid", profit, 550)
+	check("known cost isn't an estimate", rough, false)
+	check("sale still counted", sold == 1 and gold == 950, true)
+	check("sold unit leaves the cost record", ns.db.costs[902], nil)
+
+	-- Something that isn't crafted: listed only when everything is asked for, and all profit when gathered.
+	ns.Sales.Record("sold", "Spare Ore", 1, 100, now, me, 903)
+	check("only crafts by default", #ns.Sales.AllItems(false), 1)
+	check("everything on request", #ns.Sales.AllItems(true), 2)
+	check("totals: crafts only", select(4, ns.Sales.Totals(1, false)), 550)
+	check("totals: everything", select(4, ns.Sales.Totals(1, true)), 650)
+
+	-- A crafted item sold with no cost on record is marked as an estimate.
+	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
+	check("no cost on record: estimate", select(2, ns.Sales.Profit(thing, 1)), true)
+
+	ns.UI.Show("sales")
+	local window = ns.UI.windows.sales
+	check("sales list: header and the crafted item", #window.list, 2)
+	window.everything.GetChecked = function() return true end
+	window.everything.scripts.OnClick(window.everything)
+	check("box ticked: everything listed", #window.list, 3)
+	ns.db.ui.salesEverything = nil
+	ns.UI.Hide()
+
+	ns.db.recipes[9001], ns.db.chars[me].recipes[9001] = nil, nil
+	ns.db.sales.items, ns.db.costs = {}, {}
+	ns.Sales.ForgetCraftInfo()
+	RunTimers()
+end
+
 -- Minimap button: without the broker libraries it's the add-on's own button, under the name collectors look for.
 do
 	local mini = ns.MinimapButton

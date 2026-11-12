@@ -6,7 +6,11 @@
 -- Time on the AH comes from recording each post. A sale or expiry is matched to the oldest post of that item.
 --
 -- db.sales.items[lowercase name] = { name, itemID, sold, expired, gold, exposure = unit-days listed,
---                                    days = { [day number] = { s = sold, e = expired, g = copper } } }
+--                                    cost = copper paid for the sold units whose cost is known,
+--                                    unknown = sold units with no cost on record,
+--                                    days = { [day number] = { s = sold, e = expired, g = copper, c = cost,
+--                                                              u = unknown } } }
+-- db.costs[itemID]               = { q = units held with a cost on record, c = copper paid for them }
 -- db.sales.lots[i]               = { itemID, name, qty, at = posted time, dur = seconds, char,
 --                                    price = copper per unit, commodity = true for stackable goods }
 -- db.sales.incoming[i]           = { name, itemID, char, at = sold time, due = when the money arrives,
@@ -71,7 +75,7 @@ local function ItemRecord(name, itemID)
 	local key = name:lower()
 	local item = items[key]
 	if not item then
-		item = { name = name, sold = 0, expired = 0, gold = 0, exposure = 0, days = {} }
+		item = { name = name, sold = 0, expired = 0, gold = 0, exposure = 0, cost = 0, unknown = 0, days = {} }
 		items[key] = item
 	end
 	item.itemID = item.itemID or itemID
@@ -104,6 +108,7 @@ end
 -- kind is "sold", "expired" or "cancelled". Cancelled auctions count as time on the AH with no result either way.
 function Sales.Record(kind, name, count, money, when, char, itemID)
 	local item = ItemRecord(name, itemID)
+	Sales.ForgetCraftInfo()
 	local exposure, unmatched = ConsumeLots(name:lower(), count, when, char)
 	item.exposure = item.exposure + exposure
 	if kind == "sold" then
@@ -116,7 +121,7 @@ function Sales.Record(kind, name, count, money, when, char, itemID)
 	local dayNumber = DayNumber(when)
 	local day = item.days[dayNumber]
 	if not day then
-		day = { s = 0, e = 0, g = 0 }
+		day = { s = 0, e = 0, g = 0, c = 0, u = 0 }
 		item.days[dayNumber] = day
 	end
 	if kind == "sold" then
@@ -124,6 +129,14 @@ function Sales.Record(kind, name, count, money, when, char, itemID)
 		item.gold = item.gold + (money or 0)
 		day.s = day.s + count
 		day.g = day.g + (money or 0)
+		-- What these units cost to buy or make, for the profit. Units with nothing on record are estimated later.
+		local cost, covered = 0, 0
+		local costID = item.itemID or Sales.CraftedID(item)
+		if costID then cost, covered = Sales.TakeCost(costID, count) end
+		item.cost = (item.cost or 0) + cost
+		item.unknown = (item.unknown or 0) + count - covered
+		day.c = (day.c or 0) + cost
+		day.u = (day.u or 0) + count - covered
 	else
 		item.expired = item.expired + count
 		day.e = day.e + count
@@ -152,40 +165,94 @@ function Sales.Chance(name)
 	return 1 - math.exp(-rate), item.sold + item.expired
 end
 
--- Sold, expired and copper earned over the last N calendar days, today included. Nil for all time.
+-- Sold, expired and copper earned over the last N calendar days, today included, then the known cost of the sold
+-- units and how many of them have no cost on record. Nil for all time.
 function Sales.Counts(item, days)
-	if not days then return item.sold, item.expired, item.gold end
+	if not days then return item.sold, item.expired, item.gold, item.cost or 0, item.unknown or 0 end
 	local today = DayNumber(time())
-	local sold, expired, gold = 0, 0, 0
+	local sold, expired, gold, cost, unknown = 0, 0, 0, 0, 0
 	for dayNumber = today - days + 1, today do
 		local day = item.days[dayNumber]
 		if day then
 			sold, expired, gold = sold + day.s, expired + day.e, gold + day.g
+			cost, unknown = cost + (day.c or 0), unknown + (day.u or 0)
 		end
 	end
-	return sold, expired, gold
+	return sold, expired, gold, cost, unknown
 end
 
 function Sales.Item(name)
 	return name and ns.db.sales.items[name:lower()] or nil
 end
 
-function Sales.Totals(days)
-	local sold, expired, gold = 0, 0, 0
-	for _, item in pairs(ns.db.sales.items) do
-		local s, e, g = Sales.Counts(item, days)
-		sold, expired, gold = sold + s, expired + e, gold + g
+-- Known recipes and today's craft costs, kept for a moment: every row and summary box asks.
+local craftInfo
+local CRAFT_INFO_SECONDS = 5
+
+local function CraftInfo()
+	local now = GetTime()
+	if not craftInfo or now - craftInfo.at > CRAFT_INFO_SECONDS then
+		local ctx = ns.NewContext()
+		local names = {}
+		for itemID in pairs(ctx.known) do
+			local name = ns.Items.Name(itemID)
+			if name then names[name:lower()] = itemID end
+		end
+		craftInfo = { at = now, ctx = ctx, names = names, unit = {} }
 	end
-	return sold, expired, gold
+	return craftInfo
 end
 
--- Every item with results, best sellers over the last 30 days first.
-function Sales.AllItems()
+function Sales.ForgetCraftInfo()
+	craftInfo = nil
+end
+
+-- The item's ID when a recipe one of your characters knows makes it. Sold mail has no ID, so the name decides too.
+function Sales.CraftedID(item)
+	local info = CraftInfo()
+	if item.itemID and info.ctx.known[item.itemID] then return item.itemID end
+	return info.names[item.name:lower()]
+end
+
+-- Profit over the last N days (nil for all time): the money received, after the AH cut, less what the sold units
+-- cost you. Then whether part of that cost is an estimate, and sold, expired and copper received. Units with no
+-- cost on record (made before costs were tracked) are estimated at today's cost to craft one.
+function Sales.Profit(item, days)
+	local sold, expired, gold, cost, unknown = Sales.Counts(item, days)
+	local rough = false
+	if unknown > 0 then
+		local itemID = Sales.CraftedID(item)
+		if itemID then
+			local info = CraftInfo()
+			if info.unit[itemID] == nil then info.unit[itemID] = ns.Planner.CraftUnitCost(info.ctx, itemID) or false end
+			if info.unit[itemID] then cost = cost + unknown * info.unit[itemID] end
+			rough = true
+		end
+	end
+	return gold - cost, rough, sold, expired, gold
+end
+
+-- Sold, expired, copper received, profit and whether the profit is partly estimated, over the last N days. Only
+-- items your characters craft unless everything is asked for.
+function Sales.Totals(days, everything)
+	local sold, expired, gold, profit, rough = 0, 0, 0, 0, false
+	for _, item in pairs(ns.db.sales.items) do
+		if everything or Sales.CraftedID(item) then
+			local p, r, s, e, g = Sales.Profit(item, days)
+			sold, expired, gold, profit, rough = sold + s, expired + e, gold + g, profit + p, rough or r
+		end
+	end
+	return sold, expired, gold, profit, rough
+end
+
+-- Every item with results, most profit over the last 30 days first. Only items your characters craft unless
+-- everything is asked for.
+function Sales.AllItems(everything)
 	local list, recent = {}, {}
 	for _, item in pairs(ns.db.sales.items) do
-		if item.sold + item.expired > 0 then
+		if item.sold + item.expired > 0 and (everything or Sales.CraftedID(item)) then
 			table.insert(list, item)
-			recent[item] = Sales.Counts(item, 30)
+			recent[item] = Sales.Profit(item, 30)
 		end
 	end
 	table.sort(list, function(a, b)
@@ -194,6 +261,118 @@ function Sales.AllItems()
 	end)
 	return list
 end
+
+---------------------------------------------------------------------------
+-- What things cost
+---------------------------------------------------------------------------
+-- A running record of what you paid for the items you hold, so a sale's profit is counted from real spending:
+-- auction house purchases at the price paid, crafts at what their materials cost, materials you gathered at
+-- nothing. Each item is one pool with an average cost, shared by all characters, since mail moves things between
+-- them. What you already held when this record began is valued once at that day's prices.
+
+function Sales.AddCost(itemID, qty, copper)
+	if not (itemID and qty and qty > 0) then return end
+	local entry = ns.db.costs[itemID]
+	if not entry then
+		entry = { q = 0, c = 0 }
+		ns.db.costs[itemID] = entry
+	end
+	entry.q = entry.q + qty
+	entry.c = entry.c + math.max(0, copper or 0)
+end
+
+-- Takes units out of an item's pool at its average cost. Returns the copper they cost and how many of them the
+-- pool covered; the rest have no cost on record.
+function Sales.TakeCost(itemID, qty)
+	local entry = ns.db.costs[itemID]
+	if not entry or entry.q <= 0 or qty <= 0 then return 0, 0 end
+	local take = math.min(qty, entry.q)
+	local cost = entry.c * take / entry.q
+	entry.q = entry.q - take
+	entry.c = entry.c - cost
+	if entry.q < 0.001 then ns.db.costs[itemID] = nil end
+	return cost, take
+end
+
+-- Once: materials on hand count as bought at today's price, so old stock isn't mistaken for free. False when the
+-- stock of other characters can't be read yet.
+function Sales.SeedCosts(force)
+	if ns.db.costsSeeded then return true end
+	if not force and _G.Syndicator and not ns.Stock.HasSyndicator() then return false end
+	local ctx = ns.NewContext()
+	local seen = {}
+	for _, recipe in pairs(ns.db.recipes) do
+		for _, slot in ipairs(recipe.r or {}) do
+			for index = 2, #slot do
+				local itemID = slot[index]
+				if not seen[itemID] then
+					seen[itemID] = true
+					local _, held = ns.Stock.ForRestock(itemID)
+					local unit = ns.Planner.ItemCost(ctx, itemID)
+					if held and held > 0 and unit and not ns.db.costs[itemID] then
+						Sales.AddCost(itemID, held, held * unit)
+					end
+				end
+			end
+		end
+	end
+	ns.db.costsSeeded = time()
+	return true
+end
+
+-- An auction house purchase: the price paid, or the market price when the game didn't say.
+function Sales.NotePurchase(itemID, count, paid)
+	Sales.SeedCosts(true)
+	if not paid then
+		local market = ns.Prices.AH(itemID)
+		paid = market and market * count or 0
+	end
+	Sales.AddCost(itemID, count, paid)
+end
+
+-- A finished craft: its materials leave their pools and their cost moves to what was made. Materials with no cost
+-- on record were gathered, so they're free, unless a vendor sells them: then they were bought there.
+function Sales.NoteCraft(recipe)
+	if not recipe.o then return end
+	Sales.SeedCosts(true)
+	local total = 0
+	for _, slot in ipairs(recipe.r or {}) do
+		local count, itemID = slot[1], slot[2]
+		for index = 2, #slot do
+			if ns.db.costs[slot[index]] then
+				itemID = slot[index]
+				break
+			end
+		end
+		if itemID then
+			local cost, covered = Sales.TakeCost(itemID, count)
+			local vendor = ns.Prices.Vendor(itemID)
+			if covered < count and vendor and vendor > 0 then cost = cost + (count - covered) * vendor end
+			total = total + cost
+		end
+	end
+	local qmin = recipe.qmin or 1
+	local made = (qmin + (recipe.qmax or qmin)) / 2
+	Sales.AddCost(recipe.o, made > 0 and made or 1, total)
+	if ns.UI then ns.UI.Refresh("sales") end
+end
+
+ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+	if unit ~= "player" or (issecretvalue and issecretvalue(spellID)) then return end
+	local recipe = ns.db.recipes[spellID]
+	if recipe then Sales.NoteCraft(recipe) end
+end)
+
+ns.On("PLAYER_LOGIN", function()
+	ns.WhenDataReady(function()
+		local tries = 0
+		local function Seed()
+			tries = tries + 1
+			if not Sales.SeedCosts(tries >= 12) then C_Timer.After(5, Seed) end
+		end
+		C_Timer.After(5, Seed)
+	end)
+end)
 
 ---------------------------------------------------------------------------
 -- Auction posts

@@ -161,7 +161,16 @@ Select an item and it searches the live listings:
 
 ## Sales
 
-Sold and expired auctions per item, for **Today**, **Last 7 days**, **Last 30 days** and **All time**, plus each item's chance of selling within 24 hours. Four boxes along the top sum it up: the money on its way, and what you earned today, in the last 7 days and in the last 30.
+Your profit from what you craft and sell, with sold and expired auctions per item and each item's chance of selling within 24 hours. Four boxes along the top sum it up: the money on its way, and your profit today, in the last 7 days and in the last 30, with the sales total underneath.
+
+**Profit** is the money you received, after the auction house cut, less what the sold items cost you:
+
+- Materials bought at the auction house count at the price you paid. Materials a vendor sells count at the vendor's price. Materials you gathered yourself cost nothing.
+- The cost follows the materials through every craft, sub-crafts included, to the item you sell. All your characters share one record, since mail moves things between them.
+- Costs are recorded from the version that added this. Materials you already held then count at that day's prices. Items crafted before then count at today's cost to craft one, and their profit is marked **~**.
+- Deposits lost on expired auctions aren't counted.
+
+**Only your crafts.** The list and the boxes cover the items your characters know a recipe for. Tick **Show everything I sell, not only my crafts** to include spare materials, drops and anything else you auction.
 
 **Money on its way.** The game mails a sale's money an hour after the item sells. When one of your auctions sells while you're online, anywhere in the world, the add-on says so in chat with the amount, lists it at the top of the Sales tab with the time left, and says again when the money has reached your mailbox. The minimap button's tooltip (and a broker bar, if you use one) shows the total on its way and when the next arrives. Opening the mailbox clears what has arrived.
 

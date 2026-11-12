@@ -61,6 +61,7 @@ end
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
 -- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents
 -- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
+-- db.costs             = { [itemID] = { q, c } }, what the items you hold cost you (see Sales.lua); costsSeeded = when begun
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } }, ... }
 --
@@ -91,6 +92,16 @@ local function Normalize(db)
 	db.restock.duration = db.restock.duration or 2
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
+	db.costs = db.costs or {}
+	-- Sales recorded before costs were: every sold unit's cost is unknown.
+	for _, item in pairs(db.sales.items) do
+		item.cost = item.cost or 0
+		item.unknown = item.unknown or item.sold or 0
+		for _, day in pairs(item.days or {}) do
+			day.c = day.c or 0
+			day.u = day.u or day.s or 0
+		end
+	end
 	-- Left behind by older versions: the auction debug log, the separate windows before the tabbed one, renamed options.
 	db.auctionLog = nil
 	db.ui.hideLosing, db.ui.manualChat = nil, nil

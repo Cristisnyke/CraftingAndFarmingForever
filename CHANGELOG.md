@@ -2,6 +2,12 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Sales tab shows profit, not just sales: what you received after the auction house cut, less what the materials cost you. Materials bought at the auction house count at the price you paid, vendor materials at the vendor's price, and ones you gathered yourself at nothing. The boxes along the top show your profit today, in the last 7 days and in the last 30, with the sales total underneath, and each item has Sales and Profit columns
+- Costs are recorded from now on. Materials you already hold count at today's prices, and items crafted before this version count at today's cost to craft one, marked with ~
+- Sales tab lists only the items your characters craft. Tick "Show everything I sell, not only my crafts" to include spare materials, drops and the rest
+
 ## 1.6.0
 
 - Money on its way: the game mails a sale's money an hour after it sells. When one of your auctions sells, the add-on now tells you in chat how much is coming, counts down the hour on the Sales tab and the minimap button, and tells you when it's in your mailbox, wherever you are in the world

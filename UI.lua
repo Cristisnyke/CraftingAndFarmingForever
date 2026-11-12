@@ -134,6 +134,7 @@ local scanNotified = false
 
 function ns.InvalidateProfit()
 	profitCache = nil
+	if ns.Sales then ns.Sales.ForgetCraftInfo() end
 	UI.Refresh("profit")
 	UI.Refresh("restock")
 end
@@ -574,7 +575,7 @@ local function BuildSalesList()
 		table.insert(list, { kind = "header", text = "Money on its way", columns = "incoming" })
 		for _, entry in ipairs(incoming) do table.insert(list, { kind = "incoming", entry = entry }) end
 	end
-	local items = ns.Sales.AllItems()
+	local items = ns.Sales.AllItems(ns.db.ui.salesEverything)
 	if #items > 0 then table.insert(list, { kind = "header", text = "Item (last 7 days)", columns = "sales" }) end
 	for _, item in ipairs(items) do table.insert(list, { kind = "sales", item = item }) end
 	return list
@@ -610,8 +611,20 @@ local function AddSalesLines(name)
 		local sold, expired = ns.Sales.Counts(item, period[2])
 		GameTooltip:AddDoubleLine(period[1], sold .. " / " .. expired, 1, 1, 1, 1, 1, 1)
 	end
-	local _, _, gold = ns.Sales.Counts(item, nil)
-	GameTooltip:AddDoubleLine("Earned, all time", ns.Money(gold), 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine(" ", "profit / sales", 1, 1, 1, 0.6, 0.6, 0.6)
+	local estimated = false
+	for _, period in ipairs({ { "Last 7 days", 7 }, { "Last 30 days", 30 }, { "All time", nil } }) do
+		local profit, rough, _, _, gold = ns.Sales.Profit(item, period[2])
+		estimated = estimated or rough
+		GameTooltip:AddDoubleLine(period[1], (rough and "~" or "") .. ns.Money(profit) .. " / " .. ns.Money(gold),
+			1, 1, 1, 1, 1, 1)
+	end
+	GameTooltip:AddLine("Profit is the money you received, after the auction house cut, less what the sold items "
+		.. "cost you: materials at the price you paid, gathered ones at nothing.", 0.6, 0.6, 0.6, true)
+	if estimated then
+		GameTooltip:AddLine("~ Some were made before the add-on recorded costs. Those count at today's cost to "
+			.. "craft one.", 0.6, 0.6, 0.6, true)
+	end
 end
 
 -- "was 30c, now 40c". dearerIsBad: materials cost more (bad); for things you sell, a lower price is bad.
@@ -996,7 +1009,8 @@ local function RestockControls(row)
 end
 
 local function SalesControls(row)
-	return { { row.cost, 6 }, { row.colHave, 6 }, { row.chance, 6 } }
+	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
+	return { { row.profit, 6 }, { row.cost, 6 }, { row.colAH, 6 }, { row.colHave, 6 }, { row.chance, 6 } }
 end
 
 local function IncomingControls(row)
@@ -1392,7 +1406,9 @@ local function SetRow(row, data)
 			PlaceRight(row, SalesControls(row), true)
 			row.chance:SetText(Color("ffffd100", "Sells"))
 			row.colHave:SetText(Color("ffffd100", "Sold"))
-			row.cost:SetText(Color("ffffd100", "Expired"))
+			row.colAH:SetText(Color("ffffd100", "Exp."))
+			row.cost:SetText(Color("ffffd100", "Sales"))
+			row.profit:SetText(Color("ffffd100", "Profit"))
 		elseif data.columns == "queue" then
 			PlaceRight(row, QueueControls(row), false)
 			row.cost:SetText(Color("ffffd100", "Materials"))
@@ -1490,11 +1506,14 @@ local function SetRow(row, data)
 			row.icon:SetTexture(134400) -- sold mail names the item but has no ID: the question mark, not a gap
 			row.left:SetText(item.name)
 		end
-		local sold, expired = ns.Sales.Counts(item, 7)
+		local profit, rough, sold, expired, gold = ns.Sales.Profit(item, 7)
 		PlaceRight(row, SalesControls(row), true)
 		row.chance:SetText(ChanceText(item.name))
 		row.colHave:SetText(tostring(sold))
-		row.cost:SetText(expired > 0 and Color(COLOR_LOSS, tostring(expired)) or Color(COLOR_MUTED, "0"))
+		row.colAH:SetText(expired > 0 and Color(COLOR_LOSS, tostring(expired)) or Color(COLOR_MUTED, "0"))
+		row.cost:SetText(sold > 0 and ns.Money(gold) or Color(COLOR_MUTED, "-"))
+		row.profit:SetText(sold > 0 and ((rough and Color(COLOR_MUTED, "~") or "")
+			.. Color(profit < 0 and COLOR_LOSS or COLOR_PROFIT, ns.Money(profit))) or Color(COLOR_MUTED, "-"))
 	elseif data.kind == "post" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
@@ -2762,11 +2781,26 @@ function CreateSalesPane()
 	-- Money on its way first, then what the sales earned.
 	local tiles = {
 		StatTile(window.frame, "ON ITS WAY", true),
-		StatTile(window.frame, "TODAY"),
-		StatTile(window.frame, "LAST 7 DAYS"),
-		StatTile(window.frame, "LAST 30 DAYS"),
+		StatTile(window.frame, "PROFIT TODAY"),
+		StatTile(window.frame, "PROFIT, 7 DAYS"),
+		StatTile(window.frame, "PROFIT, 30 DAYS"),
 	}
 	window.tiles = tiles
+
+	-- Off: only what your characters craft. On: every auction, such as spare materials and drops.
+	local everything = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	everything:SetSize(24, 24)
+	everything:SetPoint("TOPLEFT", 8, -PANE_ACTIONS_TOP)
+	everything:SetHitRectInsets(0, -190, 0, 0) -- the label is clickable too
+	local everythingLabel = everything:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	everythingLabel:SetPoint("LEFT", everything, "RIGHT", 2, 1)
+	everythingLabel:SetText("Show everything I sell, not only my crafts")
+	everything:SetScript("OnClick", function(self)
+		ns.db.ui.salesEverything = self:GetChecked() and true or false
+		window.offset = 0
+		UI.Refresh("sales")
+	end)
+	window.everything = everything
 	local function PlaceTiles()
 		local width = window.frame:GetWidth()
 		if type(width) ~= "number" or width <= 0 then width = MAIN_WIDTH end
@@ -2813,17 +2847,21 @@ function CreateSalesPane()
 				way.detail:SetText(Color(COLOR_PROFIT, "all waiting in the mailbox"))
 			end
 		end
+		local showAll = ns.db.ui.salesEverything and true or false
+		everything:SetChecked(showAll)
 		for index, days in ipairs({ 1, 7, 30 }) do
-			local sold, expired, gold = ns.Sales.Totals(days)
+			local sold, _, gold, profit, estimated = ns.Sales.Totals(days, showAll)
 			local tile = tiles[index + 1]
-			tile.value:SetText(ns.Money(gold))
-			tile.detail:SetText(("%d sold"):format(sold)
-				.. (expired > 0 and Color(COLOR_LOSS, (", %d expired"):format(expired)) or Color(COLOR_MUTED, ", 0 expired")))
+			tile.value:SetText((estimated and "~" or "") .. (profit < 0 and Color(COLOR_LOSS, ns.Money(profit)) or ns.Money(profit)))
+			tile.detail:SetText(Color(COLOR_MUTED, ("%s in sales, %d sold"):format(ns.Money(gold), sold)))
 		end
-		if ns.Sales.Totals(nil) == 0 and #incoming == 0 then
+		local soldEver, expiredEver = ns.Sales.Totals(nil, true)
+		if soldEver + expiredEver == 0 and #incoming == 0 then
 			hint:SetText("Nothing recorded yet. Sales and expiries are read from your mailbox, so open it on each character.")
+		elseif not showAll and #ns.Sales.AllItems(false) == 0 then
+			hint:SetText("None of your crafts has sold or expired yet. Tick the box above to see your other auctions.")
 		else
-			hint:SetText(Color(COLOR_MUTED, "Money from a sale reaches the mailbox an hour after it sells. ~ marks an estimate."))
+			hint:SetText(Color(COLOR_MUTED, "Profit = sale after the AH cut, less what the materials cost you. ~ marks an estimate."))
 		end
 	end
 end
@@ -3629,7 +3667,7 @@ local function Diagnostics()
 	Add("queue entries: " .. #ns.db.queue .. ", crafts planned: " .. #ns.plan.crafts)
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
 	local status = ns.Shopping.status
-	local soldTotal, expiredTotal = ns.Sales.Totals(nil)
+	local soldTotal, expiredTotal = ns.Sales.Totals(nil, true)
 	Add(("sales recorded: %d sold, %d expired; open posts tracked: %d"):format(soldTotal, expiredTotal, #ns.db.sales.lots))
 	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.LIST_NAME, status.items, status.loading, tostring(status.error)))
 	Add(("queue profit: %s from %d entries, %d without a price, %d bind on pickup"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded, ns.totals.bound))

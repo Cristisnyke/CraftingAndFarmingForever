@@ -271,6 +271,7 @@ end
 -- to the mailbox. Bought items count as soon as the purchase succeeds, so they drop off the shopping list at once.
 -- db.mail[charKey]      = { items = { [itemID] = count }, scanned = time }
 -- db.purchases[charKey] = { { itemID, count, at }, ... }  bought since that look
+-- The price paid goes to the cost record behind the Sales tab's profit.
 local PURCHASE_LIFETIME = 30 * 24 * 3600 -- mail is deleted after 30 days
 
 local function MailRecord()
@@ -315,9 +316,10 @@ function Stock.ScanMailbox()
 	ns.RequestPlan()
 end
 
-function Stock.AddPurchase(itemID, count)
+function Stock.AddPurchase(itemID, count, paid)
 	local _, key = MailRecord()
 	if not (key and itemID and count and count > 0) then return end
+	if ns.Sales then ns.Sales.NotePurchase(itemID, count, paid) end
 	ns.db.purchases[key] = ns.db.purchases[key] or {}
 	local now = time()
 	local kept = {}
@@ -334,6 +336,8 @@ ns.On("MAIL_INBOX_UPDATE", function() ns.Debounce("mailbox", 0.3, Stock.ScanMail
 
 -- Commodities (stackable goods): the amount confirmed is bought when the server says it succeeded.
 local commodityPurchase
+-- The total the game last quoted for the amount about to be bought.
+local commodityQuote
 -- Other items: buyouts of listings seen in a search, completed when the server confirms that auction.
 local listings, buyouts = {}, {}
 
@@ -351,7 +355,7 @@ ns.On("PLAYER_LOGIN", function()
 	if not C_AuctionHouse then return end
 	if C_AuctionHouse.ConfirmCommoditiesPurchase then
 		hooksecurefunc(C_AuctionHouse, "ConfirmCommoditiesPurchase", function(itemID, quantity)
-			commodityPurchase = { itemID = itemID, count = quantity }
+			commodityPurchase = { itemID = itemID, count = quantity, paid = commodityQuote }
 		end)
 	end
 	if C_AuctionHouse.PlaceBid then
@@ -363,16 +367,21 @@ ns.On("PLAYER_LOGIN", function()
 	end
 end)
 ns.On("COMMODITY_PURCHASE_SUCCEEDED", function()
-	if commodityPurchase then Stock.AddPurchase(commodityPurchase.itemID, commodityPurchase.count) end
-	commodityPurchase = nil
+	if commodityPurchase then
+		Stock.AddPurchase(commodityPurchase.itemID, commodityPurchase.count, commodityPurchase.paid)
+	end
+	commodityPurchase, commodityQuote = nil, nil
 end)
-ns.On("COMMODITY_PURCHASE_FAILED", function() commodityPurchase = nil end)
+ns.On("COMMODITY_PURCHASE_FAILED", function() commodityPurchase, commodityQuote = nil, nil end)
+ns.On("COMMODITY_PRICE_UPDATED", function(_, total)
+	commodityQuote = type(total) == "number" and total > 0 and total or nil
+end)
 ns.On("ITEM_SEARCH_RESULTS_UPDATED", NoteListings)
 ns.On("ITEM_SEARCH_RESULTS_ADDED", NoteListings)
 ns.On("AUCTION_HOUSE_PURCHASE_COMPLETED", function(auctionID)
 	local bought = buyouts[auctionID]
 	buyouts[auctionID] = nil
-	if bought then Stock.AddPurchase(bought.itemID, bought.count) end
+	if bought then Stock.AddPurchase(bought.itemID, bought.count, bought.buyout) end
 end)
 ns.On("AUCTION_HOUSE_CLOSED", function() wipe(listings) end)
 
