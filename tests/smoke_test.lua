@@ -2550,6 +2550,16 @@ do
 	check("totals: crafts only", select(4, ns.Sales.Totals(1, false)), 550)
 	check("totals: everything", select(4, ns.Sales.Totals(1, true)), 650)
 
+	-- Money on its way counts before its mail is read, at the cost on record.
+	ns.Sales.AddCost(902, 1, 400)
+	table.insert(ns.db.sales.incoming, { name = "Crafted Thing", itemID = 902, char = me, at = now, due = now + 3600, amount = 950 })
+	table.insert(ns.db.sales.incoming, { name = "New Thing", itemID = 905, char = me, at = now, due = now + 3600, amount = 70 })
+	check("money on its way is in the item's profit", (ns.Sales.Profit(thing, 1)), 1100)
+	check("money on its way is in the totals", select(4, ns.Sales.Totals(1, true)), 1270)
+	check("sale on its way doesn't use up the cost", ns.db.costs[902].c, 400)
+	ns.db.sales.incoming = {}
+	ns.db.costs[902] = nil
+
 	-- Results from before profit was counted stay out of it, and out of the list.
 	ns.Sales.Record("sold", "Old Thing", 3, 900, now, me, 904)
 	for _, day in pairs(ns.Sales.Item("old thing").days) do day.x = true end

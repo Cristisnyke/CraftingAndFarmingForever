@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- Sales tab shows profit, not just sales: what you received after the auction house cut, less what the materials cost you. Materials bought at the auction house count at the price you paid, vendor materials at the vendor's price, and ones you gathered yourself at nothing. The boxes along the top show your profit today, in the last 7 days and in the last 30, with the sales total underneath, and each item has Sales and Profit columns
+- Sales tab shows profit, not just sales: what you received after the auction house cut, less what the materials cost you. Materials bought at the auction house count at the price you paid, vendor materials at the vendor's price, and ones you gathered yourself at nothing. The boxes along the top show your profit today, in the last 7 days and in the last 30, with the sales total underneath (money still on its way included), and each item has Sales and Profit columns
 - Profit starts from zero with this version: earlier sales stay out of it, though they still feed each item's chance to sell. Materials you already hold count at today's prices, and items crafted before this version count at today's cost to craft one, marked with ~
 - Sales tab lists only the items your characters craft. Tick "Show everything I sell, not only my crafts" to include spare materials, drops and the rest
 

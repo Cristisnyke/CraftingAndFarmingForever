@@ -225,6 +225,37 @@ function Sales.CraftedID(item)
 	return info.names[item.name:lower()]
 end
 
+-- Today's cost to craft one of a crafted item, nil when unknown.
+local function CraftUnit(itemID)
+	local info = CraftInfo()
+	if info.unit[itemID] == nil then info.unit[itemID] = ns.Planner.CraftUnitCost(info.ctx, itemID) or false end
+	return info.unit[itemID] or nil
+end
+
+-- Sales whose money is still on its way or waiting in a mailbox: the mail hasn't been read, so they aren't in the
+-- records yet. Returns units, copper expected, what they cost and whether any of it is an estimate, for one item
+-- (by lowercase name) over the last N days.
+local function Pending(key, days)
+	local first = days and DayNumber(time()) - days + 1
+	local count, gold, cost, rough = 0, 0, 0, false
+	for _, entry in ipairs(ns.db.sales.incoming) do
+		if entry.amount and entry.name and entry.name:lower() == key and (not first or DayNumber(entry.at) >= first) then
+			count = count + 1
+			gold = gold + entry.amount
+			rough = rough or entry.rough or false
+			local itemID = entry.itemID or CraftInfo().names[key]
+			local pool = itemID and ns.db.costs[itemID]
+			if pool and pool.q >= 1 then
+				cost = cost + pool.c / pool.q
+			elseif itemID and CraftInfo().ctx.known[itemID] then
+				cost = cost + (CraftUnit(itemID) or 0)
+				rough = true
+			end
+		end
+	end
+	return count, gold, cost, rough
+end
+
 -- Profit over the last N days (nil for all time): the money received, after the AH cut, less what the sold units
 -- cost you. Then whether part of that cost is an estimate, and sold, expired and copper received. Only results
 -- from since profit is counted. Units with no cost on record (made before then) are estimated at today's cost to
@@ -235,13 +266,13 @@ function Sales.Profit(item, days)
 	if unknown > 0 then
 		local itemID = Sales.CraftedID(item)
 		if itemID then
-			local info = CraftInfo()
-			if info.unit[itemID] == nil then info.unit[itemID] = ns.Planner.CraftUnitCost(info.ctx, itemID) or false end
-			if info.unit[itemID] then cost = cost + unknown * info.unit[itemID] end
+			cost = cost + unknown * (CraftUnit(itemID) or 0)
 			rough = true
 		end
 	end
-	return gold - cost, rough, sold, expired, gold
+	-- Sold, but the money is still on its way.
+	local pendingCount, pendingGold, pendingCost, pendingRough = Pending(item.name:lower(), days)
+	return gold + pendingGold - cost - pendingCost, rough or pendingRough, sold + pendingCount, expired, gold + pendingGold
 end
 
 -- Sold, expired, copper received, profit and whether the profit is partly estimated, over the last N days. Only
@@ -254,6 +285,18 @@ function Sales.Totals(days, everything)
 			sold, expired, gold, profit, rough = sold + s, expired + e, gold + g, profit + p, rough or r
 		end
 	end
+	-- Money on its way for items with no results on record yet.
+	local done = {}
+	for _, entry in ipairs(ns.db.sales.incoming) do
+		local key = entry.name and entry.name:lower()
+		if key and not done[key] and not ns.db.sales.items[key] then
+			done[key] = true
+			if everything or Sales.CraftedID({ name = entry.name, itemID = entry.itemID }) then
+				local count, pendingGold, cost, r = Pending(key, days)
+				sold, gold, profit, rough = sold + count, gold + pendingGold, profit + pendingGold - cost, rough or r
+			end
+		end
+	end
 	return sold, expired, gold, profit, rough
 end
 
@@ -263,7 +306,7 @@ function Sales.AllItems(everything)
 	local list, recent = {}, {}
 	for _, item in pairs(ns.db.sales.items) do
 		local sold, expired = Tracked(item)
-		if sold + expired > 0 and (everything or Sales.CraftedID(item)) then
+		if sold + expired + Pending(item.name:lower()) > 0 and (everything or Sales.CraftedID(item)) then
 			table.insert(list, item)
 			recent[item] = Sales.Profit(item, 30)
 		end
