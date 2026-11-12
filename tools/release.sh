@@ -100,6 +100,7 @@ fi
 # --- Zip and upload --------------------------------------------------------------------------------------------------
 
 tools/package.sh "$REF" >/dev/null
+# shellcheck disable=SC2012 # package.sh names these zips, so ls is safe; -t picks the one just built
 ZIP=$(ls -t dist/"$NAME"-*.zip | head -1)
 if [ "$DRY_RUN" = 1 ] && [ "$UPLOAD_ONLY" = 0 ]; then
 	# The dry run's zip comes from HEAD, so it still carries the current version; the real one gets $VERSION.

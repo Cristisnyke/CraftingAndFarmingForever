@@ -23,5 +23,9 @@ if ! diff -q <(lua5.1 tools/gen_changelog.lua CHANGELOG.md) Changelog.lua >/dev/
 	echo "Changelog.lua is out of date: lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua"; exit 1
 fi
 
+# Linters, where installed (pacman -S luacheck shellcheck). Settings are in .luacheckrc.
+if command -v luacheck >/dev/null; then luacheck . --quiet --no-color; else echo "luacheck not installed: lint skipped"; fi
+if command -v shellcheck >/dev/null; then shellcheck tools/*.sh; else echo "shellcheck not installed: lint skipped"; fi
+
 lua5.1 tests/planner_test.lua
 lua5.1 tests/smoke_test.lua

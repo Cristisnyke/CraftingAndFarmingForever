@@ -549,7 +549,7 @@ do
 	run = Planner.TimeLeft(crafts, "me", secondsOf, { recipeID = 200, left = 13 })
 	check("paused run seconds", run, 39)
 	-- Casting something not in the plan.
-	run, all, count = Planner.TimeLeft(crafts, "me", secondsOf, { recipeID = 900, left = 1, castLeft = 2 })
+	run, all = Planner.TimeLeft(crafts, "me", secondsOf, { recipeID = 900, left = 1, castLeft = 2 })
 	check("unplanned cast", run, 2)
 	check("unplanned cast in all", all, 5 * 2 + 14 * 3 + 2)
 	check("duration seconds", Planner.FormatDuration(44.6), "45s")

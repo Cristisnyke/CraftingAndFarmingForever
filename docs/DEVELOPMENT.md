@@ -45,6 +45,8 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 tools/check.sh
 ```
 
+It also runs `luacheck` (settings and the list of game globals in `.luacheckrc`) and `shellcheck` on `tools/*.sh` when they are installed (`sudo pacman -S luacheck shellcheck`), and skips them with a note when they are not. A new game global the add-on reads must be added to `.luacheckrc`.
+
 It must pass before every commit. It:
 
 1. fails if a `.lua` file in the repository root isn't listed in the toc;

@@ -736,9 +736,8 @@ check("craft count", crafted[1].count, 5)
 -- Profession reported under a different ID than the recipe was stored with: still recognised as open.
 local realInfo = ProfessionsFrame.GetProfessionInfo
 ProfessionsFrame.GetProfessionInfo = function() return { professionID = 2437, professionName = "Classic Tailoring" } end
-local _, _, reason = nil, nil, nil
 C_TradeSkillUI.GetCraftableCount = function() return 0 end
-_, _, reason = ns.Queue.NextCraft()
+local _, _, reason = ns.Queue.NextCraft()
 check("no materials reason", reason, "Finish Recipe10 (6 left) first: needs materials.")
 C_TradeSkillUI.GetRecipeRequirements = function() return { { name = "Anvil", met = false } } end
 _, _, reason = ns.Queue.NextCraft()
@@ -1099,7 +1098,7 @@ ns.Sales.Record("expired", "Test Sword", 1, 0, now - 10 * 86400, me, 4)
 local sword = ns.Sales.Item("test sword")
 local s1 = ns.Sales.Counts(sword, 1)
 local s7, e7 = ns.Sales.Counts(sword, 7)
-local s30, e30, g30 = ns.Sales.Counts(sword, 30)
+local _, e30, g30 = ns.Sales.Counts(sword, 30)
 check("sold today", s1, 1)
 check("sold 7 days", s7, 2)
 check("expired not in 7 days", e7, 0)
@@ -1618,7 +1617,7 @@ check("ore names a zone", line:find("Dun Morogh", 1, true) ~= nil, true)
 check("ore lists every zone in the tooltip", details[#details]:find("Tirisfal Glades", 1, true) ~= nil, true)
 check("not here by default", line:find("you are here", 1, true), nil)
 playerMap = 1429
-group, line = ns.Farm.Describe(2770)
+line = select(2, ns.Farm.Describe(2770))
 check("own zone first", line:find("Mine Copper Vein: Elwynn Forest", 1, true) ~= nil, true)
 check("own zone marked", line:find("you are here", 1, true) ~= nil, true)
 check("leather is skinned", (ns.Farm.Describe(2318)), "skin")
