@@ -568,6 +568,7 @@ end
 local function BuildSalesList()
 	local list = {}
 	for _, item in ipairs(ns.Sales.AllItems()) do table.insert(list, { kind = "sales", item = item }) end
+	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Item (last 7 days)", columns = "sales" }) end
 	return list
 end
 
@@ -969,6 +970,10 @@ local function RestockControls(row)
 	}
 end
 
+local function SalesControls(row)
+	return { { row.cost, 6 }, { row.colHave, 6 }, { row.chance, 6 } }
+end
+
 local function QueueControls(row)
 	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
 	return {
@@ -1350,6 +1355,11 @@ local function SetRow(row, data)
 			for _, region in ipairs({ row.chance, row.colAH, row.colHave, row.colCraft, row.amountLabel }) do
 				region:Show()
 			end
+		elseif data.columns == "sales" then
+			PlaceRight(row, SalesControls(row), true)
+			row.chance:SetText(Color("ffffd100", "Sells"))
+			row.colHave:SetText(Color("ffffd100", "Sold"))
+			row.cost:SetText(Color("ffffd100", "Expired"))
 		elseif data.columns == "queue" then
 			PlaceRight(row, QueueControls(row), false)
 			row.cost:SetText(Color("ffffd100", "Materials"))
@@ -1433,12 +1443,14 @@ local function SetRow(row, data)
 			row.icon:SetTexture(ns.Items.Icon(item.itemID))
 			row.left:SetText(ItemLabel(item.itemID))
 		else
-			row.icon:Hide()
+			row.icon:SetTexture(134400) -- sold mail names the item but has no ID: the question mark, not a gap
 			row.left:SetText(item.name)
 		end
 		local sold, expired = ns.Sales.Counts(item, 7)
-		local chance = ChanceText(item.name)
-		row.right:SetText((chance ~= "" and (chance .. "   ") or "") .. ("7 days: %d sold, %d expired"):format(sold, expired))
+		PlaceRight(row, SalesControls(row), true)
+		row.chance:SetText(ChanceText(item.name))
+		row.colHave:SetText(tostring(sold))
+		row.cost:SetText(expired > 0 and Color(COLOR_LOSS, tostring(expired)) or Color(COLOR_MUTED, "0"))
 	elseif data.kind == "post" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))

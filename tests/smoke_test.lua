@@ -1130,13 +1130,15 @@ check("cancel isn't a result", ns.Sales.Item("Alt Item").expired, 0)
 -- The window and row text.
 ns.UI.Show("sales")
 check("sales tab lists items", #ns.UI.windows.sales.list >= 1, true)
-check("best seller first", ns.UI.windows.sales.list[1].item.name, "Test Sword")
+check("sales list starts with its column headings", ns.UI.windows.sales.list[1].columns, "sales")
+check("best seller first", ns.UI.windows.sales.list[2].item.name, "Test Sword")
 -- Every row with an item icon starts its tooltip with the game's item tooltip.
 GameTooltip.SetItemByID = function(self, itemID) rawset(self, "itemID", itemID) end
 local function HoverIconRows(key)
 	local hovered, withItem = 0, 0
 	for _, row in ipairs(ns.UI.windows[key].rows) do
-		if row.data and row:IsShown() and row.icon:IsShown() and row.data.kind ~= "header" then
+		local nameOnly = row.data and row.data.kind == "sales" and not row.data.item.itemID
+		if row.data and row:IsShown() and row.icon:IsShown() and row.data.kind ~= "header" and not nameOnly then
 			rawset(GameTooltip, "itemID", nil)
 			row.scripts.OnEnter(row)
 			hovered = hovered + 1

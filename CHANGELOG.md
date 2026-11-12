@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - New look: the windows, buttons, tabs and lists share one flat dark-blue style that matches the Craft Next bar, with striped rows, marked section headings and cleaner item icons
+- Sales tab: Sells, Sold and Expired are now lined-up columns under a heading, and expired counts stand out in red
 
 ## 1.5.3
 
