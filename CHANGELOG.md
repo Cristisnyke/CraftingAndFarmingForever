@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Sales profit now follows your gold: items crafted before 1.7.0, and materials you already had then, cost nothing instead of today's market price. Selling things made from your own gathered or old stock no longer shows a loss. Profit counted since 1.7.0 is worked out again this way
+
 ## 1.7.0
 
 - Sales tab shows profit, not just sales: what you received after the auction house cut, less what the materials cost you. Materials bought at the auction house count at the price you paid, vendor materials at the vendor's price, and ones you gathered yourself at nothing. The boxes along the top show your profit today, in the last 7 days and in the last 30, with the sales total underneath (money still on its way included), and each item has Sales and Profit columns

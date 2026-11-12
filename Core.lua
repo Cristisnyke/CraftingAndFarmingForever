@@ -61,7 +61,7 @@ end
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
 -- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents
 -- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
--- db.costs             = { [itemID] = { q, c } }, what the items you hold cost you (see Sales.lua); costsSeeded = when begun
+-- db.costs             = { [itemID] = { q, c } }, what the items you hold cost you (see Sales.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } }, ... }
 --
@@ -93,6 +93,16 @@ local function Normalize(db)
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
 	db.costs = db.costs or {}
+	-- 1.7.0 valued the materials held when costs began at market prices, which made sales of things crafted from
+	-- them look like losses. Those pools, and everything crafted from them, start again at nothing.
+	if db.costsSeeded then
+		db.costs, db.costsSeeded = {}, nil
+		for _, item in pairs(db.sales.items) do
+			for _, day in pairs(item.days or {}) do
+				if not day.x then day.c = 0; day.u = day.s end
+			end
+		end
+	end
 	-- Profit starts counting when costs do. Earlier results (x) only feed the chance to sell and the tooltips.
 	if not db.sales.profitFrom then
 		db.sales.profitFrom = time()

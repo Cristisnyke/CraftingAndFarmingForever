@@ -1543,7 +1543,10 @@ ns.Queue.Add(10, 1)
 CraftingAndFarmingForeverDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {},
 	ui = { hideLosing = true, manualChat = {}, positions = { main = { x = 1, y = 2 }, next = { x = 3, y = 4 }, farm = { x = 5, y = 6 } } },
 	auctionLog = { "old" },
-	sales = { seen = { someone = { { key = "sold|Copper Axe|2|500", expires = 1 }, { key = "sold|Copper Axe|500", expires = 1 } } } } }
+	costs = { [901] = { q = 5, c = 500 } }, costsSeeded = 1,
+	sales = { profitFrom = 1, items = { axe = { name = "Axe", sold = 2, expired = 0, gold = 900, exposure = 0,
+		days = { [1] = { s = 2, e = 0, g = 900, c = 300, u = 0 }, [0] = { s = 1, e = 0, g = 400, c = 100, u = 0, x = true } } } },
+		seen = { someone = { { key = "sold|Copper Axe|2|500", expires = 1 }, { key = "sold|Copper Axe|500", expires = 1 } } } } }
 RunTimers()
 Fire("PLAYER_LOGOUT")
 check("late data adopted", ns.db, CraftingAndFarmingForeverDB)
@@ -1551,6 +1554,10 @@ check("old mail record loses its count", ns.db.sales.seen.someone[1].key, "sold|
 check("new mail record left alone", ns.db.sales.seen.someone[2].key, "sold|Copper Axe|500")
 ns.db.sales.seen.someone = nil
 check("old auction log dropped", ns.db.auctionLog, nil)
+check("market-valued costs from 1.7.0 dropped", next(ns.db.costs) == nil and ns.db.costsSeeded == nil, true)
+check("their sales cost nothing", ns.db.sales.items.axe.days[1].c == 0 and ns.db.sales.items.axe.days[1].u == 2, true)
+check("results from before profit untouched", ns.db.sales.items.axe.days[0].c, 100)
+ns.db.sales.items.axe = nil
 check("old options dropped", ns.db.ui.hideLosing == nil and ns.db.ui.manualChat == nil, true)
 check("old window positions dropped", ns.db.ui.positions.farm, nil)
 check("main position kept", ns.db.ui.positions.main.y, 2)
@@ -2519,7 +2526,7 @@ end
 
 -- Sales profit: what was paid for materials follows them through the craft to the sale.
 do
-	ns.db.sales.items, ns.db.sales.lots, ns.db.costs, ns.db.costsSeeded = {}, {}, {}, 1
+	ns.db.sales.items, ns.db.sales.lots, ns.db.costs = {}, {}, {}
 	Fire("COMMODITY_PRICE_UPDATED", 100, 1000)
 	C_AuctionHouse.ConfirmCommoditiesPurchase(901, 10)
 	Fire("COMMODITY_PURCHASE_SUCCEEDED")
@@ -2568,9 +2575,11 @@ do
 	check("earlier sales kept for the history", ns.Sales.Item("old thing").sold, 3)
 	ns.db.sales.items["old thing"] = nil
 
-	-- A crafted item sold with no cost on record is marked as an estimate.
+	-- A crafted item sold with no cost on record (made before costs were kept) costs nothing: profit follows gold.
 	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
-	check("no cost on record: estimate", select(2, ns.Sales.Profit(thing, 1)), true)
+	local noCost, noCostRough = ns.Sales.Profit(thing, 1)
+	check("no cost on record: all of it is profit", noCost, 550 + 950)
+	check("no cost on record: not an estimate", noCostRough, false)
 
 	ns.UI.Show("sales")
 	local window = ns.UI.windows.sales

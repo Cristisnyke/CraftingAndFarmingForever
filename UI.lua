@@ -620,10 +620,10 @@ local function AddSalesLines(name)
 			1, 1, 1, 1, 1, 1)
 	end
 	GameTooltip:AddLine("Profit is the money you received, after the auction house cut, less what the sold items "
-		.. "cost you: materials at the price you paid, gathered ones at nothing.", 0.6, 0.6, 0.6, true)
+		.. "cost you: materials at the price you paid, gathered ones and ones you already had at nothing.",
+		0.6, 0.6, 0.6, true)
 	if estimated then
-		GameTooltip:AddLine("~ Some were made before the add-on recorded costs. Those count at today's cost to "
-			.. "craft one.", 0.6, 0.6, 0.6, true)
+		GameTooltip:AddLine("~ Part of it is still on its way, at an estimated price.", 0.6, 0.6, 0.6, true)
 	end
 end
 

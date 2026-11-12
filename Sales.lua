@@ -209,7 +209,7 @@ local function CraftInfo()
 			local name = ns.Items.Name(itemID)
 			if name then names[name:lower()] = itemID end
 		end
-		craftInfo = { at = now, ctx = ctx, names = names, unit = {} }
+		craftInfo = { at = now, ctx = ctx, names = names }
 	end
 	return craftInfo
 end
@@ -225,16 +225,9 @@ function Sales.CraftedID(item)
 	return info.names[item.name:lower()]
 end
 
--- Today's cost to craft one of a crafted item, nil when unknown.
-local function CraftUnit(itemID)
-	local info = CraftInfo()
-	if info.unit[itemID] == nil then info.unit[itemID] = ns.Planner.CraftUnitCost(info.ctx, itemID) or false end
-	return info.unit[itemID] or nil
-end
-
 -- Sales whose money is still on its way or waiting in a mailbox: the mail hasn't been read, so they aren't in the
--- records yet. Returns units, copper expected, what they cost and whether any of it is an estimate, for one item
--- (by lowercase name) over the last N days.
+-- records yet. Returns units, copper expected, what they cost and whether any amount is an estimate, for one item
+-- (by lowercase name) over the last N days. Units with no cost on record cost nothing, as in Sales.Profit.
 local function Pending(key, days)
 	local first = days and DayNumber(time()) - days + 1
 	local count, gold, cost, rough = 0, 0, 0, false
@@ -247,9 +240,6 @@ local function Pending(key, days)
 			local pool = itemID and ns.db.costs[itemID]
 			if pool and pool.q >= 1 then
 				cost = cost + pool.c / pool.q
-			elseif itemID and CraftInfo().ctx.known[itemID] then
-				cost = cost + (CraftUnit(itemID) or 0)
-				rough = true
 			end
 		end
 	end
@@ -257,22 +247,14 @@ local function Pending(key, days)
 end
 
 -- Profit over the last N days (nil for all time): the money received, after the AH cut, less what the sold units
--- cost you. Then whether part of that cost is an estimate, and sold, expired and copper received. Only results
--- from since profit is counted. Units with no cost on record (made before then) are estimated at today's cost to
--- craft one.
+-- cost you. Then whether part of it is an estimate, and sold, expired and copper received. Only results from since
+-- profit is counted. It follows your gold: units with no cost on record (made before then, or from gathered
+-- materials) cost nothing, since that money was spent before profit was counted, or never.
 function Sales.Profit(item, days)
-	local sold, expired, gold, cost, unknown = Tracked(item, days)
-	local rough = false
-	if unknown > 0 then
-		local itemID = Sales.CraftedID(item)
-		if itemID then
-			cost = cost + unknown * (CraftUnit(itemID) or 0)
-			rough = true
-		end
-	end
+	local sold, expired, gold, cost = Tracked(item, days)
 	-- Sold, but the money is still on its way.
 	local pendingCount, pendingGold, pendingCost, pendingRough = Pending(item.name:lower(), days)
-	return gold + pendingGold - cost - pendingCost, rough or pendingRough, sold + pendingCount, expired, gold + pendingGold
+	return gold + pendingGold - cost - pendingCost, pendingRough, sold + pendingCount, expired, gold + pendingGold
 end
 
 -- Sold, expired, copper received, profit and whether the profit is partly estimated, over the last N days. Only
@@ -324,7 +306,9 @@ end
 -- A running record of what you paid for the items you hold, so a sale's profit is counted from real spending:
 -- auction house purchases at the price paid, crafts at what their materials cost, materials you gathered at
 -- nothing. Each item is one pool with an average cost, shared by all characters, since mail moves things between
--- them. What you already held when this record began is valued once at that day's prices.
+-- them. What you already held when this record began costs nothing: it was paid for before profit was counted, so
+-- profit follows your gold. (1.7.0 valued it at market prices, so selling things made from old or gathered stock
+-- showed a loss while gold went up.)
 
 function Sales.AddCost(itemID, qty, copper)
 	if not (itemID and qty and qty > 0) then return end
@@ -350,35 +334,8 @@ function Sales.TakeCost(itemID, qty)
 	return cost, take
 end
 
--- Once: materials on hand count as bought at today's price, so old stock isn't mistaken for free. False when the
--- stock of other characters can't be read yet.
-function Sales.SeedCosts(force)
-	if ns.db.costsSeeded then return true end
-	if not force and _G.Syndicator and not ns.Stock.HasSyndicator() then return false end
-	local ctx = ns.NewContext()
-	local seen = {}
-	for _, recipe in pairs(ns.db.recipes) do
-		for _, slot in ipairs(recipe.r or {}) do
-			for index = 2, #slot do
-				local itemID = slot[index]
-				if not seen[itemID] then
-					seen[itemID] = true
-					local _, held = ns.Stock.ForRestock(itemID)
-					local unit = ns.Planner.ItemCost(ctx, itemID)
-					if held and held > 0 and unit and not ns.db.costs[itemID] then
-						Sales.AddCost(itemID, held, held * unit)
-					end
-				end
-			end
-		end
-	end
-	ns.db.costsSeeded = time()
-	return true
-end
-
 -- An auction house purchase: the price paid, or the market price when the game didn't say.
 function Sales.NotePurchase(itemID, count, paid)
-	Sales.SeedCosts(true)
 	if not paid then
 		local market = ns.Prices.AH(itemID)
 		paid = market and market * count or 0
@@ -390,7 +347,6 @@ end
 -- on record were gathered, so they're free, unless a vendor sells them: then they were bought there.
 function Sales.NoteCraft(recipe)
 	if not recipe.o then return end
-	Sales.SeedCosts(true)
 	local total = 0
 	for _, slot in ipairs(recipe.r or {}) do
 		local count, itemID = slot[1], slot[2]
@@ -417,17 +373,6 @@ ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 	if unit ~= "player" or (issecretvalue and issecretvalue(spellID)) then return end
 	local recipe = ns.db.recipes[spellID]
 	if recipe then Sales.NoteCraft(recipe) end
-end)
-
-ns.On("PLAYER_LOGIN", function()
-	ns.WhenDataReady(function()
-		local tries = 0
-		local function Seed()
-			tries = tries + 1
-			if not Sales.SeedCosts(tries >= 12) then C_Timer.After(5, Seed) end
-		end
-		C_Timer.After(5, Seed)
-	end)
 end)
 
 ---------------------------------------------------------------------------
