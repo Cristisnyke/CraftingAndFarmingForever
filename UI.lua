@@ -8,6 +8,7 @@ local UI = {}
 ns.UI = UI
 
 local ROW_HEIGHT = 22
+local ROW_GLOW = 0.16 -- how strongly a row lights up under the mouse
 local ROW_COUNT = 48 -- enough for the tallest window
 local MAIN_WIDTH = 680 -- default and narrowest width: five tabs beside Refresh
 local BESIDE_WIDTH = 1240 -- default width with the queue beside Restock
@@ -32,6 +33,72 @@ local TAB_COUNT = 16
 local MINI_ROW_HEIGHT = 15
 local MINI_TOP = 26
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED = "ff55dd55", "ffff6655", "ff999999"
+
+-- One blue palette for every window, button and list, the same family as the Craft Next bar.
+local WHITE = "Interface\\Buttons\\WHITE8X8"
+local THEME = {
+	bg = { 0.04, 0.05, 0.075 },
+	header = { 0.065, 0.095, 0.15 },
+	border = { 0.16, 0.27, 0.44 },
+	accent = { 0.27, 0.58, 1.00 },
+	button = { 0.085, 0.14, 0.235 },
+	buttonEdge = { 0.20, 0.34, 0.56 },
+	primary = { 0.13, 0.36, 0.70 },
+	primaryEdge = { 0.34, 0.60, 0.98 },
+	field = { 0.02, 0.03, 0.05 },
+}
+UI.THEME = THEME
+
+-- A dark fill with a one-pixel edge, drawn behind a button or a box.
+local function FlatBox(frame, fill, edge, left, right)
+	local border = frame:CreateTexture(nil, "BACKGROUND")
+	border:SetPoint("TOPLEFT", left or 0, 0)
+	border:SetPoint("BOTTOMRIGHT", right or 0, 0)
+	border:SetColorTexture(edge[1], edge[2], edge[3], 1)
+	local inside = frame:CreateTexture(nil, "BORDER")
+	inside:SetPoint("TOPLEFT", border, "TOPLEFT", 1, -1)
+	inside:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", -1, 1)
+	inside:SetColorTexture(fill[1], fill[2], fill[3], 1)
+end
+
+-- The add-on's own button: flat, lights up under the mouse (and while LockHighlight marks it selected), dims when
+-- disabled. primary is the brighter blue of a pane's main action.
+local function FlatButton(parent, text, width, height, primary, name, template)
+	local button = CreateFrame("Button", name, parent, template)
+	button:SetSize(width, height)
+	FlatBox(button, primary and THEME.primary or THEME.button, primary and THEME.primaryEdge or THEME.buttonEdge)
+	button:SetHighlightTexture(WHITE, "ADD")
+	local glow = button:GetHighlightTexture()
+	if glow then glow:SetVertexColor(0.30, 0.55, 1, 0.30) end
+	button:SetDisabledTexture(WHITE)
+	local dim = button:GetDisabledTexture()
+	if dim then dim:SetVertexColor(0.02, 0.03, 0.05, 0.6) end
+	button:SetNormalFontObject("GameFontHighlightSmall")
+	button:SetHighlightFontObject("GameFontHighlightSmall")
+	button:SetDisabledFontObject("GameFontDisableSmall")
+	button:SetPushedTextOffset(1, -1)
+	button:SetText(text or "")
+	return button
+end
+UI.FlatButton = FlatButton
+
+-- The game's input box without its rounded border, on the theme's dark field. Left alone if the template's parts
+-- aren't where they're expected.
+local function SkinBox(box)
+	if type(box.Left) ~= "table" or type(box.Middle) ~= "table" or type(box.Right) ~= "table" then return box end
+	box.Left:SetAlpha(0)
+	box.Middle:SetAlpha(0)
+	box.Right:SetAlpha(0)
+	FlatBox(box, THEME.field, THEME.buttonEdge, -5, 2)
+	return box
+end
+UI.SkinBox = SkinBox
+
+local function ThemeBackdrop(frame, alpha)
+	frame:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = 1 })
+	frame:SetBackdropColor(THEME.bg[1], THEME.bg[2], THEME.bg[3], alpha or 0.97)
+	frame:SetBackdropBorderColor(THEME.border[1], THEME.border[2], THEME.border[3], 1)
+end
 
 local function Color(hex, text)
 	return "|c" .. hex .. text .. "|r"
@@ -778,9 +845,7 @@ local function RowOnClick(row)
 end
 
 local function SmallButton(parent, text, onClick)
-	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-	button:SetSize(20, 18)
-	button:SetText(text)
+	local button = FlatButton(parent, text, 20, 18)
 	button:SetScript("OnClick", onClick)
 	return button
 end
@@ -919,13 +984,7 @@ local function AskQueueAmount(owner, recipeID)
 		local frame = CreateFrame("Frame", "CFFAmountPopup", main.frame, "BackdropTemplate")
 		frame:SetSize(220, 60)
 		frame:SetFrameStrata("DIALOG")
-		frame:SetBackdrop({
-			bgFile = "Interface\\Buttons\\WHITE8X8",
-			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-			edgeSize = 14,
-			insets = { left = 3, right = 3, top = 3, bottom = 3 },
-		})
-		frame:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
+		ThemeBackdrop(frame)
 		frame:EnableMouse(true)
 
 		frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -934,7 +993,7 @@ local function AskQueueAmount(owner, recipeID)
 		frame.title:SetJustifyH("LEFT")
 		frame.title:SetWordWrap(false)
 
-		local box = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+		local box = SkinBox(CreateFrame("EditBox", nil, frame, "InputBoxTemplate"))
 		box:SetSize(56, 20)
 		box:SetPoint("BOTTOMLEFT", 16, 9)
 		box:SetAutoFocus(false)
@@ -947,14 +1006,10 @@ local function AskQueueAmount(owner, recipeID)
 			if count and count > 0 then ns.Queue.Add(frame.recipeID, count) end
 			frame:Hide()
 		end
-		local queue = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-		queue:SetSize(64, 22)
-		queue:SetText("Queue")
+		local queue = FlatButton(frame, "Queue", 64, 22, true)
 		queue:SetPoint("LEFT", box, "RIGHT", 8, 0)
 		queue:SetScript("OnClick", Accept)
-		local cancel = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-		cancel:SetSize(64, 22)
-		cancel:SetText(CANCEL or "Cancel")
+		local cancel = FlatButton(frame, CANCEL or "Cancel", 64, 22)
 		cancel:SetPoint("LEFT", queue, "RIGHT", 4, 0)
 		cancel:SetScript("OnClick", function() frame:Hide() end)
 
@@ -978,7 +1033,9 @@ UI.AskQueueAmount = AskQueueAmount
 local function CreateRow(parent)
 	local row = CreateFrame("Button", nil, parent)
 	row:SetHeight(ROW_HEIGHT)
-	row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+	row:SetHighlightTexture(WHITE, "ADD")
+	local rowGlow = row:GetHighlightTexture()
+	if rowGlow then rowGlow:SetVertexColor(0.30, 0.55, 1, ROW_GLOW) end
 	row:SetScript("OnEnter", RowOnEnter)
 	row:SetScript("OnLeave", GameTooltip_Hide)
 	row:SetScript("OnClick", RowOnClick)
@@ -986,6 +1043,19 @@ local function CreateRow(parent)
 	row.icon = row:CreateTexture(nil, "ARTWORK")
 	row.icon:SetSize(18, 18)
 	row.icon:SetPoint("LEFT", 2, 0)
+	row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- without the icon's own rounded border
+
+	-- Behind a section heading: a faint blue band with a bright mark at its left end.
+	row.band = row:CreateTexture(nil, "BACKGROUND")
+	row.band:SetAllPoints()
+	row.band:SetColorTexture(THEME.accent[1], THEME.accent[2], THEME.accent[3], 0.10)
+	row.band:Hide()
+	row.bandMark = row:CreateTexture(nil, "BORDER")
+	row.bandMark:SetColorTexture(THEME.accent[1], THEME.accent[2], THEME.accent[3], 0.9)
+	row.bandMark:SetWidth(2)
+	row.bandMark:SetPoint("TOPLEFT")
+	row.bandMark:SetPoint("BOTTOMLEFT")
+	row.bandMark:Hide()
 
 	row.plus = SmallButton(row, "+", function(self, button)
 		local data = self:GetParent().data
@@ -1024,7 +1094,7 @@ local function CreateRow(parent)
 	row.minus:SetScript("OnLeave", GameTooltip_Hide)
 
 	-- The amount between - and +: queued crafts, or a restock goal. Saved on Enter or when it loses focus.
-	local amount = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+	local amount = SkinBox(CreateFrame("EditBox", nil, row, "InputBoxTemplate"))
 	amount:SetSize(34, 18)
 	amount:SetAutoFocus(false)
 	amount:SetNumeric(true)
@@ -1126,12 +1196,12 @@ local function CreateRow(parent)
 		heading.key = key
 		local bg = heading:CreateTexture(nil, "BACKGROUND")
 		bg:SetAllPoints()
-		bg:SetColorTexture(1, 1, 1, 0.07)
+		bg:SetColorTexture(THEME.button[1], THEME.button[2], THEME.button[3], 1)
 		local glow = heading:CreateTexture(nil, "HIGHLIGHT")
 		glow:SetAllPoints()
-		glow:SetColorTexture(1, 0.82, 0, 0.2)
+		glow:SetColorTexture(0.30, 0.55, 1, 0.25)
 		heading.edge = heading:CreateTexture(nil, "ARTWORK")
-		heading.edge:SetColorTexture(1, 0.82, 0, 0.9)
+		heading.edge:SetColorTexture(THEME.accent[1], THEME.accent[2], THEME.accent[3], 1)
 		heading.edge:SetHeight(1)
 		heading.edge:SetPoint("BOTTOMLEFT")
 		heading.edge:SetPoint("BOTTOMRIGHT")
@@ -1218,7 +1288,10 @@ local function SetRow(row, data)
 	-- The Profit headings light up one by one, so the row as a whole doesn't.
 	local rowGlow = row:GetHighlightTexture()
 	local sortable = data.kind == "header" and SORTS[data.columns] ~= nil
-	if rowGlow then rowGlow:SetAlpha(sortable and 0 or 1) end
+	if rowGlow then rowGlow:SetAlpha(sortable and 0 or ROW_GLOW) end
+	local banded = data.kind == "header" and not sortable
+	row.band:SetShown(banded)
+	row.bandMark:SetShown(banded)
 	row.tint:Hide()
 	row.amountLabel:Hide()
 	row.amount:SetTextColor(1, 1, 1)
@@ -1514,8 +1587,8 @@ function UpdateTabStrip()
 		local unseen = tab.key == "changelog" and ns.WhatsNew and ns.WhatsNew.HasUnseen()
 		tab.label:SetText(Color(selected and "ffffffff" or (unseen and "ff55dd55" or "ffb8b8b8"), title))
 		tab.badge:SetShown(unseen and true or false)
-		local shade = selected and 0.24 or 0.11
-		tab.bg:SetColorTexture(shade, shade, shade + 0.03, 1)
+		local shade = selected and THEME.primary or THEME.button
+		tab.bg:SetColorTexture(shade[1], shade[2], shade[3], selected and 0.55 or 0.6)
 		tab.accent:SetShown(selected)
 	end
 end
@@ -1561,10 +1634,8 @@ local function SavePosition(key, frame)
 	ns.db.ui.positions[key] = { x = left, y = top }
 end
 
-local function HeaderButton(frame, text, width, onClick)
-	local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-	button:SetSize(width, 22)
-	button:SetText(text)
+local function HeaderButton(frame, text, width, onClick, primary)
+	local button = FlatButton(frame, text, width, 22, primary)
 	button:SetScript("OnClick", onClick)
 	return button
 end
@@ -1576,13 +1647,7 @@ local function MakeMovable(frame, key)
 	frame:SetClampedToScreen(true)
 	-- A plain white texture tinted dark, not the tooltip background: that texture is itself see-through, so the game
 	-- world and other windows showed through the lists at any opacity.
-	frame:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8X8",
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 14,
-		insets = { left = 3, right = 3, top = 3, bottom = 3 },
-	})
-	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
+	ThemeBackdrop(frame)
 	frame:EnableMouse(true)
 	frame:SetMovable(true)
 	frame:RegisterForDrag("LeftButton")
@@ -1612,6 +1677,11 @@ local function CreateListArea(window, parent, left, top, footer, rowHeight)
 		row:SetHeight(rowHeight)
 		row:SetPoint("TOPLEFT", 0, -(i - 1) * rowHeight)
 		row:SetPoint("TOPRIGHT", 0, -(i - 1) * rowHeight)
+		if i % 2 == 0 then
+			local stripe = row:CreateTexture(nil, "BACKGROUND", nil, -8)
+			stripe:SetAllPoints()
+			stripe:SetColorTexture(1, 1, 1, 0.025)
+		end
 		row:Hide()
 		window.rows[i] = row
 	end
@@ -1619,13 +1689,16 @@ local function CreateListArea(window, parent, left, top, footer, rowHeight)
 	local slider = CreateFrame("Slider", nil, parent)
 	slider:SetPoint("TOPRIGHT", -10, -top)
 	slider:SetPoint("BOTTOMRIGHT", -10, footer)
-	slider:SetWidth(10)
+	slider:SetWidth(8)
+	local track = slider:CreateTexture(nil, "BACKGROUND")
+	track:SetAllPoints()
+	track:SetColorTexture(1, 1, 1, 0.04)
 	slider:SetOrientation("VERTICAL")
 	slider:SetValueStep(1)
 	slider:SetObeyStepOnDrag(true)
 	local thumb = slider:CreateTexture(nil, "OVERLAY")
-	thumb:SetColorTexture(0.6, 0.6, 0.6, 0.8)
-	thumb:SetSize(10, 36)
+	thumb:SetColorTexture(THEME.buttonEdge[1], THEME.buttonEdge[2], THEME.buttonEdge[3], 1)
+	thumb:SetSize(8, 36)
 	slider:SetThumbTexture(thumb)
 	slider:SetScript("OnValueChanged", function(_, value)
 		local offset = math.floor(value + 0.5)
@@ -1653,8 +1726,7 @@ local function CreatePane(key, footerHeight, withTabs)
 	if withTabs then
 		window.tabs = {}
 		for i = 1, TAB_COUNT do
-			local tab = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-			tab:SetSize(TAB_WIDTH - 6, 24)
+			local tab = FlatButton(frame, "", TAB_WIDTH - 6, 24)
 			tab:SetPoint("TOPLEFT", 10, -PANE_LIST_TOP - (i - 1) * 26)
 			tab:SetScript("OnClick", function(self) UI.SelectProfession(key, self.professionID) end)
 			tab:Hide()
@@ -1735,7 +1807,7 @@ function CreateProfitPane()
 	end)
 	window.hideUnprofitable = hideUnprofitable
 
-	local search = CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate")
+	local search = SkinBox(CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate"))
 	search:SetSize(200, 20)
 	search:SetPoint("BOTTOMRIGHT", -24, 7) -- in the footer: the stale-price banner has the right of the top row
 	search:SetAutoFocus(false)
@@ -1826,7 +1898,7 @@ local function NumberBox(parent, labelText, previous, read, write, paneKey)
 	else
 		label:SetPoint("BOTTOMLEFT", 12, 72)
 	end
-	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	local box = SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
 	box:SetSize(38, 20)
 	box:SetPoint("LEFT", label, "RIGHT", 8, 0)
 	box:SetAutoFocus(false)
@@ -2349,7 +2421,7 @@ local function CreateNextWindow()
 	MakeMovable(frame, "next")
 	frame:SetFrameStrata("MEDIUM") -- under the main window and dialogs, as it's always there
 	frame:SetSize(NEXT_WIDTH, MINI_TOP + 8)
-	frame:SetBackdropColor(0.05, 0.05, 0.07, 0.85)
+	ThemeBackdrop(frame, 0.88)
 
 	local fold = HeaderButton(frame, "-", 22, function()
 		ns.db.ui.nextMinimized = not ns.db.ui.nextMinimized or nil
@@ -2567,7 +2639,7 @@ function CreateRestockPane()
 		local added = ns.Restock.Apply(rows, selectedProfession.restock)
 		ns.Print(("Restock: %s added to the queue."):format(ns.Plural(added, "item", "items")))
 		UI.Show("queue")
-	end)
+	end, true)
 	apply:SetHeight(26)
 	apply:ClearAllPoints()
 	apply:SetPoint("BOTTOMLEFT", 10, 10)
@@ -2792,13 +2864,15 @@ local function CreateMain()
 		else
 			tab:SetPoint("TOPLEFT", main.tabButtons[index - 1], "TOPRIGHT", 2, 0)
 		end
-		tab:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+		tab:SetHighlightTexture(WHITE, "ADD")
+		local tabGlow = tab:GetHighlightTexture()
+		if tabGlow then tabGlow:SetVertexColor(0.30, 0.55, 1, 0.22) end
 		tab:SetScript("OnClick", function() UI.Select(info.key) end)
 		tab.key, tab.title = info.key, info.title
 		tab.bg = tab:CreateTexture(nil, "BACKGROUND")
 		tab.bg:SetAllPoints()
 		tab.accent = tab:CreateTexture(nil, "ARTWORK")
-		tab.accent:SetColorTexture(1, 0.82, 0, 1)
+		tab.accent:SetColorTexture(THEME.accent[1], THEME.accent[2], THEME.accent[3], 1)
 		tab.accent:SetHeight(2)
 		tab.accent:SetPoint("BOTTOMLEFT")
 		tab.accent:SetPoint("BOTTOMRIGHT")
@@ -2812,8 +2886,15 @@ local function CreateMain()
 		main.tabButtons[index] = tab
 	end
 
-	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-	close:SetPoint("TOPRIGHT", 0, 0)
+	-- The strip behind the title and tabs.
+	local strip = frame:CreateTexture(nil, "BORDER")
+	strip:SetPoint("TOPLEFT", 1, -1)
+	strip:SetPoint("TOPRIGHT", -1, -1)
+	strip:SetHeight(MAIN_TOP - 2)
+	strip:SetColorTexture(THEME.header[1], THEME.header[2], THEME.header[3], 1)
+
+	local close = FlatButton(frame, "X", 20, 20)
+	close:SetPoint("TOPRIGHT", -8, -8)
 	close:SetScript("OnClick", function() frame:Hide() end)
 
 	local refresh = HeaderButton(frame, "Refresh", 70, function() ns.RefreshEverything() end)
@@ -2831,13 +2912,13 @@ local function CreateMain()
 	refresh:SetScript("OnLeave", GameTooltip_Hide)
 
 	local rule = frame:CreateTexture(nil, "ARTWORK")
-	rule:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+	rule:SetColorTexture(THEME.accent[1], THEME.accent[2], THEME.accent[3], 0.7)
 	rule:SetHeight(1)
-	rule:SetPoint("TOPLEFT", 6, -MAIN_TOP + 1)
-	rule:SetPoint("TOPRIGHT", -6, -MAIN_TOP + 1)
+	rule:SetPoint("TOPLEFT", 1, -MAIN_TOP + 1)
+	rule:SetPoint("TOPRIGHT", -1, -MAIN_TOP + 1)
 
 	main.divider = frame:CreateTexture(nil, "ARTWORK")
-	main.divider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+	main.divider:SetColorTexture(THEME.border[1], THEME.border[2], THEME.border[3], 1)
 	main.divider:SetWidth(1)
 
 	-- Drag the corner to resize; right-click it for the default size.
@@ -2879,7 +2960,7 @@ local function CreateMain()
 	banner.text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	banner.text:SetTextColor(1, 0.6, 0.2)
 	main.banner = banner
-	main.scanButton = HeaderButton(banner, "Scan now", 80, function() ns.Prices.StartScan() end)
+	main.scanButton = HeaderButton(banner, "Scan now", 80, function() ns.Prices.StartScan() end, true)
 	main.scanButton:SetPoint("RIGHT")
 
 	frame:SetScript("OnShow", Layout)
@@ -2996,8 +3077,7 @@ local function HookProfessionWindow()
 	local form = page.SchematicForm
 	if form then
 		-- On the recipe's own pane, under the favourite star: clear of long names, which run left to right along the top.
-		queueButton = CreateFrame("Button", "CFFQueueButton", form, "UIPanelButtonTemplate")
-		queueButton:SetSize(64, 22)
+		queueButton = FlatButton(form, "Queue", 64, 22, true, "CFFQueueButton")
 		queueButton:SetPoint("TOPRIGHT", form, "TOPRIGHT", -12, -47)
 		queueButton:SetText("Queue")
 		UI.queueButton = queueButton
@@ -3208,8 +3288,7 @@ local adBox, destinationButton, destinationMenu
 local adOpen = false
 
 local function CreateDestinationPicker()
-	adBox = CreateFrame("Button", "CFFAdBox", UIParent, "UIPanelButtonTemplate")
-	adBox:SetSize(AD_BOX_WIDTH, AD_BOX_HEIGHT)
+	adBox = FlatButton(UIParent, "Ad", AD_BOX_WIDTH, AD_BOX_HEIGHT, false, "CFFAdBox")
 	-- Past the chat frame's own scroll bar.
 	adBox:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, 0)
 	adBox:SetText("Ad")
@@ -3224,8 +3303,7 @@ local function CreateDestinationPicker()
 	end)
 	Advertise.box = adBox
 
-	destinationButton = CreateFrame("Button", "CFFAdDestination", UIParent, "UIPanelButtonTemplate")
-	destinationButton:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
+	destinationButton = FlatButton(UIParent, "", AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT, false, "CFFAdDestination")
 	destinationButton:SetPoint("BOTTOMLEFT", adBox, "TOPLEFT", 0, 2)
 	destinationButton:Hide()
 	Advertise.destinationButton = destinationButton
@@ -3237,8 +3315,7 @@ local function CreateDestinationPicker()
 	Advertise.destinationMenu = destinationMenu
 	destinationMenu.options = {}
 	for index, destination in ipairs(DESTINATIONS) do
-		local option = CreateFrame("Button", nil, destinationMenu, "UIPanelButtonTemplate")
-		option:SetSize(60, AD_BUTTON_HEIGHT)
+		local option = FlatButton(destinationMenu, "", 60, AD_BUTTON_HEIGHT)
 		option:SetPoint("BOTTOMLEFT", 0, (index - 1) * AD_BUTTON_HEIGHT)
 		option:SetText(destination.label)
 		option:SetScript("OnClick", function()
@@ -3274,8 +3351,8 @@ end
 local function AdButton(index)
 	local button = adButtons[index]
 	if not button then
-		button = CreateFrame("Button", "CFFAdvertiseButton" .. index, UIParent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
-		button:SetSize(AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT)
+		button = FlatButton(UIParent, "", AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT, false, "CFFAdvertiseButton" .. index,
+			"SecureActionButtonTemplate")
 		button:RegisterForClicks("AnyUp", "AnyDown")
 		button:SetAttribute("type", "macro")
 		button:SetScript("PostClick", function(self, _, down)

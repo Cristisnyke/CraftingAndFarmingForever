@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- New look: the windows, buttons, tabs and lists share one flat dark-blue style that matches the Craft Next bar, with striped rows, marked section headings and cleaner item icons
+
 ## 1.5.3
 
 - Farm It: gathering is now the first step. Fetching from alts, the bank, the auction house, the mailbox and the vendor come after it, so you only go to town once for what's still missing

@@ -525,7 +525,7 @@ function UpdateForm()
 end
 
 local function NumberBox(parent, width)
-	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	local box = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
 	box:SetSize(width, 20)
 	box:SetAutoFocus(false)
 	box:SetNumeric(true)
@@ -625,7 +625,7 @@ local function CreateForm(parent)
 	form.result = Text(panel, "GameFontHighlightSmall", 222)
 	form.note = Text(panel, "GameFontNormalSmall", 256)
 
-	form.post = ns.UI.HeaderButton(panel, "Post", 100, function() Posting.PostSelected() end)
+	form.post = ns.UI.HeaderButton(panel, "Post", 100, function() Posting.PostSelected() end, true)
 	form.post:SetHeight(26)
 	form.post:ClearAllPoints()
 	form.post:SetPoint("BOTTOMLEFT", 8, 32)
