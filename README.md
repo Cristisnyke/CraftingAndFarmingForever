@@ -21,17 +21,21 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 
 ## Screenshots
 
-**Profit**: every known recipe ranked by profit, with each item's chance of selling.
+**Profit**: every known recipe ranked by profit, with each item's chance of selling. Click a heading to sort, or switch to Skill up for the cheapest way to level.
 
 ![Profit tab](docs/images/profit.png)
 
-**Queue**: the shared queue with its sub-crafts, profit and quotes.
+**Queue**: a numbered to-do list in working order: what to buy, fetch and gather, then what to craft, with the total profit and the Craft Next bar at the bottom.
 
 ![Queue tab](docs/images/queue.png)
 
-**Restock beside the queue**: goals on the left; on the right, the queue in Farm It mode, with where to mine and skin what's missing.
+**Next step bar**: the current step in a small window you can keep open while you play.
 
-![Restock tab with the queue beside it](docs/images/restock-and-queue.png)
+![Next step bar](docs/images/next-step.png)
+
+**Restock**: a goal per item, what's on the auction house and in your bags, and how many to craft to get back to the goal.
+
+![Restock tab](docs/images/restock.png)
 
 **Sales**: what sold and expired per item, from your auction house mail, with each item's chance of selling within 24 hours.
 
