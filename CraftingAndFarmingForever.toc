@@ -2,7 +2,7 @@
 ## Title: Crafting and Farming Forever
 ## Notes: Profit for every recipe your characters know, a shared craft queue, a live Auctionator shopping list that accounts for what you own, and a Farm It list of what to gather and where. Needs Auctionator and Syndicator to work properly. TradeSkillMaster support is coming.
 ## Author: Cristisnyke
-## Version: 1.8.2
+## Version: 1.9.0
 ## Dependencies: Auctionator
 ## OptionalDeps: Syndicator
 ## SavedVariables: CraftingAndFarmingForeverDB
