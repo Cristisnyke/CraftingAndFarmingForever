@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.9.0", lines = {
+		"- Profit: a crafted item listed for more than 400% of its material cost (often one odd listing, like 7s of materials posted for 20g) now counts at 200% of the material cost, so it can't show a huge profit that won't sell. Its row on the Profit and Queue tabs says \"check price\" in orange, and the tooltip shows the real listing. Both numbers, and the limit itself, are on the Options tab",
+	} },
 	{ version = "1.8.2", lines = {
 		"- Sales tab: new Reset profit button, top right. It starts your profit again from zero, from now, after asking you to confirm. Your sales history still counts for the chance to sell",
 	} },
