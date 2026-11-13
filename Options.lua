@@ -250,8 +250,9 @@ function Options.Build(parent, top)
 	y = y + 22
 	AddCheck("smartRestock", "Smart restock goals",
 		"Goals follow your sales: more of what sells well, fewer of what expires, daggers in pairs, and never more "
-			.. "than a quarter of your gold on one item. They keep adjusting as you sell. A goal you set yourself "
-			.. "always stays. Off: every item uses the default goals.",
+			.. "than a quarter of your gold on one item. They keep adjusting as you sell. Without the gold for a full "
+			.. "restock you get a partial one, the most profitable part. A goal you set yourself always stays. Off: "
+			.. "every item uses the default goals.",
 		nil, function(on)
 			ns.SetOption("smartRestock", on)
 			ns.Restock.ForgetSmart()

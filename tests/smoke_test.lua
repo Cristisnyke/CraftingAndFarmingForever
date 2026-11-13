@@ -892,6 +892,30 @@ do
 	ns.db.sales.items[name:lower()], playerMoney = saved, money
 	ns.Restock.ForgetSmart()
 end
+
+-- No gold: the restock is cut to what costs nothing, and the tab says so.
+do
+	local money = playerMoney
+	local _, enough = ns.Restock.Rows()
+	playerMoney = 0
+	ns.Restock.ForgetSmart()
+	local cut, budget = ns.Restock.Rows()
+	if enough and enough.full > 0 then
+		check("no gold: restock is partial", budget.short, true)
+		check("no gold: nothing to buy", budget.cost, 0)
+		local marked = false
+		for _, row in ipairs(cut) do marked = marked or row.wanted ~= nil end
+		check("no gold: cut rows say what was wanted", marked, true)
+		ns.UI.Show("restock")
+		ns.UI.Refresh("restock")
+		check("no gold: budget kept for the tab", ns.UI.restockBudget.short, true)
+	end
+	ns.SetOption("smartRestock", false)
+	check("smart off: restock not fitted to gold", select(2, ns.Restock.Rows()), nil)
+	ns.SetOption("smartRestock", true)
+	playerMoney = money
+	ns.Restock.ForgetSmart()
+end
 ns.UI.Show("restock")
 check("restock tab opens", ns.UI.windows.restock.frame:IsVisible(), true)
 ns.UI.Refresh("restock")

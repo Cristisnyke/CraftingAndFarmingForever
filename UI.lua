@@ -559,7 +559,9 @@ end
 local function BuildRestockList()
 	local selected = selectedProfession.restock
 	local list = {}
-	for _, row in ipairs(ns.Restock.Rows()) do
+	local rows, budget = ns.Restock.Rows()
+	UI.restockBudget = budget
+	for _, row in ipairs(rows) do
 		local recipe = ns.db.recipes[row.recipeID]
 		if not selected or (recipe and recipe.p == selected) then
 			table.insert(list, { kind = "restock", row = row })
@@ -821,7 +823,12 @@ local function RowOnEnter(row)
 		local smart = ns.Restock.SmartInfo(item.itemID)
 		GameTooltip:AddDoubleLine(ns.Restock.IsCustom(item.itemID) and "Goal (your own)"
 			or smart and "Goal (smart)" or "Goal (default)", tostring(item.goal), 1, 1, 1, 1, 1, 1)
-		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.crafts), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+		if item.wanted then
+			GameTooltip:AddLine(item.crafts > 0
+				and ("Your gold covers %d of them: other items earn more for their materials."):format(item.crafts)
+				or "Left out for now: your gold goes to items that earn more for their materials.", 1, 0.6, 0.2, true)
+		end
 		if smart then
 			for _, line in ipairs(UI.SmartGoalLines(smart)) do GameTooltip:AddLine(line, 0.45, 0.75, 1, true) end
 		end
@@ -1531,6 +1538,10 @@ local function SetRow(row, data)
 		row.colHave:SetText(tostring(item.owned))
 		if item.goal == 0 then
 			row.colCraft:SetText(Color(COLOR_MUTED, "skip"))
+		elseif item.wanted then
+			-- Cut to what your gold covers: crafts of wanted.
+			row.colCraft:SetText(Color(item.crafts > 0 and "ffffb040" or COLOR_LOSS, tostring(item.crafts))
+				.. Color(COLOR_MUTED, "/" .. item.wanted))
 		elseif item.crafts > 0 then
 			row.colCraft:SetText(Color("ffffb040", tostring(item.crafts)))
 		else
@@ -2782,9 +2793,20 @@ function CreateRestockPane()
 			status:SetText("Syndicator is needed to see your auctions. Without it this would over-craft.")
 			return
 		end
+		local budget = UI.restockBudget
+		local short = budget and budget.short
 		apply:SetEnabled(needed > 0)
-		apply:SetText(needed > 0 and ("Queue restock: %s"):format(ns.Plural(needed, "item", "items")) or "Fully stocked")
+		apply:SetText(needed > 0 and ((short and "Queue partial restock: %s" or "Queue restock: %s")
+				:format(ns.Plural(needed, "item", "items")))
+			or short and "Not enough gold to restock" or "Fully stocked")
 		local notes = { "AH counts update when you visit the auction house." }
+		if short then
+			notes = { Color("ffffb040", ("Not enough gold for a full restock: its materials cost %s and you have %s%s. "
+				.. "This is a partial restock, %s of materials, picked for the most profit."):format(
+				ns.Money(budget.full), ns.Money(budget.gold),
+				budget.queued > 0 and (", " .. ns.Money(budget.queued) .. " of it for your queue") or "",
+				ns.Money(budget.cost))) }
+		end
 		if toPost > 0 then
 			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))
 				.. " ready to post, from the auction house's Restocking tab.")

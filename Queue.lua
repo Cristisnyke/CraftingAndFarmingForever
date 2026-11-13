@@ -277,6 +277,7 @@ end
 -- Smart goals: the default, moved by the item's own sales (Planner.SmartGoal). Kept for a moment, as every row asks.
 local SMART_SECONDS = 5
 local smartGoals, smartAt = {}, 0
+local budgetCache -- see FitToGold
 
 function Restock.SmartOn()
 	return ns.Option("smartRestock")
@@ -296,6 +297,7 @@ end
 
 function Restock.ForgetSmart()
 	smartGoals = {}
+	budgetCache = nil
 end
 
 local function SmartGoal(itemID)
@@ -364,15 +366,57 @@ local function ManualQueued()
 	return queued
 end
 
+-- The last fit of a restock to your gold, reused while nothing it depends on changed: every redraw asks.
+local BUDGET_SECONDS = 10
+
+-- With smart restocking on, a restock your gold can't pay for is cut to the part that earns the most for its
+-- materials (Planner.RestockBudget). Returns what that found, or nil.
+local function FitToGold(ctx, rows)
+	if not Restock.SmartOn() then return nil end
+	local manual, parts = {}, { tostring(GetMoney()) }
+	for _, entry in ipairs(ns.db.queue) do
+		if not entry.restock then
+			manual[#manual + 1] = entry
+			parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty
+		end
+	end
+	for _, row in ipairs(rows) do
+		if row.crafts > 0 then parts[#parts + 1] = row.recipeID .. "x" .. row.crafts end
+	end
+	local signature = table.concat(parts, ",")
+	local cache = budgetCache
+	if cache and cache.signature == signature and GetTime() - cache.at < BUDGET_SECONDS then
+		for _, row in ipairs(rows) do
+			local fit = cache.crafts[row.recipeID]
+			if fit then row.wanted, row.crafts = row.crafts, fit end
+		end
+		return cache.info
+	end
+	-- Costed for all characters at once: an alt's crafts need buying for too.
+	local all = {}
+	for key, value in pairs(ctx) do all[key] = value end
+	all.me = nil
+	local info = ns.Planner.RestockBudget(all, rows, manual, GetMoney())
+	cache = { signature = signature, at = GetTime(), info = info, crafts = {} }
+	for _, row in ipairs(rows) do
+		if row.wanted then cache.crafts[row.recipeID] = row.crafts end
+	end
+	budgetCache = cache
+	return info
+end
+
+-- The rows, and how the restock fits your gold (see Planner.RestockBudget; nil when that's off or nothing is needed).
 function Restock.Rows()
 	local queued = ManualQueued()
-	return ns.Planner.RestockRows(NewContext(), {
+	local ctx = NewContext()
+	local rows = ns.Planner.RestockRows(ctx, {
 		isSellable = ns.Items.CanSellOnAH,
 		goal = Restock.Goal,
 		stock = ns.Stock.ForRestock,
 		queued = function(itemID) return queued[itemID] or 0 end,
 		minProfit = ns.db.restock.minProfitSilver * 100,
 	})
+	return rows, FitToGold(ctx, rows)
 end
 
 -- Replaces the previous restock entries of a profession (nil for all) with what these rows need now. Other

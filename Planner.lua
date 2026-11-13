@@ -345,6 +345,89 @@ function Planner.RestockRows(ctx, opts)
 	return rows
 end
 
+-- Fits a restock to your gold. rows are RestockRows; queue holds the entries queued by hand, whose materials are paid
+-- for first. When the materials for every row cost more than the gold left, the rows giving the most profit for
+-- their material cost are kept and the rest cut down: row.wanted is then what the goal asks and row.crafts what the
+-- gold covers. Costs are what a plan would really spend, so materials already held are free. Returns nil when
+-- nothing needs crafting, else { gold, queued = cost of the hand-queued entries, full = cost of the whole restock,
+-- cost = cost of what's kept, short = true when it was cut }.
+function Planner.RestockBudget(ctx, rows, queue, gold)
+	local entries = {}
+	for _, entry in ipairs(queue or {}) do entries[#entries + 1] = entry end
+	local first = #entries + 1
+	local function Cost() return Planner.BuildPlan(ctx, entries).cost end
+	local base = first > 1 and Cost() or 0
+
+	local wanted = {}
+	for _, row in ipairs(rows) do
+		row.wanted = nil
+		if row.crafts > 0 then
+			wanted[#wanted + 1] = row
+			entries[#entries + 1] = { recipeID = row.recipeID, qty = row.crafts }
+		end
+	end
+	if #wanted == 0 then return nil end
+	local info = { gold = gold, queued = base, full = Cost() - base }
+	local budget = math.max(0, gold - base)
+	if info.full <= budget then
+		info.cost = info.full
+		return info
+	end
+
+	-- Most profit per copper of materials first; free ones before all.
+	for index = #entries, first, -1 do entries[index] = nil end
+	local value = {}
+	for index, row in ipairs(wanted) do
+		local result = Planner.Profit(ctx, row.recipeID)
+		local cost = result and result.cost or 0
+		value[row] = { cost > 0 and row.net / cost or math.huge, index }
+	end
+	table.sort(wanted, function(a, b)
+		if value[a][1] ~= value[b][1] then return value[a][1] > value[b][1] end
+		return value[a][2] < value[b][2]
+	end)
+	-- The most crafts of an entry that fit `room`, by Price(): cost only grows with the count.
+	local function Fit(entry, most, room, Price)
+		local low, high = 0, most
+		while low < high do
+			local middle = math.ceil((low + high) / 2)
+			entry.qty = middle
+			if Price() <= room then low = middle else high = middle - 1 end
+		end
+		entry.qty = low
+		return low
+	end
+
+	-- First each row on its own beside the hand-queued entries: small plans, so this stays quick with many rows.
+	-- Held materials two rows both want are counted free twice here, which the check below puts right.
+	local kept, left = {}, budget
+	local alone = { recipeID = 0, qty = 0 }
+	entries[first] = alone
+	for _, row in ipairs(wanted) do
+		alone.recipeID = row.recipeID
+		local fit = Fit(alone, row.crafts, left, function() return Cost() - base end)
+		if fit < row.crafts then row.wanted, row.crafts = row.crafts, fit end
+		if fit > 0 then
+			left = left - (Cost() - base)
+			kept[#kept + 1] = { recipeID = row.recipeID, qty = fit, row = row }
+		end
+	end
+
+	-- Then all of them together, cutting from the least valuable end until the real cost fits.
+	for index, entry in ipairs(kept) do entries[first + index - 1] = entry end
+	local spent = Cost() - base
+	for index = #kept, 1, -1 do
+		if spent <= budget then break end
+		local entry = kept[index]
+		local row = entry.row
+		local fit = Fit(entry, entry.qty - 1, budget, function() return Cost() - base end)
+		row.wanted, row.crafts = row.wanted or (row.crafts), fit
+		spent = Cost() - base
+	end
+	info.cost, info.short = spent, true
+	return info
+end
+
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups. With farming
 -- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
 -- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.

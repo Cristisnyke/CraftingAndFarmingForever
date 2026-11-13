@@ -388,6 +388,59 @@ check("restock stocked row last", restockRows[2].itemID, SHIRT)
 check("restock stocked needs none", restockRows[2].crafts, 0)
 check("restock best recipe", restockRows[2].recipeID, 1)
 
+-- Fitting a restock to your gold: ore is 10 each. A (net 400 for 10 of ore) beats B (net 100 for 50 of ore).
+do
+	local function Budget(gold, over, queue)
+		local ctx = Context({
+			recipes = {
+				[1] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+				[2] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 5, ORE } } },
+			},
+			known = { [BAR] = { 1 }, [SHIRT] = { 2 } },
+			ah = { [ORE] = 10, [BAR] = 500, [SHIRT] = 200 },
+			own = over,
+		})
+		local rows = {
+			{ itemID = SHIRT, recipeID = 2, net = 100, crafts = 4 },
+			{ itemID = BAR, recipeID = 1, net = 400, crafts = 6 },
+			{ itemID = GEM, recipeID = 1, net = 1, crafts = 0 },
+		}
+		return rows, Planner.RestockBudget(ctx, rows, queue, gold)
+	end
+	local rows, info = Budget(1000)
+	check("budget: enough gold, nothing cut", info.short, nil)
+	check("budget: full cost", info.full, 260)
+	check("budget: rows untouched", rows[1].crafts + rows[2].crafts, 10)
+	check("budget: no wanted mark", rows[1].wanted, nil)
+
+	rows, info = Budget(170)
+	check("budget: short", info.short, true)
+	check("budget: best earner kept whole", rows[2].crafts, 6)
+	check("budget: the rest cut to what fits", rows[1].crafts, 2)
+	check("budget: wanted kept", rows[1].wanted, 4)
+	check("budget: spends within gold", info.cost, 160)
+	check("budget: full cost still told", info.full, 260)
+
+	rows, info = Budget(35)
+	check("budget: best earner cut too", rows[2].crafts, 3)
+	check("budget: nothing left for the other", rows[1].crafts, 0)
+	check("budget: cost of three", info.cost, 30)
+
+	-- Ore already held is free: 10 held cover the bars and four more ore.
+	rows, info = Budget(60, { [ORE] = 10 })
+	check("budget: held materials cost nothing", rows[2].crafts, 6)
+	check("budget: held materials stretch the gold", rows[1].crafts, 2)
+	check("budget: only bought materials count", info.cost, 60)
+
+	-- The hand-queued bars are paid for first.
+	rows, info = Budget(100, nil, { { recipeID = 1, qty = 5 } })
+	check("budget: queue's cost told", info.queued, 50)
+	check("budget: queue paid first", rows[2].crafts, 5)
+	check("budget: nothing needed", select(2, (function()
+		return nil, Planner.RestockBudget(Context(), { { itemID = BAR, recipeID = 100, net = 1, crafts = 0 } }, nil, 0)
+	end)()), nil)
+end
+
 -- Zero-quantity entries are ignored; empty queue gives an empty plan.
 -- Per character: on the paladin (blacksmith and miner) the plan holds only the paladin's crafts and purchases. The
 -- tailor alt's shirt is only noted for later; its bolts in the tailor's bags are kept for it, and the paladin's own

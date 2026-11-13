@@ -4,6 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- Restock: when you don't have the gold for a full restock, the Restock tab says so and offers a partial one: the items that earn the most profit for their material cost, cut to what you can afford. Materials you already hold count as free, and anything you queued by hand is paid for first. The Craft column shows what fits out of what's needed, like 3/8 (part of smart goals, so the same switch turns it off)
 - Restock: smart goals. An item's goal now follows your own sales: more of what sells well, fewer of what keeps expiring, and it keeps adjusting as you sell (recent days count most). One item's stock never costs more than a quarter of your gold to make, and daggers are stocked in pairs, since buyers usually want two. Smart goals show in blue, and the tooltip says why. A goal you set yourself always stays. The Options tab has a Stock level slider for how much to keep (50% of a day's sales to start with), and a switch to turn smart goals off
 
 ## 1.9.0
