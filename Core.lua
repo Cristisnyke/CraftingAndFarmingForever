@@ -260,11 +260,15 @@ function ns.Fill(template, values)
 	return (template:gsub("{(%a+)}", function(word) return values[word] end))
 end
 
--- A message the player wrote for chat: trimmed, cut to length, and without "|", which starts the game's colour
+-- A message the player wrote for chat: trimmed, cut to maxLength bytes, and without "|", which starts the game's colour
 -- and link codes and makes the chat box refuse a line when it's used wrongly.
 function ns.CleanChatText(text, maxLength)
 	text = tostring(text or ""):gsub("|", ""):gsub("%s+", " "):match("^%s*(.-)%s*$")
-	return text:sub(1, maxLength)
+	if #text <= maxLength then return text end
+	-- Cut at a whole character: a letter outside English takes several bytes, and half of one isn't valid chat.
+	local cut = maxLength
+	while cut > 0 and text:byte(cut + 1) >= 128 and text:byte(cut + 1) < 192 do cut = cut - 1 end
+	return (text:sub(1, cut):gsub("%s+$", ""))
 end
 
 function ns.Money(copper)

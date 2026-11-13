@@ -172,7 +172,7 @@ function MinimapButton.Toggle()
 	MinimapButton.SetShown(not MinimapButton.Shown())
 	ns.Print(MinimapButton.Shown() and "Minimap button shown."
 		or "Minimap button hidden. /cff minimap or the Options tab shows it again.")
-	ns.UI.Refresh("options")
+	ns.Options.Sync()
 end
 
 function MinimapButton.Kind()

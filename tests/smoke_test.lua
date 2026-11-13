@@ -2666,7 +2666,7 @@ do
 	local box = controls.adText
 	check("box shows the default message", box:GetText(), ns.Advertise.DEFAULT_TEXT)
 	box:SetText("  WTS {profession} | cheap  ")
-	box.scripts.OnEnterPressed(box)
+	box.scripts.OnEditFocusLost(box)
 	check("own ad saved, cleaned", ns.db.ui.adText, "WTS {profession} cheap")
 	ns.Advertise.Send(197)
 	check("own ad used", chatBoxText:match("^/%d+ (.*)$"), "WTS |ctrade|Htrade:197|h[Tailoring]|h|r cheap")
@@ -2674,8 +2674,11 @@ do
 	check("Default puts the wording back", ns.db.ui.adText, nil)
 	check("and shows it", box:GetText(), ns.Advertise.DEFAULT_TEXT)
 	box:SetText("   ")
-	box.scripts.OnEnterPressed(box)
+	box.scripts.OnEditFocusLost(box)
 	check("an empty message is the default", ns.Advertise.Text(), ns.Advertise.DEFAULT_TEXT)
+	check("and the box shows it", box:GetText(), ns.Advertise.DEFAULT_TEXT)
+	check("long text is cut at a whole character", ns.CleanChatText("ab\195\169\195\169", 5), "ab\195\169")
+	check("and not left ending in a space", ns.CleanChatText("abc def", 4), "abc")
 
 	-- Where to post.
 	controls.destinations.GUILD.scripts.OnClick(controls.destinations.GUILD)
@@ -2686,7 +2689,7 @@ do
 	ns.Queue.SetQuoteMargin(10)
 	local quote = controls.quoteText
 	quote:SetText("{count} {item} for {price}, {unknown} stays")
-	quote.scripts.OnEnterPressed(quote)
+	quote.scripts.OnEditFocusLost(quote)
 	check("own quote used", ns.Queue.QuoteText(20, 2), "2 link for 1s 54c, {unknown} stays")
 	check("quote example shown", quote.example.text:find("20 [Healing Potion] for 5g 20s", 1, true) ~= nil, true)
 	quote.reset.scripts.OnClick(quote.reset)

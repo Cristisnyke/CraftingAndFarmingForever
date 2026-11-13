@@ -3300,10 +3300,20 @@ end
 local Advertise = {}
 ns.Advertise = Advertise
 
-local DESTINATIONS
+local AD_COOLDOWN_SECONDS = 60
+local lastAdvertised = {} -- by destination
+
+-- Where an ad can go. The slash command is for the chat box fallback; Trade's depends on its channel number.
+local DESTINATIONS = {
+	{ key = "TRADE", label = "Trade", chatType = "CHANNEL" },
+	{ key = "GUILD", label = "Guild", chatType = "GUILD", slash = "/g" },
+	{ key = "SAY", label = "Say", chatType = "SAY", slash = "/s" },
+	{ key = "YELL", label = "Yell", chatType = "YELL", slash = "/y" },
+}
+
 -- {profession} becomes the profession's link. The player can write their own on the Options tab.
 Advertise.DEFAULT_TEXT = "{profession} available for hire! Your materials, or I'll give you a price based on material cost."
-Advertise.TEXT_MAX = 200
+Advertise.TEXT_MAX = 180 -- bytes: a chat line holds 255, and the link takes about 70
 
 -- Off hides the Ad box beside the chat and the Profit tab's Advertise button.
 function Advertise.Enabled()
@@ -3327,17 +3337,6 @@ end
 function Advertise.SetDestination(key)
 	ns.db.ui.adDestination = key
 end
-
-local AD_COOLDOWN_SECONDS = 60
-local lastAdvertised = {} -- by destination
-
--- Where an ad can go. The slash command is for the chat box fallback; Trade's depends on its channel number.
-DESTINATIONS = {
-	{ key = "TRADE", label = "Trade", chatType = "CHANNEL" },
-	{ key = "GUILD", label = "Guild", chatType = "GUILD", slash = "/g" },
-	{ key = "SAY", label = "Say", chatType = "SAY", slash = "/s" },
-	{ key = "YELL", label = "Yell", chatType = "YELL", slash = "/y" },
-}
 
 local function CurrentDestination()
 	local selected = ns.db.ui.adDestination
@@ -3506,6 +3505,7 @@ local function CreateDestinationPicker()
 			destinationMenu:Hide()
 			Advertise.UpdateButtons()
 			ns.UI.Refresh("profit")
+			ns.Options.Sync()
 		end)
 		destinationMenu.options[destination.key] = option
 	end
@@ -3706,6 +3706,12 @@ local function Diagnostics()
 	Add("Restocking tab created: " .. tostring(windows.posting ~= nil))
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
+	local off = {}
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled" }) do
+		if not ns.Option(key) then table.insert(off, key) end
+	end
+	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
+		.. tostring(ns.db.ui.adText ~= nil) .. ", own quote text: " .. tostring(ns.db.ui.quoteText ~= nil))
 	ns.db.lastDiag = lines
 end
 
@@ -3729,7 +3735,7 @@ SlashCmdList.CFF = function(input)
 	elseif command == "auto" then
 		ns.db.ui.autoOpen = not ns.db.ui.autoOpen
 		ns.Print("Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
-		UI.Refresh("options")
+		ns.Options.Sync()
 	elseif command == "minimap" then
 		ns.MinimapButton.Toggle()
 	elseif command == "diag" then

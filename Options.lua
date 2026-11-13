@@ -26,7 +26,9 @@ function Options.Sync()
 	end
 end
 
+-- From the game's own options page: that window covers ours, so it closes first (the game won't allow it in combat).
 function Options.Open()
+	if SettingsPanel and SettingsPanel:IsShown() and not InCombatLockdown() then HideUIPanel(SettingsPanel) end
 	ns.UI.Show("options")
 end
 
@@ -80,13 +82,13 @@ end
 
 -- A one-line box for a chat message, with a Default button and a preview line under it. Saves on Enter or when it
 -- loses focus; Escape puts back what was saved.
-local function MessageBox(parent, y, labelWidth, maxLetters, read, write, default, preview)
+local function MessageBox(parent, y, labelWidth, maxBytes, read, write, default, preview)
 	local box = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
 	box:SetHeight(20)
 	box:SetPoint("TOPLEFT", LEFT + labelWidth + 12, -y)
 	box:SetPoint("TOPRIGHT", -LEFT - 74, -y)
 	box:SetAutoFocus(false)
-	box:SetMaxLetters(maxLetters)
+	box:SetMaxLetters(maxBytes)
 
 	local example = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	example:SetPoint("TOPLEFT", box, "BOTTOMLEFT", -2, -4)
@@ -97,26 +99,27 @@ local function MessageBox(parent, y, labelWidth, maxLetters, read, write, defaul
 
 	local function ShowExample(text)
 		if not text or text:match("^%s*$") then text = default end
-		example:SetText(MUTED .. "Sends: |r" .. preview(ns.CleanChatText(text, maxLetters)))
+		example:SetText(MUTED .. "Sends: |r" .. preview(ns.CleanChatText(text, maxBytes)))
 	end
 	local function Save(self)
 		local text = self:GetText() or ""
-		if ns.CleanChatText(text, maxLetters) ~= read() then
+		if ns.CleanChatText(text, maxBytes) ~= read() then
 			write(text)
 			Changed()
 		end
 	end
 	box:SetScript("OnTextChanged", function(self) ShowExample(self:GetText()) end)
-	box:SetScript("OnEnterPressed", function(self)
-		Save(self)
-		self:ClearFocus()
-		self:Sync()
-	end)
+	box:SetScript("OnEnterPressed", box.ClearFocus) -- losing focus saves
 	box:SetScript("OnEscapePressed", function(self)
 		self:SetText(read())
 		self:ClearFocus()
 	end)
-	box:SetScript("OnEditFocusLost", Save)
+	-- The box then shows what was saved: the wording tidied, or the default for an empty one.
+	box:SetScript("OnEditFocusLost", function(self)
+		Save(self)
+		self:SetText(read())
+		self:SetCursorPosition(0)
+	end)
 	box.Sync = function(self)
 		if self:HasFocus() then return end
 		self:SetText(read())
@@ -148,7 +151,7 @@ local function ExampleProfession()
 end
 
 -- Builds the controls on `parent`, starting `top` below its top edge. Returns the function that shows the saved
--- values; `controls` on the result of Options.Controls(parent) is for the tests.
+-- values. Options.Controls(parent) hands the controls to the tests.
 function Options.Build(parent, top)
 	local controls = {}
 	local y = top + 4
@@ -180,7 +183,7 @@ function Options.Build(parent, top)
 	AddCheck("adEnabled", "Advertise my professions",
 		"Off removes the Ad box beside the chat and the Advertise button on the Profit tab.")
 	y = y + 2
-	local postTo = Label(parent, "Post to", y)
+	Label(parent, "Post to", y)
 	controls.destinations = {}
 	local previous
 	for _, destination in ipairs(ns.Advertise.Destinations()) do
@@ -199,7 +202,7 @@ function Options.Build(parent, top)
 		previous = button
 	end
 	y = y + 26
-	local adLabel = Label(parent, "Message", y)
+	Label(parent, "Message", y)
 	controls.adText = MessageBox(parent, y, 60, ns.Advertise.TEXT_MAX, ns.Advertise.Text, ns.Advertise.SetText,
 		ns.Advertise.DEFAULT_TEXT, function(text) return ns.Fill(text, { profession = ExampleProfession() }) end)
 	Tip(controls.adText, "Advertising message",
@@ -209,7 +212,7 @@ function Options.Build(parent, top)
 
 	Heading(parent, "Quotes", y)
 	y = y + 24
-	local marginLabel = Label(parent, "Margin %", y)
+	Label(parent, "Margin %", y)
 	local margin = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
 	margin:SetSize(44, 20)
 	margin:SetPoint("TOPLEFT", LEFT + 72, -y)
@@ -243,7 +246,7 @@ function Options.Build(parent, top)
 	marginNote:SetPoint("LEFT", margin, "RIGHT", 10, 0)
 	marginNote:SetText(MUTED .. "added to the material cost when you press Quote|r")
 	y = y + 26
-	local quoteLabel = Label(parent, "Message", y)
+	Label(parent, "Message", y)
 	controls.quoteText = MessageBox(parent, y, 60, ns.Queue.QUOTE_TEXT_MAX, ns.Queue.QuoteTemplate,
 		ns.Queue.SetQuoteTemplate, ns.Queue.DEFAULT_QUOTE_TEXT, function(text)
 			return ns.Fill(text, { item = "[Healing Potion]", count = 20, price = ns.Money(52000) })
@@ -251,10 +254,6 @@ function Options.Build(parent, top)
 	Tip(controls.quoteText, "Quote message",
 		"What Quote whispers. {item} is the item's link, {count} how many you'd make and {price} the price for all "
 			.. "of them. Press Enter to save.")
-	y = y + 42
-
-	controls.labels = { postTo, adLabel, marginLabel, quoteLabel }
-	controls.height = y
 
 	local function Update()
 		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "adEnabled" }) do
