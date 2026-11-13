@@ -7,6 +7,31 @@ local Queue = {}
 ns.Queue = Queue
 local Recipes = ns.Recipes
 
+-- Price cap: a crafted item listed above max % of its material cost counts at normal % instead, flagged to check.
+Queue.PRICE_CAP_DEFAULT_MAX = 400
+Queue.PRICE_CAP_DEFAULT_NORMAL = 200
+Queue.PRICE_CAP_LIMIT = 10000
+
+function Queue.PriceCapPercents()
+	local max = ns.db.ui.priceCapMax or Queue.PRICE_CAP_DEFAULT_MAX
+	return max, math.min(ns.db.ui.priceCapNormal or Queue.PRICE_CAP_DEFAULT_NORMAL, max)
+end
+
+-- Max at least 100% (the cost itself); normal from 100% up to max.
+function Queue.SetPriceCapPercents(max, normal)
+	if max then ns.db.ui.priceCapMax = math.max(100, math.min(Queue.PRICE_CAP_LIMIT, math.floor(max))) end
+	if normal then ns.db.ui.priceCapNormal = math.max(100, math.min(Queue.PRICE_CAP_LIMIT, math.floor(normal))) end
+	ns.db.ui.priceCapNormal = math.min(ns.db.ui.priceCapNormal or Queue.PRICE_CAP_DEFAULT_NORMAL,
+		ns.db.ui.priceCapMax or Queue.PRICE_CAP_DEFAULT_MAX)
+end
+
+-- Nil when the player turned the cap off.
+function Queue.PriceCap()
+	if not ns.Option("priceCap") then return nil end
+	local max, normal = Queue.PriceCapPercents()
+	return { max = max / 100, normal = normal / 100 }
+end
+
 local function NewContext()
 	return ns.Planner.NewContext({
 		recipes = ns.db.recipes,
@@ -23,6 +48,7 @@ local function NewContext()
 		knows = Recipes.Knows,
 		charName = function(key) return ns.db.chars[key] and ns.db.chars[key].name end,
 		ahCut = ns.AH_CUT,
+		priceCap = Queue.PriceCap(),
 	})
 end
 ns.NewContext = NewContext
@@ -33,7 +59,7 @@ ns.NewContext = NewContext
 
 ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0, elsewhere = {} }
 ns.farmPlan = ns.plan
-ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
+ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {}, capped = {} }
 
 -- recipeID -> crafts finished since the plan was last built. The rebuild waits a moment, and a batch's next cast
 -- often starts before it, so craft progress takes these off the plan's count.

@@ -66,7 +66,11 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 
 ### Options
 
-- One tab to switch things on or off: advertising, the minimap button, the Next step bar, the scan question and the chat reminders. Also opens with a right-click on the minimap button, and from the game's Options under AddOns.
+- One tab to switch things on or off: the suspicious-price limit, the minimap button, the Next step bar, the scan question and the chat reminders. Also opens with a right-click on the minimap button, and from the game's Options under AddOns.
+
+### Suspicious prices
+
+- A crafted item listed far above its material cost (over 400% by default) counts at 200% and is marked "check price", so one odd listing can't fake a big profit. Both limits are in Options.
 
 ### Stale-price warning
 

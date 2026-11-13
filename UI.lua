@@ -695,7 +695,14 @@ local function ShowProfitTooltip(row, result)
 		GameTooltip:AddLine("Bind on pickup: can't be sold on the auction house.", 1, 0.6, 0.2, true)
 	else
 		local sale = result.saleUnit and (ns.Money(result.saleUnit * result.yield)) or "no price"
-		GameTooltip:AddDoubleLine("Sells for", sale, 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine(result.capped and "Counted as selling for" or "Sells for", sale, 1, 1, 1, 1, 1, 1)
+		if result.capped then
+			local max, normal = ns.Queue.PriceCapPercents()
+			GameTooltip:AddDoubleLine("Listed on the AH for", ns.Money(result.listedUnit * result.yield), 1, 0.6, 0.2, 1, 0.6, 0.2)
+			GameTooltip:AddLine(("Check this price: it's more than %d%% of the material cost, so profit counts it at "
+				.. "%d%% instead. Often one odd listing that won't sell. Search the item at the auction house before "
+				.. "crafting it. Change the limits in Options."):format(max, normal), 1, 0.6, 0.2, true)
+		end
 		if result.net then
 			GameTooltip:AddDoubleLine("Profit after 5% AH cut", ns.Money(result.net), 1, 1, 1, 1, 1, 1)
 		end
@@ -840,6 +847,12 @@ local function RowOnEnter(row)
 			if old then
 				GameTooltip:AddDoubleLine("Sale price before this scan", ns.Money(old), 1, 1, 1, 1, 1, 1)
 				GameTooltip:AddDoubleLine("Sale price now", ns.Money(new), 1, 1, 1, 1, 1, 1)
+			end
+			if ns.totals.capped and ns.totals.capped[data.index] then
+				local max, normal = ns.Queue.PriceCapPercents()
+				GameTooltip:AddLine(("Check the price: it's listed at more than %d%% of the material cost, so the "
+					.. "profit counts it at %d%%. Search it at the auction house before crafting."):format(max, normal),
+					1, 0.6, 0.2, true)
 			end
 			AddSalesLines(ns.Items.Name(queuedRecipe.o))
 		end
@@ -1424,13 +1437,14 @@ local function SetRow(row, data)
 	elseif data.kind == "profit" then
 		local result = data.result
 		row.icon:SetTexture(ns.Items.Icon(result.itemID))
-		row.left:SetText(ItemLabel(result.itemID))
+		row.left:SetText(ItemLabel(result.itemID) .. (result.capped and Color(COLOR_WARN, "  check price") or ""))
 		PlaceRight(row, ProfitControls(row), true)
 		if result.bound then
 			row.profit:SetText(result.cost and (Color(COLOR_MUTED, "cost ") .. ns.Money(result.cost)) or Color(COLOR_MUTED, "no price"))
 		elseif result.net then
 			row.chance:SetText(ChanceText(ns.Items.Name(result.itemID)))
-			row.profit:SetText(Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
+			row.profit:SetText((result.capped and Color(COLOR_WARN, "! ") or "")
+				.. Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
 		else
 			row.profit:SetText(Color(COLOR_MUTED, "no data"))
 		end
@@ -1452,6 +1466,7 @@ local function SetRow(row, data)
 		local recipe = ns.db.recipes[entry.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
 		local net = ns.totals.entries[data.index]
+		local capped = ns.totals.capped and ns.totals.capped[data.index]
 		local boundCost = ns.totals.boundEntries[data.index]
 		local change = not boundCost and recipe and recipe.o and PriceChangeText(recipe.o, false)
 		-- Who crafts it, when that isn't the character you're on.
@@ -1459,6 +1474,7 @@ local function SetRow(row, data)
 		local onAlt = crafter ~= ns.CharKey() and Color("ff99ccff", "  " .. ns.CharLabel(crafter)) or ""
 		row.left:SetText(RecipeName(entry.recipeID) .. onAlt
 			.. (entry.restock and Color(COLOR_MUTED, " restock") or "")
+			.. (capped and Color(COLOR_WARN, "  check price") or "")
 			.. (change and ("   " .. Color(COLOR_MUTED, "sells ") .. change) or ""))
 		PlaceRight(row, QueueControls(row), true)
 		ShowAmount(row, data, entry.qty)
@@ -1467,7 +1483,7 @@ local function SetRow(row, data)
 		row.cost:SetText(cost and ns.Money(cost) or Color(COLOR_MUTED, "?"))
 		row.tint:SetShown(net ~= nil and net < 0 and not boundCost)
 		row.profit:SetText(boundCost and Color(COLOR_MUTED, "can't sell")
-			or net and Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net))
+			or net and ((capped and Color(COLOR_WARN, "! ") or "") .. Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
 			or Color(COLOR_MUTED, "no price"))
 	elseif data.kind == "restock" then
 		local item = data.row
@@ -3735,11 +3751,12 @@ local function Diagnostics()
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	local off = {}
-	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled" }) do
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap" }) do
 		if not ns.Option(key) then table.insert(off, key) end
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
 		.. tostring(ns.db.ui.adText ~= nil) .. ", own quote text: " .. tostring(ns.db.ui.quoteText ~= nil))
+	Add(("price cap: above %d%% counts as %d%%"):format(ns.Queue.PriceCapPercents()))
 	ns.db.lastDiag = lines
 end
 

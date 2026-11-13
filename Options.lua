@@ -13,7 +13,11 @@ local MUTED = "|cff999999"
 local built = {} -- every set of controls made, as { parent, update }
 
 -- A setting changed: everything it can show or hide is redrawn, and the other copy of the controls follows.
-local function Changed()
+local function Changed(prices)
+	if prices then
+		ns.InvalidateProfit()
+		ns.RequestPlan()
+	end
 	ns.Advertise.UpdateButtons()
 	ns.UI.RefreshQueue()
 	ns.UI.Refresh("profit")
@@ -178,6 +182,70 @@ function Options.Build(parent, top)
 			.. "quote and sale messages stay either way.")
 
 	y = y + 10
+	Heading(parent, "Profit", y)
+	y = y + 22
+	controls.priceCap = Check(parent, "Limit suspicious sale prices",
+		"One odd listing (7s of materials posted for 20g) would show a huge profit. A crafted item listed above the "
+			.. "limit counts at the normal mark-up instead, and its row says check price.", y,
+		function() return ns.Option("priceCap") end, function(on) ns.SetOption("priceCap", on) end)
+	controls.priceCap:SetScript("OnClick", function(self)
+		ns.SetOption("priceCap", self:GetChecked() and true or false)
+		Changed(true)
+	end)
+	y = y + 26
+	-- "Above [400]% of material cost, count it as [200]%", on one line.
+	local function PercentBox(anchor, label, read, write, title, tip)
+		local text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		if anchor then
+			text:SetPoint("LEFT", anchor, "RIGHT", 4, 0)
+		else
+			text:SetPoint("TOPLEFT", LEFT + 4, -y - 5)
+		end
+		text:SetText(label)
+		local box = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
+		box:SetSize(46, 20)
+		box:SetPoint("LEFT", text, "RIGHT", 8, 0)
+		box:SetAutoFocus(false)
+		box:SetNumeric(true)
+		box:SetMaxLetters(5)
+		local function Save(self)
+			local value = tonumber(self:GetText())
+			if value and value ~= read() then
+				write(value)
+				Changed(true)
+			end
+		end
+		box:SetScript("OnEnterPressed", function(self)
+			Save(self)
+			self:ClearFocus()
+			self:Sync()
+		end)
+		box:SetScript("OnEscapePressed", function(self)
+			self:SetText(tostring(read()))
+			self:ClearFocus()
+		end)
+		box:SetScript("OnEditFocusLost", Save)
+		box.Sync = function(self)
+			if not self:HasFocus() then self:SetText(tostring(read())) end
+		end
+		Tip(box, title, tip)
+		local percent = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		percent:SetPoint("LEFT", box, "RIGHT", 2, 0)
+		box.percent = percent
+		return box
+	end
+	controls.capMax = PercentBox(nil, "Above", function() return (ns.Queue.PriceCapPercents()) end,
+		function(value) ns.Queue.SetPriceCapPercents(value, nil) end, "Highest believable price",
+		"A sale price above this % of the material cost is suspicious. Default 400. Press Enter to save.")
+	controls.capMax.percent:SetText("% of material cost,")
+	controls.capNormal = PercentBox(controls.capMax.percent, "count it as",
+		function() return select(2, ns.Queue.PriceCapPercents()) end,
+		function(value) ns.Queue.SetPriceCapPercents(nil, value) end, "Suspicious price counted as",
+		"What profit uses instead, as % of the material cost. Default 200, never above the first number. Press "
+			.. "Enter to save.")
+	controls.capNormal.percent:SetText("%")
+	y = y + 32
+
 	Heading(parent, "Advertising", y)
 	y = y + 22
 	AddCheck("adEnabled", "Advertise my professions",
@@ -269,6 +337,9 @@ function Options.Build(parent, top)
 				button:UnlockHighlight()
 			end
 		end
+		controls.priceCap:Sync()
+		controls.capMax:Sync()
+		controls.capNormal:Sync()
 		controls.adText:Sync()
 		controls.margin:Sync()
 		controls.quoteText:Sync()

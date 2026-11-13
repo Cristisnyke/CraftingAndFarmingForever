@@ -315,6 +315,9 @@ end
 
 Fire("ADDON_LOADED", "CraftingAndFarmingForever")
 Fire("PLAYER_LOGIN")
+check("price cap on by default", ns.Queue.PriceCap() ~= nil, true)
+-- The fixture's sale prices are far above material cost; the cap has its own test further down.
+ns.db.ui.priceCap = false
 check("no list before anything is queued", lists[ns.LIST_NAME], nil)
 check("nothing unseen before the saved data is known", ns.WhatsNew.HasUnseen(), false)
 
@@ -617,6 +620,42 @@ ChatEdit_GetLastTellTarget = function() return nil end
 QueueRow().quote.scripts.OnClick(QueueRow().quote)
 check("quote with no known sender uses reply", chatBoxText, "/r link x2: 1s 54c")
 ChatEdit_GetLastTellTarget = nil
+
+-- Price cap from the Options tab: the shirt's 70c of materials sell for 3s, over 400%, so with the cap on profit
+-- counts it at 200% (1s 40c) and the row and the queue entry say check price.
+do
+	local tabBefore = ns.db.ui.tab
+	ns.UI.Show("options")
+	local controls = ns.Options.Controls(ns.UI.windows.options.frame)
+	controls.priceCap.GetChecked = function() return true end
+	controls.priceCap.scripts.OnClick(controls.priceCap)
+	check("cap turned on", ns.Option("priceCap"), true)
+	RunTimers()
+	check("capped queue entry flagged", ns.totals.capped[1], true)
+	check("capped revenue at 200%", ns.totals.revenue, 2 * 140 * 0.95)
+	check("max box shows 400", controls.capMax:GetText(), "400")
+	check("normal box shows 200", controls.capNormal:GetText(), "200")
+	controls.capNormal:SetText("900")
+	controls.capNormal.scripts.OnEnterPressed(controls.capNormal)
+	check("normal never above max", select(2, ns.Queue.PriceCapPercents()), 400)
+	controls.capMax:SetText("5000")
+	controls.capMax.scripts.OnEnterPressed(controls.capMax)
+	RunTimers()
+	check("higher limit lets the listing through", ns.totals.capped[1], nil)
+	ns.Queue.SetPriceCapPercents(400, 200)
+	ns.UI.Show("profit")
+	local flagged
+	ns.db.ui.priceCap = true
+	ns.InvalidateProfit()
+	for _, row in ipairs(ns.UI.windows.profit.rows) do
+		if row.data and row.data.kind == "profit" and row.data.result.capped then flagged = row end
+	end
+	check("profit row says check price", flagged and flagged.left:GetText():find("check price", 1, true) ~= nil, true)
+	controls.priceCap.GetChecked = function() return false end
+	controls.priceCap.scripts.OnClick(controls.priceCap)
+	RunTimers()
+	ns.UI.Show(tabBefore)
+end
 
 -- The margin box on the Options tab changes the quote and is saved.
 do

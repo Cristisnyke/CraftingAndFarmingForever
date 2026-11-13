@@ -34,6 +34,7 @@ Every known recipe, ranked by profit per craft:
 - **+** queues one craft; **Shift + +** queues ten. **Right-click +** (or Ctrl-click) opens a box to type how many crafts to queue.
 - **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
 - Enchants that don't produce an item aren't listed.
+- **Check price** (orange, with `!` before the profit): the item is listed for more than 400% of its material cost, which is usually one odd listing that won't sell. Profit then counts it at 200% of the material cost instead; the tooltip shows the real listing. Search the item at the auction house before you craft it. The same mark shows on the Queue tab. Both numbers are on the Options tab.
 
 ### Skill up (levelling)
 
@@ -195,6 +196,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Show the Next step bar | Off: no bar; the Queue tab is your list, also when farming |
 | Ask to scan at the auction house when prices are old | The Yes or No box offering a new scan. The orange note in the window stays |
 | Reminders in chat | The chat lines about old prices at login and where the shopping list is |
+| Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price**. Off: the listing is used as it is |
 | Advertise my professions | Off removes the Ad box beside the chat and the Advertise button on the Profit tab |
 | Post to | Trade, Guild, Say or Yell, the same choice as the Ad box's picker |
 | Advertising message | Your own wording. Write `{profession}` where your profession link should go |

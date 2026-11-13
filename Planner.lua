@@ -7,6 +7,8 @@
 --   ahPrice(itemID)    -> copper or nil
 --   vendorPrice(itemID)-> copper or nil
 --   ahCut              = 0.05
+--   priceCap           = { max = 4, normal = 2 } (optional): a result listed above max x its material cost is
+--                        counted at normal x that cost and flagged capped, as one odd listing can't be trusted
 -- and, for planning:
 --   ownStock(itemID)   -> count on the current character (bags + bank)
 --   bankStock(itemID)  -> the part of ownStock that's in the bank (optional), so the plan can say to fetch it
@@ -114,6 +116,18 @@ function Planner.Profit(ctx, recipeID)
 	local yield = AverageYield(recipe)
 	local saleUnit = Priced(ctx.ahPrice(recipe.o))
 	local result = { recipeID = recipeID, itemID = recipe.o, yield = yield, cost = cost, parts = parts, saleUnit = saleUnit }
+	-- A lone listing at many times the material cost (7s of materials posted for 20g) would show a huge profit that
+	-- won't sell. Above the cap the sale counts at the normal mark-up instead, and the row is flagged to check.
+	local cap = ctx.priceCap
+	if cap and saleUnit and cost and cost > 0 then
+		local unitCost = cost / yield
+		if saleUnit > unitCost * cap.max then
+			result.listedUnit = saleUnit
+			result.capped = true
+			saleUnit = unitCost * math.min(cap.normal, cap.max)
+			result.saleUnit = saleUnit
+		end
+	end
 	if cost and saleUnit then
 		result.net = saleUnit * yield * (1 - ctx.ahCut) - cost
 		result.margin = cost > 0 and result.net / cost or nil
@@ -156,7 +170,8 @@ end
 -- returns false for results that can't go on the AH, nil while unknown. Those can't earn anything, so only their
 -- material cost is reported, apart from the profit. Entries without a usable price are counted, not guessed.
 function Planner.QueueTotals(ctx, queue, isSellable)
-	local totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {} }
+	local totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {},
+		capped = {} }
 	for index, queued in ipairs(queue) do
 		local qty = queued.qty or 0
 		local result = Planner.Profit(ctx, queued.recipeID)
@@ -170,6 +185,7 @@ function Planner.QueueTotals(ctx, queue, isSellable)
 			totals.net = totals.net + result.net * qty
 			totals.counted = totals.counted + 1
 			totals.entries[index] = result.net * qty
+			if result.capped then totals.capped[index] = true end
 		elseif qty > 0 then
 			totals.excluded = totals.excluded + 1
 		end

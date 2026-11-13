@@ -557,5 +557,32 @@ do
 	check("duration hours", Planner.FormatDuration(3725), "1:02:05")
 end
 
+-- Price cap: shirt materials 65, listed at 1000 (over 400%): counted at 200% = 130, flagged to check.
+do
+	local ctx = Context()
+	ctx.priceCap = { max = 4, normal = 2 }
+	local capped = Planner.Profit(ctx, 300)
+	check("capped flag", capped.capped, true)
+	check("capped listed price kept", capped.listedUnit, 1000)
+	check("capped sale at normal", capped.saleUnit, 130)
+	check("capped net", capped.net, 130 * 0.95 - 65)
+	-- At or under the limit nothing changes: 260 = exactly 400%.
+	local fair = Context({ ah = { [ORE] = 10, [BAR] = 50, [CLOTH] = 10, [BOLT] = 100, [SHIRT] = 260 } })
+	fair.priceCap = { max = 4, normal = 2 }
+	local result = Planner.Profit(fair, 300)
+	check("price at the limit not capped", result.capped, nil)
+	check("price at the limit kept", result.saleUnit, 260)
+	-- Without a cap (option off) the listing is used as it is.
+	check("no cap, no flag", Planner.Profit(Context(), 300).capped, nil)
+	-- Yield counts: 2 bars from 2 ore (20) = 10 a bar; 50 is 500% -> 20 a bar.
+	local yieldCtx = Context({ recipes = { [100] = { o = BAR, qmin = 2, qmax = 2, r = { { 2, ORE } } } }, known = { [BAR] = { 100 } } })
+	yieldCtx.priceCap = { max = 4, normal = 2 }
+	check("cap per unit with yield", Planner.Profit(yieldCtx, 100).saleUnit, 20)
+	-- Queue totals mark the capped entry.
+	local totals = Planner.QueueTotals(ctx, { { recipeID = 300, qty = 2 } }, function() return true end)
+	check("queue totals flag capped", totals.capped[1], true)
+	check("queue totals use capped price", totals.net, (130 * 0.95 - 65) * 2)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
