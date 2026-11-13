@@ -17,7 +17,8 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests the lowest listing's price, and posts it.
 - **Sales:** your real profit (sale after the auction house cut, less what you paid for the materials), what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours. When an auction sells, you see how much money is on its way and how long until it reaches your mailbox, wherever you are.
 - **Changelog:** a tab listing what changed in each version. It lights up after an update; nothing pops up.
-- **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set.
+- **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set. Both messages can be worded your way.
+- **Options:** switch the advertising, the minimap button, the Next step bar and the reminders on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
 
 ## Screenshots
 
@@ -73,7 +74,7 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 | Command | What it does |
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
-| `/cff profit`, `queue`, `restock`, `sales`, `changelog` | Open that tab, or close the window if that tab is already showing |
+| `/cff profit`, `queue`, `restock`, `sales`, `options`, `changelog` | Open that tab, or close the window if that tab is already showing |
 | `/cff next` | Fold or unfold the Next step bar |
 | `/cff minimap` | Hide or show the minimap button |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |

@@ -63,7 +63,8 @@ end
 -- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
 -- db.costs             = { [itemID] = { q, c } }, what the items you hold cost you (see Sales.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
--- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } }, ... }
+-- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
+--                          adEnabled, nextStep, scanPopup, chatTips (off only when false), adText, quoteText (own wording), ... }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -243,6 +244,27 @@ end
 -- "1 item", "2 items": the count with the right form of the word.
 function ns.Plural(count, one, many)
 	return ("%d %s"):format(count, count == 1 and one or many)
+end
+
+-- An on/off option that's on unless the player turned it off.
+function ns.Option(key)
+	return ns.db.ui[key] ~= false
+end
+
+function ns.SetOption(key, on)
+	ns.db.ui[key] = on and true or false
+end
+
+-- "{item} x{count}" with { item = ..., count = ... }: each {word} that has a value is replaced, others are left.
+function ns.Fill(template, values)
+	return (template:gsub("{(%a+)}", function(word) return values[word] end))
+end
+
+-- A message the player wrote for chat: trimmed, cut to length, and without "|", which starts the game's colour
+-- and link codes and makes the chat box refuse a line when it's used wrongly.
+function ns.CleanChatText(text, maxLength)
+	text = tostring(text or ""):gsub("|", ""):gsub("%s+", " "):match("^%s*(.-)%s*$")
+	return text:sub(1, maxLength)
 end
 
 function ns.Money(copper)

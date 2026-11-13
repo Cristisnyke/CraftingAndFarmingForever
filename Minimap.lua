@@ -24,7 +24,7 @@ end
 
 local function OnClick(_, mouseButton)
 	if mouseButton == "RightButton" then
-		ns.UI.ToggleNextStep()
+		ns.UI.Show("options")
 	else
 		ns.UI.ToggleMain()
 	end
@@ -46,8 +46,8 @@ local function AddTooltipLines(tooltip)
 		tooltip:AddDoubleLine("Waiting in a mailbox", about .. ns.Money(waiting), 0.33, 0.87, 0.33, 1, 1, 1)
 	end
 	tooltip:AddLine("Left-click: open or close the window", 1, 1, 1)
-	tooltip:AddLine("Right-click: fold or unfold the Next step bar", 1, 1, 1)
-	tooltip:AddLine("Drag: move the button. /cff minimap hides it.", 0.6, 0.6, 0.6)
+	tooltip:AddLine("Right-click: options", 1, 1, 1)
+	tooltip:AddLine("Drag: move the button.", 0.6, 0.6, 0.6)
 end
 
 -- Where a button at this angle sits, from the minimap's centre.
@@ -159,11 +159,20 @@ function MinimapButton.Update()
 	dataObject.text = total > 0 and ns.Money(total) or "CFF"
 end
 
-function MinimapButton.Toggle()
-	local settings = Settings()
-	settings.hide = not settings.hide or nil
+function MinimapButton.Shown()
+	return not Settings().hide
+end
+
+function MinimapButton.SetShown(shown)
+	Settings().hide = not shown or nil
 	Apply()
-	ns.Print(settings.hide and "Minimap button hidden. /cff minimap shows it again." or "Minimap button shown.")
+end
+
+function MinimapButton.Toggle()
+	MinimapButton.SetShown(not MinimapButton.Shown())
+	ns.Print(MinimapButton.Shown() and "Minimap button shown."
+		or "Minimap button hidden. /cff minimap or the Options tab shows it again.")
+	ns.UI.Refresh("options")
 end
 
 function MinimapButton.Kind()

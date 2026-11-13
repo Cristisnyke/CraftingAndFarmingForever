@@ -1,5 +1,6 @@
 -- Crafting and Farming Forever :: UI
--- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales, Changelog; the queue can sit beside Restock), the small
+-- One tabbed window anchored to the screen (Profit, Queue, Restock, Sales, Options, Changelog; the queue can sit beside
+-- Restock; the Options tab's contents are in Options.lua), the small
 -- Next step bar, the Queue button on the crafting page, the stale-price prompts and the slash command.
 
 local _, ns = ...
@@ -10,20 +11,21 @@ ns.UI = UI
 local ROW_HEIGHT = 22
 local ROW_GLOW = 0.16 -- how strongly a row lights up under the mouse
 local ROW_COUNT = 48 -- enough for the tallest window
-local MAIN_WIDTH = 680 -- default and narrowest width: five tabs beside Refresh
+local MAIN_WIDTH = 730 -- default and narrowest width: six tabs beside Refresh
 local BESIDE_WIDTH = 1240 -- default width with the queue beside Restock
 local BESIDE_MIN_WIDTH = 1180
 local RESTOCK_SHARE = 0.45 -- Restock's share of the width with the queue beside it
 local WINDOW_HEIGHT = 560
 local MIN_HEIGHT, MAX_HEIGHT = 460, 1100
 local MAIN_TOP = 36 -- title and tabs
-local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 82, 26
+local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 76, 26
 local LOGO_TEXTURE = "Interface\\AddOns\\CraftingAndFarmingForever\\Media\\Logo"
 local MAIN_TABS = {
 	{ key = "profit", title = "Profit" },
 	{ key = "queue", title = "Queue" },
 	{ key = "restock", title = "Restock" },
 	{ key = "sales", title = "Sales" },
+	{ key = "options", title = "Options" },
 	{ key = "changelog", title = "Changelog" },
 }
 local PANE_ACTIONS_TOP = 4
@@ -1301,7 +1303,7 @@ local function CreateRow(parent)
 			GameTooltip:AddLine(ScanAgeText() .. " The quote may be off: scan the auction house first.", 1, 0.6, 0.2, true)
 		end
 		GameTooltip:AddLine("Fills in a reply to your last whisper with the price for the whole queued amount. "
-			.. ("The margin is %d%%; change it in the box at the bottom. You press Enter to send it."):format(ns.Queue.QuoteMargin()),
+			.. ("The margin is %d%%; change it on the Options tab. You press Enter to send it."):format(ns.Queue.QuoteMargin()),
 			1, 1, 1, true)
 		GameTooltip:Show()
 	end)
@@ -1685,6 +1687,7 @@ function UI.RefreshAll()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("sales")
+	UI.Refresh("options")
 	UI.Refresh("posting")
 	UpdateTabStrip()
 end
@@ -1914,6 +1917,7 @@ function CreateProfitPane()
 	window.status = status
 
 	window.update = function(self)
+		advertise:SetShown(ns.Advertise.Enabled())
 		advertise:SetEnabled(ns.Advertise.Reason(UI.AdvertisedProfession()) == nil)
 		local skillMode = ns.db.ui.profitMode == "skill"
 		for _, button in ipairs(modes) do
@@ -2394,29 +2398,11 @@ function CreateQueuePane()
 	local total = window.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	window.totalText = total
 	total:SetPoint("BOTTOMLEFT", 12, 110)
-	total:SetPoint("BOTTOMRIGHT", -150, 110)
+	total:SetPoint("BOTTOMRIGHT", -12, 110)
 	total:SetJustifyH("LEFT")
-
-	-- Quote margin, beside the total: the top row's right side belongs to the stale-price banner.
-	local margin, marginLabel = NumberBox(window.frame, "Quote margin %", nil, ns.Queue.QuoteMargin,
-		ns.Queue.SetQuoteMargin, "queue")
-	window.marginBox = margin
-	margin:ClearAllPoints()
-	margin:SetPoint("BOTTOMRIGHT", -14, 108)
-	marginLabel:ClearAllPoints()
-	marginLabel:SetPoint("RIGHT", margin, "LEFT", -8, 0)
-	margin:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText("Quote margin")
-		GameTooltip:AddLine(("Added to the material cost when you press Quote. 0 to %d%%; press Enter to save.")
-			:format(ns.Queue.QUOTE_MARGIN_MAX), 1, 1, 1, true)
-		GameTooltip:Show()
-	end)
-	margin:SetScript("OnLeave", GameTooltip_Hide)
 
 	window.clearButton = clear
 	window.update = function()
-		margin:Sync()
 		clear:SetEnabled(#ns.db.queue > 0)
 		local totals = ns.totals
 		local farming = ns.db.ui.farmMode and true or false
@@ -2626,7 +2612,7 @@ local function NextStepAllowed()
 end
 
 function UpdateNextStep()
-	if not ns.db or #ns.db.queue == 0 or not NextStepAllowed() then
+	if not ns.db or #ns.db.queue == 0 or not NextStepAllowed() or not ns.Option("nextStep") then
 		if windows.next then windows.next.frame:Hide() end
 		return
 	end
@@ -2647,6 +2633,10 @@ function UpdateNextStep()
 end
 
 function UI.ToggleNextStep()
+	if not ns.Option("nextStep") then
+		ns.Print("The Next step bar is turned off. Turn it on in the Options tab.")
+		return
+	end
 	if #ns.db.queue == 0 then
 		ns.Print("The queue is empty, so there's no next step.")
 		return
@@ -2880,6 +2870,10 @@ local function GetPane(key)
 			CreateRestockPane()
 		elseif key == "sales" then
 			CreateSalesPane()
+		elseif key == "options" then
+			local frame = CreateFrame("Frame", nil, main.frame)
+			frame:Hide()
+			windows.options = { key = "options", frame = frame, update = ns.Options.Build(frame, PANE_LIST_TOP) }
 		else
 			local frame = CreateFrame("Frame", nil, main.frame)
 			frame:Hide()
@@ -3187,7 +3181,8 @@ end
 -- Farm It closes the main window, leaving the Next step bar to follow while you gather; Buy It brings the queue back.
 function UI.FarmModeChanged()
 	if ns.db.ui.farmMode then
-		UI.Hide()
+		-- With the bar turned off the Queue tab is the gathering list, so it stays.
+		if ns.Option("nextStep") then UI.Hide() end
 	else
 		UI.Show("queue")
 	end
@@ -3277,7 +3272,7 @@ ns.On("ADDON_LOADED", function(name)
 end)
 
 local function NotifyStale()
-	if scanNotified or not ns.Prices.IsStale() then return end
+	if scanNotified or not ns.Prices.IsStale() or not ns.Option("chatTips") then return end
 	scanNotified = true
 	ns.Print(ScanAgeText() .. " Scan at the auction house for accurate profit.")
 end
@@ -3305,12 +3300,39 @@ end
 local Advertise = {}
 ns.Advertise = Advertise
 
-local AD_TEXT = "%s available for hire! Your materials, or I'll give you a price based on material cost."
+local DESTINATIONS
+-- {profession} becomes the profession's link. The player can write their own on the Options tab.
+Advertise.DEFAULT_TEXT = "{profession} available for hire! Your materials, or I'll give you a price based on material cost."
+Advertise.TEXT_MAX = 200
+
+-- Off hides the Ad box beside the chat and the Profit tab's Advertise button.
+function Advertise.Enabled()
+	return ns.Option("adEnabled")
+end
+
+function Advertise.Text()
+	return ns.db.ui.adText or Advertise.DEFAULT_TEXT
+end
+
+-- Empty, or the default itself, goes back to the default.
+function Advertise.SetText(text)
+	text = ns.CleanChatText(text, Advertise.TEXT_MAX)
+	ns.db.ui.adText = (text ~= "" and text ~= Advertise.DEFAULT_TEXT) and text or nil
+end
+
+function Advertise.Destinations()
+	return DESTINATIONS
+end
+
+function Advertise.SetDestination(key)
+	ns.db.ui.adDestination = key
+end
+
 local AD_COOLDOWN_SECONDS = 60
 local lastAdvertised = {} -- by destination
 
 -- Where an ad can go. The slash command is for the chat box fallback; Trade's depends on its channel number.
-local DESTINATIONS = {
+DESTINATIONS = {
 	{ key = "TRADE", label = "Trade", chatType = "CHANNEL" },
 	{ key = "GUILD", label = "Guild", chatType = "GUILD", slash = "/g" },
 	{ key = "SAY", label = "Say", chatType = "SAY", slash = "/s" },
@@ -3336,6 +3358,7 @@ end
 
 -- Why this profession can't be advertised on this character; nil when it can.
 function Advertise.Reason(professionID)
+	if not Advertise.Enabled() then return "Advertising is turned off. Turn it on in the Options tab." end
 	if not professionID then return "Pick a profession tab first." end
 	if not ns.Recipes.IsCraftingProfession(professionID) then return "Gathering professions aren't advertised." end
 	if not ns.Recipes.CharHasProfession(ns.CharKey(), professionID) then
@@ -3410,7 +3433,7 @@ local function AdCommand(professionID, destination)
 	if not available then return nil, why end
 	local char = ns.db.chars[ns.CharKey()]
 	local link = char.links and char.links[professionID]
-	local message = AD_TEXT:format(link or ns.Recipes.ProfessionName(professionID) or "Crafting")
+	local message = ns.Fill(Advertise.Text(), { profession = link or ns.Recipes.ProfessionName(professionID) or "Crafting" })
 	return (destination.slash or ("/" .. tostring(channel))) .. " " .. message, nil, link ~= nil
 end
 
@@ -3535,6 +3558,7 @@ function Advertise.UpdateButtons()
 		if Advertise.Reason(profession.id) == nil then table.insert(crafting, profession) end
 	end
 
+	if not Advertise.Enabled() then adOpen = false end
 	if #crafting > 0 and not destinationButton then CreateDestinationPicker() end
 	local destination = CurrentDestination()
 	if adBox then
@@ -3627,11 +3651,11 @@ StaticPopupDialogs["CFF_SCAN"] = {
 ns.On("AUCTION_HOUSE_SHOW", function()
 	-- Auctionator creates its scan frames as the auction house opens, so wait for them.
 	C_Timer.After(1.5, function()
-		if ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+		if ns.Option("scanPopup") and ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
 			StaticPopup_Show("CFF_SCAN", ScanAgeText())
 		end
 		-- Once per visit, the way to the list, when there's something on it.
-		if next(ns.plan.buy) and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+		if ns.Option("chatTips") and next(ns.plan.buy) and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
 			ns.Print(('Materials to buy: click the Shopping tab at the bottom of the auction house (Auctionator), '
 				.. 'then the list "%s".'):format(ns.LIST_NAME))
 		end
@@ -3690,7 +3714,9 @@ SLASH_CFF2 = "/craftfarm"
 SlashCmdList.CFF = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
 	if command == "new" then command = "changelog" end
-	if command == "queue" or command == "profit" or command == "restock" or command == "sales" or command == "changelog" then
+	if command == "config" or command == "settings" then command = "options" end
+	if command == "queue" or command == "profit" or command == "restock" or command == "sales" or command == "options"
+		or command == "changelog" then
 		UI.Toggle(command)
 	elseif command == "next" then
 		UI.ToggleNextStep()
@@ -3703,6 +3729,7 @@ SlashCmdList.CFF = function(input)
 	elseif command == "auto" then
 		ns.db.ui.autoOpen = not ns.db.ui.autoOpen
 		ns.Print("Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
+		UI.Refresh("options")
 	elseif command == "minimap" then
 		ns.MinimapButton.Toggle()
 	elseif command == "diag" then
@@ -3710,6 +3737,6 @@ SlashCmdList.CFF = function(input)
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/cff [profit | queue | restock | sales | changelog | next | minimap | advertise | refresh | clear | auto | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | options | changelog | next | minimap | advertise | refresh | clear | auto | diag]")
 	end
 end

@@ -23,6 +23,7 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `UI.lua` | The tabbed window and its panes, the Next step bar (also the Farm It list), the recipe-page Queue button, the scan prompt, advertising, the slash command |
 | `Posting.lua` | The Restocking tab in the auction house: candidate items, live price search, posting |
 | `Changelog.lua` | Generated from `CHANGELOG.md` by `tools/gen_changelog.lua`: the What's new text. Don't edit by hand. |
+| `Options.lua` | The Options tab's controls (`Options.Build`), also registered as a page in the game's Options > AddOns |
 | `WhatsNew.lua` | The Changelog tab's contents, lit until the installed version's notes are opened (`db.lastSeenVersion`), and the missing-Syndicator chat warning |
 
 ### Rules that keep it working

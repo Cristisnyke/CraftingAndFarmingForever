@@ -100,6 +100,10 @@ function StaticPopup_Hide() end
 SlashCmdList = {}
 UISpecialFrames = {}
 TRADE = "Trade"
+Settings = {
+	RegisterCanvasLayoutCategory = function(frame, name) return { frame = frame, name = name } end,
+	RegisterAddOnCategory = function(category) registeredCategory = category end,
+}
 channelList = { 1, "General - City", false, 2, "Trade - City", false, 4, "LocalDefense - City", false }
 function GetChannelList() return unpack(channelList) end
 inGuild = true
@@ -614,9 +618,11 @@ QueueRow().quote.scripts.OnClick(QueueRow().quote)
 check("quote with no known sender uses reply", chatBoxText, "/r link x2: 1s 54c")
 ChatEdit_GetLastTellTarget = nil
 
--- The margin box in the Queue footer changes the quote and is saved.
+-- The margin box on the Options tab changes the quote and is saved.
 do
-	local box = ns.UI.windows.queue.marginBox
+	local tabBefore = ns.db.ui.tab
+	ns.UI.Show("options")
+	local box = ns.Options.Controls(ns.UI.windows.options.frame).margin
 	check("margin box shows the margin", box:GetText(), "10")
 	box:SetText("400")
 	box.scripts.OnEnterPressed(box)
@@ -635,6 +641,7 @@ do
 	box:SetText("10")
 	box.scripts.OnEnterPressed(box)
 	check("margin back to 10", ns.db.ui.quoteMargin, 10)
+	ns.UI.Show(tabBefore)
 end
 
 -- The amount box between - and + on a queue row: typed crafts, Escape, Shift -, and 0 removing the entry.
@@ -1504,7 +1511,7 @@ do
 	local frame = ns.UI.main.frame
 	UIParent.height = 1200
 	ns.UI.Show("profit")
-	check("default width", frame.width, 680)
+	check("default width", frame.width, 730)
 	frame:SetSize(900, 700)
 	ns.UI.SaveSize()
 	ns.UI.Select("queue")
@@ -1518,10 +1525,10 @@ do
 	frame:SetSize(400, 300)
 	ns.UI.SaveSize()
 	ns.UI.Select("profit")
-	check("never narrower than the tabs", frame.width, 680)
+	check("never narrower than the tabs", frame.width, 730)
 	check("never shorter than the minimum", frame.height, 460)
 	ns.UI.main.grip.scripts.OnClick(ns.UI.main.grip)
-	check("reset width", frame.width, 680)
+	check("reset width", frame.width, 730)
 	check("reset height", frame.height, 560)
 	check("reset clears saved size", ns.db.ui.width, nil)
 	UIParent.height = 400
@@ -1533,7 +1540,7 @@ Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CFF_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "changelog", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "options", "changelog", "diag", "bogus" }) do
 	SlashCmdList.CFF(command)
 end
 RunTimers()
@@ -1567,8 +1574,9 @@ check("session queue merged", #ns.db.queue, 2)
 -- Changelog tab.
 do
 	local W = ns.WhatsNew
-	local tab = ns.UI.main.tabButtons[5]
-	check("Changelog is the tab after Sales", tab.key, "changelog")
+	local tab = ns.UI.main.tabButtons[6]
+	check("Options is the tab before Changelog", ns.UI.main.tabButtons[5].key, "options")
+	check("Changelog is the last tab", tab.key, "changelog")
 	-- Saved data from a version before the notes existed counts as an update: the tab lights up, nothing opens.
 	ns.dataReady, ns.savedDataFound, ns.db.lastSeenVersion = true, true, nil
 	ns.UI.Show("profit")
@@ -2613,6 +2621,98 @@ do
 	check("hidden is remembered", ns.db.ui.minimap.hide, true)
 	SlashCmdList.CFF("minimap")
 	check("/cff minimap shows it again", mini.button:IsShown(), true)
+end
+
+-- Options: the tab, the minimap button's right-click, and the game's own AddOns list all lead to the same controls.
+do
+	local mini = ns.MinimapButton
+	ns.UI.Hide()
+	mini.button.scripts.OnClick(mini.button, "RightButton")
+	check("right-click opens the window", ns.UI.IsOpen(), true)
+	check("on the Options tab", ns.db.ui.tab, "options")
+	local pane = ns.UI.windows.options.frame
+	local controls = ns.Options.Controls(pane)
+	local function Tick(key, on)
+		controls[key].GetChecked = function() return on end
+		controls[key].scripts.OnClick(controls[key])
+	end
+
+	check("registered in the game's AddOns list", registeredCategory and registeredCategory.name,
+		"Crafting and Farming Forever")
+	local panel = ns.Options.panel
+	panel.shown = false
+	panel:Show()
+	check("the game's page has its own controls", ns.Options.Controls(panel) ~= nil, true)
+	check("which aren't the tab's", ns.Options.Controls(panel) ~= controls, true)
+
+	-- Advertising off: no Ad box, no Advertise button, and the command says why.
+	inCombat = false
+	ns.Advertise.UpdateButtons()
+	check("Ad box shown while advertising is on", ns.Advertise.box:IsShown(), true)
+	Tick("adEnabled", false)
+	check("advertising off is saved", ns.db.ui.adEnabled, false)
+	check("Ad box gone", ns.Advertise.box:IsShown(), false)
+	ns.UI.Show("profit")
+	check("Advertise button gone", ns.UI.windows.profit.advertiseButton:IsShown(), false)
+	chatBoxText = nil
+	time = function() return os.time() + 100000 end
+	ns.Advertise.Send(197)
+	check("no ad while off", chatBoxText, nil)
+	ns.UI.Show("options")
+	Tick("adEnabled", true)
+	check("Ad box back", ns.Advertise.box:IsShown(), true)
+
+	-- Own advertising message.
+	local box = controls.adText
+	check("box shows the default message", box:GetText(), ns.Advertise.DEFAULT_TEXT)
+	box:SetText("  WTS {profession} | cheap  ")
+	box.scripts.OnEnterPressed(box)
+	check("own ad saved, cleaned", ns.db.ui.adText, "WTS {profession} cheap")
+	ns.Advertise.Send(197)
+	check("own ad used", chatBoxText:match("^/%d+ (.*)$"), "WTS |ctrade|Htrade:197|h[Tailoring]|h|r cheap")
+	box.reset.scripts.OnClick(box.reset)
+	check("Default puts the wording back", ns.db.ui.adText, nil)
+	check("and shows it", box:GetText(), ns.Advertise.DEFAULT_TEXT)
+	box:SetText("   ")
+	box.scripts.OnEnterPressed(box)
+	check("an empty message is the default", ns.Advertise.Text(), ns.Advertise.DEFAULT_TEXT)
+
+	-- Where to post.
+	controls.destinations.GUILD.scripts.OnClick(controls.destinations.GUILD)
+	check("destination picked in Options", ns.Advertise.DestinationLabel(), "Guild")
+	controls.destinations.TRADE.scripts.OnClick(controls.destinations.TRADE)
+
+	-- Own quote message.
+	ns.Queue.SetQuoteMargin(10)
+	local quote = controls.quoteText
+	quote:SetText("{count} {item} for {price}, {unknown} stays")
+	quote.scripts.OnEnterPressed(quote)
+	check("own quote used", ns.Queue.QuoteText(20, 2), "2 link for 1s 54c, {unknown} stays")
+	check("quote example shown", quote.example.text:find("20 [Healing Potion] for 5g 20s", 1, true) ~= nil, true)
+	quote.reset.scripts.OnClick(quote.reset)
+	check("default quote back", ns.Queue.QuoteText(20, 2), "link x2: 1s 54c")
+
+	-- Next step bar off.
+	ns.Queue.Add(20, 1)
+	RunTimers()
+	check("Next step bar shown with a queue", ns.UI.windows.next.frame:IsShown(), true)
+	Tick("nextStep", false)
+	check("Next step bar off", ns.UI.windows.next.frame:IsShown(), false)
+	Tick("nextStep", true)
+	check("Next step bar back", ns.UI.windows.next.frame:IsShown(), true)
+
+	-- Minimap button and the scan question.
+	Tick("minimap", false)
+	check("minimap button hidden from Options", mini.button:IsShown(), false)
+	Tick("minimap", true)
+	check("and shown again", mini.button:IsShown(), true)
+	Tick("scanPopup", false)
+	ns_popup = nil
+	Fire("AUCTION_HOUSE_SHOW")
+	RunTimers()
+	check("no scan question when turned off", ns_popup, nil)
+	Tick("scanPopup", true)
+	time = os.time
 end
 
 print(("%d checks, %d failures"):format(checks, failures))

@@ -2,9 +2,9 @@
 
 Crafting and Farming Forever is one window with five tabs (**Profit**, **Queue**, **Restock**, **Sales**, **Changelog**), plus a small **Next step** bar, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
 
-The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. `/cff auto` turns opening with the profession window off or on.
+The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. The Options tab (or `/cff auto`) turns opening with the profession window off or on.
 
-The minimap button opens or closes the window with a left-click and folds or unfolds the Next step bar with a right-click. Drag it round the minimap to move it. Minimap button collectors (such as MinimapButtonButton) and broker bars pick it up like any other button. `/cff minimap` hides or shows it.
+The minimap button opens or closes the window with a left-click and opens the Options tab with a right-click. Drag it round the minimap to move it. Minimap button collectors (such as MinimapButtonButton) and broker bars pick it up like any other button. The Options tab or `/cff minimap` hides or shows it.
 
 Hover any row with an item icon to see the game's item tooltip followed by the add-on's own details. Hover a row of column headings to see what each column means.
 
@@ -92,7 +92,7 @@ Steps with nothing to do are left out and the rest renumbered.
 - **Take from your bank**: materials the plan uses that are in your bank, not your bags.
 - **Buy from a vendor**: vendor materials. They're shown here only, never on the Auctionator list.
 - **Quote** on each row fills in a whisper to the last person who whispered you, with one price for the whole queued amount: the material cost of every craft plus your margin, for example `[Healing Potion] x20: 5g 20s`. The count is the number of items made, so a recipe that makes 5 queued twice says x10. Hover **Quote** to see the material cost and the quote before sending. Press Enter to send it.
-- **Quote margin %** at the bottom right sets the margin: 10% by default, anything from 0 to 1000%. Type a number and press Enter; it's remembered.
+- The margin is set on the **Options** tab: 10% by default, anything from 0 to 1000%. You can also write your own quote message there.
 
 ### Next step bar
 
@@ -183,6 +183,25 @@ Your profit from what you craft and sell, with sold and expired auctions per ite
 - The chance uses all history: `1 − exp(−sold ÷ (unit-days listed + 1))` per unit listed. With fewer than 5 units of history it's shown grey with `~`, as a rough guess.
 - Items are matched by name, because sold mail doesn't say which item ID it was.
 
+## Options
+
+The **Options** tab sits before Changelog. Right-clicking the minimap button, `/cff options`, and the game's own Options (AddOns, Crafting and Farming Forever) open the same settings. Changes are saved as you make them.
+
+| Option | What it does |
+| --- | --- |
+| Open with the profession window | The window opens and closes with your profession window |
+| Show the minimap button | Hides or shows the button on the minimap |
+| Show the Next step bar | Off: no bar; the Queue tab is your list, also when farming |
+| Ask to scan at the auction house when prices are old | The Yes or No box offering a new scan. The orange note in the window stays |
+| Reminders in chat | The chat lines about old prices at login and where the shopping list is |
+| Advertise my professions | Off removes the Ad box beside the chat and the Advertise button on the Profit tab |
+| Post to | Trade, Guild, Say or Yell, the same choice as the Ad box's picker |
+| Advertising message | Your own wording. Write `{profession}` where your profession link should go |
+| Quote margin % | Added to the material cost when you press Quote, 0 to 1000 |
+| Quote message | Your own wording. `{item}` is the item's link, `{count}` how many you'd make, `{price}` the price for all of them |
+
+Type a message and press Enter to save it; the line under the box shows what will be sent. **Default** puts the add-on's own wording back.
+
 ## Advertising
 
 A small **Ad** box beside the main chat window. Click it to pick where to post (**Trade**, **Guild**, **Say** or **Yell**) and one button per crafting profession of the logged-in character. One click posts that profession's link with a short offer (your materials, or a price based on material cost), and the box closes.
@@ -203,6 +222,7 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |
 | `/cff auto` | Toggle opening with the profession window |
+| `/cff options` | Open the Options tab |
 | `/cff changelog` (or `/cff new`) | Open the Changelog tab |
 | `/cff diag` | Print diagnostics and save them for troubleshooting |
 

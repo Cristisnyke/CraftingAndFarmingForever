@@ -181,7 +181,21 @@ end
 
 Queue.QUOTE_MARGIN_MAX = 1000
 
--- The quote margin in percent, set in the Queue footer.
+-- {item} is the link, {count} the items made, {price} the whole order's price. The player can write their own on
+-- the Options tab.
+Queue.DEFAULT_QUOTE_TEXT = "{item} x{count}: {price}"
+Queue.QUOTE_TEXT_MAX = 150
+
+function Queue.QuoteTemplate()
+	return ns.db.ui.quoteText or Queue.DEFAULT_QUOTE_TEXT
+end
+
+function Queue.SetQuoteTemplate(text)
+	text = ns.CleanChatText(text, Queue.QUOTE_TEXT_MAX)
+	ns.db.ui.quoteText = (text ~= "" and text ~= Queue.DEFAULT_QUOTE_TEXT) and text or nil
+end
+
+-- The quote margin in percent, set on the Options tab.
 function Queue.QuoteMargin()
 	return ns.db.ui.quoteMargin or 10
 end
@@ -209,7 +223,7 @@ function Queue.QuotePrice(recipeID, crafts)
 	return math.floor(cost * (1 + Queue.QuoteMargin() / 100) + 0.5), cost
 end
 
--- "[Healing Potion] x20: 5g 20s" for the whole order. The count is items made, so a recipe that makes 5 queued
+-- "[Healing Potion] x20: 5g 20s" for the whole order, or the player's own wording. The count is items made, so a recipe that makes 5 queued
 -- twice says x10. Nil if a material has no price.
 function Queue.QuoteText(recipeID, crafts)
 	local recipe = ns.db.recipes[recipeID]
@@ -217,7 +231,8 @@ function Queue.QuoteText(recipeID, crafts)
 	crafts = math.max(1, crafts or 1)
 	local price = Queue.QuotePrice(recipeID, crafts)
 	if not price then return nil end
-	return ("%s x%d: %s"):format(QuoteLabel(recipeID, recipe), crafts * (recipe.qmin or 1), ns.Money(price))
+	return ns.Fill(Queue.QuoteTemplate(),
+		{ item = QuoteLabel(recipeID, recipe), count = crafts * (recipe.qmin or 1), price = ns.Money(price) })
 end
 
 ---------------------------------------------------------------------------

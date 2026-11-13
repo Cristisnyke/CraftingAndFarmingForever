@@ -62,6 +62,11 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 
 - A small **Ad** box beside the chat posts your profession link to Trade, Guild, Say or Yell in one click.
 - **Quote** fills in a reply to your last whisper with one price for the whole order: material cost plus a margin you choose, from 0% up to 1000%.
+- Word both messages your way, or turn advertising off, on the Options tab.
+
+### Options
+
+- One tab to switch things on or off: advertising, the minimap button, the Next step bar, the scan question and the chat reminders. Also opens with a right-click on the minimap button, and from the game's Options under AddOns.
 
 ### Stale-price warning
 
@@ -85,7 +90,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 ## Commands
 
 - `/cff` or `/craftfarm`: show or hide the window
-- `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`: open a tab
+- `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`, `/cff options`: open a tab
 - `/cff next`: fold or unfold the Next step bar
 - `/cff minimap`: hide or show the minimap button
 - `/cff refresh`: re-read recipes, stock and prices

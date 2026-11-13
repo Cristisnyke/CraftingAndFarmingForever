@@ -15,7 +15,7 @@ read_globals = {
 	"GameTooltip_Hide", "GetCVarBool", "GetChannelList", "GetCursorPosition", "GetInboxHeaderInfo",
 	"GetInboxInvoiceInfo", "GetInboxItem", "GetInboxNumItems", "GetMoney", "GetRealmName", "GetSpellInfo",
 	"GetSpellTexture", "GetTime", "InCombatLockdown", "IsControlKeyDown", "IsInGuild", "IsInInstance",
-	"IsShiftKeyDown", "ItemLocation", "LibStub", "Minimap", "NO", "ProfessionsFrame", "StaticPopup_Hide",
+	"InterfaceOptions_AddCategory", "IsShiftKeyDown", "ItemLocation", "LibStub", "Minimap", "NO", "ProfessionsFrame", "Settings", "StaticPopup_Hide",
 	"StaticPopup_Show", "TRADE", "UIParent", "UnitCastingInfo", "UnitClass", "UnitGUID", "UnitName", "YES",
 	"date", "geterrorhandler", "hooksecurefunc", "issecretvalue", "time", "wipe",
 	-- Tables the add-on adds entries to.
