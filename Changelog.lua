@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.8.1", lines = {
+		"- Sales profit: materials you already had, or gathered, now count at the market price on the day you craft with them. They used to count as free, so something made mostly from materials in your bags showed far too much profit. Sales already recorded keep the profit they had",
+		"- Items crafted before the add-on recorded costs count at today's cost to craft one, with their profit marked ~",
+	} },
 	{ version = "1.8.0", lines = {
 		"- New Options tab, before Changelog, to switch parts of the add-on on or off and word its messages your way. You can also open it by right-clicking the minimap button, with /cff options, or from the game's own Options under AddOns",
 		"- Advertising: write your own message (put {profession} where your profession link goes), choose where it's posted, or turn advertising off, which removes the Ad box beside the chat and the Advertise button",

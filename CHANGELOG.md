@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.8.1
 
 - Sales profit: materials you already had, or gathered, now count at the market price on the day you craft with them. They used to count as free, so something made mostly from materials in your bags showed far too much profit. Sales already recorded keep the profit they had
 - Items crafted before the add-on recorded costs count at today's cost to craft one, with their profit marked ~
