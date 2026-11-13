@@ -2541,19 +2541,22 @@ do
 	check("purchase recorded at the price paid", ns.db.costs[901].c, 1000)
 	check("purchase units recorded", ns.db.costs[901].q, 10)
 
-	-- 4 bought units and 2 gathered ones make one item.
+	-- 4 bought units and 2 that were already held make one item: the held ones count at the market price (50 each).
+	-- Counted as free, a bag made from one bought bolt and two held ones showed far too much profit.
+	local oldMarket = { prices[901], prices[903] }
+	prices[901], prices[903] = 100, 50
 	ns.db.recipes[9001] = { n = "Crafted Thing", o = 902, qmin = 1, qmax = 1, r = { { 4, 901 }, { 2, 903 } } }
 	ns.db.chars[me].recipes[9001] = true
 	ns.Sales.ForgetCraftInfo()
 	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 9001)
 	check("craft takes its materials' cost", ns.db.costs[901].c, 600)
-	check("craft result carries the cost", ns.db.costs[902].c, 400)
+	check("craft result carries the cost, held materials at market", ns.db.costs[902].c, 500)
 
 	local now = os.time()
 	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
 	local thing = ns.Sales.Item("crafted thing")
 	local profit, rough, sold, _, gold = ns.Sales.Profit(thing, 1)
-	check("profit is the sale less what was paid", profit, 550)
+	check("profit is the sale less what its materials cost", profit, 450)
 	check("known cost isn't an estimate", rough, false)
 	check("sale still counted", sold == 1 and gold == 950, true)
 	check("sold unit leaves the cost record", ns.db.costs[902], nil)
@@ -2562,15 +2565,15 @@ do
 	ns.Sales.Record("sold", "Spare Ore", 1, 100, now, me, 903)
 	check("only crafts by default", #ns.Sales.AllItems(false), 1)
 	check("everything on request", #ns.Sales.AllItems(true), 2)
-	check("totals: crafts only", select(4, ns.Sales.Totals(1, false)), 550)
-	check("totals: everything", select(4, ns.Sales.Totals(1, true)), 650)
+	check("totals: crafts only", select(4, ns.Sales.Totals(1, false)), 450)
+	check("totals: everything", select(4, ns.Sales.Totals(1, true)), 550)
 
 	-- Money on its way counts before its mail is read, at the cost on record.
 	ns.Sales.AddCost(902, 1, 400)
 	table.insert(ns.db.sales.incoming, { name = "Crafted Thing", itemID = 902, char = me, at = now, due = now + 3600, amount = 950 })
 	table.insert(ns.db.sales.incoming, { name = "New Thing", itemID = 905, char = me, at = now, due = now + 3600, amount = 70 })
-	check("money on its way is in the item's profit", (ns.Sales.Profit(thing, 1)), 1100)
-	check("money on its way is in the totals", select(4, ns.Sales.Totals(1, true)), 1270)
+	check("money on its way is in the item's profit", (ns.Sales.Profit(thing, 1)), 1000)
+	check("money on its way is in the totals", select(4, ns.Sales.Totals(1, true)), 1170)
 	check("sale on its way doesn't use up the cost", ns.db.costs[902].c, 400)
 	ns.db.sales.incoming = {}
 	ns.db.costs[902] = nil
@@ -2579,15 +2582,16 @@ do
 	ns.Sales.Record("sold", "Old Thing", 3, 900, now, me, 904)
 	for _, day in pairs(ns.Sales.Item("old thing").days) do day.x = true end
 	check("earlier sales not listed", #ns.Sales.AllItems(true), 2)
-	check("earlier sales not in the profit", select(4, ns.Sales.Totals(nil, true)), 650)
+	check("earlier sales not in the profit", select(4, ns.Sales.Totals(nil, true)), 550)
 	check("earlier sales kept for the history", ns.Sales.Item("old thing").sold, 3)
 	ns.db.sales.items["old thing"] = nil
 
-	-- A crafted item sold with no cost on record (made before costs were kept) costs nothing: profit follows gold.
+	-- A crafted item sold with no cost on record (made before costs were kept) counts at today's cost to craft
+	-- one (4 x 100 + 2 x 50), marked as an estimate.
 	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
 	local noCost, noCostRough = ns.Sales.Profit(thing, 1)
-	check("no cost on record: all of it is profit", noCost, 550 + 950)
-	check("no cost on record: not an estimate", noCostRough, false)
+	check("no cost on record: today's craft cost", noCost, 450 + 950 - 500)
+	check("no cost on record: an estimate", noCostRough, true)
 
 	ns.UI.Show("sales")
 	local window = ns.UI.windows.sales
@@ -2599,6 +2603,7 @@ do
 	ns.UI.Hide()
 
 	ns.db.recipes[9001], ns.db.chars[me].recipes[9001] = nil, nil
+	prices[901], prices[903] = oldMarket[1], oldMarket[2]
 	ns.db.sales.items, ns.db.costs = {}, {}
 	ns.Sales.ForgetCraftInfo()
 	RunTimers()

@@ -209,7 +209,7 @@ local function CraftInfo()
 			local name = ns.Items.Name(itemID)
 			if name then names[name:lower()] = itemID end
 		end
-		craftInfo = { at = now, ctx = ctx, names = names }
+		craftInfo = { at = now, ctx = ctx, names = names, unit = {} }
 	end
 	return craftInfo
 end
@@ -225,9 +225,17 @@ function Sales.CraftedID(item)
 	return info.names[item.name:lower()]
 end
 
+-- Today's cost to craft one of a crafted item at market prices, nil when unknown.
+local function CraftUnit(itemID)
+	local info = CraftInfo()
+	if info.unit[itemID] == nil then info.unit[itemID] = ns.Planner.CraftUnitCost(info.ctx, itemID) or false end
+	return info.unit[itemID] or nil
+end
+
 -- Sales whose money is still on its way or waiting in a mailbox: the mail hasn't been read, so they aren't in the
--- records yet. Returns units, copper expected, what they cost and whether any amount is an estimate, for one item
--- (by lowercase name) over the last N days. Units with no cost on record cost nothing, as in Sales.Profit.
+-- records yet. Returns units, copper expected, what they cost and whether any of it is an estimate, for one item
+-- (by lowercase name) over the last N days. Units with no cost on record count at today's cost to craft one, as in
+-- Sales.Profit.
 local function Pending(key, days)
 	local first = days and DayNumber(time()) - days + 1
 	local count, gold, cost, rough = 0, 0, 0, false
@@ -240,6 +248,9 @@ local function Pending(key, days)
 			local pool = itemID and ns.db.costs[itemID]
 			if pool and pool.q >= 1 then
 				cost = cost + pool.c / pool.q
+			elseif itemID and CraftInfo().ctx.known[itemID] then
+				cost = cost + (CraftUnit(itemID) or 0)
+				rough = true
 			end
 		end
 	end
@@ -248,13 +259,21 @@ end
 
 -- Profit over the last N days (nil for all time): the money received, after the AH cut, less what the sold units
 -- cost you. Then whether part of it is an estimate, and sold, expired and copper received. Only results from since
--- profit is counted. It follows your gold: units with no cost on record (made before then, or from gathered
--- materials) cost nothing, since that money was spent before profit was counted, or never.
+-- profit is counted. Crafted units with no cost on record (made before costs were kept) count at today's cost to
+-- craft one, as an estimate: counting them as free made everything made from old stock look like pure profit.
 function Sales.Profit(item, days)
-	local sold, expired, gold, cost = Tracked(item, days)
+	local sold, expired, gold, cost, unknown = Tracked(item, days)
+	local rough = false
+	if unknown > 0 then
+		local itemID = Sales.CraftedID(item)
+		if itemID then
+			cost = cost + unknown * (CraftUnit(itemID) or 0)
+			rough = true
+		end
+	end
 	-- Sold, but the money is still on its way.
 	local pendingCount, pendingGold, pendingCost, pendingRough = Pending(item.name:lower(), days)
-	return gold + pendingGold - cost - pendingCost, pendingRough, sold + pendingCount, expired, gold + pendingGold
+	return gold + pendingGold - cost - pendingCost, rough or pendingRough, sold + pendingCount, expired, gold + pendingGold
 end
 
 -- Sold, expired, copper received, profit and whether the profit is partly estimated, over the last N days. Only
@@ -303,12 +322,12 @@ end
 ---------------------------------------------------------------------------
 -- What things cost
 ---------------------------------------------------------------------------
--- A running record of what you paid for the items you hold, so a sale's profit is counted from real spending:
--- auction house purchases at the price paid, crafts at what their materials cost, materials you gathered at
--- nothing. Each item is one pool with an average cost, shared by all characters, since mail moves things between
--- them. What you already held when this record began costs nothing: it was paid for before profit was counted, so
--- profit follows your gold. (1.7.0 valued it at market prices, so selling things made from old or gathered stock
--- showed a loss while gold went up.)
+-- A running record of what the items you hold cost, so a sale's profit is counted from what went into it: auction
+-- house purchases at the price paid, crafts at what their materials cost. Each item is one pool with an average
+-- cost, shared by all characters, since mail moves things between them. Materials with no purchase on record (held
+-- before this record began, gathered, looted, traded) count at the market price on the day they're used: they could
+-- have been sold for that. (1.7.1 counted them as free, so a bag made from two bolts you had and one you bought
+-- showed the cost of one bolt and far too much profit. The user chose market value on 2026-11-13.)
 
 function Sales.AddCost(itemID, qty, copper)
 	if not (itemID and qty and qty > 0) then return end
@@ -344,10 +363,11 @@ function Sales.NotePurchase(itemID, count, paid)
 end
 
 -- A finished craft: its materials leave their pools and their cost moves to what was made. Materials with no cost
--- on record were gathered, so they're free, unless a vendor sells them: then they were bought there.
+-- on record count at the vendor's price when a vendor sells them, else at the market's cheapest way to get one
+-- (nothing when there's no price at all).
 function Sales.NoteCraft(recipe)
 	if not recipe.o then return end
-	local total = 0
+	local total, ctx = 0, nil
 	for _, slot in ipairs(recipe.r or {}) do
 		local count, itemID = slot[1], slot[2]
 		for index = 2, #slot do
@@ -358,8 +378,14 @@ function Sales.NoteCraft(recipe)
 		end
 		if itemID then
 			local cost, covered = Sales.TakeCost(itemID, count)
-			local vendor = ns.Prices.Vendor(itemID)
-			if covered < count and vendor and vendor > 0 then cost = cost + (count - covered) * vendor end
+			if covered < count then
+				local unit = ns.Prices.Vendor(itemID)
+				if not (unit and unit > 0) then
+					ctx = ctx or CraftInfo().ctx
+					unit = ns.Planner.ItemCost(ctx, itemID)
+				end
+				cost = cost + (count - covered) * (unit or 0)
+			end
 			total = total + cost
 		end
 	end
