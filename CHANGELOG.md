@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- Restock: smart goals. An item's goal now follows your own sales: more of what sells well, fewer of what keeps expiring, and it keeps adjusting as you sell (recent days count most). One item's stock never costs more than a quarter of your gold to make, and daggers are stocked in pairs, since buyers usually want two. Smart goals show in blue, and the tooltip says why. A goal you set yourself always stays. Turn it off on the Options tab
+- Restock: smart goals. An item's goal now follows your own sales: more of what sells well, fewer of what keeps expiring, and it keeps adjusting as you sell (recent days count most). One item's stock never costs more than a quarter of your gold to make, and daggers are stocked in pairs, since buyers usually want two. Smart goals show in blue, and the tooltip says why. A goal you set yourself always stays. The Options tab has a Stock level slider for how much to keep (50% of a day's sales to start with), and a switch to turn smart goals off
 
 ## 1.9.0
 

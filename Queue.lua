@@ -282,6 +282,18 @@ function Restock.SmartOn()
 	return ns.Option("smartRestock")
 end
 
+-- How much of a day's sales smart goals keep in stock, in percent.
+function Restock.SmartLevel()
+	return ns.db.restock.smartLevel or ns.Planner.SMART.LEVEL * 100
+end
+
+function Restock.SetSmartLevel(percent)
+	local smart = ns.Planner.SMART
+	percent = math.floor(percent / 10 + 0.5) * 10
+	ns.db.restock.smartLevel = math.max(smart.LEVEL_MIN * 100, math.min(smart.LEVEL_MAX * 100, percent))
+	smartGoals = {}
+end
+
 function Restock.ForgetSmart()
 	smartGoals = {}
 end
@@ -299,6 +311,7 @@ local function SmartGoal(itemID)
 		coverDays = math.max(1, math.min(2, ns.Sales.DurationHours(ns.db.restock.duration) / 24)),
 		unitCost = ns.Sales.CraftUnit(itemID), gold = GetMoney(),
 		pair = ns.Items.SoldInPairs(itemID),
+		level = Restock.SmartLevel() / 100,
 	})
 	info.base = base
 	smartGoals[itemID] = { base = base, goal = goal, info = info }

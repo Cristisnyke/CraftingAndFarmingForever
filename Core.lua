@@ -56,7 +56,7 @@ end
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
--- db.restock           = { stackGoal, singleGoal, minProfitSilver, duration = 1 to 3 for posting,
+-- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (% of a day's sales, nil = 50), duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
 -- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents

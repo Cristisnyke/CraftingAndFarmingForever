@@ -602,8 +602,9 @@ function UI.SmartGoalLines(smart)
 		lines[1] = ("Smart goal: too few sales yet, so the default (%d) is used."):format(smart.base)
 	else
 		local perDay = smart.perDay >= 10 and ("%d"):format(smart.perDay + 0.5) or ("%.1f"):format(smart.perDay)
-		lines[1] = ("Smart goal: sells about %s a day lately, %d%% sold and %d%% expired (default %d)."):format(
-			perDay, smart.soldShare * 100 + 0.5, 100 - math.floor(smart.soldShare * 100 + 0.5), smart.base)
+		lines[1] = ("Smart goal: you sold about %s a day lately, and %d%% of what you listed sold."):format(
+			perDay, smart.soldShare * 100 + 0.5)
+		lines[2] = ("Stock level %d%% of that (Options tab). Default goal: %d."):format(smart.level * 100 + 0.5, smart.base)
 	end
 	if smart.limited == "gold" then
 		lines[#lines + 1] = ("Kept low: more would cost over %d%% of your gold to make."):format(

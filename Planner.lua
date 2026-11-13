@@ -202,7 +202,9 @@ end
 
 -- Smart restock goals. Recent days weigh more (a day SMART.HALF_LIFE days back counts half), so a goal follows what
 -- sells now. GOLD_SHARE is the most of your gold one item's whole stock may cost to make.
-Planner.SMART = { HALF_LIFE = 7, WINDOW = 30, MIN_SPAN = 3, MIN_SAMPLES = 3, GOLD_SHARE = 0.25, MAX = 200 }
+-- LEVEL is how much of a day's sales to keep in stock (the Options slider), as a fraction.
+Planner.SMART = { HALF_LIFE = 7, WINDOW = 30, MIN_SPAN = 3, MIN_SAMPLES = 3, GOLD_SHARE = 0.25, MAX = 200, LEVEL = 0.5,
+	LEVEL_MIN = 0.1, LEVEL_MAX = 2 }
 
 -- A stock goal from an item's own sales. input:
 --   base      the default goal, used until there are MIN_SAMPLES results
@@ -211,9 +213,10 @@ Planner.SMART = { HALF_LIFE = 7, WINDOW = 30, MIN_SPAN = 3, MIN_SAMPLES = 3, GOL
 --   coverDays how long a stock should last (the auction's length)
 --   unitCost  copper to make one, gold = copper held (both optional: without them gold is no limit)
 --   pair      true for things bought two at a time
--- The goal covers what sells in coverDays: half as much again when nearly everything sells (more might have sold),
--- down to half when most of it expires. It only goes under the default because of expiries, never because little was
--- listed. Returns the goal and { perDay, soldShare, samples, limited = "gold" when gold lowered it, pair, learning }.
+--   level     how much of that to stock, 1 = all of it (default SMART.LEVEL)
+-- The goal is what sells in coverDays x the share of listed units that sold x level. It only goes under the default
+-- because of expiries, never because little was listed. Returns the goal and
+-- { perDay, soldShare, samples, level, limited = "gold" when gold lowered it, pair, learning }.
 function Planner.SmartGoal(input)
 	local smart = Planner.SMART
 	local info = { pair = input.pair or nil }
@@ -235,7 +238,8 @@ function Planner.SmartGoal(input)
 		for age = 0, span - 1 do weights = weights + 0.5 ^ (age / smart.HALF_LIFE) end
 		info.perDay = sold / weights
 		info.soldShare = sold / (sold + expired)
-		goal = math.ceil(info.perDay * (input.coverDays or 1) * (0.5 + info.soldShare) - 1e-9)
+		info.level = input.level or smart.LEVEL
+		goal = math.ceil(info.perDay * (input.coverDays or 1) * info.soldShare * info.level - 1e-9)
 		if goal < input.base then goal = math.max(goal, math.ceil(input.base * info.soldShare - 1e-9)) end
 		goal = math.max(1, math.min(goal, smart.MAX))
 	end
