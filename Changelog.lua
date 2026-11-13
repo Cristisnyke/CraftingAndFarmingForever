@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.10.0", lines = {
+		"- Restock: when you don't have the gold for a full restock, the Restock tab says so and offers a partial one: the items that earn the most profit for their material cost, cut to what you can afford. Materials you already hold count as free, and anything you queued by hand is paid for first. The Craft column shows what fits out of what's needed, like 3/8 (part of smart goals, so the same switch turns it off)",
+		"- Restock: smart goals. An item's goal now follows your own sales: more of what sells well, fewer of what keeps expiring, and it keeps adjusting as you sell (recent days count most). One item's stock never costs more than a quarter of your gold to make, and daggers are stocked in pairs, since buyers usually want two. Smart goals show in blue, and the tooltip says why. A goal you set yourself always stays. The Options tab has a Stock level slider for how much to keep (50% of a day's sales to start with), and a switch to turn smart goals off",
+	} },
 	{ version = "1.9.0", lines = {
 		"- Profit: a crafted item listed for more than 400% of its material cost (often one odd listing, like 7s of materials posted for 20g) now counts at 200% of the material cost, so it can't show a huge profit that won't sell. Its row on the Profit and Queue tabs says \"check price\" in orange, and the tooltip shows the real listing. Both numbers, and the limit itself, are on the Options tab",
 	} },
