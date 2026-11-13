@@ -168,6 +168,7 @@ Your profit from what you craft and sell, with sold and expired auctions per ite
 - Materials bought at the auction house count at the price you paid. Materials a vendor sells count at the vendor's price. Materials with no purchase on record (ones you already had, gathered, looted or were given) count at the market price on the day you craft with them: you could have sold them for that.
 - The cost follows the materials through every craft, sub-crafts included, to the item you sell. All your characters share one record, since mail moves things between them.
 - Profit starts from zero with the version that added this: earlier sales aren't in the boxes or the list, though they still feed the chance to sell and the item tooltips' history. Items crafted before then count at today's cost to craft one, and their profit is marked **~**.
+- **Reset profit** (top right) starts profit again from zero, from now, after asking you to confirm. Sales so far leave the boxes and the list but still feed the chance to sell and the tooltips' history. It can't be undone.
 - A sale counts as soon as the buyer is found, while its money is still on its way.
 - Deposits lost on expired auctions aren't counted.
 

@@ -2792,6 +2792,19 @@ function CreateSalesPane()
 		UI.Refresh("sales")
 	end)
 	window.everything = everything
+
+	-- Asks first: the profit so far can't be brought back.
+	local reset = HeaderButton(window.frame, "Reset profit", 96, function() StaticPopup_Show("CFF_RESET_PROFIT") end)
+	reset:SetPoint("TOPRIGHT", -12, -PANE_ACTIONS_TOP)
+	reset:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:AddLine("Reset profit")
+		GameTooltip:AddLine("Starts profit again from zero, from now. Sales so far leave the profit and this list, but "
+			.. "still count for the chance to sell. You're asked to confirm.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	reset:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	window.reset = reset
 	local function PlaceTiles()
 		local width = window.frame:GetWidth()
 		if type(width) ~= "number" or width <= 0 then width = MAIN_WIDTH end
@@ -3621,6 +3634,20 @@ StaticPopupDialogs["CFF_CLEAR_QUEUE"] = {
 	button1 = YES,
 	button2 = NO,
 	OnAccept = function() ns.Queue.Clear() end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
+
+StaticPopupDialogs["CFF_RESET_PROFIT"] = {
+	text = "Crafting and Farming Forever: reset your sales profit to zero and start counting again from now? "
+		.. "This can't be undone.",
+	button1 = "Reset profit",
+	button2 = CANCEL,
+	OnAccept = function()
+		ns.Sales.ResetProfit()
+		ns.Print("Sales profit reset. It counts again from now.")
+	end,
 	timeout = 0,
 	whileDead = true,
 	hideOnEscape = true,

@@ -170,9 +170,9 @@ function Sales.Counts(item, days)
 	local today = DayNumber(time())
 	local sold, expired, gold = 0, 0, 0
 	for dayNumber = today - days + 1, today do
-		local day = item.days[dayNumber]
-		if day then
-			sold, expired, gold = sold + day.s, expired + day.e, gold + day.g
+		-- A day's results from before a profit reset are kept half a key earlier (see Sales.ResetProfit).
+		for _, day in ipairs({ item.days[dayNumber] or false, item.days[dayNumber - 0.5] or false }) do
+			if day then sold, expired, gold = sold + day.s, expired + day.e, gold + day.g end
 		end
 	end
 	return sold, expired, gold
@@ -240,7 +240,8 @@ local function Pending(key, days)
 	local first = days and DayNumber(time()) - days + 1
 	local count, gold, cost, rough = 0, 0, 0, false
 	for _, entry in ipairs(ns.db.sales.incoming) do
-		if entry.amount and entry.name and entry.name:lower() == key and (not first or DayNumber(entry.at) >= first) then
+		if entry.amount and not entry.x and entry.name and entry.name:lower() == key
+			and (not first or DayNumber(entry.at) >= first) then
 			count = count + 1
 			gold = gold + entry.amount
 			rough = rough or entry.rough or false
@@ -274,6 +275,27 @@ function Sales.Profit(item, days)
 	-- Sold, but the money is still on its way.
 	local pendingCount, pendingGold, pendingCost, pendingRough = Pending(item.name:lower(), days)
 	return gold + pendingGold - cost - pendingCost, rough or pendingRough, sold + pendingCount, expired, gold + pendingGold
+end
+
+-- Starts profit again from nothing, as when it first began: every result so far (and sale whose money is on its
+-- way) leaves the profit and the Sales list, but still feeds the chance to sell and the tooltips' history. What
+-- the things you hold cost is kept. Today's results move to a key of their own, so that sales later today count.
+function Sales.ResetProfit()
+	local today = DayNumber(time())
+	for _, item in pairs(ns.db.sales.items) do
+		local days = item.days or {}
+		local now, before = days[today], days[today - 0.5]
+		if now and before then
+			for _, field in ipairs({ "s", "e", "g", "c", "u" }) do before[field] = (before[field] or 0) + (now[field] or 0) end
+			days[today] = nil
+		elseif now then
+			days[today - 0.5], days[today] = now, nil
+		end
+		for _, day in pairs(days) do day.x = true end
+	end
+	for _, entry in ipairs(ns.db.sales.incoming) do entry.x = true end
+	ns.db.sales.profitFrom = time()
+	if ns.UI then ns.UI.Refresh("sales") end
 end
 
 -- Sold, expired, copper received, profit and whether the profit is partly estimated, over the last N days. Only

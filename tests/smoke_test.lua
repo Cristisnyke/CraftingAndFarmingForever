@@ -2596,6 +2596,28 @@ do
 	ns.UI.Show("sales")
 	local window = ns.UI.windows.sales
 	check("sales list: header and the crafted item", #window.list, 2)
+
+	-- Reset profit: asks first, then everything so far leaves the profit but stays in the history, and a sale
+	-- later the same day counts again.
+	table.insert(ns.db.sales.incoming, { name = "Crafted Thing", itemID = 902, char = me, at = now, due = now + 3600, amount = 950 })
+	ns_popup = nil
+	window.reset.scripts.OnClick(window.reset)
+	check("reset profit asks first", ns_popup, "CFF_RESET_PROFIT")
+	check("nothing reset before confirming", select(4, ns.Sales.Totals(nil, true)) ~= 0, true)
+	StaticPopupDialogs.CFF_RESET_PROFIT.OnAccept()
+	check("profit reset to zero", select(4, ns.Sales.Totals(nil, true)), 0)
+	check("reset: list emptied", #ns.Sales.AllItems(true), 0)
+	check("reset: history kept", ns.Sales.Counts(thing), 2)
+	ns.db.sales.incoming = {}
+	ns.Sales.AddCost(902, 1, 400)
+	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
+	check("a sale after the reset counts", (ns.Sales.Profit(thing, 1)), 550)
+	StaticPopupDialogs.CFF_RESET_PROFIT.OnAccept()
+	check("second reset the same day", (ns.Sales.Profit(thing, 1)), 0)
+	check("second reset: history kept", ns.Sales.Counts(thing), 3)
+	check("second reset: today's history kept", ns.Sales.Counts(thing, 1), 3)
+	ns.Sales.Record("sold", "Crafted Thing", 1, 950, now, me, 902)
+	ns.Sales.Record("sold", "Spare Ore", 1, 100, now, me, 903)
 	window.everything.GetChecked = function() return true end
 	window.everything.scripts.OnClick(window.everything)
 	check("box ticked: everything listed", #window.list, 3)
