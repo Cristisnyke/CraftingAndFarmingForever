@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.8.2", lines = {
+		"- Sales tab: new Reset profit button, top right. It starts your profit again from zero, from now, after asking you to confirm. Your sales history still counts for the chance to sell",
+	} },
 	{ version = "1.8.1", lines = {
 		"- Sales profit: materials you already had, or gathered, now count at the market price on the day you craft with them. They used to count as free, so something made mostly from materials in your bags showed far too much profit. Sales already recorded keep the profit they had",
 		"- Items crafted before the add-on recorded costs count at today's cost to craft one, with their profit marked ~",

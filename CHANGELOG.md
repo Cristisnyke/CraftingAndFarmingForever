@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.8.2
 
 - Sales tab: new Reset profit button, top right. It starts your profit again from zero, from now, after asking you to confirm. Your sales history still counts for the chance to sell
 
