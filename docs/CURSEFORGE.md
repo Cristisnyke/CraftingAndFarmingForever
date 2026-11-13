@@ -45,6 +45,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 ### Restock the auction house
 
 - A goal for each item you sell: how many you want listed. Your auctions, bags, banks and mail count towards it.
+- **Smart goals** learn from your sales: more of what sells well, fewer of what keeps expiring, never more than a quarter of your gold on one item, and daggers in pairs (buyers usually want two). They keep adjusting as you sell, and you can turn them off.
 - Clear columns for what's listed, what you hold and what to craft. Goals you set yourself stand out from the defaults, and one click puts them back.
 - One button queues whatever is missing.
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.

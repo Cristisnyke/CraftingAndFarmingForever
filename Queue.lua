@@ -274,11 +274,55 @@ local function DefaultGoal(itemID)
 	return stackable and ns.db.restock.stackGoal or ns.db.restock.singleGoal
 end
 
-function Restock.Goal(itemID)
-	return ns.db.restock.goals[itemID] or DefaultGoal(itemID)
+-- Smart goals: the default, moved by the item's own sales (Planner.SmartGoal). Kept for a moment, as every row asks.
+local SMART_SECONDS = 5
+local smartGoals, smartAt = {}, 0
+
+function Restock.SmartOn()
+	return ns.Option("smartRestock")
 end
 
-Restock.DefaultGoal = DefaultGoal
+function Restock.ForgetSmart()
+	smartGoals = {}
+end
+
+local function SmartGoal(itemID)
+	local base = DefaultGoal(itemID)
+	if not base then return nil end
+	local now = GetTime()
+	if now - smartAt > SMART_SECONDS then smartGoals, smartAt = {}, now end
+	local cached = smartGoals[itemID]
+	if cached and cached.base == base then return cached.goal, cached.info end
+	local days, span = ns.Sales.History(ns.Items.Name(itemID), ns.Planner.SMART.WINDOW)
+	local goal, info = ns.Planner.SmartGoal({
+		base = base, days = days, span = span,
+		coverDays = math.max(1, math.min(2, ns.Sales.DurationHours(ns.db.restock.duration) / 24)),
+		unitCost = ns.Sales.CraftUnit(itemID), gold = GetMoney(),
+		pair = ns.Items.SoldInPairs(itemID),
+	})
+	info.base = base
+	smartGoals[itemID] = { base = base, goal = goal, info = info }
+	return goal, info
+end
+
+-- The goal an item has without one of its own: smart when that's on, else the default for its kind. With a smart
+-- goal comes what it's based on.
+local function AutoGoal(itemID)
+	if Restock.SmartOn() then return SmartGoal(itemID) end
+	return DefaultGoal(itemID)
+end
+
+function Restock.Goal(itemID)
+	return ns.db.restock.goals[itemID] or (AutoGoal(itemID))
+end
+
+Restock.DefaultGoal = AutoGoal
+
+-- What a smart goal is based on (see Planner.SmartGoal, plus base), or nil when the item's goal isn't smart.
+function Restock.SmartInfo(itemID)
+	if ns.db.restock.goals[itemID] ~= nil or not Restock.SmartOn() then return nil end
+	return (select(2, SmartGoal(itemID)))
+end
 
 -- True when the player set this item's goal; false when it follows the default for its kind.
 function Restock.IsCustom(itemID)
@@ -292,7 +336,7 @@ end
 -- Stores a goal for one item. Matching the default clears it, so the item keeps following the default.
 function Restock.SetGoal(itemID, goal)
 	goal = math.max(0, goal)
-	ns.db.restock.goals[itemID] = goal ~= DefaultGoal(itemID) and goal or nil
+	ns.db.restock.goals[itemID] = goal ~= (AutoGoal(itemID)) and goal or nil
 end
 
 -- Units already planned by entries the user queued by hand. Earlier restock entries don't count: they get replaced.

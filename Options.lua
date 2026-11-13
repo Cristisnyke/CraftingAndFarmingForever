@@ -246,6 +246,20 @@ function Options.Build(parent, top)
 	controls.capNormal.percent:SetText("%")
 	y = y + 32
 
+	Heading(parent, "Restock", y)
+	y = y + 22
+	AddCheck("smartRestock", "Smart restock goals",
+		"Goals follow your sales: more of what sells well, fewer of what expires, daggers in pairs, and never more "
+			.. "than a quarter of your gold on one item. They keep adjusting as you sell. A goal you set yourself "
+			.. "always stays. Off: every item uses the default goals.",
+		nil, function(on)
+			ns.SetOption("smartRestock", on)
+			ns.Restock.ForgetSmart()
+			ns.UI.Refresh("restock")
+			ns.UI.Refresh("posting")
+		end)
+	y = y + 10
+
 	Heading(parent, "Advertising", y)
 	y = y + 22
 	AddCheck("adEnabled", "Advertise my professions",
@@ -324,7 +338,7 @@ function Options.Build(parent, top)
 			.. "of them. Press Enter to save.")
 
 	local function Update()
-		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "adEnabled" }) do
+		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "smartRestock", "adEnabled" }) do
 			controls[key]:Sync()
 		end
 		local current = ns.Advertise.DestinationLabel()

@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Restock: smart goals. An item's goal now follows your own sales: more of what sells well, fewer of what keeps expiring, and it keeps adjusting as you sell (recent days count most). One item's stock never costs more than a quarter of your gold to make, and daggers are stocked in pairs, since buyers usually want two. Smart goals show in blue, and the tooltip says why. A goal you set yourself always stays. Turn it off on the Options tab
+
 ## 1.9.0
 
 - Profit: a crafted item listed for more than 400% of its material cost (often one odd listing, like 7s of materials posted for 20g) now counts at 200% of the material cost, so it can't show a huge profit that won't sell. Its row on the Profit and Queue tabs says "check price" in orange, and the tooltip shows the real listing. Both numbers, and the limit itself, are on the Options tab

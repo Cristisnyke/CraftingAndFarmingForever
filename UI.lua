@@ -595,6 +595,24 @@ local function ChanceText(name)
 end
 
 -- The sales history block of a tooltip: chance to sell, then sold and expired per period.
+-- Why a smart restock goal is what it is, in plain words.
+function UI.SmartGoalLines(smart)
+	local lines = {}
+	if smart.learning then
+		lines[1] = ("Smart goal: too few sales yet, so the default (%d) is used."):format(smart.base)
+	else
+		local perDay = smart.perDay >= 10 and ("%d"):format(smart.perDay + 0.5) or ("%.1f"):format(smart.perDay)
+		lines[1] = ("Smart goal: sells about %s a day lately, %d%% sold and %d%% expired (default %d)."):format(
+			perDay, smart.soldShare * 100 + 0.5, 100 - math.floor(smart.soldShare * 100 + 0.5), smart.base)
+	end
+	if smart.limited == "gold" then
+		lines[#lines + 1] = ("Kept low: more would cost over %d%% of your gold to make."):format(
+			ns.Planner.SMART.GOLD_SHARE * 100)
+	end
+	if smart.pair then lines[#lines + 1] = "Daggers are stocked in pairs: buyers usually want two." end
+	return lines
+end
+
 local function AddSalesLines(name)
 	local item = ns.Sales.Item(name)
 	GameTooltip:AddLine(" ")
@@ -799,9 +817,13 @@ local function RowOnEnter(row)
 		GameTooltip:AddDoubleLine("Profit per craft", ns.Money(item.net), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("On the AH", item.onAH and tostring(item.onAH) or "unknown", 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
-		GameTooltip:AddDoubleLine(ns.Restock.IsCustom(item.itemID) and "Goal (your own)" or "Goal (default)",
-			tostring(item.goal), 1, 1, 1, 1, 1, 1)
+		local smart = ns.Restock.SmartInfo(item.itemID)
+		GameTooltip:AddDoubleLine(ns.Restock.IsCustom(item.itemID) and "Goal (your own)"
+			or smart and "Goal (smart)" or "Goal (default)", tostring(item.goal), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.crafts), 1, 1, 1, 1, 1, 1)
+		if smart then
+			for _, line in ipairs(UI.SmartGoalLines(smart)) do GameTooltip:AddLine(line, 0.45, 0.75, 1, true) end
+		end
 		AddSalesLines(ns.Items.Name(item.itemID))
 		GameTooltip:AddLine("+ and - change this item's goal (Shift for 10). A goal of 0 skips the item.", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
@@ -1245,8 +1267,8 @@ local function CreateRow(parent)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText("Use the default goal")
 		local default = ns.Restock.DefaultGoal(data.row.itemID)
-		GameTooltip:AddLine(("This item has its own goal. Click to go back to the default%s, which follows the boxes "
-			.. "at the bottom."):format(default and (" (" .. default .. ")") or ""), 1, 1, 1, true)
+		GameTooltip:AddLine(("This item has its own goal. Click to go back to the %s%s."):format(
+			ns.Restock.SmartOn() and "smart goal" or "default", default and (" (" .. default .. ")") or ""), 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
 	row.reset:SetScript("OnLeave", GameTooltip_Hide)
@@ -1494,7 +1516,15 @@ local function SetRow(row, data)
 		-- Grey: follows the default. White, with the reset arrow: the player's own goal for this item.
 		local custom = ns.Restock.IsCustom(item.itemID)
 		row.reset:SetShown(custom)
-		if custom then row.amount:SetTextColor(1, 1, 1) else row.amount:SetTextColor(0.6, 0.6, 0.6) end
+		-- Blue: a smart goal that differs from the default.
+		local smart = not custom and ns.Restock.SmartInfo(item.itemID)
+		if custom then
+			row.amount:SetTextColor(1, 1, 1)
+		elseif smart and item.goal ~= smart.base then
+			row.amount:SetTextColor(0.45, 0.75, 1)
+		else
+			row.amount:SetTextColor(0.6, 0.6, 0.6)
+		end
 		row.chance:SetText(ChanceText(ns.Items.Name(item.itemID)))
 		row.colAH:SetText(item.onAH and tostring(item.onAH) or Color(COLOR_MUTED, "?"))
 		row.colHave:SetText(tostring(item.owned))
@@ -3751,7 +3781,7 @@ local function Diagnostics()
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	local off = {}
-	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap" }) do
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap", "smartRestock" }) do
 		if not ns.Option(key) then table.insert(off, key) end
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "

@@ -856,6 +856,38 @@ check("bind-on-pickup not restocked", (function()
 	for _, row in ipairs(rows) do if row.itemID == 5 then return true end end
 	return false
 end)(), false)
+
+-- Smart goals: sales raise the goal, a goal of your own wins, and the option turns it off.
+do
+	local name = ns.Items.Name(4)
+	local saved, money = ns.db.sales.items[name:lower()], playerMoney
+	playerMoney = 100000000
+	ns.db.sales.items[name:lower()] = { name = name, itemID = 4, sold = 12, expired = 0, gold = 0, exposure = 1,
+		days = { [math.floor(time() / 86400) - 1] = { s = 12, e = 0, g = 0 } } }
+	ns.Restock.ForgetSmart()
+	local smartGoal = ns.Restock.Goal(4)
+	check("smart goal above the default", smartGoal > 1, true)
+	check("smart info given", ns.Restock.SmartInfo(4).perDay > 0, true)
+	check("smart lines explain it", ns.UI.SmartGoalLines(ns.Restock.SmartInfo(4))[1]:find("a day lately") ~= nil, true)
+	ns.Restock.SetGoal(4, smartGoal)
+	check("setting the smart goal isn't an own goal", ns.Restock.IsCustom(4), false)
+	ns.Restock.SetGoal(4, 1)
+	check("own goal beats smart", ns.Restock.Goal(4), 1)
+	check("own goal has no smart info", ns.Restock.SmartInfo(4), nil)
+	ns.Restock.ResetGoal(4)
+	playerMoney = 0
+	ns.Restock.ForgetSmart()
+	check("no gold, smallest goal", ns.Restock.Goal(4), 1)
+	check("gold named as the limit", ns.Restock.SmartInfo(4).limited, "gold")
+	playerMoney = 100000000
+	ns.Restock.ForgetSmart()
+	ns.SetOption("smartRestock", false)
+	check("smart off: default goal", ns.Restock.Goal(4), 1)
+	check("smart off: no info", ns.Restock.SmartInfo(4), nil)
+	ns.SetOption("smartRestock", true)
+	ns.db.sales.items[name:lower()], playerMoney = saved, money
+	ns.Restock.ForgetSmart()
+end
 ns.UI.Show("restock")
 check("restock tab opens", ns.UI.windows.restock.frame:IsVisible(), true)
 ns.UI.Refresh("restock")

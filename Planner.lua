@@ -200,6 +200,57 @@ function Planner.RestockCrafts(goal, onAH, owned, queued, yield)
 	return math.ceil(missing / yield)
 end
 
+-- Smart restock goals. Recent days weigh more (a day SMART.HALF_LIFE days back counts half), so a goal follows what
+-- sells now. GOLD_SHARE is the most of your gold one item's whole stock may cost to make.
+Planner.SMART = { HALF_LIFE = 7, WINDOW = 30, MIN_SPAN = 3, MIN_SAMPLES = 3, GOLD_SHARE = 0.25, MAX = 200 }
+
+-- A stock goal from an item's own sales. input:
+--   base      the default goal, used until there are MIN_SAMPLES results
+--   days      { { age = days ago, s = sold, e = expired }, ... } within WINDOW
+--   span      days since the first result, today included
+--   coverDays how long a stock should last (the auction's length)
+--   unitCost  copper to make one, gold = copper held (both optional: without them gold is no limit)
+--   pair      true for things bought two at a time
+-- The goal covers what sells in coverDays: half as much again when nearly everything sells (more might have sold),
+-- down to half when most of it expires. It only goes under the default because of expiries, never because little was
+-- listed. Returns the goal and { perDay, soldShare, samples, limited = "gold" when gold lowered it, pair, learning }.
+function Planner.SmartGoal(input)
+	local smart = Planner.SMART
+	local info = { pair = input.pair or nil }
+	local goal = input.base
+	local sold, expired, samples = 0, 0, 0
+	for _, day in ipairs(input.days or {}) do
+		if day.age >= 0 and day.age < smart.WINDOW then
+			local weight = 0.5 ^ (day.age / smart.HALF_LIFE)
+			sold, expired = sold + day.s * weight, expired + day.e * weight
+			samples = samples + day.s + day.e
+		end
+	end
+	info.samples = samples
+	if samples < smart.MIN_SAMPLES or sold + expired <= 0 then
+		info.learning = true
+	else
+		local span = math.max(smart.MIN_SPAN, math.min(smart.WINDOW, input.span or smart.WINDOW))
+		local weights = 0
+		for age = 0, span - 1 do weights = weights + 0.5 ^ (age / smart.HALF_LIFE) end
+		info.perDay = sold / weights
+		info.soldShare = sold / (sold + expired)
+		goal = math.ceil(info.perDay * (input.coverDays or 1) * (0.5 + info.soldShare) - 1e-9)
+		if goal < input.base then goal = math.max(goal, math.ceil(input.base * info.soldShare - 1e-9)) end
+		goal = math.max(1, math.min(goal, smart.MAX))
+	end
+	if input.unitCost and input.unitCost > 0 and input.gold then
+		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / input.unitCost))
+		if afford < goal then
+			goal = afford
+			info.limited = "gold"
+		end
+	end
+	-- A whole pair: one more, or one fewer when gold is what holds it back.
+	if input.pair then goal = math.max(2, info.limited and goal - goal % 2 or goal + goal % 2) end
+	return goal, info
+end
+
 -- Units to post: what the goal still lacks on the AH, from what's in the bags and not needed by the queue.
 function Planner.PostQuantity(goal, onAH, inBags, reserved)
 	return math.max(0, math.min(goal - onAH, inBags - (reserved or 0)))

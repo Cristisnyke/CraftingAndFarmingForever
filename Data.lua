@@ -66,6 +66,14 @@ function Items.IsStackable(itemID)
 	return (stackCount or 1) > 1
 end
 
+-- Daggers are bought two at a time: a rogue wants one for each hand. Not those for one hand only.
+local DAGGER_CLASS, DAGGER_SUBCLASS = 2, 15
+function Items.SoldInPairs(itemID)
+	if not C_Item.GetItemInfoInstant then return false end
+	local _, _, _, equipLoc, _, classID, subclassID = C_Item.GetItemInfoInstant(itemID)
+	return classID == DAGGER_CLASS and subclassID == DAGGER_SUBCLASS and equipLoc == "INVTYPE_WEAPON"
+end
+
 -- What a vendor pays for one, or nil while the item data is loading.
 function Items.SellPrice(itemID)
 	return (select(11, C_Item.GetItemInfo(itemID)))

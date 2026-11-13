@@ -192,6 +192,24 @@ local function Tracked(item, days)
 	return sold, expired, gold, cost, unknown
 end
 
+-- An item's results by day for smart restock goals: { { age = days ago, s, e }, ... } over the last `window` days,
+-- and the days since its first result (today included). Nil with nothing on record.
+function Sales.History(name, window)
+	local item = name and ns.db.sales.items[name:lower()]
+	if not item then return nil end
+	local today = DayNumber(time())
+	local days, oldest = {}, nil
+	for dayNumber, day in pairs(item.days) do
+		local age = today - math.ceil(dayNumber) -- a day moved by a profit reset sits half a key earlier
+		if age >= 0 and (day.s > 0 or day.e > 0) then
+			if not oldest or age > oldest then oldest = age end
+			if age < window then days[#days + 1] = { age = age, s = day.s, e = day.e } end
+		end
+	end
+	if not oldest then return nil end
+	return days, oldest + 1
+end
+
 function Sales.Item(name)
 	return name and ns.db.sales.items[name:lower()] or nil
 end
@@ -231,6 +249,7 @@ local function CraftUnit(itemID)
 	if info.unit[itemID] == nil then info.unit[itemID] = ns.Planner.CraftUnitCost(info.ctx, itemID) or false end
 	return info.unit[itemID] or nil
 end
+Sales.CraftUnit = CraftUnit
 
 -- Sales whose money is still on its way or waiting in a mailbox: the mail hasn't been read, so they aren't in the
 -- records yet. Returns units, copper expected, what they cost and whether any of it is an estimate, for one item

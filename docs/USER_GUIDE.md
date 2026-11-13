@@ -139,6 +139,7 @@ Keeps a number of each item you craft listed on the auction house.
 - **Goals:** each profitable item gets one. The defaults are in the boxes at the bottom: **Default goal: stackable** 10 and **single** 1. Change one item's goal by typing it in the box on its row, or with **+** and **-** (Shift for 10). A goal of 0 skips the item.
 - **Default or your own:** a grey goal follows the defaults, so it changes when you change them. A white goal is one you set for that item, and has an arrow button beside it that puts it back on the default. Setting a goal equal to the default also makes it follow the default again.
 - **Min profit (s):** items earning less than this per craft are skipped. The default is 1 silver.
+- **Smart goals** (on by default; **Smart restock goals** on the Options tab turns them off): once an item has at least 3 sales or expiries in the last 30 days, its goal follows them instead of the default. The goal is what you sell in the time an auction lasts (at least a day), with recent days counting most: half as much again when nearly everything sells, down to half when most of it expires. It only drops under the default because of expiries, never because you listed little. One item's whole stock never costs more than a quarter of your gold to make. Daggers are stocked in pairs, since buyers usually want one for each hand. A smart goal that differs from the default is blue, and the row's tooltip says what it's based on. A goal you set yourself always wins.
 - **Counted towards the goal:** what's on the auction house (from Syndicator) and what all your characters hold in bags, banks and mail.
 - **Queue restock: N item(s)** queues the difference for the selected profession tab. It replaces that profession's earlier restock entries and keeps anything you queued by hand, which also counts towards the goal. It never queues by itself. **Fully stocked** means there's nothing to do.
 - **Show Queue** opens the queue beside the Restock tab.
@@ -197,6 +198,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Ask to scan at the auction house when prices are old | The Yes or No box offering a new scan. The orange note in the window stays |
 | Reminders in chat | The chat lines about old prices at login and where the shopping list is |
 | Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price**. Off: the listing is used as it is |
+| Smart restock goals | On by default. Restock goals follow your sales (see Restock). Off: every item without its own goal uses the default goals |
 | Advertise my professions | Off removes the Ad box beside the chat and the Advertise button on the Profit tab |
 | Post to | Trade, Guild, Say or Yell, the same choice as the Ad box's picker |
 | Advertising message | Your own wording. Write `{profession}` where your profession link should go |

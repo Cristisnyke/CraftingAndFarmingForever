@@ -316,6 +316,48 @@ check("restock over goal", Planner.RestockCrafts(1, 3, 0, 0, 1), 0)
 check("restock missing", Planner.RestockCrafts(10, 2, 3, 1, 1), 4)
 check("restock batches round up", Planner.RestockCrafts(10, 0, 0, 0, 3), 4)
 
+-- Smart restock goals.
+do
+	local function Days(count, sold, expired)
+		local days = {}
+		for age = 0, count - 1 do days[#days + 1] = { age = age, s = sold, e = expired } end
+		return days
+	end
+	local goal, info = Planner.SmartGoal({ base = 10, days = {}, coverDays = 1 })
+	check("smart: no sales keeps the default", goal, 10)
+	check("smart: no sales is learning", info.learning, true)
+	check("smart: two results aren't enough", (Planner.SmartGoal({ base = 1, days = Days(1, 2, 0), span = 1 })), 1)
+	check("smart: dagger default is a pair", (Planner.SmartGoal({ base = 1, days = {}, pair = true })), 2)
+
+	-- Two a day, all sold, two-day auctions: 2 x 2 x 1.5.
+	goal, info = Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14, coverDays = 2 })
+	check("smart: good seller gets more", goal, 6)
+	check("smart: rate per day", math.floor(info.perDay * 100 + 0.5), 200)
+	check("smart: all sold", info.soldShare, 1)
+	check("smart: half expiring gets no extra", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 2), span = 14, coverDays = 2 })), 4)
+
+	-- Mostly expiring: under the default. Selling everything you listed, however little: never under it.
+	check("smart: expiries lower the goal", (Planner.SmartGoal({ base = 10, days = { { age = 0, s = 1, e = 9 } }, span = 1 })), 1)
+	check("smart: few listed, all sold keeps the default", (Planner.SmartGoal({ base = 10, days = { { age = 0, s = 3, e = 0 } }, span = 1 })), 10)
+
+	-- Old sales fade.
+	local recent = Planner.SmartGoal({ base = 1, days = { { age = 0, s = 20, e = 0 } }, span = 29 })
+	local old = Planner.SmartGoal({ base = 1, days = { { age = 28, s = 20, e = 0 } }, span = 29 })
+	check("smart: recent sales count more", recent > old, true)
+	check("smart: results past the window don't count", (Planner.SmartGoal({ base = 1, days = { { age = 40, s = 50, e = 0 } }, span = 41 })), 1)
+
+	-- Gold: a quarter of 1200 buys 3 at 100 each.
+	goal, info = Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14, coverDays = 2, unitCost = 100, gold = 1200 })
+	check("smart: gold limits the goal", goal, 3)
+	check("smart: says gold limited it", info.limited, "gold")
+	check("smart: gold-limited pair rounds down", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14,
+		coverDays = 2, unitCost = 100, gold = 1200, pair = true })), 2)
+	check("smart: always at least one", (Planner.SmartGoal({ base = 1, days = {}, unitCost = 100, gold = 0 })), 1)
+	check("smart: pairs round up", (Planner.SmartGoal({ base = 1, days = Days(14, 1, 0), span = 14, coverDays = 2 })), 3)
+	check("smart: pairs round up to even", (Planner.SmartGoal({ base = 1, days = Days(14, 1, 0), span = 14, coverDays = 2,
+		pair = true })), 4)
+end
+
 -- Restock rows: only sellable, profitable items above the minimum, best recipe per item, needed items first.
 local restockCtx = Context({
 	recipes = {
