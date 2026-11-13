@@ -4,6 +4,13 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.8.0", lines = {
+		"- New Options tab, before Changelog, to switch parts of the add-on on or off and word its messages your way. You can also open it by right-clicking the minimap button, with /cff options, or from the game's own Options under AddOns",
+		"- Advertising: write your own message (put {profession} where your profession link goes), choose where it's posted, or turn advertising off, which removes the Ad box beside the chat and the Advertise button",
+		"- Quotes: write your own whisper using {item}, {count} and {price}. The quote margin moved from the Queue tab to Options",
+		"- Also in Options: open with the profession window, the minimap button, the Next step bar, the \"scan now?\" question at the auction house, and the reminder lines in chat",
+		"- Right-clicking the minimap button now opens Options. The Next step bar still folds with its own button or /cff next",
+	} },
 	{ version = "1.7.1", lines = {
 		"- Sales profit now follows your gold: items crafted before 1.7.0, and materials you already had then, cost nothing instead of today's market price. Selling things made from your own gathered or old stock no longer shows a loss. Profit counted since 1.7.0 is worked out again this way",
 	} },

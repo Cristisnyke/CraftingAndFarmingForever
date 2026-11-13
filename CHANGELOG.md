@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.8.0
 
 - New Options tab, before Changelog, to switch parts of the add-on on or off and word its messages your way. You can also open it by right-clicking the minimap button, with `/cff options`, or from the game's own Options under AddOns
 - Advertising: write your own message (put {profession} where your profession link goes), choose where it's posted, or turn advertising off, which removes the Ad box beside the chat and the Advertise button
