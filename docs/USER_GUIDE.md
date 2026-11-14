@@ -197,8 +197,7 @@ Craftsman's Writs are tradable items that start a daily quest: hand in the writ 
 - **Net**: the coin pouch less the writ and the item. The pouch is an average players reported (about 12s Journeyman, 36s Expert, 75s Artisan), so the gold is rough.
 - **Per rep**: gold lost per reputation point (75 Journeyman, 125 Expert, 200 Artisan). The list starts with the cheapest reputation; click a heading to sort.
 - The list starts with only the writs whose item one of your characters can craft. Tick **Show all writs, not only what I can craft** to see every writ. **All / Journeyman / Expert / Artisan** show one level.
-- **List for a price scan** writes every writ shown and its item to the Auctionator list "Crafting and Farming Forever Writs". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
-- **+** picks a writ. **Shop picked** rewrites the same Auctionator list with the picked writs you don't hold and their items where buying is cheapest, and adds the items that are cheaper to craft to your queue (once per pick). Writs done today are left out.
+- **+** puts the writ on your queue. The Queue tab lists it under "Hand in writs, fill crates", and the queue's shopping list gets the writ and the item it wants, less what you hold; when crafting the item yourself is cheaper, its materials are bought and the craft is planned instead. The writ comes off the queue when you hand it in.
 
 ## Crates
 
@@ -210,8 +209,7 @@ Waylaid Crates drop from monsters and sell on the auction house. A labelled crat
 - **Favor**: the Merchant's Favor a filled crate pays. Crates of gathered materials pay 5, 10 and 15 (Apprentice, Journeyman, Expert); crates of crafted materials (Fabrics, Ingots, Parts) pay 10, 20 and 30. Artisan crates show `~`: nobody has reported their reward yet, so 20 and 40 follow the pattern.
 - **Per Favor**: the crate and its fill, less the coin the hand-in pays, for each Merchant's Favor. The list starts with the cheapest.
 - **All / Apprentice / Journeyman / Expert / Artisan** show one level.
-- **List for a price scan** writes every crate shown and every material that can fill it to the Auctionator list "Crafting and Farming Forever Crates". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
-- **+** picks a crate. **Shop picked** rewrites the same Auctionator list with the picked crates you don't hold and their cheapest bundle, and adds bundles that are cheaper to craft to your queue (once per pick).
+- **+** puts one crate on your queue (Shift: five). The Queue tab lists it under "Hand in writs, fill crates" with an amount box, and the queue's shopping list gets the crates and their cheapest bundle, less what you hold; a bundle you already hold in full is used first. A crate comes off the queue when you fill it.
 
 ## Options
 

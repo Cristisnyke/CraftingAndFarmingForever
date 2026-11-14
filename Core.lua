@@ -53,6 +53,7 @@ end
 -- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true }, links = { [professionID] = link },
 --                          skillUps = { [recipeID] = { d = colour 0-3, n = points per craft } },
 --                          skill = { [professionID] = { level, max } } } (both as of the profession's last opening)
+-- db.wanted[i]         = { kind = "writ" or "crate", id = its item ID, qty }: writs and crates queued from their tabs
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
@@ -94,8 +95,8 @@ local function Normalize(db)
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
 	db.costs = db.costs or {}
-	db.writs = db.writs or {}
-	db.crates = db.crates or {}
+	db.wanted = db.wanted or {}
+	db.writs, db.crates = nil, nil -- picks from before writs and crates went on the queue
 	-- 1.7.0 valued the materials held when costs began at market prices, which made sales of things crafted from
 	-- them look like losses. Those pools, and everything crafted from them, start again at nothing.
 	if db.costsSeeded then

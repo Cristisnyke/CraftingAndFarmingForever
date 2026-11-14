@@ -2915,7 +2915,7 @@ do
 	names[KNIFE_WRIT], names[KNIFE] = "Craftsman's Writ: Big Bronze Knife", "Big Bronze Knife"
 	prices[KNIFE_WRIT], prices[KNIFE] = 5000, 300
 	ns.Items.Retry()
-	ns.db.ui.writTier, ns.db.ui.writAll, ns.db.writs = nil, nil, {}
+	ns.db.ui.writTier, ns.db.ui.writAll = nil, nil
 	ns.UI.Show("writs")
 	RunTimers()
 	local window = ns.UI.windows.writs
@@ -2935,16 +2935,30 @@ do
 	check("writ gold per reputation", Knife().row.perRep, 4100 / 75)
 	check("priced writ sorts first", window.list[2].row.writ.id, KNIFE_WRIT)
 	check("item bought when nobody crafts it", Knife().row.kind, "ah")
-	check("shop button with nothing picked", window.shop.text, "Shop picked")
-	ns.Writs.Toggle(KNIFE_WRIT)
-	check("shop button counts the picks", window.shop.text, "Shop picked (1)")
-	check("picked row is marked", Knife().selected, true)
-	lists[ns.WRIT_LIST] = nil
-	ns.Writs.ShopPicked()
-	check("picked writ and its item listed", #lists[ns.WRIT_LIST], 2)
-	check("writ search is exact, for one", lists[ns.WRIT_LIST][2], '"Craftsman\'s Writ: Big Bronze Knife";;;;;;;;;;;#;;1')
-	ns.Writs.Toggle(KNIFE_WRIT)
-	check("unpicked again", ns.Writs.PickedCount(), 0)
+	-- + queues the writ: the queue's own shopping list gets the writ and the knife, nothing else.
+	ns.Queue.Clear()
+	RunTimers()
+	ns.Queue.Want("writ", KNIFE_WRIT, 1)
+	RunTimers()
+	check("queued writ is marked", Knife().selected, true)
+	check("writ to buy", ns.plan.buy[KNIFE_WRIT], 1)
+	check("writ's item to buy", ns.plan.buy[KNIFE], 1)
+	check("queue list has the writ and its item", #lists[ns.LIST_NAME], 2)
+	check("queue counts the writ", ns.Queue.Count(), 1)
+	local queue = ns.UI.windows.queue
+	ns.UI.Show("queue")
+	RunTimers()
+	local want
+	for _, data in ipairs(queue.list) do if data.kind == "want" then want = data end end
+	check("writ listed on the Queue tab", want and want.entry.id, KNIFE_WRIT)
+	check("writ row costs the writ and the item", want and want.cost, 5300)
+	-- Handing the writ in takes it off the queue.
+	Fire("QUEST_TURNED_IN", KNIFE_WRIT - 169800)
+	RunTimers()
+	check("handed-in writ leaves the queue", ns.Queue.Count(), 0)
+	check("nothing left to buy", next(ns.plan.buy), nil)
+	ns.UI.Show("writs")
+	RunTimers()
 	-- One level only.
 	ns.db.ui.writTier = 3
 	ns.UI.Refresh("writs")
@@ -2968,7 +2982,7 @@ do
 	prices[ORE_CRATE], prices[SILVER], prices[IRON] = 2000, 500, 150
 	prices[INGOT_CRATE], prices[SILVER_BAR], prices[IRON_BAR] = 10000, 600, 1000
 	ns.Items.Retry()
-	ns.db.ui.crateTier, ns.db.crates = nil, {}
+	ns.db.ui.crateTier = nil
 	ns.UI.Show("crates")
 	RunTimers()
 	local window = ns.UI.windows.crates
@@ -2988,24 +3002,27 @@ do
 	check("cheapest Favor is marked", window.list[2].row.cheapest, true)
 	check("only one best buy", Row(INGOT_CRATE).row.cheapest, nil)
 	check("best buy in the footer", window.hint.text:find("Journeyman Ore", 1, true) ~= nil, true)
-	check("shop button with nothing picked", window.shop.text, "Shop picked")
-	ns.Crates.Toggle(ORE_CRATE)
-	check("shop button counts the picks", window.shop.text, "Shop picked (1)")
-	lists[ns.CRATE_LIST] = nil
-	ns.Crates.ShopPicked()
-	check("picked crate and its fill listed", #lists[ns.CRATE_LIST], 2)
-	check("fill search is for the bundle", lists[ns.CRATE_LIST][1], '"Iron Ore";;;;;;;;;;;#;;20')
-	ns.Crates.Toggle(ORE_CRATE)
-	check("unpicked again", ns.Crates.PickedCount(), 0)
-	-- A price scan lists the crates and every material that can fill them.
+	-- + queues crates: the queue's shopping list gets the crates and their cheapest bundle.
+	ns.Queue.Clear()
+	RunTimers()
+	ns.Queue.Want("crate", ORE_CRATE, 1)
+	ns.Queue.Want("crate", ORE_CRATE, 1)
+	RunTimers()
+	check("queued crates counted on the row", Row(ORE_CRATE).row.queued, 2)
+	check("crates to buy", ns.plan.buy[ORE_CRATE], 2)
+	check("cheapest bundle to buy, for both", ns.plan.buy[IRON], 40)
+	check("the dearer bundle isn't bought", ns.plan.buy[SILVER], nil)
+	check("queue list has the crate and its fill", #lists[ns.LIST_NAME], 2)
+	-- Filling one casts its Stock Crate spell: one comes off.
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", nil, ORE_CRATE + 998744)
+	RunTimers()
+	check("a filled crate comes off the queue", ns.Queue.WantedCount("crate", ORE_CRATE), 1)
+	ns.Queue.Clear()
+	RunTimers()
+	check("clear removes queued crates", ns.Queue.Count(), 0)
 	ns.db.ui.crateTier = 2
 	ns.UI.Refresh("crates")
 	check("journeyman crates only", #window.list, 8)
-	lists[ns.CRATE_LIST] = nil
-	local shown = {}
-	for _, data in ipairs(window.list) do if data.row then table.insert(shown, data.row) end end
-	ns.Crates.ListForScan(shown)
-	check("scan list has the named crates and materials", #lists[ns.CRATE_LIST], 6)
 	ns.db.ui.crateTier = nil
 	ns.UI.SortList("crates", "cost")
 	check("sorted by Favor, most first", window.list[2].row.tokens, 40)

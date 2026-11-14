@@ -503,7 +503,7 @@ end
 -- character): their materials are bought, gathered and made on that character, when you log in there. Sub-crafts are
 -- made by the character who needs them, so a material only an alt can make is bought (or gathered) instead. Without
 -- ctx.me every entry is planned here, as before.
-function Planner.BuildPlan(ctx, queue, farming)
+function Planner.BuildPlan(ctx, queue, farming, wanted)
 	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0,
 		elsewhere = {} }
 	local bags, bank, mail, alts = {}, {}, {}, {}
@@ -807,6 +807,22 @@ function Planner.BuildPlan(ctx, queue, farming)
 		end
 	end
 	for _, queued in ipairs(mine) do Require(queued.recipeID, queued.qty, queued.char, false) end
+
+	-- Queued writs and crates: things to have, not to craft. wanted[i] = { qty, items = { { itemID, count,
+	-- buy = true for what only the auction house has (the writ or crate itself) }, ... } }. Each item comes from
+	-- stock first; the rest is bought, or crafted by this character when that spends less.
+	for _, want in ipairs(wanted or {}) do
+		for _, item in ipairs(want.items) do
+			local missing = TakeFromStock(item[1], item[2] * want.qty)
+			if missing > 0 and item.buy then
+				plan.buy[item[1]] = (plan.buy[item[1]] or 0) + missing
+				local unit = Priced(ctx.ahPrice(item[1]))
+				if unit then plan.cost = plan.cost + unit * missing else plan.unpriced = true end
+			elseif missing > 0 then
+				Acquire(item[1], missing, ctx.me)
+			end
+		end
+	end
 	return plan
 end
 

@@ -32,9 +32,9 @@ end
 
 local function AddTooltipLines(tooltip)
 	tooltip:AddLine("Crafting and Farming Forever")
-	local queued = #ns.db.queue
+	local queued = ns.Queue.Count()
 	if queued > 0 then
-		tooltip:AddLine(("%s in the queue"):format(ns.Plural(queued, "recipe", "recipes")), 0.6, 0.8, 1)
+		tooltip:AddLine(("%s in the queue"):format(ns.Plural(queued, "entry", "entries")), 0.6, 0.8, 1)
 	end
 	local _, onItsWay, waiting, nextDue, rough = ns.Sales.Incoming()
 	local about = rough and "about " or ""

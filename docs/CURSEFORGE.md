@@ -54,12 +54,11 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 
 ### Waylaid Crates
 - The Crates tab lists every Waylaid Crate with its auction house price, its cheapest bundle of materials, the Merchant's Favor it pays and the gold each Merchant's Favor costs you, cheapest first, with the best buy marked.
-- "List for a price scan" puts the crates and their materials on an Auctionator list; pick crates with + and "Shop picked" lists what to buy.
+- + puts a crate on your queue: the shopping list gets the crate and its cheapest bundle of materials.
 
 ### Craftsman's Writs
 - The Writs tab lists every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first. It starts with the writs your characters can craft for; one tick shows them all.
-- "List for a price scan" puts the writs and their items on an Auctionator list, so one search gets today's prices.
-- Pick writs with + and "Shop picked" lists the writs and items to buy, and puts the items worth crafting on your queue.
+- + puts a writ on your queue: the shopping list gets the writ and its item, or the item's materials when crafting it is cheaper.
 
 ### Sales history
 - Money on its way: when an auction sells, you're told in chat how much is coming, and the Sales tab and the minimap button count down the hour until it reaches your mailbox. No trip to the auction house needed.

@@ -1,13 +1,12 @@
 -- Crafting and Farming Forever :: Crates
 -- Waylaid Crates: what each one costs to fill (the crate plus its cheapest bundle of materials) against the
--- Merchant's Favor it pays, the crates picked to do, and an Auctionator list for scanning or buying them.
+-- Merchant's Favor it pays. + on a crate queues it (Queue.Want), and the plan then gets the crate and its bundle
+-- like any material.
 
 local _, ns = ...
 
 local Crates = {}
 ns.Crates = Crates
-
-ns.CRATE_LIST = "Crafting and Farming Forever Crates"
 
 Crates.TIERS = { "Apprentice", "Journeyman", "Expert", "Artisan" }
 
@@ -54,29 +53,17 @@ for _, entry in ipairs(DATA) do
 	table.insert(Crates.list, { id = entry[1], tier = entry[2], made = entry[3], bundles = bundles })
 end
 
-local function Saved()
-	local saved = ns.db.crates
-	saved.picked = saved.picked or {}
-	saved.queued = saved.queued or {}
-	return saved
-end
+local byID = {}
+for _, crate in ipairs(Crates.list) do byID[crate.id] = crate end
+function Crates.ByID(crateID) return byID[crateID] end
 
-function Crates.IsPicked(crateID) return Saved().picked[crateID] == true end
-
-function Crates.PickedCount()
-	local count = 0
-	for _ in pairs(Saved().picked) do count = count + 1 end
-	return count
-end
-
-function Crates.Toggle(crateID)
-	local saved = Saved()
-	if saved.picked[crateID] then
-		saved.picked[crateID], saved.queued[crateID] = nil, nil
-	else
-		saved.picked[crateID] = true
+-- The bundle to fill count of a crate with: one you already hold enough of, else the cheapest at today's prices,
+-- else the first on its label.
+function Crates.Fill(ctx, crate, count)
+	for _, bundle in ipairs(crate.bundles) do
+		if ns.Stock.Own(bundle.item) >= bundle.count * (count or 1) then return bundle end
 	end
-	ns.UI.Refresh("crates")
+	return ns.Planner.Crate(ctx, crate).best or crate.bundles[1]
 end
 
 -- The crate's name without "Waylaid Crate: ".
@@ -93,7 +80,7 @@ function Crates.Rows(tier)
 	for _, crate in ipairs(Crates.list) do
 		if not tier or crate.tier == tier then
 			local row = ns.Planner.Crate(ctx, crate)
-			row.picked = Crates.IsPicked(crate.id)
+			row.queued = ns.Queue.WantedCount("crate", crate.id)
 			row.haveCrate = ns.Stock.Own(crate.id) > 0
 			if row.best then row.haveFill = ns.Stock.Own(row.best.item) >= row.best.count end
 			if row.perToken and (not best or row.perToken < best.perToken) then best = row end
@@ -102,50 +89,4 @@ function Crates.Rows(tier)
 	end
 	if best then best.cheapest = true end
 	return rows, best
-end
-
-local function Report(ok, count, loading, extra)
-	ns.Writs.Report(ns.CRATE_LIST, ok, count, loading, extra)
-end
-
--- Every shown crate and every material that can fill it, with no amounts: searching the list refreshes their prices.
-function Crates.ListForScan(rows)
-	local wanted = {}
-	for _, row in ipairs(rows) do
-		wanted[row.crate.id] = true
-		for _, bundle in ipairs(row.crate.bundles) do wanted[bundle.item] = true end
-	end
-	local ok, count, loading = pcall(ns.Writs.WriteList, ns.CRATE_LIST, wanted)
-	Report(ok, count, loading)
-end
-
--- The picked crates you don't hold yet, and their cheapest bundle where buying is the cheapest way. Bundles that are
--- cheaper to craft go on the craft queue instead, once per pick, so its own shopping list covers their materials.
-function Crates.ShopPicked()
-	local saved = Saved()
-	local wanted, queued = {}, 0
-	for _, row in ipairs(Crates.Rows()) do
-		local crate, fill = row.crate, row.best
-		if row.picked then
-			if not row.haveCrate then wanted[crate.id] = 1 end
-			if fill and not row.haveFill then
-				if fill.kind == "craft" and fill.recipeID then
-					if not saved.queued[crate.id] then
-						saved.queued[crate.id] = true
-						ns.Queue.Add(fill.recipeID, fill.crafts or 1)
-						queued = queued + 1
-					end
-				elseif fill.kind ~= "vendor" then
-					wanted[fill.item] = (wanted[fill.item] or 0) + fill.count
-				end
-			end
-		end
-	end
-	local ok, count, loading = pcall(ns.Writs.WriteList, ns.CRATE_LIST, wanted)
-	if ok and count == 0 and queued > 0 then
-		ns.Print(("%d crafts added to the queue. Nothing to buy for the picked crates."):format(queued))
-	else
-		Report(ok, count, loading, queued > 0 and (", and %d crafts were added to the queue"):format(queued) or "")
-	end
-	ns.UI.Refresh("crates")
 end

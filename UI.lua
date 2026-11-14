@@ -506,6 +506,29 @@ local function BuildQueueList()
 			for _, row in ipairs(others[crafter]) do table.insert(list, row) end
 		end
 	end
+	-- Queued writs and crates come last: by then you hold the writ or crate and what it needs.
+	if #ns.db.wanted > 0 then
+		local ctx = ns.NewContext()
+		local rows = {}
+		for index, want in ipairs(ns.db.wanted) do
+			local items, fill = ns.Queue.WantedItems(ctx, want)
+			if items then
+				local row = { kind = "want", index = index, entry = want, fill = fill }
+				if want.kind == "writ" then
+					row.cost = ns.Planner.Writ(ctx, ns.Writs.ByID(want.id)).total
+				else
+					local price = ns.Prices.AH(want.id)
+					local unit = fill and ns.Planner.ItemCost(ctx, fill.item)
+					row.cost = price and price > 0 and unit and price + unit * fill.count or nil
+				end
+				table.insert(rows, row)
+			end
+		end
+		if #rows > 0 then
+			table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Hand in writs, fill crates" })
+			for _, row in ipairs(rows) do table.insert(list, row) end
+		end
+	end
 	if #list == 0 then
 		table.insert(list, { kind = "note", text = "The queue is empty." })
 		table.insert(list, { kind = "note", text = "Press + on the Profit tab, or Queue on a recipe's page (under the favourite star)." })
@@ -540,6 +563,8 @@ local function BuildNextStep()
 		elseif steps == 1 then
 			if data.kind == "queue" then
 				table.insert(rows, { kind = "next", recipeID = data.entry.recipeID, count = data.entry.qty, char = data.entry.char })
+			elseif data.kind == "want" then
+				table.insert(rows, { kind = "item", itemID = data.entry.id, count = data.entry.qty })
 			elseif data.kind == "item" then
 				local copy = {}
 				for key, value in pairs(data) do copy[key] = value end
@@ -607,7 +632,7 @@ local function BuildWritsList()
 		return a.order < b.order
 	end)
 	local list = {}
-	for _, item in ipairs(rows) do table.insert(list, { kind = "writ", row = item, selected = item.picked }) end
+	for _, item in ipairs(rows) do table.insert(list, { kind = "writ", row = item, selected = item.queued > 0 }) end
 	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Item wanted", columns = "writs" }) end
 	return list
 end
@@ -637,7 +662,7 @@ local function BuildCratesList()
 		return a.order < b.order
 	end)
 	local list = { best = best }
-	for _, item in ipairs(rows) do table.insert(list, { kind = "crate", row = item, selected = item.picked }) end
+	for _, item in ipairs(rows) do table.insert(list, { kind = "crate", row = item, selected = item.queued > 0 }) end
 	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Crate", columns = "crates" }) end
 	return list
 end
@@ -1037,6 +1062,12 @@ local function RowOnEnter(row)
 		end
 		AddSalesLines(data.item.name)
 		GameTooltip:Show()
+	elseif data.kind == "want" then
+		StartItemTooltip(row, data.entry.id)
+		GameTooltip:AddLine(data.entry.kind == "writ" and "Queued from the Writs tab." or "Queued from the Crates tab.", 0.6, 0.8, 1)
+		GameTooltip:AddLine("The steps above get it and what it needs. It comes off the queue when you "
+			.. (data.entry.kind == "writ" and "hand it in." or "fill it."), 1, 1, 1, true)
+		GameTooltip:Show()
 	elseif data.kind == "queue" then
 		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
 		StartItemTooltip(row, queuedRecipe and queuedRecipe.o, data.entry.recipeID)
@@ -1116,11 +1147,15 @@ local PLUS_TIPS = {
 	skill = { "Queue one craft", "Shift: ten. Right-click or Ctrl-click: type an amount." },
 	queue = { "Add one craft", "Shift: ten. Or type the amount in the box." },
 	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
-	writ = { "Pick this writ", "Shop picked lists the picked writs and their items for Auctionator. Click again to unpick." },
-	crate = { "Pick this crate", "Shop picked lists the picked crates and their cheapest fill for Auctionator. Click again to unpick." },
+	writ = { "Queue this writ", "The queue's shopping list gets the writ and the item it wants, or the item's materials "
+		.. "when crafting it yourself is cheaper. Take it off again on the Queue tab." },
+	crate = { "Queue one crate", "Shift: five. The queue's shopping list gets the crate and its cheapest bundle of "
+		.. "materials. Take it off again on the Queue tab." },
+	want = { "Add one", "Shift: five. Or type the amount in the box." },
 }
 local MINUS_TIPS = {
 	queue = { "Remove one craft", "Shift: ten, down to one. At one, - removes the entry." },
+	want = { "Remove one", "At one, - removes the entry." },
 	restock = { "Lower the goal by one", "Shift: ten. 0 skips the item." },
 }
 
@@ -1137,7 +1172,7 @@ end
 -- What a row's amount box edits: a queue entry (kept by reference, since entries above it can be removed while you
 -- type) or one item's restock goal.
 local function AmountTarget(data)
-	if data and data.kind == "queue" then return { entry = data.entry } end
+	if data and (data.kind == "queue" or data.kind == "want") then return { entry = data.entry, want = data.kind == "want" } end
 	if data and data.kind == "restock" then return { itemID = data.row.itemID } end
 end
 
@@ -1159,9 +1194,9 @@ local function CommitAmount(box)
 	end
 	if value == AmountValue(target) then return end
 	if target.entry then
-		for index, entry in ipairs(ns.db.queue) do
+		for index, entry in ipairs(target.want and ns.db.wanted or ns.db.queue) do
 			if entry == target.entry then
-				ns.Queue.Set(index, value)
+				if target.want then ns.Queue.SetWanted(index, value) else ns.Queue.Set(index, value) end
 				return
 			end
 		end
@@ -1249,6 +1284,11 @@ local function QueueControls(row)
 		{ row.remove, 4 }, { row.quote, 8 }, { row.plus, 6 }, { row.amount, 6 }, { row.minus, 8 },
 		{ row.profit, 8 }, { row.cost, 4 },
 	}
+end
+
+-- A queued writ or crate: the queue row's controls without the quote and the profit.
+local function WantControls(row)
+	return { { row.remove, 4 }, { row.plus, 30 }, { row.amount, 6 }, { row.minus, 8 }, { row.cost, 8 } }
 end
 
 -- Right-click or Ctrl-click on a Profit row's +: a small box to type how many crafts to queue.
@@ -1347,9 +1387,11 @@ local function CreateRow(parent)
 			ns.Restock.SetGoal(data.row.itemID, data.row.goal + (IsShiftKeyDown() and 10 or 1))
 			UI.Refresh("restock")
 		elseif data.kind == "writ" then
-			ns.Writs.Toggle(data.row.writ.id)
+			ns.Queue.Want("writ", data.row.writ.id, 1)
 		elseif data.kind == "crate" then
-			ns.Crates.Toggle(data.row.crate.id)
+			ns.Queue.Want("crate", data.row.crate.id, IsShiftKeyDown() and 5 or 1)
+		elseif data.kind == "want" then
+			ns.Queue.ChangeWanted(data.index, IsShiftKeyDown() and 5 or 1)
 		end
 	end)
 	row.plus:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1363,6 +1405,8 @@ local function CreateRow(parent)
 			-- Shift takes ten but stops at one, so a big step can't drop the whole entry by surprise.
 			local step = IsShiftKeyDown() and math.min(10, data.entry.qty - 1) or 1
 			if step > 0 then ns.Queue.Change(data.index, -step) end
+		elseif data.kind == "want" then
+			ns.Queue.ChangeWanted(data.index, -1)
 		elseif data.kind == "restock" then
 			ns.Restock.SetGoal(data.row.itemID, data.row.goal - (IsShiftKeyDown() and 10 or 1))
 			UI.Refresh("restock")
@@ -1412,6 +1456,7 @@ local function CreateRow(parent)
 	row.remove:SetScript("OnClick", function(self)
 		local data = self:GetParent().data
 		if data and data.kind == "queue" then ns.Queue.Remove(data.index) end
+		if data and data.kind == "want" then ns.Queue.SetWanted(data.index, 0) end
 	end)
 	row.remove:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -1714,6 +1759,20 @@ local function SetRow(row, data)
 		row.profit:SetText(boundCost and Color(COLOR_MUTED, "can't sell")
 			or net and ((capped and Color(COLOR_WARN, "! ") or "") .. Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
 			or Color(COLOR_MUTED, "no price"))
+	elseif data.kind == "want" then
+		local want = data.entry
+		row.icon:SetTexture(ns.Items.Icon(want.id) or 134400)
+		local note
+		if want.kind == "writ" then
+			local writ = ns.Writs.ByID(want.id)
+			note = writ.item and ("with " .. (ns.Items.Name(writ.item) or "...") .. (writ.count > 1 and " x" .. writ.count or ""))
+		elseif data.fill then
+			note = "fill with " .. BundleText(data.fill)
+		end
+		row.left:SetText(ItemLabel(want.id) .. (note and Color(COLOR_MUTED, "  " .. note) or ""))
+		PlaceRight(row, WantControls(row), true)
+		ShowAmount(row, data, want.qty)
+		row.cost:SetText(data.cost and ns.Money(data.cost * want.qty) or Color(COLOR_MUTED, "?"))
 	elseif data.kind == "restock" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
@@ -1781,9 +1840,9 @@ local function SetRow(row, data)
 		if writ.count > 1 then label = label .. " x" .. writ.count end
 		local where = ns.Writs.TIERS[writ.tier]
 		if writ.zone then where = where .. ", " .. writ.zone .. (writ.zoneGuess and "?" or "") end
-		row.left:SetText(label .. "  " .. (item.done and Color(COLOR_PROFIT, "done today") or Color(COLOR_MUTED, where)))
+		row.left:SetText(label .. "  " .. (item.done and Color(COLOR_PROFIT, "done today") or Color(COLOR_MUTED, where))
+			.. (item.queued > 0 and Color("ff7fb8ff", "  queued") or ""))
 		PlaceRight(row, WritControls(row), true)
-		row.plus:SetText(item.picked and "x" or "+")
 		row.colAH:SetText(item.writPrice and Color(item.haveWrit and COLOR_PROFIT or "ffffffff", ns.Money(item.writPrice))
 			or Color(item.haveWrit and COLOR_PROFIT or COLOR_MUTED, item.haveWrit and "have" or "no price"))
 		row.colHave:SetText(item.itemCost
@@ -1798,9 +1857,9 @@ local function SetRow(row, data)
 		row.icon:SetTexture(ns.Items.Icon(crate.id) or 134400)
 		local label = ns.Crates.Name(crate) or Color(COLOR_MUTED, "Loading...")
 		local note = item.best and BundleText(item.best) or ns.Crates.TIERS[crate.tier]
-		row.left:SetText(label .. "  " .. (item.cheapest and Color(COLOR_PROFIT, "best buy: " .. note) or Color(COLOR_MUTED, note)))
+		row.left:SetText(label .. "  " .. (item.cheapest and Color(COLOR_PROFIT, "best buy: " .. note) or Color(COLOR_MUTED, note))
+			.. (item.queued > 0 and Color("ff7fb8ff", "  queued x" .. item.queued) or ""))
 		PlaceRight(row, WritControls(row), true)
-		row.plus:SetText(item.picked and "x" or "+")
 		row.colAH:SetText(item.cratePrice and Color(item.haveCrate and COLOR_PROFIT or "ffffffff", ns.Money(item.cratePrice))
 			or Color(item.haveCrate and COLOR_PROFIT or COLOR_MUTED, item.haveCrate and "have" or "no price"))
 		row.colHave:SetText(item.fillCost
@@ -1952,7 +2011,7 @@ function UpdateTabStrip()
 	for _, tab in ipairs(main.tabButtons) do
 		local selected = tab.key == active or (beside and tab.key == "queue")
 		local title = tab.title
-		if tab.key == "queue" and #ns.db.queue > 0 then title = ("%s (%d)"):format(title, #ns.db.queue) end
+		if tab.key == "queue" and ns.Queue.Count() > 0 then title = ("%s (%d)"):format(title, ns.Queue.Count()) end
 		-- Notes for this version not opened yet: the tab is green with a dot, nothing pops up.
 		local unseen = tab.key == "changelog" and ns.WhatsNew and ns.WhatsNew.HasUnseen()
 		tab.label:SetText(Color(selected and "ffffffff" or (unseen and "ff55dd55" or "ffb8b8b8"), title))
@@ -1996,6 +2055,8 @@ function UI.RefreshQueue()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("posting")
+	UI.Refresh("writs") -- their rows say what's queued
+	UI.Refresh("crates")
 	UpdateTabStrip()
 	UpdateNextStep()
 end
@@ -2622,7 +2683,7 @@ function CreateQueuePane()
 	window.build = BuildQueueList
 
 	local clear = HeaderButton(window.frame, "Clear", 70, function()
-		local count = #ns.db.queue
+		local count = ns.Queue.Count()
 		if count == 0 then return end
 		StaticPopup_Show("CFF_CLEAR_QUEUE", count == 1 and "remove the one entry from the queue?"
 			or ("remove all %d entries from the queue?"):format(count))
@@ -2698,7 +2759,7 @@ function CreateQueuePane()
 
 	window.clearButton = clear
 	window.update = function()
-		clear:SetEnabled(#ns.db.queue > 0)
+		clear:SetEnabled(ns.Queue.Count() > 0)
 		local totals = ns.totals
 		local farming = ns.db.ui.farmMode and true or false
 		for _, button in ipairs(modes) do
@@ -2907,7 +2968,7 @@ local function NextStepAllowed()
 end
 
 function UpdateNextStep()
-	if not ns.db or #ns.db.queue == 0 or not NextStepAllowed() or not ns.Option("nextStep") then
+	if not ns.db or ns.Queue.Count() == 0 or not NextStepAllowed() or not ns.Option("nextStep") then
 		if windows.next then windows.next.frame:Hide() end
 		return
 	end
@@ -2932,7 +2993,7 @@ function UI.ToggleNextStep()
 		ns.Print("The Next step bar is turned off. Turn it on in the Options tab.")
 		return
 	end
-	if #ns.db.queue == 0 then
+	if ns.Queue.Count() == 0 then
 		ns.Print("The queue is empty, so there's no next step.")
 		return
 	end
@@ -3198,33 +3259,6 @@ function CreateWritsPane()
 		window.tierButtons[index + 1] = button
 	end
 
-	local function Tip(button, title, text)
-		button:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_TOP")
-			GameTooltip:SetText(title)
-			GameTooltip:AddLine(text, 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		button:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	end
-
-	local shop = HeaderButton(window.frame, "Shop picked", 110, function() ns.Writs.ShopPicked() end, true)
-	shop:SetPoint("TOPRIGHT", -12, -PANE_ACTIONS_TOP)
-	Tip(shop, "Shop picked", "Puts the writs you picked with + on the Auctionator list \"" .. ns.WRIT_LIST
-		.. "\", with their items where buying is cheapest. Items that are cheaper to craft go on your craft queue "
-		.. "instead. What you already hold and writs handed in today are left out.")
-	window.shop = shop
-
-	local scan = HeaderButton(window.frame, "List for a price scan", 140, function()
-		local rows = {}
-		for _, data in ipairs(window.list) do if data.row then table.insert(rows, data.row) end end
-		ns.Writs.ListForScan(rows)
-	end)
-	scan:SetPoint("RIGHT", shop, "LEFT", -4, 0)
-	Tip(scan, "List for a price scan", "Puts every writ shown here and the item it wants on the Auctionator list \""
-		.. ns.WRIT_LIST .. "\". Search that list at the auction house to get today's prices. A full scan does the same.")
-	window.scan = scan
-
 	-- Off: only writs whose item one of your characters can craft. On: every writ.
 	local everything = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
 	everything:SetSize(24, 24)
@@ -3253,9 +3287,6 @@ function CreateWritsPane()
 			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
 		end
 		everything:SetChecked(ns.db.ui.writAll and true or false)
-		local picked = ns.Writs.PickedCount()
-		shop:SetText(picked > 0 and ("Shop picked (%d)"):format(picked) or "Shop picked")
-		shop:SetEnabled(picked > 0)
 		local priced, shown = 0, 0
 		for _, data in ipairs(window.list) do
 			if data.row then
@@ -3266,9 +3297,9 @@ function CreateWritsPane()
 		if shown == 0 then
 			hint:SetText("None of your characters can craft a writ's item here. Tick the box to see every writ.")
 		elseif priced == 0 then
-			hint:SetText(Color(COLOR_WARN, "No writ prices yet: list them for a price scan, or run a full scan."))
+			hint:SetText(Color(COLOR_WARN, "No writ prices yet: run a full scan at the auction house."))
 		else
-			hint:SetText(Color(COLOR_MUTED, ("%d of %d writs have a price. Net = coin pouch less writ and item."):format(priced, shown)))
+			hint:SetText(Color(COLOR_MUTED, ("%d of %d writs have a price. + queues a writ and what it needs."):format(priced, shown)))
 		end
 	end
 end
@@ -3296,34 +3327,6 @@ function CreateCratesPane()
 		window.tierButtons[index + 1] = button
 	end
 
-	local function Tip(button, title, text)
-		button:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_TOP")
-			GameTooltip:SetText(title)
-			GameTooltip:AddLine(text, 1, 1, 1, true)
-			GameTooltip:Show()
-		end)
-		button:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	end
-
-	local shop = HeaderButton(window.frame, "Shop picked", 110, function() ns.Crates.ShopPicked() end, true)
-	shop:SetPoint("TOPRIGHT", -12, -PANE_ACTIONS_TOP)
-	Tip(shop, "Shop picked", "Puts the crates you picked with + on the Auctionator list \"" .. ns.CRATE_LIST
-		.. "\", each with its cheapest bundle of materials. A bundle that is cheaper to craft goes on your craft queue "
-		.. "instead. What you already hold is left out.")
-	window.shop = shop
-
-	local scan = HeaderButton(window.frame, "List for a price scan", 140, function()
-		local rows = {}
-		for _, data in ipairs(window.list) do if data.row then table.insert(rows, data.row) end end
-		ns.Crates.ListForScan(rows)
-	end)
-	scan:SetPoint("RIGHT", shop, "LEFT", -4, 0)
-	Tip(scan, "List for a price scan", "Puts every crate shown here and every material that can fill it on the "
-		.. "Auctionator list \"" .. ns.CRATE_LIST .. "\". Search that list at the auction house to get today's prices. "
-		.. "A full scan does the same.")
-	window.scan = scan
-
 	local hint = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	hint:SetPoint("BOTTOMLEFT", 12, 9)
 	hint:SetPoint("BOTTOMRIGHT", -24, 9)
@@ -3336,16 +3339,13 @@ function CreateCratesPane()
 		for _, button in ipairs(window.tierButtons) do
 			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
 		end
-		local picked = ns.Crates.PickedCount()
-		shop:SetText(picked > 0 and ("Shop picked (%d)"):format(picked) or "Shop picked")
-		shop:SetEnabled(picked > 0)
 		local best = window.list.best
 		if best then
 			hint:SetText(("Best buy: %s with %s, %s for each Merchant's Favor."):format(
 				Color(COLOR_PROFIT, ns.Crates.Name(best.crate) or "..."), BundleText(best.best),
-				best.perToken > 0 and ns.Money(best.perToken) or "nothing"))
+				best.perToken > 0 and ns.Money(best.perToken) or "nothing") .. Color(COLOR_MUTED, "  + queues a crate."))
 		else
-			hint:SetText(Color(COLOR_WARN, "No crate prices yet: list them for a price scan, or run a full scan."))
+			hint:SetText(Color(COLOR_WARN, "No crate prices yet: run a full scan at the auction house."))
 		end
 	end
 end

@@ -65,12 +65,39 @@ ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries
 -- often starts before it, so craft progress takes these off the plan's count.
 local craftedSinceBuild = {}
 
+-- What a queued writ or crate needs, each: the writ and the item it wants, or the crate and one bundle. Returns the
+-- items for the planner ({ itemID, count, buy = true for the writ or crate itself }), or nil when it isn't known
+-- any more.
+function Queue.WantedItems(ctx, want)
+	if want.kind == "writ" then
+		local writ = ns.Writs.ByID(want.id)
+		if not writ then return nil end
+		local items = { { writ.id, 1, buy = true } }
+		if writ.item then table.insert(items, { writ.item, writ.count }) end
+		return items
+	end
+	local crate = ns.Crates.ByID(want.id)
+	if not crate then return nil end
+	local fill = ns.Crates.Fill(ctx, crate, want.qty)
+	return { { crate.id, 1, buy = true }, { fill.item, fill.count } }, fill
+end
+
+local function Wanted(ctx)
+	local list = {}
+	for _, want in ipairs(ns.db.wanted) do
+		local items = Queue.WantedItems(ctx, want)
+		if items and want.qty > 0 then table.insert(list, { qty = want.qty, items = items }) end
+	end
+	return list
+end
+
 local function RebuildPlan()
 	wipe(craftedSinceBuild)
 	local ctx = NewContext()
-	ns.plan = ns.Planner.BuildPlan(ctx, ns.db.queue)
+	local wanted = Wanted(ctx)
+	ns.plan = ns.Planner.BuildPlan(ctx, ns.db.queue, false, wanted)
 	ctx.smelting = ns.Farm.Smelting
-	ns.farmPlan = ns.Planner.BuildPlan(ctx, ns.db.queue, true)
+	ns.farmPlan = ns.Planner.BuildPlan(ctx, ns.db.queue, true, wanted)
 	ns.totals = ns.Planner.QueueTotals(ctx, ns.db.queue, ns.Items.CanSellOnAH)
 	if ns.Shopping then ns.Shopping.Sync() end
 	if ns.UI then ns.UI.RefreshQueue() end
@@ -198,8 +225,75 @@ end
 
 function Queue.Clear()
 	wipe(ns.db.queue)
+	wipe(ns.db.wanted)
 	ns.RequestPlan()
 end
+
+-- Everything queued: crafts, and the writs and crates queued from their tabs.
+function Queue.Count()
+	return #ns.db.queue + #ns.db.wanted
+end
+
+---------------------------------------------------------------------------
+-- Queued writs and crates: db.wanted[i] = { kind = "writ" or "crate", id = its item, qty }. They aren't crafts, so
+-- they live beside the craft queue; the plan gets the writ or crate and what it needs like any other material.
+---------------------------------------------------------------------------
+
+local function WantedIndex(kind, id)
+	for index, want in ipairs(ns.db.wanted) do
+		if want.kind == kind and want.id == id then return index, want end
+	end
+end
+
+-- How many of a writ or crate are queued.
+function Queue.WantedCount(kind, id)
+	local _, want = WantedIndex(kind, id)
+	return want and want.qty or 0
+end
+
+function Queue.Want(kind, id, qty)
+	qty = math.max(1, math.floor(qty or 1))
+	local _, want = WantedIndex(kind, id)
+	if want then
+		want.qty = want.qty + qty
+	else
+		table.insert(ns.db.wanted, { kind = kind, id = id, qty = qty })
+	end
+	ns.RequestPlan()
+end
+
+-- Sets a queued writ or crate to an exact amount. 0 removes it.
+function Queue.SetWanted(index, qty)
+	local want = ns.db.wanted[index]
+	if not want then return end
+	want.qty = math.max(0, math.floor(qty))
+	if want.qty == 0 then table.remove(ns.db.wanted, index) end
+	ns.RequestPlan()
+end
+
+function Queue.ChangeWanted(index, delta)
+	local want = ns.db.wanted[index]
+	if want then Queue.SetWanted(index, want.qty + delta) end
+end
+
+-- One done (a crate filled, a writ handed in): it comes off the queue by itself.
+local function WantedDone(kind, id)
+	local index = WantedIndex(kind, id)
+	if index then Queue.ChangeWanted(index, -1) end
+end
+
+-- Filling a crate casts its Stock Crate spell, whose ID is the crate's item ID plus this.
+local CRATE_SPELL_OFFSET = 998744
+ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+	if unit ~= "player" or type(spellID) ~= "number" or (issecretvalue and issecretvalue(spellID)) then return end
+	if ns.db and ns.Crates.ByID(spellID - CRATE_SPELL_OFFSET) then WantedDone("crate", spellID - CRATE_SPELL_OFFSET) end
+end)
+
+ns.On("QUEST_TURNED_IN", function(questID)
+	if type(questID) ~= "number" or not ns.db then return end
+	local writ = ns.Writs.ByQuest(questID)
+	if writ then WantedDone("writ", writ.id) end
+end)
 
 ---------------------------------------------------------------------------
 -- Price quotes

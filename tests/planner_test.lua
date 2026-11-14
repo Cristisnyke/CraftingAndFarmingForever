@@ -743,6 +743,18 @@ do
 	local unpriced = Planner.Crate(Context({ ah = Prices(nil) }), { id = CRATE, tier = 1, made = false, bundles = { { item = ORE, count = 20 } } })
 	check("unpriced crate keeps the fill", unpriced.fillCost, 200)
 	check("unpriced crate has no per Favor", unpriced.perToken, nil)
+	-- Queued crates and writs in the plan: the crate itself is bought, its bundle comes from stock, then the cheapest way.
+	local ctx = Context({ ah = Prices(1000), own = { [CLOTH] = 30 } })
+	local plan = Planner.BuildPlan(ctx, {}, false, { { qty = 2, items = { { CRATE, 1, buy = true }, { CLOTH, 40 } } } })
+	check("wanted crates bought", plan.buy[CRATE], 2)
+	check("wanted fill less what's held", plan.buy[CLOTH], 50)
+	check("wanted cost", plan.cost, 2000 + 500)
+	local crafted = Planner.BuildPlan(Context({ ah = Prices(1000) }), {}, false, { { qty = 1, items = { { CRATE, 1, buy = true }, { BOLT, 10 } } } })
+	check("wanted item crafted when cheaper", crafted.crafts[1] and crafted.crafts[1].count, 10)
+	check("crafted wanted item isn't bought", crafted.buy[BOLT], nil)
+	local farmed = Planner.BuildPlan(Context({ ah = Prices(1000) }), {}, true, { { qty = 1, items = { { CRATE, 1, buy = true }, { ORE, 20 } } } })
+	check("farming still buys the crate", farmed.buy[CRATE], 1)
+	check("farming gathers the fill", farmed.farm[ORE], 20)
 	local empty = Planner.Crate(Context({ ah = { [CRATE] = 500 } }), { id = CRATE, tier = 1, made = false, bundles = { { item = ORE, count = 20 } } })
 	check("no bundle price, no best", empty.best, nil)
 end

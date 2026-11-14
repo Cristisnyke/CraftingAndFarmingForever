@@ -19,8 +19,8 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `Data.lua` | Every client read: item data, Auctionator prices and scan age, stock, recipe scanning |
 | `Queue.lua` | Queue operations, restock goals, plan rebuilds, Craft Next |
 | `Sales.lua` | Sold and expired records from mail, post tracking, chance to sell |
-| `Crates.lua` | Waylaid Crate data (crate, level, bundles of materials), picks, and the `Crafting and Farming Forever Crates` Auctionator list; the cost maths is `Planner.Crate` |
-| `Writs.lua` | Craftsman's Writ data (writ, wanted item, level, hand-in zone), picks, and the `Crafting and Farming Forever Writs` Auctionator list; the cost maths is `Planner.Writ` |
+| `Crates.lua` | Waylaid Crate data (crate, level, bundles of materials), the cost maths is `Planner.Crate`; + queues one through `Queue.Want` (`db.wanted`) |
+| `Writs.lua` | Craftsman's Writ data (writ, wanted item, level, hand-in zone), the cost maths is `Planner.Writ`; + queues one through `Queue.Want` (`db.wanted`) |
 | `Shopping.lua` | Keeps the `Crafting and Farming Forever Queue` Auctionator list in sync, editing it in place |
 | `UI.lua` | The tabbed window and its panes, the Next step bar (also the Farm It list), the recipe-page Queue button, the scan prompt, advertising, the slash command |
 | `Posting.lua` | The Restocking tab in the auction house: candidate items, live price search, posting |

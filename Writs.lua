@@ -1,13 +1,11 @@
 -- Crafting and Farming Forever :: Writs
--- Craftsman's Writs: what each one costs to hand in (the writ plus the crafted item it wants) against its reward,
--- the writs picked to do, and an Auctionator list for scanning or buying them.
+-- Craftsman's Writs: what each one costs to hand in (the writ plus the crafted item it wants) against its reward.
+-- + on a writ queues it (Queue.Want), and the plan then gets the writ and its item like any material.
 
 local _, ns = ...
 
 local Writs = {}
 ns.Writs = Writs
-
-ns.WRIT_LIST = "Crafting and Farming Forever Writs"
 
 Writs.TIERS = { "Journeyman", "Expert", "Artisan" }
 -- A writ's daily quest has the writ's item ID less this.
@@ -178,30 +176,13 @@ for _, entry in ipairs(DATA) do
 	})
 end
 
-local function Saved()
-	local saved = ns.db.writs
-	saved.picked = saved.picked or {}
-	saved.queued = saved.queued or {}
-	return saved
+local byID, byQuest = {}, {}
+for _, writ in ipairs(Writs.list) do
+	byID[writ.id] = writ
+	if writ.quest then byQuest[writ.quest] = writ end
 end
-
-function Writs.IsPicked(writID) return Saved().picked[writID] == true end
-
-function Writs.PickedCount()
-	local count = 0
-	for _ in pairs(Saved().picked) do count = count + 1 end
-	return count
-end
-
-function Writs.Toggle(writID)
-	local saved = Saved()
-	if saved.picked[writID] then
-		saved.picked[writID], saved.queued[writID] = nil, nil
-	else
-		saved.picked[writID] = true
-	end
-	ns.UI.Refresh("writs")
-end
+function Writs.ByID(writID) return byID[writID] end
+function Writs.ByQuest(questID) return byQuest[questID] end
 
 -- Handed in today on this character. The client may not have the quest call, so no answer counts as not done.
 function Writs.Done(writ)
@@ -224,7 +205,7 @@ function Writs.Rows(tier, craftableOnly)
 		if not tier or writ.tier == tier then
 			local row = ns.Planner.Writ(ctx, writ)
 			if row.craftable or not craftableOnly then
-				row.picked = Writs.IsPicked(writ.id)
+				row.queued = ns.Queue.WantedCount("writ", writ.id)
 				row.done = Writs.Done(writ)
 				row.haveWrit = ns.Stock.Own(writ.id) > 0
 				row.haveItem = writ.item and ns.Stock.Own(writ.item) >= writ.count or false
@@ -233,77 +214,4 @@ function Writs.Rows(tier, craftableOnly)
 		end
 	end
 	return rows
-end
-
--- Replaces a list in Auctionator. Returns how many searches it holds and how many names were still loading. The
--- crates list uses it too.
-local function WriteList(listName, wanted)
-	local strings, loading = {}, 0
-	for itemID, quantity in pairs(wanted) do
-		local name = ns.Items.Name(itemID)
-		if name then
-			table.insert(strings, ns.Shopping.SearchString(name, quantity ~= true and quantity or nil))
-		elseif not ns.Items.IsMissing(itemID) then
-			loading = loading + 1
-		end
-	end
-	table.sort(strings)
-	if #strings > 0 then Auctionator.API.v1.CreateShoppingList(ns.name, listName, strings) end
-	return #strings, loading
-end
-Writs.WriteList = WriteList
-
-local function Report(listName, ok, count, loading, extra)
-	if not ok then
-		ns.Print("Could not write the Auctionator list: " .. tostring(count))
-	elseif count == 0 then
-		ns.Print(loading > 0 and "The names are still loading. Try again in a moment." or "Nothing to list.")
-	else
-		ns.Print(("Auctionator's list \"%s\" now has %d searches%s. Search it in the Shopping tab at the auction house.%s")
-			:format(listName, count, extra or "",
-				loading > 0 and (" %d names were still loading: press again in a moment."):format(loading) or ""))
-	end
-end
-Writs.Report = Report
-
--- Every shown writ and the item it wants, with no amounts: searching the list refreshes their prices.
-function Writs.ListForScan(rows)
-	local wanted = {}
-	for _, row in ipairs(rows) do
-		wanted[row.writ.id] = true
-		if row.writ.item then wanted[row.writ.item] = true end
-	end
-	local ok, count, loading = pcall(WriteList, ns.WRIT_LIST, wanted)
-	Report(ns.WRIT_LIST, ok, count, loading)
-end
-
--- The picked writs you don't hold yet, and their items where buying is the cheapest way. Items that are cheaper to
--- craft go on the craft queue instead, once per pick, so its own shopping list covers their materials.
-function Writs.ShopPicked()
-	local saved = Saved()
-	local wanted, queued = {}, 0
-	for _, row in ipairs(Writs.Rows()) do
-		local writ = row.writ
-		if row.picked and not row.done then
-			if not row.haveWrit then wanted[writ.id] = 1 end
-			if writ.item and not row.haveItem then
-				if row.kind == "craft" and row.recipeID then
-					if not saved.queued[writ.id] then
-						saved.queued[writ.id] = true
-						ns.Queue.Add(row.recipeID, row.crafts or 1)
-						queued = queued + 1
-					end
-				elseif row.kind ~= "vendor" then
-					wanted[writ.item] = (wanted[writ.item] or 0) + writ.count
-				end
-			end
-		end
-	end
-	local ok, count, loading = pcall(WriteList, ns.WRIT_LIST, wanted)
-	if ok and count == 0 and queued > 0 then
-		ns.Print(("%d crafts added to the queue. Nothing to buy for the picked writs."):format(queued))
-	else
-		Report(ns.WRIT_LIST, ok, count, loading, queued > 0 and (", and %d crafts were added to the queue"):format(queued) or "")
-	end
-	ns.UI.Refresh("writs")
 end
