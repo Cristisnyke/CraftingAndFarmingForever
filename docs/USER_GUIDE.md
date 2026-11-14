@@ -200,7 +200,6 @@ Craftsman's Writs are tradable items that start a daily quest: hand in the writ 
 - **List for a price scan** writes every writ shown and its item to the Auctionator list "Crafting and Farming Forever Writs". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
 - **+** picks a writ. **Shop picked** rewrites the same Auctionator list with the picked writs you don't hold and their items where buying is cheapest, and adds the items that are cheaper to craft to your queue (once per pick). Writs done today are left out.
 
-
 ## Crates
 
 Waylaid Crates drop from monsters and sell on the auction house. A labelled crate ("Waylaid Crate: Journeyman Ore") is filled with any one bundle from its list of materials, and the sealed crate is handed to your faction's trade representative for Merchant's Favor and a little coin. Anyone can fill them: no profession is needed. The Crates tab (`/cff crates`) shows which crate gives the cheapest Merchant's Favor. The unlabelled "Waylaid Crate" isn't listed.
