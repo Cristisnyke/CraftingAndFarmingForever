@@ -3020,6 +3020,11 @@ do
 	ns.Queue.Clear()
 	RunTimers()
 	check("clear removes queued crates", ns.Queue.Count(), 0)
+	-- An entry for something this version doesn't know is dropped, not left blocking an empty queue.
+	table.insert(ns.db.wanted, { kind = "crate", id = 1, qty = 1 })
+	ns.RequestPlan()
+	RunTimers()
+	check("unknown queued crate is dropped", ns.Queue.Count(), 0)
 	ns.db.ui.crateTier = 2
 	ns.UI.Refresh("crates")
 	check("journeyman crates only", #window.list, 8)

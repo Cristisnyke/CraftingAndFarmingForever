@@ -211,7 +211,6 @@ local SORTS = {
 	crates = { key = "crateSort", asc = "crateSortAsc", default = "profit", pane = "crates",
 		ascending = { name = true, chance = true, cost = false, profit = true } },
 }
-UI.SORTS = SORTS
 
 function UI.ListSort(mode)
 	local sort = SORTS[mode]
@@ -1342,7 +1341,6 @@ local function AskQueueAmount(owner, recipeID)
 	amountPopup.box:SetFocus()
 	amountPopup.box:HighlightText()
 end
-UI.AskQueueAmount = AskQueueAmount
 
 local function CreateRow(parent)
 	local row = CreateFrame("Button", nil, parent)

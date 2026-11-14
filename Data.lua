@@ -440,7 +440,6 @@ local function ProfessionInfo()
 	end
 	return nil
 end
-Recipes.ProfessionInfo = ProfessionInfo
 
 -- The same profession can be reported as its parent or as an expansion child, so recipes are filed under the parent.
 local function ProfessionKey(info)

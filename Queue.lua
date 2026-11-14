@@ -84,9 +84,15 @@ end
 
 local function Wanted(ctx)
 	local list = {}
-	for _, want in ipairs(ns.db.wanted) do
-		local items = Queue.WantedItems(ctx, want)
-		if items and want.qty > 0 then table.insert(list, { qty = want.qty, items = items }) end
+	-- Backwards, as an entry for a writ or crate this version no longer knows is dropped: it could never be planned.
+	for index = #ns.db.wanted, 1, -1 do
+		local want = ns.db.wanted[index]
+		local items = (tonumber(want.qty) or 0) > 0 and Queue.WantedItems(ctx, want)
+		if items then
+			table.insert(list, 1, { qty = want.qty, items = items })
+		else
+			table.remove(ns.db.wanted, index)
+		end
 	end
 	return list
 end
@@ -285,7 +291,7 @@ end
 -- Filling a crate casts its Stock Crate spell, whose ID is the crate's item ID plus this.
 local CRATE_SPELL_OFFSET = 998744
 ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
-	if unit ~= "player" or type(spellID) ~= "number" or (issecretvalue and issecretvalue(spellID)) then return end
+	if unit ~= "player" or (issecretvalue and issecretvalue(spellID)) or type(spellID) ~= "number" then return end
 	if ns.db and ns.Crates.ByID(spellID - CRATE_SPELL_OFFSET) then WantedDone("crate", spellID - CRATE_SPELL_OFFSET) end
 end)
 
