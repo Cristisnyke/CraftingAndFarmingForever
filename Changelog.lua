@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.11.0", lines = {
+		"- New Writs tab for Craftsman's Writs: every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), what the coin pouch gives back, and the gold each reputation point costs you. It starts with the writs whose item your characters can craft; tick the box to see them all. Sort by any column or show one level",
+		"- Writs: \"List for a price scan\" puts the writs and their items on an Auctionator list so one search gets today's prices. Pick writs with + and \"Shop picked\" lists what to buy and queues the crafts",
+	} },
 	{ version = "1.10.2", lines = {
 		"- Sales: fixed profit showing a loss on items that made money. Taking the gold from a sale's mail counted that sale a second time, for no money, so the Sold column was up to double and the cost was taken twice. Your recorded sales are corrected the first time you log in. We're sorry for the confusion this caused. For a clean start, we recommend pressing Reset profit in the Sales tab after updating",
 		"- Sales: an item's cost is fixed when it sells and no longer moves with later price scans. Materials count at what you paid for them at the auction house; items made before costs were kept count at the cost to craft one at the time of the sale (still marked ~)",
