@@ -136,6 +136,7 @@ function Sales.Record(kind, name, count, money, when, char, itemID)
 		if costID then cost, covered = Sales.TakeCost(costID, count) end
 		day.c = (day.c or 0) + cost
 		day.u = (day.u or 0) + count - covered
+		Sales.FreezeCosts(item)
 	else
 		item.expired = item.expired + count
 		day.e = day.e + count
@@ -182,14 +183,14 @@ end
 -- them have no cost on record.
 local function Tracked(item, days)
 	local first = days and DayNumber(time()) - days + 1
-	local sold, expired, gold, cost, unknown = 0, 0, 0, 0, 0
+	local sold, expired, gold, cost, unknown, estimated = 0, 0, 0, 0, 0, 0
 	for dayNumber, day in pairs(item.days) do
 		if not day.x and (not first or dayNumber >= first) then
 			sold, expired, gold = sold + day.s, expired + day.e, gold + day.g
-			cost, unknown = cost + (day.c or 0), unknown + (day.u or 0)
+			cost, unknown, estimated = cost + (day.c or 0), unknown + (day.u or 0), estimated + (day.r or 0)
 		end
 	end
-	return sold, expired, gold, cost, unknown
+	return sold, expired, gold, cost, unknown, estimated
 end
 
 -- An item's results by day for smart restock goals: { { age = days ago, s, e }, ... } over the last `window` days,
@@ -251,6 +252,26 @@ local function CraftUnit(itemID)
 end
 Sales.CraftUnit = CraftUnit
 
+-- Sold crafted units with no cost on record (made before costs were kept) get the cost to craft one at that
+-- moment, once, and keep it: a profit that moved with every price scan was confusing (the user, 2026-11-14).
+-- day.r counts the units costed this way, so the profit still shows as an estimate. Units stay in day.u while
+-- there's no price to go on.
+function Sales.FreezeCosts(item)
+	local unit
+	for _, day in pairs(item.days) do
+		if not day.x and (day.u or 0) > 0 then
+			if unit == nil then
+				local itemID = Sales.CraftedID(item)
+				unit = itemID and CraftUnit(itemID) or false
+			end
+			if not unit then return end
+			day.c = (day.c or 0) + day.u * unit
+			day.r = (day.r or 0) + day.u
+			day.u = 0
+		end
+	end
+end
+
 -- Sales whose money is still on its way or waiting in a mailbox: the mail hasn't been read, so they aren't in the
 -- records yet. Returns units, copper expected, what they cost and whether any of it is an estimate, for one item
 -- (by lowercase name) over the last N days. Units with no cost on record count at today's cost to craft one, as in
@@ -282,8 +303,9 @@ end
 -- profit is counted. Crafted units with no cost on record (made before costs were kept) count at today's cost to
 -- craft one, as an estimate: counting them as free made everything made from old stock look like pure profit.
 function Sales.Profit(item, days)
-	local sold, expired, gold, cost, unknown = Tracked(item, days)
-	local rough = false
+	Sales.FreezeCosts(item)
+	local sold, expired, gold, cost, unknown, estimated = Tracked(item, days)
+	local rough = estimated > 0
 	if unknown > 0 then
 		local itemID = Sales.CraftedID(item)
 		if itemID then
@@ -305,7 +327,7 @@ function Sales.ResetProfit()
 		local days = item.days or {}
 		local now, before = days[today], days[today - 0.5]
 		if now and before then
-			for _, field in ipairs({ "s", "e", "g", "c", "u" }) do before[field] = (before[field] or 0) + (now[field] or 0) end
+			for _, field in ipairs({ "s", "e", "g", "c", "u", "r" }) do before[field] = (before[field] or 0) + (now[field] or 0) end
 			days[today] = nil
 		elseif now then
 			days[today - 0.5], days[today] = now, nil
@@ -804,6 +826,7 @@ function Sales.RepairEmptiedMail()
 		end
 	end
 	if changed then
+		ns.Print("Sales profit was counted wrong until now: taking the gold from a sale's mail counted the sale twice. Sorry for the confusion. Your records are corrected; for a clean start, press Reset profit in the Sales tab.")
 		Sales.ForgetCraftInfo()
 		ns.InvalidateProfit()
 		if ns.UI then ns.UI.Refresh("sales") end

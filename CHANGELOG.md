@@ -4,7 +4,8 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- Sales: fixed profit showing a loss on items that made money. Taking the gold from a sale's mail counted that sale a second time, for no money, so the Sold column was up to double and the cost was taken twice. Your recorded sales are corrected the first time you log in
+- Sales: fixed profit showing a loss on items that made money. Taking the gold from a sale's mail counted that sale a second time, for no money, so the Sold column was up to double and the cost was taken twice. Your recorded sales are corrected the first time you log in. We're sorry for the confusion this caused. For a clean start, we recommend pressing Reset profit in the Sales tab after updating
+- Sales: an item's cost is fixed when it sells and no longer moves with later price scans. Materials count at what you paid for them at the auction house; items made before costs were kept count at the cost to craft one at the time of the sale (still marked ~)
 
 ## 1.10.1
 

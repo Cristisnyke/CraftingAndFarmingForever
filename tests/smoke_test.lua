@@ -2746,6 +2746,13 @@ do
 	local noCost, noCostRough = ns.Sales.Profit(thing, 1)
 	check("no cost on record: today's craft cost", noCost, 450 + 950 - 500)
 	check("no cost on record: an estimate", noCostRough, true)
+	-- That cost is fixed at the sale: a later price change doesn't move the profit.
+	local before901 = prices[901]
+	prices[901] = 999
+	ns.Sales.ForgetCraftInfo()
+	check("no cost on record: fixed at the sale", (ns.Sales.Profit(thing, 1)), noCost)
+	prices[901] = before901
+	ns.Sales.ForgetCraftInfo()
 
 	ns.UI.Show("sales")
 	local window = ns.UI.windows.sales
