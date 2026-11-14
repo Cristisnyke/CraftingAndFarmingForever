@@ -75,7 +75,7 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 | Command | What it does |
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
-| `/cff profit`, `queue`, `restock`, `sales`, `options`, `changelog` | Open that tab, or close the window if that tab is already showing |
+| `/cff profit`, `queue`, `restock`, `sales`, `writs`, `options`, `changelog` | Open that tab, or close the window if that tab is already showing |
 | `/cff next` | Fold or unfold the Next step bar |
 | `/cff minimap` | Hide or show the minimap button |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |

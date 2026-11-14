@@ -236,7 +236,7 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | Command | What it does |
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
-| `/cff profit`, `queue`, `restock`, `sales` | Open that tab, or close the window if that tab is already showing |
+| `/cff profit`, `queue`, `restock`, `sales`, `writs` | Open that tab, or close the window if that tab is already showing |
 | `/cff next` | Fold or unfold the Next step bar |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
