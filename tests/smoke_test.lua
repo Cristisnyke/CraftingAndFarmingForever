@@ -1169,6 +1169,51 @@ table.remove(inbox, 1)
 Fire("MAIL_INBOX_UPDATE")
 check("collected mail doesn't change totals", ns.Sales.Item("Bolt of Linen").sold, 8)
 
+-- Taking the gold leaves the mail in the inbox for a moment with no money: not a second sale.
+do
+	inbox = { { subject = "Auction successful: Emptied Item", money = 400, daysLeft = 30 } }
+	Fire("MAIL_SHOW")
+	inbox[1].money = 0
+	Fire("MAIL_INBOX_UPDATE")
+	check("emptied sale mail isn't a second sale", ns.Sales.Item("Emptied Item").sold, 1)
+	check("emptied sale mail leaves no record", #ns.db.sales.seen[ns.CharKey()] > 0
+		and ns.db.sales.seen[ns.CharKey()][#ns.db.sales.seen[ns.CharKey()]].key, "sold|Emptied Item|400")
+
+	-- Saved data from before the fix: the second count is taken back out, with its cost returned to the pool.
+	local savedItems, savedSeen, savedCosts = ns.db.sales.items, ns.db.sales.seen, ns.db.costs
+	local when = os.time() - 3600
+	local d = os.date("*t", when)
+	local dayNumber = math.floor(os.time({ year = d.year, month = d.month, day = d.day, hour = 12 }) / 86400)
+	local expires = when + 30 * 86400
+	ns.db.costs = { [901] = { q = 1, c = 50 } }
+	ns.db.sales.items = {
+		["twice item"] = { name = "Twice Item", itemID = 901, sold = 5, expired = 0, gold = 900, exposure = 0,
+			days = { [dayNumber] = { s = 5, e = 0, g = 900, c = 400, u = 1 } } },
+	}
+	ns.db.sales.seen = { someone = {
+		{ key = "sold|Twice Item|300", expires = expires },
+		{ key = "sold|Twice Item|0", expires = expires + 10 },
+		{ key = "sold|Twice Item|300", expires = expires + 20 },
+		{ key = "sold|Twice Item|300", expires = expires + 30 },
+		{ key = "sold|Twice Item|0", expires = expires + 40 },
+		{ key = "expired|Twice Item|0", expires = expires + 50 },
+	} }
+	ns.db.sales.emptiedMailFixed = nil
+	ns.Sales.RepairEmptiedMail()
+	local item, day = ns.db.sales.items["twice item"], ns.db.sales.items["twice item"].days[dayNumber]
+	check("repair: units sold", item.sold, 3)
+	check("repair: day's units", day.s, 3)
+	check("repair: units with no cost go first", day.u, 0)
+	check("repair: cost of the rest", day.c, 300)
+	check("repair: money untouched", day.g, 900)
+	check("repair: cost back in the pool", ns.db.costs[901].q .. "/" .. ns.db.costs[901].c, "2/150")
+	check("repair: second counts forgotten", #ns.db.sales.seen.someone, 4)
+	ns.Sales.RepairEmptiedMail()
+	check("repair runs once", item.sold, 3)
+	ns.db.sales.items, ns.db.sales.seen, ns.db.costs = savedItems, savedSeen, savedCosts
+	inbox = {}
+end
+
 -- A sale whose subject states no quantity uses the invoice.
 function GetInboxInvoiceInfo() return "seller", "Plain Item", "Buyer", 0, 0, 0, 0, 0, 0, 0, 7 end
 inbox = { { subject = "Auction successful: Plain Item", money = 10, daysLeft = 30 } }

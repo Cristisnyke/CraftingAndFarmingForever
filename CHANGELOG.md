@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Sales: fixed profit showing a loss on items that made money. Taking the gold from a sale's mail counted that sale a second time, for no money, so the Sold column was up to double and the cost was taken twice. Your recorded sales are corrected the first time you log in
+
 ## 1.10.1
 
 - Smoother at the auction house and mailbox: buying many materials in a row or taking gold from a lot of mail no longer redraws the Queue, Restock and Next step bar after every single purchase, just once when you're done

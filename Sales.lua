@@ -671,6 +671,10 @@ function Sales.ScanMail()
 		local _, _, _, subject, money, _, daysLeft = GetInboxHeaderInfo(index)
 		local kind, name, count
 		if subject and daysLeft then kind, name, count = ParseSubject(subject, kinds) end
+		-- A sale's mail with no money in it has had its gold taken and is about to go. It was counted when it still
+		-- held the gold; as its money is part of what tells mails apart, it used to count again as a second sale for
+		-- nothing, which doubled the units sold and their cost.
+		if kind == "sold" and (money or 0) <= 0 then kind = nil end
 		if kind then
 			local itemID
 			if kind ~= "sold" then
@@ -727,4 +731,84 @@ function Sales.ScanMail()
 end
 
 ns.On("MAIL_INBOX_UPDATE", Sales.ScanMail)
+
+---------------------------------------------------------------------------
+-- Repair: sales counted twice
+---------------------------------------------------------------------------
+-- Up to 1.10.1 a sale's mail was counted a second time, for no money, when its gold was taken while the mailbox
+-- was open (see Sales.ScanMail). The mails seen are still on record, so the extra units can be taken back out: off
+-- the units sold, off their cost (units with no cost on record first, as the second count came after the real one)
+-- and back into the pool they were taken from. Runs once.
+
+local function RemoveSold(item, day, count)
+	count = math.min(count, day.s)
+	if count <= 0 then return 0 end
+	local unknown = math.min(count, day.u or 0)
+	local rest, covered = count - unknown, day.s - (day.u or 0)
+	if rest > 0 and covered > 0 and (day.c or 0) > 0 then
+		local back = day.c * math.min(1, rest / covered)
+		day.c = day.c - back
+		local costID = item.itemID or Sales.CraftedID(item)
+		if costID then Sales.AddCost(costID, rest, back) end
+	end
+	if day.u then day.u = day.u - unknown end
+	day.s = day.s - count
+	item.sold = math.max(0, item.sold - count)
+	return count
+end
+
+function Sales.RepairEmptiedMail()
+	local sales = ns.db.sales
+	if sales.emptiedMailFixed then return end
+	sales.emptiedMailFixed = true
+	local from = sales.profitFrom or 0
+	-- Per item and calendar day: real sale mails, and the second counts by whether they came since profit began.
+	local groups = {}
+	for _, seen in pairs(sales.seen) do
+		for index = #seen, 1, -1 do
+			local kind, name, money = seen[index].key:match("^(%a+)|(.*)|(%d+)$")
+			if kind == "sold" then
+				local when = seen[index].expires - MAIL_LIFETIME_DAYS * DAY
+				local id = name:lower() .. "|" .. DayNumber(when)
+				local group = groups[id]
+				if not group then
+					group = { key = name:lower(), day = DayNumber(when), real = 0, late = 0, early = 0 }
+					groups[id] = group
+				end
+				if tonumber(money) > 0 then
+					group.real = group.real + 1
+				else
+					if when >= from then group.late = group.late + 1 else group.early = group.early + 1 end
+					table.remove(seen, index)
+				end
+			end
+		end
+	end
+	local changed = false
+	for _, group in pairs(groups) do
+		local item = sales.items[group.key]
+		local extra = group.late + group.early
+		if item and extra > 0 then
+			-- Results from before a profit reset sit half a key earlier.
+			local now, before = item.days[group.day], item.days[group.day - 0.5]
+			local sold = (now and now.s or 0) + (before and before.s or 0)
+			local each = math.max(1, math.floor(sold / (group.real + extra) + 0.5))
+			local lateLeft, earlyLeft = group.late * each, group.early * each
+			if now then lateLeft = lateLeft - RemoveSold(item, now, lateLeft) end
+			if before then earlyLeft = earlyLeft - RemoveSold(item, before, earlyLeft) end
+			-- Whatever the expected day didn't hold comes off the other one.
+			local left = lateLeft + earlyLeft
+			if before and left > 0 then left = left - RemoveSold(item, before, left) end
+			if now and left > 0 then RemoveSold(item, now, left) end
+			changed = true
+		end
+	end
+	if changed then
+		Sales.ForgetCraftInfo()
+		ns.InvalidateProfit()
+		if ns.UI then ns.UI.Refresh("sales") end
+	end
+end
+
+ns.On("PLAYER_LOGIN", function() ns.WhenDataReady(Sales.RepairEmptiedMail) end)
 ns.On("MAIL_SHOW", Sales.ScanMail)
