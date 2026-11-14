@@ -15,6 +15,16 @@ local function Sanitize(name)
 	return (name:gsub("[;^\"]", " "))
 end
 
+-- An exact-name Auctionator search, for a quantity or (nil) just to see the price. Used by the writs list too.
+function Shopping.SearchString(name, quantity)
+	return Auctionator.API.v1.ConvertToSearchString(ns.name, {
+		searchString = Sanitize(name),
+		isExact = true,
+		categoryKey = "",
+		quantity = quantity,
+	})
+end
+
 -- The item name a search string was built from.
 local function NameOf(searchString)
 	return (searchString:match('^"([^"]*)"') or searchString:match("^([^;]*)") or ""):lower()
@@ -22,7 +32,6 @@ end
 
 -- Search strings wanted right now, by lowercase name, plus the number of items whose names are still loading.
 local function DesiredStrings()
-	local api = Auctionator.API.v1
 	local byName, loading = {}, 0
 	-- Materials only. The queued results used to be listed too, with no quantity, to refresh their sale prices, but
 	-- that read as "buy what you're about to craft".
@@ -41,12 +50,7 @@ local function DesiredStrings()
 
 	local wanted = {}
 	for key, item in pairs(byName) do
-		wanted[key] = api.ConvertToSearchString(ns.name, {
-			searchString = item.name,
-			isExact = true,
-			categoryKey = "",
-			quantity = item.count,
-		})
+		wanted[key] = Shopping.SearchString(item.name, item.count)
 	end
 	return wanted, loading
 end

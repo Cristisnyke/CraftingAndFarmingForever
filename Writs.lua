@@ -203,12 +203,6 @@ function Writs.Toggle(writID)
 	ns.UI.Refresh("writs")
 end
 
-function Writs.ClearPicked()
-	local saved = Saved()
-	saved.picked, saved.queued = {}, {}
-	ns.UI.Refresh("writs")
-end
-
 -- Handed in today on this character. The client may not have the quest call, so no answer counts as not done.
 function Writs.Done(writ)
 	if not (writ.quest and C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted) then return false end
@@ -241,22 +235,13 @@ function Writs.Rows(tier, craftableOnly)
 	return rows
 end
 
-local function SearchString(name, quantity)
-	return Auctionator.API.v1.ConvertToSearchString(ns.name, {
-		searchString = (name:gsub("[;^\"]", " ")),
-		isExact = true,
-		categoryKey = "",
-		quantity = quantity,
-	})
-end
-
 -- Replaces the writs list in Auctionator. Returns how many searches it holds and how many names were still loading.
 local function WriteList(wanted)
 	local strings, loading = {}, 0
 	for itemID, quantity in pairs(wanted) do
 		local name = ns.Items.Name(itemID)
 		if name then
-			table.insert(strings, SearchString(name, quantity ~= true and quantity or nil))
+			table.insert(strings, ns.Shopping.SearchString(name, quantity ~= true and quantity or nil))
 		elseif not ns.Items.IsMissing(itemID) then
 			loading = loading + 1
 		end
