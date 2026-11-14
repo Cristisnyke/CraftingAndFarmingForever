@@ -2,7 +2,7 @@
 
 **Know what's worth crafting, buy only what you're missing, gather the rest, and keep the auction house stocked, across all your characters.**
 
-Crafting and Farming Forever is a profession and gold-making add-on for **World of Warcraft: Forever**. It's a crafting profit calculator, a craft queue, a shopping list, a farming list, an auction house restock helper and a sales tracker in one window. It also tells you which **Craftsman's Writs** give the cheapest reputation and which **Waylaid Crates** give the cheapest Merchant's Favor.
+Crafting and Farming Forever is a profession and gold making addon for **World of Warcraft: Forever** (WoW Forever). It's a crafting profit calculator, a craft queue, a shopping list, a farming list, an auction house restock helper and a sales tracker in one window. It also tells you which **Craftsman's Writs** give the cheapest reputation and which **Waylaid Crates** give the cheapest Merchant's Favor.
 
 It ranks every recipe your characters know by real profit at current auction house prices. It keeps one craft queue for all of them, and turns that queue into a shopping list that leaves out everything you already own. Anything you'd rather gather becomes a farming list.
 
@@ -144,7 +144,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 
 ## Bugs and suggestions
 
-Please report bugs in the comments, with the output of `/cff diag` and any Lua error text. The add-on is actively developed, and suggestions are welcome.
+Please report bugs in the comments or on [GitHub](https://github.com/Cristisnyke/CraftingAndFarmingForever/issues), with the output of `/cff diag` and any Lua error text. The add-on is actively developed, and suggestions are welcome.
 
 ## Credits
 

@@ -2,7 +2,7 @@
 
 # Crafting and Farming Forever
 
-A crafting and gold-making add-on for **World of Warcraft: Forever**. It shows what's worth crafting, keeps one craft queue for all your characters, works out what you still need to buy or gather, and helps you keep the auction house stocked. It also finds the cheapest reputation from Craftsman's Writs and the cheapest Merchant's Favor from Waylaid Crates.
+A crafting and gold-making add-on for **World of Warcraft: Forever**. **[Download it on CurseForge](https://www.curseforge.com/wow/addons/craftingandfarmingforever).** It shows what's worth crafting, keeps one craft queue for all your characters, works out what you still need to buy or gather, and helps you keep the auction house stocked. It also finds the cheapest reputation from Craftsman's Writs and the cheapest Merchant's Favor from Waylaid Crates.
 
 > **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** It won't work properly without both: Auctionator supplies every price and the shopping list, and Syndicator counts what your alts hold and what you have on the auction house. **TradeSkillMaster (TSM) support is coming.**
 
