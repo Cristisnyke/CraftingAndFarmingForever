@@ -4,6 +4,11 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.12.0", lines = {
+		"- New Crates tab for Waylaid Crates: every labelled crate with its auction house price, its cheapest bundle of materials (crafted by your characters when that's cheaper), the Merchant's Favor it pays, and the gold each Merchant's Favor costs you. The cheapest one is marked \"best buy\". Sort by any column or show one level",
+		"- Writs and crates go on your queue: + on a writ or a crate adds it to the Queue tab, and the queue's shopping list gets the writ or crate and what it needs, less what you hold. An item or bundle that's cheaper to craft yourself is planned as a craft. A crate comes off the queue when you fill it, a writ when you hand it in",
+		"- Writs: the \"List for a price scan\" and \"Shop picked\" buttons and the separate Auctionator list are gone; the queue does that now. You can delete the old \"Crafting and Farming Forever Writs\" list in Auctionator",
+	} },
 	{ version = "1.11.0", lines = {
 		"- New Writs tab for Craftsman's Writs: every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), what the coin pouch gives back, and the gold each reputation point costs you. It starts with the writs whose item your characters can craft; tick the box to see them all. Sort by any column or show one level",
 		"- Writs: \"List for a price scan\" puts the writs and their items on an Auctionator list so one search gets today's prices. Pick writs with + and \"Shop picked\" lists what to buy and queues the crafts",

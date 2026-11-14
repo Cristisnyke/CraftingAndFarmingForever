@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.12.0
 
 - New Crates tab for Waylaid Crates: every labelled crate with its auction house price, its cheapest bundle of materials (crafted by your characters when that's cheaper), the Merchant's Favor it pays, and the gold each Merchant's Favor costs you. The cheapest one is marked "best buy". Sort by any column or show one level
 - Writs and crates go on your queue: + on a writ or a crate adds it to the Queue tab, and the queue's shopping list gets the writ or crate and what it needs, less what you hold. An item or bundle that's cheaper to craft yourself is planned as a craft. A crate comes off the queue when you fill it, a writ when you hand it in
