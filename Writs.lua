@@ -235,8 +235,9 @@ function Writs.Rows(tier, craftableOnly)
 	return rows
 end
 
--- Replaces the writs list in Auctionator. Returns how many searches it holds and how many names were still loading.
-local function WriteList(wanted)
+-- Replaces a list in Auctionator. Returns how many searches it holds and how many names were still loading. The
+-- crates list uses it too.
+local function WriteList(listName, wanted)
 	local strings, loading = {}, 0
 	for itemID, quantity in pairs(wanted) do
 		local name = ns.Items.Name(itemID)
@@ -247,21 +248,23 @@ local function WriteList(wanted)
 		end
 	end
 	table.sort(strings)
-	if #strings > 0 then Auctionator.API.v1.CreateShoppingList(ns.name, ns.WRIT_LIST, strings) end
+	if #strings > 0 then Auctionator.API.v1.CreateShoppingList(ns.name, listName, strings) end
 	return #strings, loading
 end
+Writs.WriteList = WriteList
 
-local function Report(ok, count, loading, extra)
+local function Report(listName, ok, count, loading, extra)
 	if not ok then
 		ns.Print("Could not write the Auctionator list: " .. tostring(count))
 	elseif count == 0 then
-		ns.Print(loading > 0 and "The writs' names are still loading. Try again in a moment." or "Nothing to list.")
+		ns.Print(loading > 0 and "The names are still loading. Try again in a moment." or "Nothing to list.")
 	else
 		ns.Print(("Auctionator's list \"%s\" now has %d searches%s. Search it in the Shopping tab at the auction house.%s")
-			:format(ns.WRIT_LIST, count, extra or "",
+			:format(listName, count, extra or "",
 				loading > 0 and (" %d names were still loading: press again in a moment."):format(loading) or ""))
 	end
 end
+Writs.Report = Report
 
 -- Every shown writ and the item it wants, with no amounts: searching the list refreshes their prices.
 function Writs.ListForScan(rows)
@@ -270,8 +273,8 @@ function Writs.ListForScan(rows)
 		wanted[row.writ.id] = true
 		if row.writ.item then wanted[row.writ.item] = true end
 	end
-	local ok, count, loading = pcall(WriteList, wanted)
-	Report(ok, count, loading)
+	local ok, count, loading = pcall(WriteList, ns.WRIT_LIST, wanted)
+	Report(ns.WRIT_LIST, ok, count, loading)
 end
 
 -- The picked writs you don't hold yet, and their items where buying is the cheapest way. Items that are cheaper to
@@ -296,11 +299,11 @@ function Writs.ShopPicked()
 			end
 		end
 	end
-	local ok, count, loading = pcall(WriteList, wanted)
+	local ok, count, loading = pcall(WriteList, ns.WRIT_LIST, wanted)
 	if ok and count == 0 and queued > 0 then
 		ns.Print(("%d crafts added to the queue. Nothing to buy for the picked writs."):format(queued))
 	else
-		Report(ok, count, loading, queued > 0 and (", and %d crafts were added to the queue"):format(queued) or "")
+		Report(ns.WRIT_LIST, ok, count, loading, queued > 0 and (", and %d crafts were added to the queue"):format(queued) or "")
 	end
 	ns.UI.Refresh("writs")
 end

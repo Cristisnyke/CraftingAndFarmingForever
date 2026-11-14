@@ -95,6 +95,7 @@ local function Normalize(db)
 	db.purchases = db.purchases or {}
 	db.costs = db.costs or {}
 	db.writs = db.writs or {}
+	db.crates = db.crates or {}
 	-- 1.7.0 valued the materials held when costs began at market prices, which made sales of things crafted from
 	-- them look like losses. Those pools, and everything crafted from them, start again at nothing.
 	if db.costsSeeded then

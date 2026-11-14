@@ -11,7 +11,7 @@ ns.UI = UI
 local ROW_HEIGHT = 22
 local ROW_GLOW = 0.16 -- how strongly a row lights up under the mouse
 local ROW_COUNT = 48 -- enough for the tallest window
-local MAIN_WIDTH = 730 -- default and narrowest width: seven tabs beside Refresh
+local MAIN_WIDTH = 797 -- default and narrowest width: eight tabs beside Refresh
 local BESIDE_WIDTH = 1240 -- default width with the queue beside Restock
 local BESIDE_MIN_WIDTH = 1180
 local RESTOCK_SHARE = 0.45 -- Restock's share of the width with the queue beside it
@@ -26,6 +26,7 @@ local MAIN_TABS = {
 	{ key = "restock", title = "Restock" },
 	{ key = "sales", title = "Sales" },
 	{ key = "writs", title = "Writs" },
+	{ key = "crates", title = "Crates" },
 	{ key = "options", title = "Options" },
 	{ key = "changelog", title = "Changelog" },
 }
@@ -126,7 +127,7 @@ UI.windows = windows
 local main
 -- Defined further down, used by code above them.
 local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane
-local CreateWritsPane
+local CreateWritsPane, CreateCratesPane
 local UpdateNextStep
 local profitCache
 local profitSearch = "" -- the Profit search box's text, trimmed and lowercase
@@ -205,6 +206,9 @@ local SORTS = {
 		ascending = { name = true, chance = false, cost = true, profit = true } },
 	-- Writs: names A to Z, the writ's price lowest first, the gold kept highest first, gold per reputation lowest first.
 	writs = { key = "writSort", asc = "writSortAsc", default = "profit", pane = "writs",
+		ascending = { name = true, chance = true, cost = false, profit = true } },
+	-- Crates: names A to Z, the crate's price lowest first, the most Merchant's Favor first, gold per Favor lowest first.
+	crates = { key = "crateSort", asc = "crateSortAsc", default = "profit", pane = "crates",
 		ascending = { name = true, chance = true, cost = false, profit = true } },
 }
 UI.SORTS = SORTS
@@ -608,6 +612,36 @@ local function BuildWritsList()
 	return list
 end
 
+-- What a crate sorts by. Nil (no price yet, name still loading) always goes last.
+local function CrateSortValue(item, key)
+	if key == "name" then
+		local name = ns.Crates.Name(item.crate)
+		return name and name:lower()
+	end
+	if key == "chance" then return item.cratePrice end
+	if key == "cost" then return item.tokens end
+	return item.perToken
+end
+
+local function BuildCratesList()
+	local rows, best = ns.Crates.Rows(ns.db.ui.crateTier)
+	local key, ascending = UI.ListSort("crates")
+	for index, item in ipairs(rows) do item.order = index end
+	table.sort(rows, function(a, b)
+		local left, right = CrateSortValue(a, key), CrateSortValue(b, key)
+		if left ~= right then
+			if left == nil or right == nil then return left ~= nil end
+			if ascending then return left < right end
+			return left > right
+		end
+		return a.order < b.order
+	end)
+	local list = { best = best }
+	for _, item in ipairs(rows) do table.insert(list, { kind = "crate", row = item, selected = item.picked }) end
+	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Crate", columns = "crates" }) end
+	return list
+end
+
 local function BuildSalesList()
 	local list = {}
 	-- First the money that hasn't been collected: on its way, or already in a mailbox.
@@ -823,7 +857,52 @@ local function ShowWritTooltip(row, item)
 	GameTooltip:Show()
 end
 
+-- "20 Iron Ore", for a crate's bundle.
+local function BundleText(fill)
+	return ("%d %s"):format(fill.count, ns.Items.Name(fill.item) or "...")
+end
+
+local function ShowCrateTooltip(row, item)
+	local crate = item.crate
+	StartItemTooltip(row, crate.id)
+	GameTooltip:AddLine("Waylaid Crate, " .. ns.Crates.TIERS[crate.tier], 1, 0.82, 0)
+	GameTooltip:AddDoubleLine(item.haveCrate and "Crate (you have it)" or "Crate at the auction house",
+		item.cratePrice and ns.Money(item.cratePrice) or "no price", 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddLine("Fill it with any one of:", 0.6, 0.8, 1)
+	for _, fill in ipairs(item.bundles) do
+		local how = BundleText(fill)
+		if fill.kind == "craft" then how = how .. ", crafted by " .. ns.CharLabel(ns.Recipes.Crafter(fill.recipeID)) end
+		if fill == item.best then
+			GameTooltip:AddDoubleLine(how .. " (cheapest)", ns.Money(fill.cost), 0.33, 0.87, 0.33, 0.33, 0.87, 0.33)
+		else
+			GameTooltip:AddDoubleLine(how, fill.cost and ns.Money(fill.cost) or "no price", 1, 1, 1, 1, 1, 1)
+		end
+	end
+	local guess = item.rough and "~" or ""
+	GameTooltip:AddDoubleLine("Merchant's Favor", guess .. item.tokens, 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Coin with it", guess .. ns.Money(item.reward), 1, 1, 1, 1, 1, 1)
+	if item.perToken then
+		GameTooltip:AddDoubleLine("Each Merchant's Favor costs", item.perToken > 0 and ns.Money(item.perToken) or "nothing",
+			1, 0.82, 0, 1, 0.82, 0)
+	end
+	if item.cheapest then GameTooltip:AddLine("The cheapest Merchant's Favor at today's prices.", 0.33, 0.87, 0.33) end
+	if item.rough then
+		GameTooltip:AddLine("Nobody has reported what an Artisan crate pays yet: this follows the other levels.",
+			0.6, 0.6, 0.6, true)
+	end
+	GameTooltip:Show()
+end
+
 local COLUMN_TIPS = {
+	crates = {
+		"Crate: the crate's price at the auction house. Green when you hold it.",
+		"Fill: its cheapest bundle of materials. Blue means one of your characters crafts it. Hover a row to see "
+			.. "every bundle.",
+		"Favor: the Merchant's Favor the filled crate pays.",
+		"Per Favor: the crate and its fill, less the coin it pays, for each Merchant's Favor. The list starts with "
+			.. "the cheapest.",
+		"Click Crate, Price, Favor or Per Favor to sort by it; click again to reverse.",
+	},
 	writs = {
 		"Writ: the writ's price at the auction house. Green when you hold it.",
 		"Item: the item it wants, by the cheapest way. Blue means one of your characters crafts it.",
@@ -874,6 +953,8 @@ local function RowOnEnter(row)
 		ShowSkillTooltip(row, data.row)
 	elseif data.kind == "writ" then
 		ShowWritTooltip(row, data.row)
+	elseif data.kind == "crate" then
+		ShowCrateTooltip(row, data.row)
 	elseif data.kind == "how" or data.farm then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
@@ -1036,6 +1117,7 @@ local PLUS_TIPS = {
 	queue = { "Add one craft", "Shift: ten. Or type the amount in the box." },
 	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
 	writ = { "Pick this writ", "Shop picked lists the picked writs and their items for Auctionator. Click again to unpick." },
+	crate = { "Pick this crate", "Shop picked lists the picked crates and their cheapest fill for Auctionator. Click again to unpick." },
 }
 local MINUS_TIPS = {
 	queue = { "Remove one craft", "Shift: ten, down to one. At one, - removes the entry." },
@@ -1266,6 +1348,8 @@ local function CreateRow(parent)
 			UI.Refresh("restock")
 		elseif data.kind == "writ" then
 			ns.Writs.Toggle(data.row.writ.id)
+		elseif data.kind == "crate" then
+			ns.Crates.Toggle(data.row.crate.id)
 		end
 	end)
 	row.plus:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1513,6 +1597,11 @@ local function SetRow(row, data)
 				columns = { chance = { row.colAH, "Writ" }, cost = { row.cost, "Net" }, profit = { row.profit, "Per rep" } }
 				row.colHave:SetText(Color("ffffd100", "Item"))
 				row.colHave:Show()
+			elseif mode == "crates" then
+				PlaceRight(row, WritControls(row), false)
+				columns = { chance = { row.colAH, "Price" }, cost = { row.cost, "Favor" }, profit = { row.profit, "Per Favor" } }
+				row.colHave:SetText(Color("ffffd100", "Fill"))
+				row.colHave:Show()
 			else
 				PlaceRight(row, SkillControls(row), false)
 				columns = { chance = { row.chance, "Chance" }, cost = { row.cost, "Craft" }, profit = { row.profit, "Per point" } }
@@ -1704,6 +1793,22 @@ local function SetRow(row, data)
 			or Color(COLOR_MUTED, "-"))
 		row.profit:SetText(item.perRep and (item.perRep > 0 and ns.Money(item.perRep) or Color(COLOR_PROFIT, "free"))
 			or Color(COLOR_MUTED, "-"))
+	elseif data.kind == "crate" then
+		local item, crate = data.row, data.row.crate
+		row.icon:SetTexture(ns.Items.Icon(crate.id) or 134400)
+		local label = ns.Crates.Name(crate) or Color(COLOR_MUTED, "Loading...")
+		local note = item.best and BundleText(item.best) or ns.Crates.TIERS[crate.tier]
+		row.left:SetText(label .. "  " .. (item.cheapest and Color(COLOR_PROFIT, "best buy: " .. note) or Color(COLOR_MUTED, note)))
+		PlaceRight(row, WritControls(row), true)
+		row.plus:SetText(item.picked and "x" or "+")
+		row.colAH:SetText(item.cratePrice and Color(item.haveCrate and COLOR_PROFIT or "ffffffff", ns.Money(item.cratePrice))
+			or Color(item.haveCrate and COLOR_PROFIT or COLOR_MUTED, item.haveCrate and "have" or "no price"))
+		row.colHave:SetText(item.fillCost
+			and Color(item.haveFill and COLOR_PROFIT or item.best.kind == "craft" and "ff7fb8ff" or "ffffffff", ns.Money(item.fillCost))
+			or Color(COLOR_MUTED, "no price"))
+		row.cost:SetText((item.rough and Color(COLOR_MUTED, "~") or "") .. item.tokens)
+		row.profit:SetText(item.perToken and (item.perToken > 0 and ns.Money(item.perToken) or Color(COLOR_PROFIT, "free"))
+			or Color(COLOR_MUTED, "-"))
 	elseif data.kind == "post" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
@@ -1876,6 +1981,7 @@ function UI.RefreshAll()
 	UI.Refresh("restock")
 	UI.Refresh("sales")
 	UI.Refresh("writs")
+	UI.Refresh("crates")
 	UI.Refresh("options")
 	UI.Refresh("posting")
 	UpdateTabStrip()
@@ -3167,6 +3273,83 @@ function CreateWritsPane()
 	end
 end
 
+-- Waylaid Crates: every crate with what it costs to fill, cheapest Merchant's Favor first.
+function CreateCratesPane()
+	local window = CreatePane("crates", 30)
+	window.build = BuildCratesList
+
+	-- All, then one button per level.
+	window.tierButtons = {}
+	for index = 0, #ns.Crates.TIERS do
+		local tier = index > 0 and index or nil
+		local button = HeaderButton(window.frame, tier and ns.Crates.TIERS[tier] or "All", tier and 84 or 44, function()
+			ns.db.ui.crateTier = tier
+			window.offset = 0
+			UI.Refresh("crates")
+		end)
+		if index == 0 then
+			button:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
+		else
+			button:SetPoint("LEFT", window.tierButtons[index], "RIGHT", 4, 0)
+		end
+		button.tier = tier
+		window.tierButtons[index + 1] = button
+	end
+
+	local function Tip(button, title, text)
+		button:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			GameTooltip:SetText(title)
+			GameTooltip:AddLine(text, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
+
+	local shop = HeaderButton(window.frame, "Shop picked", 110, function() ns.Crates.ShopPicked() end, true)
+	shop:SetPoint("TOPRIGHT", -12, -PANE_ACTIONS_TOP)
+	Tip(shop, "Shop picked", "Puts the crates you picked with + on the Auctionator list \"" .. ns.CRATE_LIST
+		.. "\", each with its cheapest bundle of materials. A bundle that is cheaper to craft goes on your craft queue "
+		.. "instead. What you already hold is left out.")
+	window.shop = shop
+
+	local scan = HeaderButton(window.frame, "List for a price scan", 140, function()
+		local rows = {}
+		for _, data in ipairs(window.list) do if data.row then table.insert(rows, data.row) end end
+		ns.Crates.ListForScan(rows)
+	end)
+	scan:SetPoint("RIGHT", shop, "LEFT", -4, 0)
+	Tip(scan, "List for a price scan", "Puts every crate shown here and every material that can fill it on the "
+		.. "Auctionator list \"" .. ns.CRATE_LIST .. "\". Search that list at the auction house to get today's prices. "
+		.. "A full scan does the same.")
+	window.scan = scan
+
+	local hint = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	hint:SetPoint("BOTTOMLEFT", 12, 9)
+	hint:SetPoint("BOTTOMRIGHT", -24, 9)
+	hint:SetJustifyH("LEFT")
+	hint:SetWordWrap(false)
+	window.hint = hint
+
+	window.update = function()
+		local tier = ns.db.ui.crateTier
+		for _, button in ipairs(window.tierButtons) do
+			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
+		end
+		local picked = ns.Crates.PickedCount()
+		shop:SetText(picked > 0 and ("Shop picked (%d)"):format(picked) or "Shop picked")
+		shop:SetEnabled(picked > 0)
+		local best = window.list.best
+		if best then
+			hint:SetText(("Best buy: %s with %s, %s for each Merchant's Favor."):format(
+				Color(COLOR_PROFIT, ns.Crates.Name(best.crate) or "..."), BundleText(best.best),
+				best.perToken > 0 and ns.Money(best.perToken) or "nothing"))
+		else
+			hint:SetText(Color(COLOR_WARN, "No crate prices yet: list them for a price scan, or run a full scan."))
+		end
+	end
+end
+
 ---------------------------------------------------------------------------
 -- The main window
 ---------------------------------------------------------------------------
@@ -3183,6 +3366,8 @@ local function GetPane(key)
 			CreateSalesPane()
 		elseif key == "writs" then
 			CreateWritsPane()
+		elseif key == "crates" then
+			CreateCratesPane()
 		elseif key == "options" then
 			local frame = CreateFrame("Frame", nil, main.frame)
 			frame:Hide()
@@ -4055,8 +4240,9 @@ SlashCmdList.CFF = function(input)
 	if command == "new" then command = "changelog" end
 	if command == "config" or command == "settings" then command = "options" end
 	if command == "writ" then command = "writs" end
+	if command == "crate" then command = "crates" end
 	if command == "queue" or command == "profit" or command == "restock" or command == "sales" or command == "options"
-		or command == "writs"
+		or command == "writs" or command == "crates"
 		or command == "changelog" then
 		UI.Toggle(command)
 	elseif command == "next" then

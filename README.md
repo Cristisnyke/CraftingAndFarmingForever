@@ -15,6 +15,7 @@ A crafting add-on for **World of Warcraft: Forever**. It shows what's worth craf
 - **Farm It:** turns the queue into a gathering list: which vein or herb, which zones, which creatures, what to disenchant. The Next step bar at the top of the screen walks you through it and counts down as you gather.
 - **Restock:** a goal per item for how many you want on the auction house. One button queues the difference. Smart goals follow your sales: more of what sells well, fewer of what expires, daggers in pairs.
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests the lowest listing's price, and posts it.
+- **Crates:** every Waylaid Crate with its auction house price, its cheapest bundle of materials and the gold each Merchant's Favor costs, with the best buy marked. One button lists them for a price scan; pick the ones you want and another lists what to buy.
 - **Writs:** every Craftsman's Writ with its auction house price, the cost of the item it wants (crafted when that's cheaper), the coin pouch it gives back and the gold each reputation point costs. One button lists them for a price scan; pick the ones you want and another lists what to buy and queues the crafts.
 - **Sales:** your real profit (sale after the auction house cut, less what the materials cost), what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours. When an auction sells, you see how much money is on its way and how long until it reaches your mailbox, wherever you are.
 - **Changelog:** a tab listing what changed in each version. It lights up after an update; nothing pops up.
@@ -75,7 +76,7 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 | Command | What it does |
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
-| `/cff profit`, `queue`, `restock`, `sales`, `writs`, `options`, `changelog` | Open that tab, or close the window if that tab is already showing |
+| `/cff profit`, `queue`, `restock`, `sales`, `writs`, `crates`, `options`, `changelog` | Open that tab, or close the window if that tab is already showing |
 | `/cff next` | Fold or unfold the Next step bar |
 | `/cff minimap` | Hide or show the minimap button |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |

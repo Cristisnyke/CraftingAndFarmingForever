@@ -1665,7 +1665,7 @@ do
 	local frame = ns.UI.main.frame
 	UIParent.height = 1200
 	ns.UI.Show("profit")
-	check("default width", frame.width, 730)
+	check("default width", frame.width, 797)
 	frame:SetSize(900, 700)
 	ns.UI.SaveSize()
 	ns.UI.Select("queue")
@@ -1679,10 +1679,10 @@ do
 	frame:SetSize(400, 300)
 	ns.UI.SaveSize()
 	ns.UI.Select("profit")
-	check("never narrower than the tabs", frame.width, 730)
+	check("never narrower than the tabs", frame.width, 797)
 	check("never shorter than the minimum", frame.height, 460)
 	ns.UI.main.grip.scripts.OnClick(ns.UI.main.grip)
-	check("reset width", frame.width, 730)
+	check("reset width", frame.width, 797)
 	check("reset height", frame.height, 560)
 	check("reset clears saved size", ns.db.ui.width, nil)
 	UIParent.height = 400
@@ -1694,7 +1694,7 @@ Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CFF_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "options", "writs", "writs", "changelog", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "options", "writs", "writs", "crates", "crates", "changelog", "diag", "bogus" }) do
 	SlashCmdList.CFF(command)
 end
 RunTimers()
@@ -1728,9 +1728,10 @@ check("session queue merged", #ns.db.queue, 2)
 -- Changelog tab.
 do
 	local W = ns.WhatsNew
-	local tab = ns.UI.main.tabButtons[7]
+	local tab = ns.UI.main.tabButtons[8]
 	check("Writs is the tab after Sales", ns.UI.main.tabButtons[5].key, "writs")
-	check("Options is the tab before Changelog", ns.UI.main.tabButtons[6].key, "options")
+	check("Crates is the tab after Writs", ns.UI.main.tabButtons[6].key, "crates")
+	check("Options is the tab before Changelog", ns.UI.main.tabButtons[7].key, "options")
 	check("Changelog is the last tab", tab.key, "changelog")
 	-- Saved data from a version before the notes existed counts as an update: the tab lights up, nothing opens.
 	ns.dataReady, ns.savedDataFound, ns.db.lastSeenVersion = true, true, nil
@@ -2953,6 +2954,63 @@ do
 	check("sorted by name", ns.db.ui.writSort, "name")
 	ns.db.ui.writSort, ns.db.ui.writSortAsc, ns.db.ui.writAll = nil, nil, nil
 	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil
+	ns.UI.Show("profit")
+end
+
+-- Waylaid Crates tab.
+do
+	local ORE_CRATE, SILVER, IRON = 248687, 2775, 2772
+	local INGOT_CRATE, SILVER_BAR, IRON_BAR = 248706, 2842, 3575
+	namesReady = true
+	names[ORE_CRATE], names[SILVER], names[IRON] = "Waylaid Crate: Journeyman Ore", "Silver Ore", "Iron Ore"
+	names[INGOT_CRATE], names[SILVER_BAR], names[IRON_BAR] = "Waylaid Crate: Journeyman Ingots", "Silver Bar", "Iron Bar"
+	-- Ore crate 20s: 10 silver ore 50s or 20 iron ore 30s. Ingot crate 1g: 10 silver bars 60s (20 iron bars 2g).
+	prices[ORE_CRATE], prices[SILVER], prices[IRON] = 2000, 500, 150
+	prices[INGOT_CRATE], prices[SILVER_BAR], prices[IRON_BAR] = 10000, 600, 1000
+	ns.Items.Retry()
+	ns.db.ui.crateTier, ns.db.crates = nil, {}
+	ns.UI.Show("crates")
+	RunTimers()
+	local window = ns.UI.windows.crates
+	check("every crate listed under a heading", #window.list, 31)
+	check("crates heading sorts", window.list[1].columns, "crates")
+	local function Row(crateID)
+		for _, data in ipairs(window.list) do
+			if data.row and data.row.crate.id == crateID then return data end
+		end
+	end
+	-- Ore: 20s + 30s - 5s coin = 45s for 10 Favor. Ingots: 1g + 60s - 10s coin = 1g50s for 20 Favor.
+	check("cheapest bundle fills the crate", Row(ORE_CRATE).row.best.item, IRON)
+	check("gold per Favor", Row(ORE_CRATE).row.perToken, 450)
+	check("crafted-material crates pay double", Row(INGOT_CRATE).row.tokens, 20)
+	check("ingot crate per Favor", Row(INGOT_CRATE).row.perToken, 750)
+	check("cheapest Favor sorts first", window.list[2].row.crate.id, ORE_CRATE)
+	check("cheapest Favor is marked", window.list[2].row.cheapest, true)
+	check("only one best buy", Row(INGOT_CRATE).row.cheapest, nil)
+	check("best buy in the footer", window.hint.text:find("Journeyman Ore", 1, true) ~= nil, true)
+	check("shop button with nothing picked", window.shop.text, "Shop picked")
+	ns.Crates.Toggle(ORE_CRATE)
+	check("shop button counts the picks", window.shop.text, "Shop picked (1)")
+	lists[ns.CRATE_LIST] = nil
+	ns.Crates.ShopPicked()
+	check("picked crate and its fill listed", #lists[ns.CRATE_LIST], 2)
+	check("fill search is for the bundle", lists[ns.CRATE_LIST][1], '"Iron Ore";;;;;;;;;;;#;;20')
+	ns.Crates.Toggle(ORE_CRATE)
+	check("unpicked again", ns.Crates.PickedCount(), 0)
+	-- A price scan lists the crates and every material that can fill them.
+	ns.db.ui.crateTier = 2
+	ns.UI.Refresh("crates")
+	check("journeyman crates only", #window.list, 8)
+	lists[ns.CRATE_LIST] = nil
+	local shown = {}
+	for _, data in ipairs(window.list) do if data.row then table.insert(shown, data.row) end end
+	ns.Crates.ListForScan(shown)
+	check("scan list has the named crates and materials", #lists[ns.CRATE_LIST], 6)
+	ns.db.ui.crateTier = nil
+	ns.UI.SortList("crates", "cost")
+	check("sorted by Favor, most first", window.list[2].row.tokens, 40)
+	ns.db.ui.crateSort, ns.db.ui.crateSortAsc = nil, nil
+	for _, id in ipairs({ ORE_CRATE, SILVER, IRON, INGOT_CRATE, SILVER_BAR, IRON_BAR }) do prices[id] = nil end
 	ns.UI.Show("profit")
 end
 

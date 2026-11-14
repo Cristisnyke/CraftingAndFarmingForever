@@ -716,5 +716,36 @@ do
 	check("no item, no total", Planner.Writ(Context({ ah = Prices(500) }), { id = WRIT, count = 1, tier = 3 }).total, nil)
 end
 
+-- Waylaid Crates: the crate plus its cheapest bundle, less the coin, per Merchant's Favor.
+do
+	local CRATE = 901
+	local function Prices(cratePrice)
+		return { [ORE] = 10, [BAR] = 50, [CLOTH] = 10, [BOLT] = 100, [CRATE] = cratePrice }
+	end
+	local bundles = { { item = BOLT, count = 10 }, { item = BAR, count = 20 } }
+	-- Bolts are crafted for 20 each (200), bars smelted for less than 50 each: the cheaper bundle wins.
+	local row = Planner.Crate(Context({ ah = Prices(1000) }), { id = CRATE, tier = 2, made = true, bundles = bundles })
+	check("crate bundles all costed", row.bundles[1].cost, 200)
+	check("crate takes the cheapest bundle", row.best, row.bundles[row.bundles[1].cost <= row.bundles[2].cost and 1 or 2])
+	check("crafted crate pays 20 Favor", row.tokens, 20)
+	check("crate total", row.total, 1000 + row.fillCost)
+	check("gold per Favor after the coin", row.perToken, (1000 + row.fillCost - 1000) / 20)
+	check("bundle crafts", row.bundles[1].crafts, 10)
+	-- Gathered crate of the same level: half the Favor and coin.
+	local raw = Planner.Crate(Context({ ah = Prices(1000) }), { id = CRATE, tier = 2, made = false, bundles = { { item = CLOTH, count = 40 } } })
+	check("gathered crate pays 10 Favor", raw.tokens, 10)
+	check("gathered per Favor", raw.perToken, (1000 + 400 - 500) / 10)
+	check("journeyman is reported, not a guess", raw.rough, false)
+	-- A crate cheaper than its coin costs nothing per Favor; no crate price leaves it unknown.
+	local free = Planner.Crate(Context({ ah = Prices(50) }), { id = CRATE, tier = 4, made = false, bundles = { { item = ORE, count = 20 } } })
+	check("coin covers it", free.perToken, 0)
+	check("artisan is a guess", free.rough, true)
+	local unpriced = Planner.Crate(Context({ ah = Prices(nil) }), { id = CRATE, tier = 1, made = false, bundles = { { item = ORE, count = 20 } } })
+	check("unpriced crate keeps the fill", unpriced.fillCost, 200)
+	check("unpriced crate has no per Favor", unpriced.perToken, nil)
+	local empty = Planner.Crate(Context({ ah = { [CRATE] = 500 } }), { id = CRATE, tier = 1, made = false, bundles = { { item = ORE, count = 20 } } })
+	check("no bundle price, no best", empty.best, nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

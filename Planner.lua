@@ -164,6 +164,43 @@ function Planner.Writ(ctx, writ)
 	return row
 end
 
+-- Waylaid Crates: a tradable crate is filled with any one of its bundles of materials and handed in for Merchant's
+-- Favor and a little coin. By level (1 Apprentice to 4 Artisan), for crates of gathered materials and of crafted
+-- ones. Players reported Journeyman and Expert; Apprentice's coin and all of Artisan follow their pattern.
+Planner.CRATE_TOKENS = { gathered = { 5, 10, 15, 20 }, made = { 10, 20, 30, 40 } }
+Planner.CRATE_COIN = { gathered = { 250, 500, 750, 1000 }, made = { 500, 1000, 1500, 2000 } }
+Planner.CRATE_GUESS_TIER = 4
+
+-- What filling one crate costs: crate = { id, tier, made, bundles = { { item, count }, ... } }. Each bundle goes by
+-- the cheapest path, like any material; best is the cheapest bundle with a price. total, net and perToken are nil
+-- until both the crate and a bundle have a price; perToken is the gold spent per Merchant's Favor after the coin
+-- reward, 0 when the coin pays for it all.
+function Planner.Crate(ctx, crate)
+	local kind = crate.made and "made" or "gathered"
+	local row = {
+		crate = crate, tokens = Planner.CRATE_TOKENS[kind][crate.tier], reward = Planner.CRATE_COIN[kind][crate.tier],
+		rough = crate.tier >= Planner.CRATE_GUESS_TIER, bundles = {},
+	}
+	row.cratePrice = Priced(ctx.ahPrice(crate.id))
+	for index, bundle in ipairs(crate.bundles) do
+		local fill = { item = bundle.item, count = bundle.count }
+		local unit, how, recipeID = Planner.ItemCost(ctx, bundle.item)
+		if unit then
+			fill.cost, fill.kind, fill.recipeID = unit * bundle.count, how, recipeID
+			if recipeID then fill.crafts = math.ceil(bundle.count / MinimumYield(ctx.recipes[recipeID])) end
+			if not row.best or fill.cost < row.best.cost then row.best = fill end
+		end
+		row.bundles[index] = fill
+	end
+	if row.best then row.fillCost = row.best.cost end
+	if row.cratePrice and row.fillCost then
+		row.total = row.cratePrice + row.fillCost
+		row.net = row.total - row.reward
+		row.perToken = row.net > 0 and row.net / row.tokens or 0
+	end
+	return row
+end
+
 -- Chance of a skill point per craft, by the recipe's colour (the client's relativeDifficulty: 0 orange, 1 yellow,
 -- 2 green, 3 grey). Orange always gives one; yellow and green are estimates, since the real chance falls as skill rises
 -- and the client doesn't report it.

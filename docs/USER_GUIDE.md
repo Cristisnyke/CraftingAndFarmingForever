@@ -200,6 +200,20 @@ Craftsman's Writs are tradable items that start a daily quest: hand in the writ 
 - **List for a price scan** writes every writ shown and its item to the Auctionator list "Crafting and Farming Forever Writs". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
 - **+** picks a writ. **Shop picked** rewrites the same Auctionator list with the picked writs you don't hold and their items where buying is cheapest, and adds the items that are cheaper to craft to your queue (once per pick). Writs done today are left out.
 
+
+## Crates
+
+Waylaid Crates drop from monsters and sell on the auction house. A labelled crate ("Waylaid Crate: Journeyman Ore") is filled with any one bundle from its list of materials, and the sealed crate is handed to your faction's trade representative for Merchant's Favor and a little coin. Anyone can fill them: no profession is needed. The Crates tab (`/cff crates`) shows which crate gives the cheapest Merchant's Favor. The unlabelled "Waylaid Crate" isn't listed.
+
+- **Crate**: the crate, and its cheapest bundle ("20 Iron Ore"). The row with the cheapest Merchant's Favor says **best buy**, and the bottom line names it.
+- **Price**: the crate's auction house price. Green when you hold it.
+- **Fill**: what the cheapest bundle costs. Blue means one of your characters crafts it for less than buying. Hover the row to see every bundle with its cost.
+- **Favor**: the Merchant's Favor a filled crate pays. Crates of gathered materials pay 5, 10 and 15 (Apprentice, Journeyman, Expert); crates of crafted materials (Fabrics, Ingots, Parts) pay 10, 20 and 30. Artisan crates show `~`: nobody has reported their reward yet, so 20 and 40 follow the pattern.
+- **Per Favor**: the crate and its fill, less the coin the hand-in pays, for each Merchant's Favor. The list starts with the cheapest.
+- **All / Apprentice / Journeyman / Expert / Artisan** show one level.
+- **List for a price scan** writes every crate shown and every material that can fill it to the Auctionator list "Crafting and Farming Forever Crates". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
+- **+** picks a crate. **Shop picked** rewrites the same Auctionator list with the picked crates you don't hold and their cheapest bundle, and adds bundles that are cheaper to craft to your queue (once per pick).
+
 ## Options
 
 The **Options** tab sits before Changelog. Right-clicking the minimap button, `/cff options`, and the game's own Options (AddOns, Crafting and Farming Forever) open the same settings. Changes are saved as you make them.
@@ -236,7 +250,7 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | Command | What it does |
 | --- | --- |
 | `/cff` or `/craftfarm` | Show or hide the window |
-| `/cff profit`, `queue`, `restock`, `sales`, `writs` | Open that tab, or close the window if that tab is already showing |
+| `/cff profit`, `queue`, `restock`, `sales`, `writs`, `crates` | Open that tab, or close the window if that tab is already showing |
 | `/cff next` | Fold or unfold the Next step bar |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
 | `/cff advertise` | Advertise the selected profession in the chosen channel |

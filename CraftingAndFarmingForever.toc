@@ -19,6 +19,7 @@ Queue.lua
 Sales.lua
 Shopping.lua
 Writs.lua
+Crates.lua
 UI.lua
 Posting.lua
 Options.lua
