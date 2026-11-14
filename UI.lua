@@ -11,20 +11,21 @@ ns.UI = UI
 local ROW_HEIGHT = 22
 local ROW_GLOW = 0.16 -- how strongly a row lights up under the mouse
 local ROW_COUNT = 48 -- enough for the tallest window
-local MAIN_WIDTH = 730 -- default and narrowest width: six tabs beside Refresh
+local MAIN_WIDTH = 730 -- default and narrowest width: seven tabs beside Refresh
 local BESIDE_WIDTH = 1240 -- default width with the queue beside Restock
 local BESIDE_MIN_WIDTH = 1180
 local RESTOCK_SHARE = 0.45 -- Restock's share of the width with the queue beside it
 local WINDOW_HEIGHT = 560
 local MIN_HEIGHT, MAX_HEIGHT = 460, 1100
 local MAIN_TOP = 36 -- title and tabs
-local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 76, 26
+local MAIN_TAB_WIDTH, MAIN_TAB_HEIGHT = 65, 26
 local LOGO_TEXTURE = "Interface\\AddOns\\CraftingAndFarmingForever\\Media\\Logo"
 local MAIN_TABS = {
 	{ key = "profit", title = "Profit" },
 	{ key = "queue", title = "Queue" },
 	{ key = "restock", title = "Restock" },
 	{ key = "sales", title = "Sales" },
+	{ key = "writs", title = "Writs" },
 	{ key = "options", title = "Options" },
 	{ key = "changelog", title = "Changelog" },
 }
@@ -125,6 +126,7 @@ UI.windows = windows
 local main
 -- Defined further down, used by code above them.
 local ActiveTab, QueueBeside, UpdateTabStrip, CreateProfitPane, CreateQueuePane, CreateRestockPane, CreateSalesPane
+local CreateWritsPane
 local UpdateNextStep
 local profitCache
 local profitSearch = "" -- the Profit search box's text, trimmed and lowercase
@@ -201,6 +203,9 @@ local SORTS = {
 		ascending = { name = true, chance = false, profit = false } },
 	skill = { key = "skillSort", asc = "skillSortAsc", default = "profit",
 		ascending = { name = true, chance = false, cost = true, profit = true } },
+	-- Writs: names A to Z, the writ's price lowest first, the gold kept highest first, gold per reputation lowest first.
+	writs = { key = "writSort", asc = "writSortAsc", default = "profit", pane = "writs",
+		ascending = { name = true, chance = true, cost = false, profit = true } },
 }
 UI.SORTS = SORTS
 
@@ -221,8 +226,9 @@ function UI.SortList(mode, key)
 	else
 		ns.db.ui[sort.key], ns.db.ui[sort.asc] = key, sort.ascending[key]
 	end
-	if windows.profit then windows.profit.offset = 0 end
-	UI.Refresh("profit")
+	local pane = sort.pane or "profit"
+	if windows[pane] then windows[pane].offset = 0 end
+	UI.Refresh(pane)
 end
 
 function UI.ProfitSort() return UI.ListSort("profit") end
@@ -571,6 +577,37 @@ local function BuildRestockList()
 	return list
 end
 
+-- What a writ sorts by. Nil (no price yet, name still loading) always goes last.
+local function WritSortValue(item, key)
+	if key == "name" then
+		local name
+		if item.writ.item then name = ns.Items.Name(item.writ.item) else name = ns.Writs.Name(item.writ) end
+		return name and name:lower()
+	end
+	if key == "chance" then return item.writPrice end
+	if key == "cost" then return item.net end
+	return item.perRep
+end
+
+local function BuildWritsList()
+	local rows = ns.Writs.Rows(ns.db.ui.writTier, ns.db.ui.writCraftable)
+	local key, ascending = UI.ListSort("writs")
+	for index, item in ipairs(rows) do item.order = index end
+	table.sort(rows, function(a, b)
+		local left, right = WritSortValue(a, key), WritSortValue(b, key)
+		if left ~= right then
+			if left == nil or right == nil then return left ~= nil end
+			if ascending then return left < right end
+			return left > right
+		end
+		return a.order < b.order
+	end)
+	local list = {}
+	for _, item in ipairs(rows) do table.insert(list, { kind = "writ", row = item, selected = item.picked }) end
+	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Item wanted", columns = "writs" }) end
+	return list
+end
+
 local function BuildSalesList()
 	local list = {}
 	-- First the money that hasn't been collected: on its way, or already in a mailbox.
@@ -742,7 +779,58 @@ local function ShowProfitTooltip(row, result)
 	GameTooltip:Show()
 end
 
+local function ShowWritTooltip(row, item)
+	local writ = item.writ
+	if writ.item then
+		StartItemTooltip(row, writ.item)
+	else
+		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+		GameTooltip:SetText(ns.Writs.Name(writ) or "Craftsman's Writ")
+	end
+	GameTooltip:AddLine("Craftsman's Writ, " .. ns.Writs.TIERS[writ.tier], 1, 0.82, 0)
+	GameTooltip:AddDoubleLine(item.haveWrit and "Writ (you have it)" or "Writ at the auction house",
+		item.writPrice and ns.Money(item.writPrice) or "no price", 1, 1, 1, 1, 1, 1)
+	local how = "Item"
+	if item.haveItem then
+		how = "Item (you have it)"
+	elseif item.kind == "craft" then
+		how = "Item, crafted by " .. ns.CharLabel(ns.Recipes.Crafter(item.recipeID))
+	elseif item.kind == "ah" then
+		how = "Item, bought at the auction house"
+	elseif item.kind == "vendor" then
+		how = "Item, bought from a vendor"
+	end
+	if writ.count > 1 then how = how .. " x" .. writ.count end
+	GameTooltip:AddDoubleLine(how, item.itemCost and ns.Money(item.itemCost) or "no price", 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Coin pouch (average)", "~" .. ns.Money(item.reward), 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Reputation", tostring(item.rep), 1, 1, 1, 1, 1, 1)
+	if item.net then
+		if item.net < 0 then
+			GameTooltip:AddDoubleLine("You lose", ns.Money(-item.net), 1, 0.4, 0.33, 1, 0.4, 0.33)
+		else
+			GameTooltip:AddDoubleLine("You earn", ns.Money(item.net), 0.33, 0.87, 0.33, 0.33, 0.87, 0.33)
+		end
+	end
+	if writ.zone then
+		GameTooltip:AddLine("Hand in: " .. writ.zone .. (writ.zoneGuess and " (a guess from other writs, not confirmed)" or ""),
+			0.6, 0.8, 1, true)
+	else
+		GameTooltip:AddLine("Hand in: not known yet. The writ's quest marks it on your map.", 0.6, 0.8, 1, true)
+	end
+	if item.done then GameTooltip:AddLine("Handed in today on this character.", 0.33, 0.87, 0.33) end
+	GameTooltip:AddLine("Each writ can be handed in once a day. The pouch's amount is an average players reported, "
+		.. "so the gold is rough.", 0.6, 0.6, 0.6, true)
+	GameTooltip:Show()
+end
+
 local COLUMN_TIPS = {
+	writs = {
+		"Writ: the writ's price at the auction house. Green when you hold it.",
+		"Item: the item it wants, by the cheapest way. Blue means one of your characters crafts it.",
+		"Net: the coin pouch (an average) less the writ and the item. Red is gold you lose.",
+		"Per rep: gold lost for each reputation point. The list starts with the cheapest reputation.",
+		"Click Item wanted, Writ, Net or Per rep to sort by it; click again to reverse.",
+	},
 	profit = {
 		"Sells: the chance one sells within 24 hours, from your sales history. Grey with ~ is a rough guess from under "
 			.. "5 units; orange is under 50%, red under 20%.",
@@ -784,6 +872,8 @@ local function RowOnEnter(row)
 		ShowProfitTooltip(row, data.result)
 	elseif data.kind == "skill" then
 		ShowSkillTooltip(row, data.row)
+	elseif data.kind == "writ" then
+		ShowWritTooltip(row, data.row)
 	elseif data.kind == "how" or data.farm then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
@@ -945,6 +1035,7 @@ local PLUS_TIPS = {
 	skill = { "Queue one craft", "Shift: ten. Right-click or Ctrl-click: type an amount." },
 	queue = { "Add one craft", "Shift: ten. Or type the amount in the box." },
 	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
+	writ = { "Pick this writ", "Shop picked lists the picked writs and their items for Auctionator. Click again to unpick." },
 }
 local MINUS_TIPS = {
 	queue = { "Remove one craft", "Shift: ten, down to one. At one, - removes the entry." },
@@ -1059,6 +1150,13 @@ local function SalesControls(row)
 	return { { row.profit, 6 }, { row.cost, 6 }, { row.colAH, 6 }, { row.colHave, 6 }, { row.chance, 6 } }
 end
 
+local WRIT_COLUMN_WIDTH = 76
+
+local function WritControls(row)
+	for _, region in ipairs({ row.profit, row.cost, row.colHave, row.colAH }) do region:SetWidth(WRIT_COLUMN_WIDTH) end
+	return { { row.plus, 2 }, { row.profit, 6 }, { row.cost, 6 }, { row.colHave, 6 }, { row.colAH, 6 } }
+end
+
 local function IncomingControls(row)
 	return { { row.cost, 6 }, { row.profit, 6 } }
 end
@@ -1166,6 +1264,8 @@ local function CreateRow(parent)
 		elseif data.kind == "restock" then
 			ns.Restock.SetGoal(data.row.itemID, data.row.goal + (IsShiftKeyDown() and 10 or 1))
 			UI.Refresh("restock")
+		elseif data.kind == "writ" then
+			ns.Writs.Toggle(data.row.writ.id)
 		end
 	end)
 	row.plus:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1401,13 +1501,23 @@ local function SetRow(row, data)
 		row.icon:Hide()
 		row.left:SetText(Color("ffffd100", data.text))
 		if sortable then
-			-- Sortable headings: Profit has Recipe, Sells, Profit; Skill up has Recipe, Chance, Craft, Per point.
+			-- Sortable headings: Profit has Recipe, Sells, Profit; Skill up has Recipe, Chance, Craft, Per point; Writs
+			-- has Item wanted, Writ, Net, Per rep, and a plain Item heading between.
 			local mode = data.columns
-			PlaceRight(row, mode == "profit" and ProfitControls(row) or SkillControls(row), false)
+			local columns
+			if mode == "profit" then
+				PlaceRight(row, ProfitControls(row), false)
+				columns = { chance = { row.chance, "Sells" }, profit = { row.profit, "Profit" } }
+			elseif mode == "writs" then
+				PlaceRight(row, WritControls(row), false)
+				columns = { chance = { row.colAH, "Writ" }, cost = { row.cost, "Net" }, profit = { row.profit, "Per rep" } }
+				row.colHave:SetText(Color("ffffd100", "Item"))
+				row.colHave:Show()
+			else
+				PlaceRight(row, SkillControls(row), false)
+				columns = { chance = { row.chance, "Chance" }, cost = { row.cost, "Craft" }, profit = { row.profit, "Per point" } }
+			end
 			row.left:SetText("")
-			local columns = mode == "profit"
-				and { chance = { row.chance, "Sells" }, profit = { row.profit, "Profit" } }
-				or { chance = { row.chance, "Chance" }, cost = { row.cost, "Craft" }, profit = { row.profit, "Per point" } }
 			local sortKey, ascending = UI.ListSort(mode)
 			local headings = row.sortHeadings
 			headings.name.label:SetText(data.text)
@@ -1575,6 +1685,25 @@ local function SetRow(row, data)
 		row.cost:SetText(sold > 0 and ns.Money(gold) or Color(COLOR_MUTED, "-"))
 		row.profit:SetText(sold > 0 and ((rough and Color(COLOR_MUTED, "~") or "")
 			.. Color(profit < 0 and COLOR_LOSS or COLOR_PROFIT, ns.Money(profit))) or Color(COLOR_MUTED, "-"))
+	elseif data.kind == "writ" then
+		local item, writ = data.row, data.row.writ
+		row.icon:SetTexture(writ.item and ns.Items.Icon(writ.item) or 134400)
+		local label = writ.item and ItemLabel(writ.item) or ns.Writs.Name(writ) or Color(COLOR_MUTED, "Loading...")
+		if writ.count > 1 then label = label .. " x" .. writ.count end
+		local where = ns.Writs.TIERS[writ.tier]
+		if writ.zone then where = where .. ", " .. writ.zone .. (writ.zoneGuess and "?" or "") end
+		row.left:SetText(label .. "  " .. (item.done and Color(COLOR_PROFIT, "done today") or Color(COLOR_MUTED, where)))
+		PlaceRight(row, WritControls(row), true)
+		row.plus:SetText(item.picked and "x" or "+")
+		row.colAH:SetText(item.writPrice and Color(item.haveWrit and COLOR_PROFIT or "ffffffff", ns.Money(item.writPrice))
+			or Color(item.haveWrit and COLOR_PROFIT or COLOR_MUTED, item.haveWrit and "have" or "no price"))
+		row.colHave:SetText(item.itemCost
+			and Color(item.haveItem and COLOR_PROFIT or item.kind == "craft" and "ff7fb8ff" or "ffffffff", ns.Money(item.itemCost))
+			or Color(item.haveItem and COLOR_PROFIT or COLOR_MUTED, item.haveItem and "have" or "no price"))
+		row.cost:SetText(item.net and Color(item.net < 0 and COLOR_LOSS or COLOR_PROFIT, ns.Money(item.net))
+			or Color(COLOR_MUTED, "-"))
+		row.profit:SetText(item.perRep and (item.perRep > 0 and ns.Money(item.perRep) or Color(COLOR_PROFIT, "free"))
+			or Color(COLOR_MUTED, "-"))
 	elseif data.kind == "post" then
 		local item = data.row
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
@@ -1746,6 +1875,7 @@ function UI.RefreshAll()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
 	UI.Refresh("sales")
+	UI.Refresh("writs")
 	UI.Refresh("options")
 	UI.Refresh("posting")
 	UpdateTabStrip()
@@ -2939,6 +3069,103 @@ function CreateSalesPane()
 	end
 end
 
+-- Craftsman's Writs: every writ with what it costs to hand in, cheapest reputation first.
+function CreateWritsPane()
+	local window = CreatePane("writs", 30)
+	window.build = BuildWritsList
+
+	-- All, then one button per level.
+	window.tierButtons = {}
+	for index = 0, #ns.Writs.TIERS do
+		local tier = index > 0 and index or nil
+		local button = HeaderButton(window.frame, tier and ns.Writs.TIERS[tier] or "All", tier and 84 or 44, function()
+			ns.db.ui.writTier = tier
+			window.offset = 0
+			UI.Refresh("writs")
+		end)
+		if index == 0 then
+			button:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
+		else
+			button:SetPoint("LEFT", window.tierButtons[index], "RIGHT", 4, 0)
+		end
+		button.tier = tier
+		window.tierButtons[index + 1] = button
+	end
+
+	local function Tip(button, title, text)
+		button:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			GameTooltip:SetText(title)
+			GameTooltip:AddLine(text, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
+
+	local shop = HeaderButton(window.frame, "Shop picked", 110, function() ns.Writs.ShopPicked() end, true)
+	shop:SetPoint("TOPRIGHT", -12, -PANE_ACTIONS_TOP)
+	Tip(shop, "Shop picked", "Puts the writs you picked with + on the Auctionator list \"" .. ns.WRIT_LIST
+		.. "\", with their items where buying is cheapest. Items that are cheaper to craft go on your craft queue "
+		.. "instead. What you already hold and writs handed in today are left out.")
+	window.shop = shop
+
+	local scan = HeaderButton(window.frame, "List for a price scan", 140, function()
+		local rows = {}
+		for _, data in ipairs(window.list) do if data.row then table.insert(rows, data.row) end end
+		ns.Writs.ListForScan(rows)
+	end)
+	scan:SetPoint("RIGHT", shop, "LEFT", -4, 0)
+	Tip(scan, "List for a price scan", "Puts every writ shown here and the item it wants on the Auctionator list \""
+		.. ns.WRIT_LIST .. "\". Search that list at the auction house to get today's prices. A full scan does the same.")
+	window.scan = scan
+
+	local craftable = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	craftable:SetSize(24, 24)
+	craftable:SetPoint("BOTTOMLEFT", 8, 3)
+	craftable:SetHitRectInsets(0, -200, 0, 0) -- the label is clickable too
+	local craftableLabel = craftable:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	craftableLabel:SetPoint("LEFT", craftable, "RIGHT", 2, 1)
+	craftableLabel:SetText("Only items my characters can craft")
+	craftable:SetScript("OnClick", function(self)
+		ns.db.ui.writCraftable = self:GetChecked() and true or false
+		window.offset = 0
+		UI.Refresh("writs")
+	end)
+	window.craftable = craftable
+
+	local hint = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	hint:SetPoint("BOTTOMLEFT", 240, 9)
+	hint:SetPoint("BOTTOMRIGHT", -24, 9)
+	hint:SetJustifyH("RIGHT")
+	hint:SetWordWrap(false)
+	window.hint = hint
+
+	window.update = function()
+		local tier = ns.db.ui.writTier
+		for _, button in ipairs(window.tierButtons) do
+			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
+		end
+		craftable:SetChecked(ns.db.ui.writCraftable and true or false)
+		local picked = ns.Writs.PickedCount()
+		shop:SetText(picked > 0 and ("Shop picked (%d)"):format(picked) or "Shop picked")
+		shop:SetEnabled(picked > 0)
+		local priced, shown = 0, 0
+		for _, data in ipairs(window.list) do
+			if data.row then
+				shown = shown + 1
+				if data.row.writPrice then priced = priced + 1 end
+			end
+		end
+		if shown == 0 then
+			hint:SetText("No writs to show. Untick the box to see them all.")
+		elseif priced == 0 then
+			hint:SetText(Color(COLOR_WARN, "No writ prices yet: list them for a price scan, or run a full scan."))
+		else
+			hint:SetText(Color(COLOR_MUTED, ("%d of %d writs have a price. Net = coin pouch less writ and item."):format(priced, shown)))
+		end
+	end
+end
+
 ---------------------------------------------------------------------------
 -- The main window
 ---------------------------------------------------------------------------
@@ -2953,6 +3180,8 @@ local function GetPane(key)
 			CreateRestockPane()
 		elseif key == "sales" then
 			CreateSalesPane()
+		elseif key == "writs" then
+			CreateWritsPane()
 		elseif key == "options" then
 			local frame = CreateFrame("Frame", nil, main.frame)
 			frame:Hide()
@@ -3824,7 +4053,9 @@ SlashCmdList.CFF = function(input)
 	local command = (input or ""):lower():match("^%s*(%S*)")
 	if command == "new" then command = "changelog" end
 	if command == "config" or command == "settings" then command = "options" end
+	if command == "writ" then command = "writs" end
 	if command == "queue" or command == "profit" or command == "restock" or command == "sales" or command == "options"
+		or command == "writs"
 		or command == "changelog" then
 		UI.Toggle(command)
 	elseif command == "next" then

@@ -135,6 +135,35 @@ function Planner.Profit(ctx, recipeID)
 	return result
 end
 
+-- Craftsman's Writs: a tradable writ starts a daily quest that wants a crafted item and pays reputation and a coin
+-- pouch. By level (1 Journeyman, 2 Expert, 3 Artisan): the reputation, and the pouch's average in copper as players
+-- reported it, so the reward is an estimate.
+Planner.WRIT_REP = { 75, 125, 200 }
+Planner.WRIT_POUCH = { 1200, 3600, 7456 }
+
+-- What handing in one writ costs: writ = { id, item, count, tier }. The item goes by the cheapest path, like any
+-- material. total, net and perRep are nil until both the writ and the item have a price; perRep is the gold lost
+-- per reputation point, 0 when the pouch pays for it all.
+function Planner.Writ(ctx, writ)
+	local count = writ.count or 1
+	local row = { writ = writ, count = count, rep = Planner.WRIT_REP[writ.tier], reward = Planner.WRIT_POUCH[writ.tier] }
+	row.writPrice = Priced(ctx.ahPrice(writ.id))
+	if writ.item then
+		row.craftable = (ctx.known[writ.item] or {})[1] ~= nil
+		local unit, kind, recipeID = Planner.ItemCost(ctx, writ.item)
+		if unit then
+			row.itemCost, row.kind, row.recipeID = unit * count, kind, recipeID
+			if recipeID then row.crafts = math.ceil(count / MinimumYield(ctx.recipes[recipeID])) end
+		end
+	end
+	if row.writPrice and row.itemCost then
+		row.total = row.writPrice + row.itemCost
+		row.net = row.reward - row.total
+		row.perRep = row.net < 0 and -row.net / row.rep or 0
+	end
+	return row
+end
+
 -- Chance of a skill point per craft, by the recipe's colour (the client's relativeDifficulty: 0 orange, 1 yellow,
 -- 2 green, 3 grey). Orange always gives one; yellow and green are estimates, since the real chance falls as skill rises
 -- and the client doesn't report it.

@@ -52,6 +52,11 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.
 - It warns you before you post below what a vendor would pay.
 
+### Craftsman's Writs
+- The Writs tab lists every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first.
+- "List for a price scan" puts the writs and their items on an Auctionator list, so one search gets today's prices.
+- Pick writs with + and "Shop picked" lists the writs and items to buy, and puts the items worth crafting on your queue.
+
 ### Sales history
 - Money on its way: when an auction sells, you're told in chat how much is coming, and the Sales tab and the minimap button count down the hour until it reaches your mailbox. No trip to the auction house needed.
 
@@ -96,7 +101,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 ## Commands
 
 - `/cff` or `/craftfarm`: show or hide the window
-- `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`, `/cff options`: open a tab
+- `/cff profit`, `/cff queue`, `/cff restock`, `/cff sales`, `/cff writs`, `/cff options`: open a tab
 - `/cff next`: fold or unfold the Next step bar
 - `/cff minimap`: hide or show the minimap button
 - `/cff refresh`: re-read recipes, stock and prices

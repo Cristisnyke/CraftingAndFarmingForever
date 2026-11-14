@@ -187,6 +187,19 @@ Your profit from what you craft and sell, with sold and expired auctions per ite
 - The chance uses all history: `1 − exp(−sold ÷ (unit-days listed + 1))` per unit listed. With fewer than 5 units of history it's shown grey with `~`, as a rough guess.
 - Items are matched by name, because sold mail doesn't say which item ID it was.
 
+## Writs
+
+Craftsman's Writs are tradable items that start a daily quest: hand in the writ with one crafted item (200 for Crafted Solid Shot) and you get reputation with the Azeroth Commerce Authority or Durotar Supply and Logistics, plus a Coin Pouch. The Writs tab (`/cff writs`) shows what each one costs you.
+
+- **Item wanted**: the item, the writ's level and where it's handed in. A zone with `?` is a guess from the pattern of the other writs; no zone means nobody has reported it yet (the quest marks it on your map). "done today" means this character already handed it in.
+- **Writ**: the writ's auction house price. Green when you hold the writ.
+- **Item**: the wanted item by the cheapest way. Blue means one of your characters crafts it; white is bought.
+- **Net**: the coin pouch less the writ and the item. The pouch is an average players reported (about 12s Journeyman, 36s Expert, 75s Artisan), so the gold is rough.
+- **Per rep**: gold lost per reputation point (75 Journeyman, 125 Expert, 200 Artisan). The list starts with the cheapest reputation; click a heading to sort.
+- **All / Journeyman / Expert / Artisan** show one level. **Only items my characters can craft** hides the rest.
+- **List for a price scan** writes every writ shown and its item to the Auctionator list "Crafting and Farming Forever Writs". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
+- **+** picks a writ. **Shop picked** rewrites the same Auctionator list with the picked writs you don't hold and their items where buying is cheapest, and adds the items that are cheaper to craft to your queue (once per pick). Writs done today are left out.
+
 ## Options
 
 The **Options** tab sits before Changelog. Right-clicking the minimap button, `/cff options`, and the game's own Options (AddOns, Crafting and Farming Forever) open the same settings. Changes are saved as you make them.

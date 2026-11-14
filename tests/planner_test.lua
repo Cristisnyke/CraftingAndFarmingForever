@@ -682,5 +682,39 @@ do
 	check("queue totals use capped price", totals.net, (130 * 0.95 - 65) * 2)
 end
 
+-- Craftsman's Writs: the writ plus the wanted item by the cheapest path, against the pouch and the reputation.
+do
+	local WRIT = 900
+	local function Prices(writPrice)
+		return { [ORE] = 10, [BAR] = 50, [CLOTH] = 10, [BOLT] = 100, [SHIRT] = 1000, [WRIT] = writPrice }
+	end
+	-- The shirt is crafted for 65. A 5s writ: 5s 65c in all, the 12s pouch covers it.
+	local cheap = Planner.Writ(Context({ ah = Prices(500) }), { id = WRIT, item = SHIRT, count = 1, tier = 1 })
+	check("writ item crafted", cheap.kind, "craft")
+	check("writ item cost", cheap.itemCost, 65)
+	check("writ total", cheap.total, 565)
+	check("writ pays for itself", cheap.net, 1200 - 565)
+	check("free reputation", cheap.perRep, 0)
+	check("craftable", cheap.craftable, true)
+	-- A 50s writ: 38s 65c lost for 75 reputation.
+	local dear = Planner.Writ(Context({ ah = Prices(5000) }), { id = WRIT, item = SHIRT, count = 1, tier = 1 })
+	check("writ loses gold", dear.net, 1200 - 5065)
+	check("gold per reputation", dear.perRep, 3865 / 75)
+	-- No writ price: the item still has a cost, the rest is unknown rather than made up.
+	local unpriced = Planner.Writ(Context({ ah = Prices(nil) }), { id = WRIT, item = SHIRT, count = 1, tier = 2 })
+	check("unpriced writ keeps the item cost", unpriced.itemCost, 65)
+	check("unpriced writ has no net", unpriced.net, nil)
+	check("expert reputation", unpriced.rep, 125)
+	-- Several of the item, and an item nobody crafts.
+	local many = Planner.Writ(Context({ ah = Prices(500) }), { id = WRIT, item = BOLT, count = 3, tier = 3 })
+	check("count multiplies the item", many.itemCost, 60)
+	check("crafts for the count", many.crafts, 3)
+	local bought = Planner.Writ(Context({ ah = Prices(500) }), { id = WRIT, item = CLOTH, count = 1, tier = 1 })
+	check("bought item", bought.kind, "ah")
+	check("not craftable", bought.craftable, false)
+	-- A writ whose item isn't known here.
+	check("no item, no total", Planner.Writ(Context({ ah = Prices(500) }), { id = WRIT, count = 1, tier = 3 }).total, nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

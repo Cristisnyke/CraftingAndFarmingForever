@@ -10,7 +10,7 @@ globals = { "CraftingAndFarmingForeverDB", "SLASH_CFF1", "SLASH_CFF2" }
 read_globals = {
 	"ATTACHMENTS_MAX_RECEIVE", "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT",
 	"AUCTION_SOLD_MAIL_SUBJECT", "AuctionHouseFrame", "Auctionator", "CANCEL", "C_AddOns", "C_AuctionHouse",
-	"C_Container", "C_Item", "C_Map", "C_Spell", "C_Timer", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
+	"C_Container", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
 	"ChatFrame1", "ChatFrameUtil", "ChatFrame_OpenChat", "CreateColor", "CreateFrame", "Enum", "GameTooltip",
 	"GameTooltip_Hide", "GetCVarBool", "GetChannelList", "GetCursorPosition", "GetInboxHeaderInfo",
 	"GetInboxInvoiceInfo", "GetInboxItem", "GetInboxNumItems", "GetMoney", "GetRealmName", "GetSpellInfo",

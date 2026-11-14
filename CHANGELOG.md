@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- New Writs tab for Craftsman's Writs: every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), what the coin pouch gives back, and the gold each reputation point costs you. Sort by any column, show one level, or only items your characters can craft
+- Writs: "List for a price scan" puts the writs and their items on an Auctionator list so one search gets today's prices. Pick writs with + and "Shop picked" lists what to buy and queues the crafts
+
 ## 1.10.2
 
 - Sales: fixed profit showing a loss on items that made money. Taking the gold from a sale's mail counted that sale a second time, for no money, so the Sold column was up to double and the cost was taken twice. Your recorded sales are corrected the first time you log in. We're sorry for the confusion this caused. For a clean start, we recommend pressing Reset profit in the Sales tab after updating

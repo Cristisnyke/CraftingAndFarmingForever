@@ -1694,7 +1694,7 @@ Fire("AUCTION_HOUSE_SHOW")
 check("stale scan prompts", ns_popup, "CFF_SCAN")
 
 -- Slash commands.
-for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "options", "changelog", "diag", "bogus" }) do
+for _, command in ipairs({ "", "", "queue", "profit", "restock", "sales", "refresh", "advertise", "auto", "auto", "clear", "options", "writs", "writs", "changelog", "diag", "bogus" }) do
 	SlashCmdList.CFF(command)
 end
 RunTimers()
@@ -1728,8 +1728,9 @@ check("session queue merged", #ns.db.queue, 2)
 -- Changelog tab.
 do
 	local W = ns.WhatsNew
-	local tab = ns.UI.main.tabButtons[6]
-	check("Options is the tab before Changelog", ns.UI.main.tabButtons[5].key, "options")
+	local tab = ns.UI.main.tabButtons[7]
+	check("Writs is the tab after Sales", ns.UI.main.tabButtons[5].key, "writs")
+	check("Options is the tab before Changelog", ns.UI.main.tabButtons[6].key, "options")
 	check("Changelog is the last tab", tab.key, "changelog")
 	-- Saved data from a version before the notes existed counts as an update: the tab lights up, nothing opens.
 	ns.dataReady, ns.savedDataFound, ns.db.lastSeenVersion = true, true, nil
@@ -2904,6 +2905,54 @@ do
 	check("no scan question when turned off", ns_popup, nil)
 	Tick("scanPopup", true)
 	time = os.time
+end
+
+-- Craftsman's Writs tab.
+do
+	local KNIFE_WRIT, KNIFE = 264027, 3848
+	namesReady = true
+	names[KNIFE_WRIT], names[KNIFE] = "Craftsman's Writ: Big Bronze Knife", "Big Bronze Knife"
+	prices[KNIFE_WRIT], prices[KNIFE] = 5000, 300
+	ns.Items.Retry()
+	ns.db.ui.writTier, ns.db.ui.writCraftable, ns.db.writs = nil, nil, {}
+	ns.UI.Show("writs")
+	RunTimers()
+	local window = ns.UI.windows.writs
+	check("every writ listed under a heading", #window.list, 151)
+	check("writs heading sorts", window.list[1].columns, "writs")
+	local function Knife()
+		for _, data in ipairs(window.list) do
+			if data.row and data.row.writ.id == KNIFE_WRIT then return data end
+		end
+	end
+	-- Pouch 12s less a 50s writ and a 3s knife: 41s lost for 75 reputation.
+	check("writ net", Knife().row.net, 1200 - 5300)
+	check("writ gold per reputation", Knife().row.perRep, 4100 / 75)
+	check("priced writ sorts first", window.list[2].row.writ.id, KNIFE_WRIT)
+	check("item bought when nobody crafts it", Knife().row.kind, "ah")
+	check("shop button with nothing picked", window.shop.text, "Shop picked")
+	ns.Writs.Toggle(KNIFE_WRIT)
+	check("shop button counts the picks", window.shop.text, "Shop picked (1)")
+	check("picked row is marked", Knife().selected, true)
+	lists[ns.WRIT_LIST] = nil
+	ns.Writs.ShopPicked()
+	check("picked writ and its item listed", #lists[ns.WRIT_LIST], 2)
+	check("writ search is exact, for one", lists[ns.WRIT_LIST][2], '"Craftsman\'s Writ: Big Bronze Knife";;;;;;;;;;;#;;1')
+	ns.Writs.Toggle(KNIFE_WRIT)
+	check("unpicked again", ns.Writs.PickedCount(), 0)
+	-- One level only, and only what a character can craft (nothing here).
+	ns.db.ui.writTier = 3
+	ns.UI.Refresh("writs")
+	check("artisan writs only", #window.list, 46)
+	ns.db.ui.writCraftable = true
+	ns.UI.Refresh("writs")
+	check("no craftable writs", #window.list, 0)
+	ns.db.ui.writTier, ns.db.ui.writCraftable = nil, nil
+	ns.UI.SortList("writs", "name")
+	check("sorted by name", ns.db.ui.writSort, "name")
+	ns.db.ui.writSort, ns.db.ui.writSortAsc = nil, nil
+	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil
+	ns.UI.Show("profit")
 end
 
 print(("%d checks, %d failures"):format(checks, failures))
