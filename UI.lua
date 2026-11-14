@@ -3760,7 +3760,12 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 	end)
 end)
 
-ns.On("PLAYER_MONEY", UI.RefreshQueue)
+-- Gold changes come in bursts (each AH purchase, each mail's gold, selling junk), and every redraw of the Restock
+-- tab may re-plan a partial restock against the gold carried, so draw once after the burst.
+UI.MONEY_REFRESH_DELAY = 0.3
+ns.On("PLAYER_MONEY", function()
+	ns.Debounce("money", UI.MONEY_REFRESH_DELAY, function() UI.RefreshQueue() end)
+end)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
 	StaticPopup_Hide("CFF_SCAN")

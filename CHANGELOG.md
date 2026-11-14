@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## 1.10.1
+
+- Smoother at the auction house and mailbox: buying many materials in a row or taking gold from a lot of mail no longer redraws the Queue, Restock and Next step bar after every single purchase, just once when you're done
+
 ## 1.10.0
 
 - Restock: when you don't have the gold for a full restock, the Restock tab says so and offers a partial one: the items that earn the most profit for their material cost, cut to what you can afford. Materials you already hold count as free, and anything you queued by hand is paid for first. The Craft column shows what fits out of what's needed, like 3/8 (part of smart goals, so the same switch turns it off)

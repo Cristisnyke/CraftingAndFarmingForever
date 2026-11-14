@@ -440,6 +440,16 @@ check("enough gold", ns.UI.StillToBuyText(), "Still to buy: 1s 10c. |cff55dd55Yo
 playerMoney = 50
 check("not enough gold", ns.UI.StillToBuyText(), "Still to buy: 1s 10c. |cffff6655You have 50c, 60c short.|r")
 Fire("PLAYER_MONEY")
+-- A burst of gold changes (buying at the AH, taking gold from mail) redraws the stock panes once, after the burst.
+do
+	local realRefresh, redraws = ns.UI.RefreshQueue, 0
+	ns.UI.RefreshQueue = function() redraws = redraws + 1 end
+	for _ = 1, 20 do FireNow("PLAYER_MONEY") end
+	check("no redraw during a gold burst", redraws, 0)
+	RunTimers()
+	check("one redraw after a gold burst", redraws, 1)
+	ns.UI.RefreshQueue = realRefresh
+end
 ns.UI.Hide()
 
 -- Price changes: a whole-list scan starts a comparison. Dearer materials are red, cheaper green, old and new shown.
