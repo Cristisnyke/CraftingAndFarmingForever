@@ -1,6 +1,6 @@
 # User guide
 
-Crafting and Farming Forever is one window with five tabs (**Profit**, **Queue**, **Restock**, **Sales**, **Changelog**), plus a small **Next step** bar, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
+Crafting and Farming Forever is one window with eight tabs (**Profit**, **Queue**, **Restock**, **Sales**, **Writs**, **Crates**, **Options**, **Changelog**), plus a small **Next step** bar, a minimap button, a **Restocking** tab inside the auction house and an **Ad** box beside the chat.
 
 The window opens with the profession window, on the tab you last used. Drag it anywhere: it stays put when other windows open or close, and it stays open if the profession window closes because you opened the auction house. The Options tab (or `/cff auto`) turns opening with the profession window off or on.
 
@@ -249,6 +249,7 @@ A small **Ad** box beside the main chat window. Click it to pick where to post (
 | `/cff` or `/craftfarm` | Show or hide the window |
 | `/cff profit`, `queue`, `restock`, `sales`, `writs`, `crates` | Open that tab, or close the window if that tab is already showing |
 | `/cff next` | Fold or unfold the Next step bar |
+| `/cff minimap` | Hide or show the minimap button |
 | `/cff refresh` | Re-read recipes, stock and prices (the Refresh button) |
 | `/cff advertise` | Advertise the selected profession in the chosen channel |
 | `/cff clear` | Empty the queue |

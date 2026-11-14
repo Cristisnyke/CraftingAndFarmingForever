@@ -24,9 +24,10 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `Shopping.lua` | Keeps the `Crafting and Farming Forever Queue` Auctionator list in sync, editing it in place |
 | `UI.lua` | The tabbed window and its panes, the Next step bar (also the Farm It list), the recipe-page Queue button, the scan prompt, advertising, the slash command |
 | `Posting.lua` | The Restocking tab in the auction house: candidate items, live price search, posting |
-| `Changelog.lua` | Generated from `CHANGELOG.md` by `tools/gen_changelog.lua`: the What's new text. Don't edit by hand. |
+| `Changelog.lua` | Generated from `CHANGELOG.md` by `tools/gen_changelog.lua`: the Changelog tab's text. Don't edit by hand. |
 | `Options.lua` | The Options tab's controls (`Options.Build`), also registered as a page in the game's Options > AddOns |
 | `WhatsNew.lua` | The Changelog tab's contents, lit until the installed version's notes are opened (`db.lastSeenVersion`), and the missing-Syndicator chat warning |
+| `Minimap.lua` | The minimap button: LibDataBroker and LibDBIcon when another add-on has loaded them (never bundled), else its own button |
 
 ### Rules that keep it working
 
@@ -65,7 +66,7 @@ Add a logic test to `planner_test.lua` and a flow test to `smoke_test.lua`. The 
 tools/deploy.sh ["/path/to/_forever_/Interface/AddOns"]
 ```
 
-Copies only the `.toc`, `.lua` and `LICENSE` files into `AddOns/CraftingAndFarmingForever`. Then:
+Copies only the `.toc`, `.lua`, `LICENSE` and `Media/*.tga` files into `AddOns/CraftingAndFarmingForever`. Then:
 
 - changed files: `/reload` in game;
 - a new file added to the toc, or a first install: restart the client.

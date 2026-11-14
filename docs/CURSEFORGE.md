@@ -2,27 +2,47 @@
 
 **Know what's worth crafting, buy only what you're missing, gather the rest, and keep the auction house stocked, across all your characters.**
 
-Crafting and Farming Forever is a profession add-on for **World of Warcraft: Forever**. It ranks every recipe your characters know by real profit at current auction house prices. It keeps one craft queue for all of them, and turns that queue into a shopping list that leaves out everything you already own. Anything you'd rather gather becomes a farming list.
+Crafting and Farming Forever is a profession and gold-making add-on for **World of Warcraft: Forever**. It's a crafting profit calculator, a craft queue, a shopping list, a farming list, an auction house restock helper and a sales tracker in one window. It also tells you which **Craftsman's Writs** give the cheapest reputation and which **Waylaid Crates** give the cheapest Merchant's Favor.
+
+It ranks every recipe your characters know by real profit at current auction house prices. It keeps one craft queue for all of them, and turns that queue into a shopping list that leaves out everything you already own. Anything you'd rather gather becomes a farming list.
 
 > **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** Crafting and Farming Forever won't work properly without both. Install them first.
 >
 > **Coming soon:** TradeSkillMaster (TSM) support.
 
+## What it answers
+
+- **What should I craft to make gold?** The Profit tab: every recipe ranked by profit after the auction house cut, with each item's chance of selling.
+- **What's the cheapest way to level a profession?** Skill up mode: the cheapest recipes per skill point for Alchemy, Blacksmithing, Enchanting, Engineering, Leatherworking, Tailoring, Cooking and the rest.
+- **What do I still need to buy?** One Auctionator shopping list that skips what's in your bags, bank, mailbox and on your alts.
+- **Where do I farm these materials?** Farm It: which ore veins, herbs and creatures, in which zones.
+- **Are Craftsman's Writs worth it?** The Writs tab: the gold each reputation point costs, cheapest first.
+- **Which Waylaid Crate should I fill?** The Crates tab: the gold each Merchant's Favor costs, with the best buy marked.
+- **How many should I post?** Restock: a goal per item that follows your own sales.
+- **How much gold am I really making?** The Sales tab: profit today, this week and this month, after the auction house cut and material costs.
+
 ## Features
 
-### Profit list
+### Profit list: what to craft for gold
 
 - Every recipe any of your characters knows, ranked by profit after the auction house cut.
 - Each material is costed the cheapest way: auction house, vendor, or crafting it yourself.
 - Materials you already hold count as free, so ore in your bank means it smelts bars instead of buying them.
 - A tab per profession, a search box, and sorting by name, sell chance or profit.
 - Hide unprofitable recipes with one tick.
-- **Skill up** mode for levelling: the cheapest recipes per skill point, coloured orange, yellow and green as in the game, with each colour's chance of a point.
 - Bind-on-pickup crafts are listed with their crafting cost, so you can still plan them.
 
-### One queue for every character
+### Skill up: profession levelling at the lowest cost
+
+- A levelling (leveling) view of the same list: the recipes that can still give a skill point, cheapest per point first.
+- Coloured orange, yellow and green as in the game, with each colour's chance of a point.
+- Uses today's auction house prices, so it's a levelling guide that's never out of date.
+
+### One craft queue for every character
 
 - Queue from the profit list, or with the **Queue** button on any recipe page.
+- The Queue tab is a numbered to-do list in working order: fetch from an alt, take from the bank, buy at the auction house, collect the mail, buy from a vendor, then craft.
+- Each character only buys and crafts its own part; then you're told which alt to log in to next.
 - Sub-crafts like bars, bolts and leather are worked out for you, and shrink as your stock grows.
 - **Total profit** for the whole queue, and **Still to buy** compared with the gold you're carrying.
 - **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. Fold it to one line; it disappears when the queue is empty.
@@ -36,11 +56,25 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - It counts your bags and bank, and with Syndicator your alts' bags and banks too, so you never buy what's already sitting on an alt.
 - Vendor materials are listed separately, so you don't search the auction house for thread.
 
-### Farm It
+### Farm It: a gathering and farming list
 
 - One click turns the queue into what to gather yourself: which veins, herbs and creatures, in which zones, and what to disenchant.
-- The Next step bar at the top of the screen tells you everything to gather and where, grouped by mining, herbs, skinning and so on. It puts your current zone first and counts down as you gather.
+- The Next step bar at the top of the screen tells you everything to gather and where, grouped by mining, herbalism, skinning and so on. It puts your current zone first and counts down as you gather.
 - Where each material comes from is built from **[AllTheThings](https://www.curseforge.com/wow/addons/all-the-things)** data and ships with the add-on, so you don't need AllTheThings installed.
+
+### Craftsman's Writs: the cheapest reputation
+
+- The Writs tab lists every Craftsman's Writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first.
+- For the daily writ quests of the Azeroth Commerce Authority and Durotar Supply and Logistics.
+- It starts with the writs your characters can craft for; one tick shows them all. Show one level (Journeyman, Expert, Artisan) or sort by any column.
+- **+** puts a writ on your queue: the shopping list gets the writ and its item, or the item's materials when crafting it is cheaper. It comes off the queue when you hand it in.
+
+### Waylaid Crates: the cheapest Merchant's Favor
+
+- The Crates tab lists every Waylaid Crate with its auction house price, its cheapest bundle of materials, the Merchant's Favor it pays and the gold each Merchant's Favor costs you, cheapest first, with the **best buy** marked.
+- Covers the crates of gathered materials (ore, herbs, leather and so on) and of crafted ones (Fabrics, Ingots, Parts), Apprentice to Artisan. No profession needed to fill them.
+- Hover a crate to see every bundle that fills it, with its cost.
+- **+** puts a crate on your queue: the shopping list gets the crate and its cheapest bundle of materials, less what you hold. It comes off the queue when you fill it.
 
 ### Restock the auction house
 
@@ -52,31 +86,20 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.
 - It warns you before you post below what a vendor would pay.
 
-### Waylaid Crates
-- The Crates tab lists every Waylaid Crate with its auction house price, its cheapest bundle of materials, the Merchant's Favor it pays and the gold each Merchant's Favor costs you, cheapest first, with the best buy marked.
-- + puts a crate on your queue: the shopping list gets the crate and its cheapest bundle of materials.
+### Sales tracker: profit and money on its way
 
-### Craftsman's Writs
-- The Writs tab lists every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first. It starts with the writs your characters can craft for; one tick shows them all.
-- + puts a writ on your queue: the shopping list gets the writ and its item, or the item's materials when crafting it is cheaper.
-
-### Sales history
-- Money on its way: when an auction sells, you're told in chat how much is coming, and the Sales tab and the minimap button count down the hour until it reaches your mailbox. No trip to the auction house needed.
-
-- Real profit, not just sales: what you received after the auction house cut, less what the materials cost. Bought materials count at the price you paid, ones you already had or gathered at the market price on the day you used them. Today, the last 7 days and the last 30, and per item.
-- Lists only what you craft, or everything you sell with one tick.
-- What sold and what expired today, this week, this month and all time, read from your auction house mail, including sales made while you were offline.
+- **Real profit, not just sales**: what you received after the auction house cut, less what the materials cost. Bought materials count at the price you paid, ones you already had or gathered at the market price on the day you used them. Today, the last 7 days and the last 30, and per item.
+- **Money on its way**: when an auction sells, you're told in chat how much is coming, and the Sales tab and the minimap button count down the hour until it reaches your mailbox. No trip to the auction house needed.
+- What sold and what expired, read from your auction house mail, including sales made while you were offline.
 - Each item's chance of selling within 24 hours, which gets more accurate the more you sell.
+- Lists only what you craft, or everything you sell with one tick.
+- **Reset profit** starts the count again from zero whenever you like.
 
 ### Advertise and quote
 
 - A small **Ad** box beside the chat posts your profession link to Trade, Guild, Say or Yell in one click.
-- **Quote** fills in a reply to your last whisper with one price for the whole order: material cost plus a margin you choose, from 0% up to 1000%.
+- **Quote** fills in a reply to your last whisper with one price for the whole order: material cost plus a margin you choose, from 0% up to 1000%. Handy for crafting orders and tips in Trade chat.
 - Word both messages your way, or turn advertising off, on the Options tab.
-
-### Options
-
-- One tab to switch things on or off: the suspicious-price limit, the minimap button, the Next step bar, the scan question and the chat reminders. Also opens with a right-click on the minimap button, and from the game's Options under AddOns.
 
 ### Suspicious prices
 
@@ -85,6 +108,11 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 ### Stale-price warning
 
 - If your auction house prices are more than a day old, it asks for a new scan.
+
+### Minimap button, options and changelog
+
+- A minimap button opens the window (left-click) or the options (right-click) and shows the money on its way. It works with minimap button collectors and broker bars.
+- One Options tab to switch things on or off: the suspicious-price limit, smart restock goals, the minimap button, the Next step bar, the scan question, the chat reminders and advertising. It's also in the game's Options under AddOns.
 - A Changelog tab lists what changed in each version. It lights up after an update; nothing pops up.
 
 ## Requirements
@@ -99,7 +127,8 @@ TradeSkillMaster (TSM) support is coming in a future update.
 1. Install the add-on along with Auctionator and Syndicator, and restart the game.
 2. Open each profession once on each character so its recipes are recorded.
 3. Run an auction house scan when it asks.
-4. Queue something profitable, then search the **Crafting and Farming Forever Queue** list in Auctionator's Shopping tab.
+4. Queue something profitable, a writ or a crate, then search the **Crafting and Farming Forever Queue** list in Auctionator's Shopping tab.
+5. Press **Craft Next** until the queue is empty, then post what you made from the **Restocking** tab at the auction house.
 
 ## Commands
 

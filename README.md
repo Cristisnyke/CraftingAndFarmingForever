@@ -2,25 +2,26 @@
 
 # Crafting and Farming Forever
 
-A crafting add-on for **World of Warcraft: Forever**. It shows what's worth crafting, keeps one craft queue for all your characters, works out what you still need to buy or gather, and helps you keep the auction house stocked.
+A crafting and gold-making add-on for **World of Warcraft: Forever**. It shows what's worth crafting, keeps one craft queue for all your characters, works out what you still need to buy or gather, and helps you keep the auction house stocked. It also finds the cheapest reputation from Craftsman's Writs and the cheapest Merchant's Favor from Waylaid Crates.
 
 > **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** It won't work properly without both: Auctionator supplies every price and the shopping list, and Syndicator counts what your alts hold and what you have on the auction house. **TradeSkillMaster (TSM) support is coming.**
 
-- **Profit:** every recipe any of your characters knows, ranked by profit at current Auctionator prices, with a search box, a tab per profession, sorting by name, sell chance or profit, and an option to hide unprofitable recipes.
+- **Profit:** every recipe any of your characters knows, ranked by profit at current Auctionator prices (a listing far above its material cost is marked "check price" and counted lower), with a search box, a tab per profession, sorting by name, sell chance or profit, and an option to hide unprofitable recipes.
 - **Skill up:** a levelling view of the same list: the recipes that can still give a skill point, cheapest per point first, coloured orange, yellow and green as in the game.
 - **Cheapest path:** each material is costed as the cheapest of the auction house, a vendor, or crafting it yourself. Materials you already hold count as free.
 - **Queue:** one queue shared by all your characters, planned per character (each one buys and crafts only its own part, then you're told to log in to the next), with total profit, what's still to buy, what to take from the bank, and a **Craft Next** button that doubles as a progress bar with the time left on your crafts.
 - **Next step bar:** while anything is queued, a small bar at the top of the screen shows the next thing to do, with Craft Next when it's time to craft. Fold it to one line; it goes away when the queue is empty.
 - **Live shopping list:** one Auctionator list, `Crafting and Farming Forever Queue`, holding only what you still need after your bags, bank and (with Syndicator) your alts' bags and banks. It's edited in place as things change, and what you buy leaves it at once (it counts as waiting in your mailbox). Find it in the auction house's **Shopping** tab.
 - **Farm It:** turns the queue into a gathering list: which vein or herb, which zones, which creatures, what to disenchant. The Next step bar at the top of the screen walks you through it and counts down as you gather.
-- **Restock:** a goal per item for how many you want on the auction house. One button queues the difference. Smart goals follow your sales: more of what sells well, fewer of what expires, daggers in pairs.
+- **Restock:** a goal per item for how many you want on the auction house. One button queues the difference. Smart goals follow your sales: more of what sells well, fewer of what expires, daggers in pairs. Short on gold, it offers a partial restock of what earns the most.
 - **Restocking at the auction house:** a tab beside Auctionator's that lists what you can post from your bags, suggests the lowest listing's price, and posts it.
 - **Crates:** every Waylaid Crate with its auction house price, its cheapest bundle of materials and the gold each Merchant's Favor costs, with the best buy marked. Press + to put a crate on your queue with what it needs.
 - **Writs:** every Craftsman's Writ with its auction house price, the cost of the item it wants (crafted when that's cheaper), the coin pouch it gives back and the gold each reputation point costs. Press + to put a writ on your queue with what it needs.
 - **Sales:** your real profit (sale after the auction house cut, less what the materials cost), what sold and what expired, read from your auction house mail, with each item's chance of selling within 24 hours. When an auction sells, you see how much money is on its way and how long until it reaches your mailbox, wherever you are.
 - **Changelog:** a tab listing what changed in each version. It lights up after an update; nothing pops up.
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set. Both messages can be worded your way.
-- **Options:** switch the advertising, the minimap button, the Next step bar and the reminders on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
+- **Minimap button:** left-click opens the window, right-click the options; it shows the money on its way and works with button collectors and broker bars.
+- **Options:** switch the advertising, smart restock goals, the suspicious-price limit, the minimap button, the Next step bar and the reminders on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
 
 ## Screenshots
 
