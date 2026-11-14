@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.10.2", lines = {
+		"- Sales: fixed profit showing a loss on items that made money. Taking the gold from a sale's mail counted that sale a second time, for no money, so the Sold column was up to double and the cost was taken twice. Your recorded sales are corrected the first time you log in. We're sorry for the confusion this caused. For a clean start, we recommend pressing Reset profit in the Sales tab after updating",
+		"- Sales: an item's cost is fixed when it sells and no longer moves with later price scans. Materials count at what you paid for them at the auction house; items made before costs were kept count at the cost to craft one at the time of the sale (still marked ~)",
+	} },
 	{ version = "1.10.1", lines = {
 		"- Smoother at the auction house and mailbox: buying many materials in a row or taking gold from a lot of mail no longer redraws the Queue, Restock and Next step bar after every single purchase, just once when you're done",
 	} },
