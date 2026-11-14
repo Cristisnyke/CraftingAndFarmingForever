@@ -2914,10 +2914,14 @@ do
 	names[KNIFE_WRIT], names[KNIFE] = "Craftsman's Writ: Big Bronze Knife", "Big Bronze Knife"
 	prices[KNIFE_WRIT], prices[KNIFE] = 5000, 300
 	ns.Items.Retry()
-	ns.db.ui.writTier, ns.db.ui.writCraftable, ns.db.writs = nil, nil, {}
+	ns.db.ui.writTier, ns.db.ui.writAll, ns.db.writs = nil, nil, {}
 	ns.UI.Show("writs")
 	RunTimers()
 	local window = ns.UI.windows.writs
+	-- At first only writs whose item a character can craft: none here. The box shows them all.
+	check("only craftable writs at first", #window.list, 0)
+	ns.db.ui.writAll = true
+	ns.UI.Refresh("writs")
 	check("every writ listed under a heading", #window.list, 151)
 	check("writs heading sorts", window.list[1].columns, "writs")
 	local function Knife()
@@ -2940,17 +2944,14 @@ do
 	check("writ search is exact, for one", lists[ns.WRIT_LIST][2], '"Craftsman\'s Writ: Big Bronze Knife";;;;;;;;;;;#;;1')
 	ns.Writs.Toggle(KNIFE_WRIT)
 	check("unpicked again", ns.Writs.PickedCount(), 0)
-	-- One level only, and only what a character can craft (nothing here).
+	-- One level only.
 	ns.db.ui.writTier = 3
 	ns.UI.Refresh("writs")
 	check("artisan writs only", #window.list, 46)
-	ns.db.ui.writCraftable = true
-	ns.UI.Refresh("writs")
-	check("no craftable writs", #window.list, 0)
-	ns.db.ui.writTier, ns.db.ui.writCraftable = nil, nil
+	ns.db.ui.writTier = nil
 	ns.UI.SortList("writs", "name")
 	check("sorted by name", ns.db.ui.writSort, "name")
-	ns.db.ui.writSort, ns.db.ui.writSortAsc = nil, nil
+	ns.db.ui.writSort, ns.db.ui.writSortAsc, ns.db.ui.writAll = nil, nil, nil
 	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil
 	ns.UI.Show("profit")
 end

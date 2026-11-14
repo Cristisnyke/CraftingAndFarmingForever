@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- New Writs tab for Craftsman's Writs: every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), what the coin pouch gives back, and the gold each reputation point costs you. Sort by any column, show one level, or only items your characters can craft
+- New Writs tab for Craftsman's Writs: every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), what the coin pouch gives back, and the gold each reputation point costs you. It starts with the writs whose item your characters can craft; tick the box to see them all. Sort by any column or show one level
 - Writs: "List for a price scan" puts the writs and their items on an Auctionator list so one search gets today's prices. Pick writs with + and "Shop picked" lists what to buy and queues the crafts
 
 ## 1.10.2

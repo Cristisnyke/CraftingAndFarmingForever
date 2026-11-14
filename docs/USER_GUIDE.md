@@ -196,7 +196,7 @@ Craftsman's Writs are tradable items that start a daily quest: hand in the writ 
 - **Item**: the wanted item by the cheapest way. Blue means one of your characters crafts it; white is bought.
 - **Net**: the coin pouch less the writ and the item. The pouch is an average players reported (about 12s Journeyman, 36s Expert, 75s Artisan), so the gold is rough.
 - **Per rep**: gold lost per reputation point (75 Journeyman, 125 Expert, 200 Artisan). The list starts with the cheapest reputation; click a heading to sort.
-- **All / Journeyman / Expert / Artisan** show one level. **Only items my characters can craft** hides the rest.
+- The list starts with only the writs whose item one of your characters can craft. Tick **Show all writs, not only what I can craft** to see every writ. **All / Journeyman / Expert / Artisan** show one level.
 - **List for a price scan** writes every writ shown and its item to the Auctionator list "Crafting and Farming Forever Writs". Search that list in Auctionator's Shopping tab to get today's prices; a full scan does the same.
 - **+** picks a writ. **Shop picked** rewrites the same Auctionator list with the picked writs you don't hold and their items where buying is cheapest, and adds the items that are cheaper to craft to your queue (once per pick). Writs done today are left out.
 

@@ -53,7 +53,7 @@ Crafting and Farming Forever is a profession add-on for **World of Warcraft: For
 - It warns you before you post below what a vendor would pay.
 
 ### Craftsman's Writs
-- The Writs tab lists every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first.
+- The Writs tab lists every writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first. It starts with the writs your characters can craft for; one tick shows them all.
 - "List for a price scan" puts the writs and their items on an Auctionator list, so one search gets today's prices.
 - Pick writs with + and "Shop picked" lists the writs and items to buy, and puts the items worth crafting on your queue.
 

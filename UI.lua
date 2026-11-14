@@ -590,7 +590,7 @@ local function WritSortValue(item, key)
 end
 
 local function BuildWritsList()
-	local rows = ns.Writs.Rows(ns.db.ui.writTier, ns.db.ui.writCraftable)
+	local rows = ns.Writs.Rows(ns.db.ui.writTier, not ns.db.ui.writAll)
 	local key, ascending = UI.ListSort("writs")
 	for index, item in ipairs(rows) do item.order = index end
 	table.sort(rows, function(a, b)
@@ -3119,22 +3119,23 @@ function CreateWritsPane()
 		.. ns.WRIT_LIST .. "\". Search that list at the auction house to get today's prices. A full scan does the same.")
 	window.scan = scan
 
-	local craftable = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
-	craftable:SetSize(24, 24)
-	craftable:SetPoint("BOTTOMLEFT", 8, 3)
-	craftable:SetHitRectInsets(0, -200, 0, 0) -- the label is clickable too
-	local craftableLabel = craftable:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	craftableLabel:SetPoint("LEFT", craftable, "RIGHT", 2, 1)
-	craftableLabel:SetText("Only items my characters can craft")
-	craftable:SetScript("OnClick", function(self)
-		ns.db.ui.writCraftable = self:GetChecked() and true or false
+	-- Off: only writs whose item one of your characters can craft. On: every writ.
+	local everything = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	everything:SetSize(24, 24)
+	everything:SetPoint("BOTTOMLEFT", 8, 3)
+	everything:SetHitRectInsets(0, -200, 0, 0) -- the label is clickable too
+	local everythingLabel = everything:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	everythingLabel:SetPoint("LEFT", everything, "RIGHT", 2, 1)
+	everythingLabel:SetText("Show all writs, not only what I can craft")
+	everything:SetScript("OnClick", function(self)
+		ns.db.ui.writAll = self:GetChecked() and true or false
 		window.offset = 0
 		UI.Refresh("writs")
 	end)
-	window.craftable = craftable
+	window.everything = everything
 
 	local hint = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	hint:SetPoint("BOTTOMLEFT", 240, 9)
+	hint:SetPoint("BOTTOMLEFT", 270, 9)
 	hint:SetPoint("BOTTOMRIGHT", -24, 9)
 	hint:SetJustifyH("RIGHT")
 	hint:SetWordWrap(false)
@@ -3145,7 +3146,7 @@ function CreateWritsPane()
 		for _, button in ipairs(window.tierButtons) do
 			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
 		end
-		craftable:SetChecked(ns.db.ui.writCraftable and true or false)
+		everything:SetChecked(ns.db.ui.writAll and true or false)
 		local picked = ns.Writs.PickedCount()
 		shop:SetText(picked > 0 and ("Shop picked (%d)"):format(picked) or "Shop picked")
 		shop:SetEnabled(picked > 0)
@@ -3157,7 +3158,7 @@ function CreateWritsPane()
 			end
 		end
 		if shown == 0 then
-			hint:SetText("No writs to show. Untick the box to see them all.")
+			hint:SetText("None of your characters can craft a writ's item here. Tick the box to see every writ.")
 		elseif priced == 0 then
 			hint:SetText(Color(COLOR_WARN, "No writ prices yet: list them for a price scan, or run a full scan."))
 		else
