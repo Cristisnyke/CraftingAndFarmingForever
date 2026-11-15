@@ -926,6 +926,42 @@ do
 	playerMoney = money
 	ns.Restock.ForgetSmart()
 end
+-- A queued restock is committed: running out of gold after shopping for it changes nothing on a second look.
+do
+	local money, savedQueue = playerMoney, {}
+	for index, entry in ipairs(ns.db.queue) do savedQueue[index] = entry end
+	wipe(ns.db.queue)
+	playerMoney = 100000000
+	ns.Restock.ForgetSmart()
+	local first = ns.Restock.Rows()
+	local asked = 0
+	for _, row in ipairs(first) do if row.crafts > 0 then asked = asked + 1 end end
+	check("restock asks for something", asked > 0, true)
+	check("restock queued", ns.Restock.Apply(first), asked)
+	local before = {}
+	for index, entry in ipairs(ns.db.queue) do before[index] = entry.recipeID .. "x" .. entry.qty end
+	playerMoney = 0
+	ns.Restock.ForgetSmart()
+	local again = ns.Restock.Rows()
+	local changes, queued = 0, 0
+	for _, row in ipairs(again) do
+		if row.crafts > 0 or row.trim then changes = changes + 1 end
+		if row.queued then queued = queued + 1 end
+	end
+	check("gold spent: nothing new asked, nothing cut", changes, 0)
+	check("gold spent: rows show what's queued", queued, asked)
+	ns.Restock.Apply(again)
+	local after = {}
+	for index, entry in ipairs(ns.db.queue) do after[index] = entry.recipeID .. "x" .. entry.qty end
+	check("gold spent: queue unchanged", table.concat(after, ","), table.concat(before, ","))
+	ns.UI.Show("restock")
+	ns.UI.Refresh("restock")
+	wipe(ns.db.queue)
+	for index, entry in ipairs(savedQueue) do ns.db.queue[index] = entry end
+	playerMoney = money
+	ns.Restock.ForgetSmart()
+	RunTimers()
+end
 ns.UI.Show("restock")
 check("restock tab opens", ns.UI.windows.restock.frame:IsVisible(), true)
 ns.UI.Refresh("restock")

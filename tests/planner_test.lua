@@ -355,6 +355,7 @@ do
 	check("smart: says gold limited it", info.limited, "gold")
 	check("smart: gold-limited pair rounds down", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14,
 		coverDays = 2, level = 1, unitCost = 100, gold = 1200, pair = true })), 2)
+	check("smart: the goal without the gold limit is kept", info.full, 4)
 	check("smart: always at least one", (Planner.SmartGoal({ base = 1, days = {}, unitCost = 100, gold = 0 })), 1)
 	check("smart: odd goal", (Planner.SmartGoal({ base = 1, days = Days(14, 1, 0), span = 14, coverDays = 2, level = 1.5 })), 3)
 	check("smart: pairs round up to even", (Planner.SmartGoal({ base = 1, days = Days(14, 1, 0), span = 14, coverDays = 2,
@@ -387,6 +388,40 @@ check("restock counts AH, held, queued", restockRows[1].crafts, 4)
 check("restock stocked row last", restockRows[2].itemID, SHIRT)
 check("restock stocked needs none", restockRows[2].crafts, 0)
 check("restock best recipe", restockRows[2].recipeID, 1)
+
+-- A restock already on the queue is committed: only what's still missing is asked for, it stays listed when it no
+-- longer earns enough, and it's only cut back when the stock passes the goal without its gold limit.
+do
+	local function Rows(over)
+		local opts = {
+			isSellable = function() return true end,
+			goal = function() return 10 end,
+			stock = function() return 2, 3 end,
+			queued = function() return 0 end,
+			committed = function(id) if id == BAR then return 5, 5 end return 0, 0 end,
+			minProfit = 100,
+		}
+		for key, value in pairs(over or {}) do opts[key] = value end
+		for _, row in ipairs(Planner.RestockRows(restockCtx, opts)) do
+			if row.itemID == BAR then return row end
+		end
+	end
+	local row = Rows()
+	check("committed: nothing more needed", row.crafts, 0)
+	check("committed: crafts on the queue shown", row.queued, 5)
+	check("committed: nothing to take off", row.trim, nil)
+	check("committed: more needed is added on top", Rows({ goal = function() return 12 end }).crafts, 2)
+	row = Rows({ goal = function() return 6 end, fullGoal = function() return 10 end })
+	check("committed: a goal lowered by gold doesn't cut it", row.trim, nil)
+	check("committed: and asks for nothing", row.crafts, 0)
+	row = Rows({ stock = function() return 2, 6 end })
+	check("committed: stock that came back cuts it", row.trim, 3)
+	check("committed: never cut by more than is queued", Rows({ stock = function() return 20, 20 end }).trim, 5)
+	row = Rows({ minProfit = 100000 })
+	check("committed: stays listed when it earns too little", row and row.queued, 5)
+	check("committed: but nothing new is asked for", row.crafts, 0)
+	check("not committed, earns too little: not listed", Rows({ minProfit = 100000, committed = function() return 0, 0 end }), nil)
+end
 
 -- Fitting a restock to your gold: ore is 10 each. A (net 400 for 10 of ore) beats B (net 100 for 50 of ore).
 do

@@ -4,8 +4,10 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- Restock no longer changes its mind halfway through a trip. Once you queue a restock it's committed: buying its materials (which lowers your gold) can't swap it for a different item the next time you press Restock. Pressing it again only adds what's still missing, and adds to the existing entry instead of replacing it
-- Queued restock crafts are grouped by profession, so one visit to the anvil or tanning rack does them all
+- Restock no longer changes its mind halfway through a trip. Once you queue a restock it's committed: buying its materials (which lowers your gold) or prices moving after you bought can't swap it for different items. The Restock tab shows what's already queued (5q) and says "Restock is on your queue"
+- Pressing restock again only adds what's still missing (more sold meanwhile), and takes crafts off only when your stock says they aren't needed any more (expired auctions came back, or you lowered a goal)
+- Restock crafts are queued grouped by profession, so one visit to the anvil or tanning rack does them all
+- Fixed: after spending gold on materials, the Restocking tab at the auction house could ask you to post fewer than you just crafted, because smart goals shrink with your gold. That limit now only decides what to craft
 
 ## 1.12.0
 

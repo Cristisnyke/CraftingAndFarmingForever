@@ -952,7 +952,7 @@ local COLUMN_TIPS = {
 		"Sells: the chance one sells within 24 hours, from your sales history.",
 		"AH: how many you have on the auction house, across your characters. Updates when you visit the auction house.",
 		"Have: how many your characters hold in bags, banks and mail.",
-		"Craft: how many crafts Queue restock would add. Grey 'skip' means the goal is 0.",
+		"Craft: how many crafts Queue restock would add. 5q: already on your queue. Grey 'skip' means the goal is 0.",
 		"Goal: how many you want on the auction house. Grey goals follow the defaults at the bottom; white ones are "
 			.. "your own for that item. The arrow button puts an item back on the default.",
 	},
@@ -1018,7 +1018,18 @@ local function RowOnEnter(row)
 		local smart = ns.Restock.SmartInfo(item.itemID)
 		GameTooltip:AddDoubleLine(ns.Restock.IsCustom(item.itemID) and "Goal (your own)"
 			or smart and "Goal (smart)" or "Goal (default)", tostring(item.goal), 1, 1, 1, 1, 1, 1)
-		GameTooltip:AddDoubleLine("Crafts needed", tostring(item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+		if item.queued then
+			GameTooltip:AddDoubleLine("Crafts already queued", tostring(item.queued), 0.45, 0.75, 1, 0.45, 0.75, 1)
+		end
+		GameTooltip:AddDoubleLine(item.queued and "More crafts needed" or "Crafts needed",
+			tostring(item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+		if item.trim then
+			GameTooltip:AddLine(("%d of the queued crafts aren't needed any more: you have more in stock now. "
+				.. "Update restock takes them off the queue."):format(item.trim), 1, 0.6, 0.2, true)
+		elseif item.queued then
+			GameTooltip:AddLine("Queued restocks stay as they are while you shop and craft, whatever your gold "
+				.. "and the prices do meanwhile.", 0.6, 0.6, 0.6, true)
+		end
 		if item.wanted then
 			GameTooltip:AddLine(item.crafts > 0
 				and ("Your gold covers %d of them: other items earn more for their materials."):format(item.crafts)
@@ -1798,8 +1809,14 @@ local function SetRow(row, data)
 			-- Cut to what your gold covers: crafts of wanted.
 			row.colCraft:SetText(Color(item.crafts > 0 and "ffffb040" or COLOR_LOSS, tostring(item.crafts))
 				.. Color(COLOR_MUTED, "/" .. item.wanted))
+		elseif item.trim then
+			-- More queued than the stock still needs.
+			row.colCraft:SetText(Color(COLOR_LOSS, "-" .. item.trim))
 		elseif item.crafts > 0 then
-			row.colCraft:SetText(Color("ffffb040", tostring(item.crafts)))
+			row.colCraft:SetText(Color("ffffb040", (item.queued and "+" or "") .. item.crafts))
+		elseif item.queued then
+			-- Already on the queue from an earlier restock.
+			row.colCraft:SetText(Color("ff73bfff", item.queued .. "q"))
 		else
 			row.colCraft:SetText(Color(COLOR_PROFIT, "0"))
 		end
@@ -3055,8 +3072,8 @@ function CreateRestockPane()
 		for _, data in ipairs(window.list) do
 			if data.row then table.insert(rows, data.row) end
 		end
-		local added = ns.Restock.Apply(rows, selectedProfession.restock)
-		ns.Print(("Restock: %s added to the queue."):format(ns.Plural(added, "item", "items")))
+		local changed = ns.Restock.Apply(rows)
+		ns.Print(("Restock: %s updated on the queue."):format(ns.Plural(changed, "item", "items")))
 		UI.Show("queue")
 	end, true)
 	apply:SetHeight(26)
@@ -3070,12 +3087,14 @@ function CreateRestockPane()
 		single:Sync()
 		minProfit:Sync()
 
-		local needed, toPost, items = 0, 0, 0
+		local needed, toPost, items, queued, trims = 0, 0, 0, 0, 0
 		for _, data in ipairs(self.list) do
 			local row = data.row
 			if row then
 				items = items + 1
-				if row.crafts > 0 then needed = needed + 1 end
+				if row.crafts > 0 or row.trim then needed = needed + 1 end
+				if row.trim then trims = trims + 1 end
+				if row.queued then queued = queued + 1 end
 				if row.goal > 0 and (row.onAH or 0) < row.goal then
 					toPost = toPost + math.min(row.owned, row.goal - (row.onAH or 0))
 				end
@@ -3091,10 +3110,14 @@ function CreateRestockPane()
 		local budget = UI.restockBudget
 		local short = budget and budget.short
 		apply:SetEnabled(needed > 0)
-		apply:SetText(needed > 0 and ((short and "Queue partial restock: %s" or "Queue restock: %s")
-				:format(ns.Plural(needed, "item", "items")))
+		apply:SetText(needed > 0 and ((trims == needed and "Update restock: %s" or short and "Queue partial restock: %s"
+				or queued > 0 and "Add to restock: %s" or "Queue restock: %s"):format(ns.Plural(needed, "item", "items")))
+			or queued > 0 and ("Restock is on your queue: %s"):format(ns.Plural(queued, "item", "items"))
 			or short and "Not enough gold to restock" or "Fully stocked")
 		local notes = { "AH counts update when you visit the auction house." }
+		if queued > 0 then
+			notes[1] = "A queued restock stays as it is while you shop and craft. " .. notes[1]
+		end
 		if short then
 			notes = { Color("ffffb040", ("Not enough gold for a full restock: its materials cost %s and you have %s%s. "
 				.. "This is a partial restock, %s of materials, picked for the most profit."):format(

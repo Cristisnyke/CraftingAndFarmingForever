@@ -63,7 +63,7 @@ function Posting.Rows()
 	local reserved = ns.Planner.ReservedMaterials(ctx, ns.plan)
 	local rows = {}
 	for itemID, inBags in pairs(counts) do
-		local goal = ctx.known[itemID] and ns.Items.CanSellOnAH(itemID) and ns.Restock.Goal(itemID)
+		local goal = ctx.known[itemID] and ns.Items.CanSellOnAH(itemID) and ns.Restock.FullGoal(itemID)
 		if goal then
 			local onAH = ns.Stock.ForRestock(itemID)
 			local posted = postedSince[itemID] or 0

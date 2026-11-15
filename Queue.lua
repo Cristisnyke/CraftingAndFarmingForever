@@ -431,6 +431,15 @@ function Restock.Goal(itemID)
 	return ns.db.restock.goals[itemID] or (AutoGoal(itemID))
 end
 
+-- The goal without the limit your gold puts on a smart goal. That limit is for deciding what to craft; what's already
+-- made or queued is posted and kept by this one, or spending gold on materials would shrink the goal under it.
+function Restock.FullGoal(itemID)
+	local own = ns.db.restock.goals[itemID]
+	if own then return own end
+	local goal, info = AutoGoal(itemID)
+	return info and info.full or goal
+end
+
 Restock.DefaultGoal = AutoGoal
 
 -- What a smart goal is based on (see Planner.SmartGoal, plus base), or nil when the item's goal isn't smart.
@@ -454,18 +463,23 @@ function Restock.SetGoal(itemID, goal)
 	ns.db.restock.goals[itemID] = goal ~= (AutoGoal(itemID)) and goal or nil
 end
 
--- Units already planned by queue entries, hand-queued or from an earlier restock. A restock you already queued is
--- committed: you may have bought its materials, so it must not be re-planned (and swapped for something else) because
--- your gold or the prices moved since.
-local function ManualQueued()
-	local queued = {}
+-- Units already planned by entries the user queued by hand, by item; and what an earlier restock still has on the
+-- queue: units and crafts by item. A queued restock is committed (see Planner.RestockRows).
+local function QueuedUnits()
+	local manual, units, crafts = {}, {}, {}
 	for _, entry in ipairs(ns.db.queue) do
 		local recipe = ns.db.recipes[entry.recipeID]
 		if recipe and recipe.o then
-			queued[recipe.o] = (queued[recipe.o] or 0) + entry.qty * (recipe.qmin or 1)
+			local made = entry.qty * (recipe.qmin or 1)
+			if entry.restock then
+				units[recipe.o] = (units[recipe.o] or 0) + made
+				crafts[recipe.o] = (crafts[recipe.o] or 0) + entry.qty
+			else
+				manual[recipe.o] = (manual[recipe.o] or 0) + made
+			end
 		end
 	end
-	return queued
+	return manual, units, crafts
 end
 
 -- The last fit of a restock to your gold, reused while nothing it depends on changed: every redraw asks.
@@ -507,36 +521,49 @@ end
 
 -- The rows, and how the restock fits your gold (see Planner.RestockBudget; nil when that's off or nothing is needed).
 function Restock.Rows()
-	local queued = ManualQueued()
+	local queued, units, crafts = QueuedUnits()
 	local ctx = NewContext()
 	local rows = ns.Planner.RestockRows(ctx, {
 		isSellable = ns.Items.CanSellOnAH,
 		goal = Restock.Goal,
 		stock = ns.Stock.ForRestock,
 		queued = function(itemID) return queued[itemID] or 0 end,
+		committed = function(itemID) return units[itemID] or 0, crafts[itemID] or 0 end,
+		fullGoal = Restock.FullGoal,
 		minProfit = ns.db.restock.minProfitSilver * 100,
 	})
 	return rows, FitToGold(ctx, rows)
 end
 
--- Adds what these rows need now (rows only hold what the queue doesn't already cover) to the queue as restock
--- entries, merged into a restock entry of the same recipe and character. Entries already queued are kept: they may
--- have been shopped for. `profession` (nil for all) is no longer needed to clear anything; it is kept for callers.
--- Crafts are added grouped by profession, so one trip to a station does them all.
-function Restock.Apply(rows, _)
+-- Brings the queue's restock entries in line with these rows: adds the crafts a row still needs (merged into a
+-- restock entry of the same recipe and character) and takes off what a row says is too many now (row.trim). Nothing
+-- else is removed: a restock already queued may have been shopped for. Hand-queued entries aren't touched.
+-- New crafts are added grouped by profession, so one trip to a station does them all. Returns the items changed.
+function Restock.Apply(rows)
 	local queue = ns.db.queue
-	local order = {}
+	local order, changed = {}, 0
 	for index, row in ipairs(rows) do
+		local trim = row.trim or 0
+		for at = #queue, 1, -1 do
+			if trim <= 0 then break end
+			local entry = queue[at]
+			local recipe = ns.db.recipes[entry.recipeID]
+			if entry.restock and recipe and recipe.o == row.itemID then
+				local cut = math.min(trim, entry.qty)
+				entry.qty, trim = entry.qty - cut, trim - cut
+				if entry.qty <= 0 then table.remove(queue, at) end
+			end
+		end
 		if row.crafts > 0 then
 			local recipe = ns.db.recipes[row.recipeID]
 			order[#order + 1] = { row = row, p = recipe and recipe.p or 0, index = index }
 		end
+		if row.crafts > 0 or row.trim then changed = changed + 1 end
 	end
 	table.sort(order, function(a, b)
 		if a.p ~= b.p then return a.p < b.p end
 		return a.index < b.index
 	end)
-	local added = 0
 	for _, item in ipairs(order) do
 		local row = item.row
 		local char = Recipes.Crafter(row.recipeID, ns.CharKey())
@@ -550,10 +577,9 @@ function Restock.Apply(rows, _)
 		if not merged then
 			table.insert(queue, { recipeID = row.recipeID, qty = row.crafts, char = char, restock = true })
 		end
-		added = added + 1
 	end
 	ns.RequestPlan()
-	return added
+	return changed
 end
 
 -- Every finished craft counts down its queue entry, wherever it was started from.

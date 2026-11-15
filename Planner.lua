@@ -282,7 +282,8 @@ Planner.SMART = { HALF_LIFE = 7, WINDOW = 30, MIN_SPAN = 3, MIN_SAMPLES = 3, GOL
 --   level     how much of that to stock, 1 = all of it (default SMART.LEVEL)
 -- The goal is what sells in coverDays x the share of listed units that sold x level. It only goes under the default
 -- because of expiries, never because little was listed. Returns the goal and
--- { perDay, soldShare, samples, level, limited = "gold" when gold lowered it, pair, learning }.
+-- { perDay, soldShare, samples, level, limited = "gold" when gold lowered it (full = the goal without that), pair,
+-- learning }.
 function Planner.SmartGoal(input)
 	local smart = Planner.SMART
 	local info = { pair = input.pair or nil }
@@ -312,6 +313,7 @@ function Planner.SmartGoal(input)
 	if input.unitCost and input.unitCost > 0 and input.gold then
 		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / input.unitCost))
 		if afford < goal then
+			info.full = input.pair and math.max(2, goal + goal % 2) or goal
 			goal = afford
 			info.limited = "gold"
 		end
@@ -382,7 +384,14 @@ end
 --   goal(itemID)       -> stock goal, nil while unknown
 --   stock(itemID)      -> onAH, owned (onAH nil when auctions can't be seen)
 --   queued(itemID)     -> units already planned by queue entries the user added
+--   committed(itemID)  -> units and crafts of an earlier restock still on the queue (optional)
+--   fullGoal(itemID)   -> the goal with no gold limit on it (optional; the goal when left out)
 --   minProfit          -> minimum profit per craft, in copper
+-- An earlier restock on the queue is committed: its materials may be bought already. So a row's crafts are only what
+-- the goal lacks beyond it (row.queued = the crafts already there), and its item stays listed even when a price
+-- moved and it no longer earns enough. It is only cut back (row.trim, in crafts) when the stock itself says so: more
+-- on the AH, held and queued than the goal without its gold limit, as when expired auctions came back. Gold running
+-- low after shopping never cuts it.
 function Planner.RestockRows(ctx, opts)
 	local rows = {}
 	for itemID, recipeIDs in pairs(ctx.known) do
@@ -393,18 +402,31 @@ function Planner.RestockRows(ctx, opts)
 				if result and result.net and (not best or result.net > best.net) then best = result end
 			end
 			local goal = opts.goal(itemID)
-			if best and goal and best.net > 0 and best.net >= (opts.minProfit or 0) then
+			local units, queued = 0, 0
+			if opts.committed then units, queued = opts.committed(itemID) end
+			local earns = best and best.net > 0 and best.net >= (opts.minProfit or 0)
+			if best and goal and (earns or queued > 0) then
 				local onAH, owned = opts.stock(itemID)
 				local yield = MinimumYield(ctx.recipes[best.recipeID])
-				rows[#rows + 1] = {
+				local planned = opts.queued(itemID) + units
+				local row = {
 					itemID = itemID, recipeID = best.recipeID, net = best.net, goal = goal, onAH = onAH, owned = owned,
-					crafts = Planner.RestockCrafts(goal, onAH or 0, owned, opts.queued(itemID), yield),
+					crafts = earns and Planner.RestockCrafts(goal, onAH or 0, owned, planned, yield) or 0,
 				}
+				if queued > 0 then
+					row.queued = queued
+					local full = math.max(goal, opts.fullGoal and opts.fullGoal(itemID) or goal)
+					local excess = (onAH or 0) + owned + planned - full
+					local trim = math.min(queued, math.floor(excess / yield))
+					if trim > 0 then row.trim = trim end
+				end
+				rows[#rows + 1] = row
 			end
 		end
 	end
 	table.sort(rows, function(a, b)
 		if (a.crafts > 0) ~= (b.crafts > 0) then return a.crafts > 0 end
+		if ((a.queued or 0) > 0) ~= ((b.queued or 0) > 0) then return (a.queued or 0) > 0 end
 		if a.net ~= b.net then return a.net > b.net end
 		return a.itemID < b.itemID
 	end)
