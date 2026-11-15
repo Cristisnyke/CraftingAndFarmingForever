@@ -9,11 +9,14 @@
 --                                    days = { [day number] = { s = sold, e = expired, g = copper,
 --                                               c = copper paid for the sold units whose cost is known,
 --                                               u = sold units with no cost on record,
+--                                               d = copper of deposits lost on expired units, dk = how many
+--                                                   of the expired units that covers,
 --                                               x = true for results from before profit was counted } } }
 -- db.sales.profitFrom            = when profit began to be counted
 -- db.costs[itemID]               = { q = units held with a cost on record, c = copper paid for them }
 -- db.sales.lots[i]               = { itemID, name, qty, at = posted time, dur = seconds, char,
---                                    price = copper per unit, commodity = true for stackable goods }
+--                                    price = copper per unit, commodity = true for stackable goods,
+--                                    dep = copper of deposit per unit }
 -- db.sales.incoming[i]           = { name, itemID, char, at = sold time, due = when the money arrives,
 --                                    amount = copper after the AH cut (nil if unknown), rough = true when estimated,
 --                                    told = true once its arrival has been announced }
@@ -86,16 +89,17 @@ local function ItemRecord(name, itemID)
 end
 
 -- Takes units off the oldest posts of this item and returns the unit-days they spent on the AH, plus how many units
--- had no post to match.
+-- had no post to match, the deposit paid for them and how many units that deposit is known for.
 local function ConsumeLots(key, count, when, char)
 	local lots = ns.db.sales.lots
-	local exposure = 0
+	local exposure, deposit, covered = 0, 0, 0
 	local index = 1
 	while count > 0 and index <= #lots do
 		local lot = lots[index]
 		if lot.char == char and lot.name and lot.name:lower() == key and lot.at <= when then
 			local take = math.min(lot.qty, count)
 			exposure = exposure + take * math.min(when - lot.at, lot.dur) / DAY
+			if lot.dep then deposit, covered = deposit + take * lot.dep, covered + take end
 			lot.qty = lot.qty - take
 			count = count - take
 			if lot.qty <= 0 then
@@ -105,14 +109,14 @@ local function ConsumeLots(key, count, when, char)
 		end
 		index = index + 1
 	end
-	return exposure, count
+	return exposure, count, deposit, covered
 end
 
 -- kind is "sold", "expired" or "cancelled". Cancelled auctions count as time on the AH with no result either way.
 function Sales.Record(kind, name, count, money, when, char, itemID)
 	local item = ItemRecord(name, itemID)
 	Sales.ForgetCraftInfo()
-	local exposure, unmatched = ConsumeLots(name:lower(), count, when, char)
+	local exposure, unmatched, deposit, depositUnits = ConsumeLots(name:lower(), count, when, char)
 	item.exposure = item.exposure + exposure
 	if kind == "sold" then
 		item.exposure = item.exposure + unmatched * ASSUMED_SOLD_SECONDS / DAY
@@ -142,6 +146,8 @@ function Sales.Record(kind, name, count, money, when, char, itemID)
 	else
 		item.expired = item.expired + count
 		day.e = day.e + count
+		-- The deposit these lost, for smart restock goals: a long auction that expires costs more than a short one.
+		if depositUnits > 0 then day.d, day.dk = (day.d or 0) + deposit, (day.dk or 0) + depositUnits end
 	end
 end
 
@@ -195,13 +201,16 @@ local function Tracked(item, days)
 	return sold, expired, gold, cost, unknown, estimated
 end
 
--- An item's results by day for smart restock goals: { { age = days ago, s, e }, ... } over the last `window` days,
--- and the days since its first result (today included). Nil with nothing on record.
+-- An item's results by day for smart restock goals: { { age = days ago, s, e, d }, ... } over the last `window`
+-- days, and the days since its first result (today included). Nil with nothing on record. d is the deposit the
+-- day's expired units lost: what their posts paid where that's on record, the item's last known deposit for the
+-- rest, nil when neither is known.
 function Sales.History(name, window)
 	local item = name and ns.db.sales.items[name:lower()]
 	if not item then return nil end
 	local today = DayNumber(time())
 	local days, byAge, oldest = {}, {}, nil
+	local usual = item.itemID and ns.db.deposits[item.itemID]
 	for dayNumber, day in pairs(item.days) do
 		local age = today - math.ceil(dayNumber) -- a day moved by a profit reset sits half a key earlier
 		if age >= 0 and (day.s > 0 or day.e > 0) then
@@ -214,6 +223,10 @@ function Sales.History(name, window)
 					days[#days + 1] = entry
 				end
 				entry.s, entry.e = entry.s + day.s, entry.e + day.e
+				local unknown = day.e - (day.dk or 0)
+				if day.e > 0 and (unknown <= 0 or usual) then
+					entry.d = (entry.d or 0) + (day.d or 0) + math.max(0, unknown) * (usual or 0)
+				end
 			end
 		end
 	end
@@ -572,7 +585,10 @@ ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
 	if not post or not post.itemID then return end
 	post.name = ns.Items.Name(post.itemID)
 	post.char = ns.CharKey()
-	if post.deposit then ns.db.deposits[post.itemID], post.deposit = post.deposit, nil end
+	if post.deposit then
+		ns.db.deposits[post.itemID] = post.deposit
+		post.dep, post.deposit = post.deposit, nil
+	end
 	Sales.NoteTrip(post.at)
 	if ns.Restock then ns.Restock.ForgetSmart() end
 	table.insert(ns.db.sales.lots, post)

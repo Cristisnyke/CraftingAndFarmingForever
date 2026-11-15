@@ -409,6 +409,51 @@ do
 	check("smart: pairs go to the nearest pair", (Goal({ base = 1, days = Days(20, 3, 0), pair = true })), 4)
 	check("smart: a pair is the least for daggers", (Goal({ base = 1, days = Days(5, 0, 4), pair = true })), 2)
 
+	-- Deposits: expiries of cheap, short auctions move the goal less than dear, long ones.
+	local short = Planner.SmartGoal({ base = 10, profit = 1000, days = { { age = 0, s = 5, e = 5, d = 5 * 20 } } })
+	local long = Planner.SmartGoal({ base = 10, profit = 1000, days = { { age = 0, s = 5, e = 5, d = 5 * 600 } } })
+	check("smart: cheap expiries cut little", short, 9)
+	check("smart: dear expiries cut more", long, 8)
+	check("smart: deposit unknown, the item's margin decides", (Planner.SmartGoal({ base = 10, profit = 1000, margin = 0.5,
+		days = { { age = 0, s = 5, e = 5 } } })), (Goal({ base = 10, days = { { age = 0, s = 5, e = 5 } } })))
+
+	-- Pausing: deposits lost lately outweigh what the sales earned. Tried again after 3 days, then 6, 12, 14.
+	local function Lossy(...)
+		local days = {}
+		for _, age in ipairs({ ... }) do days[#days + 1] = { age = age, s = 0, e = 1, d = 300 } end
+		return days
+	end
+	goal, info = Planner.SmartGoal({ base = 1, profit = 500, days = Lossy(2, 1, 0) })
+	check("smart: losing money pauses the item", goal, 0)
+	check("smart: says it's paused", info.paused, true)
+	check("smart: tried again in three days", info.retryIn, 3)
+	check("smart: what it lost", info.lost > info.earned, true)
+	check("smart: two expiries aren't enough to pause", (Planner.SmartGoal({ base = 1, profit = 500, days = Lossy(1, 0),
+		margin = 0.5 })), 1)
+	check("smart: no pause without a known profit", (Planner.SmartGoal({ base = 1, days = Lossy(2, 1, 0) })), 1)
+	check("smart: no pause while sales pay for the deposits", (Planner.SmartGoal({ base = 1, profit = 500,
+		days = { { age = 2, s = 2, e = 1, d = 300 }, { age = 1, s = 0, e = 1, d = 300 }, { age = 0, s = 0, e = 1, d = 300 } } })), 1)
+	check("smart: no pause when deposits aren't known", (Planner.SmartGoal({ base = 1, profit = 500,
+		days = { { age = 2, s = 0, e = 1 }, { age = 1, s = 0, e = 1 }, { age = 0, s = 0, e = 1 } } })), 1)
+	goal, info = Planner.SmartGoal({ base = 1, profit = 500, days = Lossy(5, 4, 3) })
+	check("smart: three days on, one is tried", goal, 1)
+	check("smart: says it's a try", info.retry, true)
+	check("smart: a dagger try is a pair", (Planner.SmartGoal({ base = 1, profit = 500, days = Lossy(5, 4, 3), pair = true })), 2)
+	goal, info = Planner.SmartGoal({ base = 1, profit = 500, days = Lossy(8, 7, 6, 2) })
+	check("smart: a failed try pauses again", goal, 0)
+	check("smart: for twice as long", info.retryIn, 6 - 2)
+	check("smart: the wait stops growing", select(2, Planner.SmartGoal({ base = 1, profit = 500,
+		days = Lossy(29, 28, 27, 23, 16, 3) })).retryIn, Planner.SMART.RETRY_MAX - 3)
+	local recovered = Lossy(8, 7, 6)
+	recovered[#recovered + 1] = { age = 2, s = 1, e = 0 }
+	goal, info = Planner.SmartGoal({ base = 1, profit = 500, days = recovered })
+	check("smart: a try that sells ends the pause", info.paused, nil)
+	check("smart: and the goal is back", goal >= 1, true)
+	recovered[#recovered + 1] = { age = 1, s = 3, e = 0 }
+	check("smart: then it climbs as usual", (Planner.SmartGoal({ base = 1, profit = 500, days = recovered })), 3)
+	check("smart: paused ignores gold and pairs", (Planner.SmartGoal({ base = 1, profit = 500, days = Lossy(2, 1, 0),
+		pair = true, unitCost = 1, gold = 1e9 })), 0)
+
 	-- The time between restocks: long gaps count most, time away doesn't count, too few gaps give nothing.
 	local hour = 3600
 	check("gap: too few restocks", Planner.RestockGap({ 0, 5 * hour, 10 * hour }), nil)

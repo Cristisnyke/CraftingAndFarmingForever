@@ -417,7 +417,7 @@ local function SmartGoal(itemID)
 	local goal, info = ns.Planner.SmartGoal({
 		base = base, days = days,
 		gap = gap or ns.Sales.DurationHours(ns.db.restock.duration) / 24, gapKnown = gap ~= nil,
-		margin = ns.Planner.SmartMargin(profit, ns.Sales.Deposit(itemID)),
+		margin = ns.Planner.SmartMargin(profit, ns.Sales.Deposit(itemID)), profit = profit,
 		unsettled = ns.Sales.RunningAge(name),
 		unitCost = unitCost, gold = GetMoney(),
 		pair = ns.Items.SoldInPairs(itemID),

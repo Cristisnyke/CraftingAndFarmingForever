@@ -275,11 +275,14 @@ end
 --   RECENT       days the tooltip's "lately" covers
 --   LEVEL        the Options slider, cautious to aggressive; at LEVEL the goal can rise to what sold between two
 --                restocks on a sold-out day, at twice LEVEL to twice that
+--   PAUSE_MIN    expired units needed before an item can be paused; PAUSE_HALF = days after which a result
+--                counts half towards that; RETRY = days until a paused item is tried again, doubling up to RETRY_MAX
 --   GAP_*        limits on the time between restocks, in days, and the gaps needed to trust a measured one
 --   SESSION      posts closer together than this many seconds are one restock
 --   GOLD_SHARE   the most of your gold one item's whole stock may cost to make
 Planner.SMART = { WINDOW = 30, MIN_SAMPLES = 3, GOLD_SHARE = 0.25, MAX = 200, LEVEL = 0.5, LEVEL_MIN = 0.1, LEVEL_MAX = 2,
-	STEP = 0.25, CUT = 1, TOLERATE = 0.4, MARGIN = 0.75, RECENT = 3, GAP_MIN = 0.25, GAP_MAX = 3, GAP_SAMPLES = 3, SESSION = 30 * 60, TRIPS = 20 }
+	STEP = 0.25, CUT = 1, TOLERATE = 0.4, MARGIN = 0.75, RECENT = 3, GAP_MIN = 0.25, GAP_MAX = 3, GAP_SAMPLES = 3, SESSION = 30 * 60, TRIPS = 20,
+	PAUSE_MIN = 3, PAUSE_HALF = 7, RETRY = 3, RETRY_MAX = 14 }
 
 -- The time your stock has to last: days between restocks, from the times (seconds) restocks were posted. Long gaps
 -- count for more, as a buyer is more likely to arrive during one (the mean weighted by length). Gaps over GAP_MAX
@@ -310,7 +313,9 @@ end
 
 -- A stock goal from an item's own sales. input:
 --   base      the default goal: where it starts, and what's used until there are MIN_SAMPLES results
---   days      { { age = days ago, s = sold, e = expired }, ... }, one per day, within WINDOW
+--   days      { { age = days ago, s = sold, e = expired, d = copper of deposits lost on the expired ones (nil when
+--             unknown) }, ... }, one per day, within WINDOW
+--   profit    copper one sale earns (nil = unknown: nothing is weighed by deposit and nothing gets paused)
 --   gap       days your stock has to last between restocks (default 1), gapKnown = true when measured
 --   margin    Planner.SmartMargin (nil = unknown: SMART.MARGIN)
 --   unsettled age of the newest day that still has auctions running: up to it nothing counts as sold out
@@ -322,11 +327,16 @@ end
 --   with a good margin, a bigger one when cautious);
 --   a day that sold with nothing expiring raises it a step (bigger with a good margin or when aggressive), as long as what sold in one
 --   restock gap that day says there's room: never past sold x gap x (level / LEVEL) x (0.5 + margin).
+-- A day's expiries are judged by the deposit they really lost (profit against d per expired unit), so auctions posted
+-- for a short time, which cost little, move the goal less than long ones.
+-- Pausing: when the deposits lost lately (results fade, PAUSE_HALF) are more than the sales earned, the goal is 0
+-- and info.paused is set, with info.retryIn days to go. RETRY days after the last result one is tried again
+-- (info.retry, goal 1); a try that earns more than it loses ends the pause, one that doesn't doubles the wait.
 -- So it only goes under the default through expiries, and only over it by selling out. "Sold out" is an estimate:
 -- the units listed on a past day aren't on record, only that all that came back that day had sold.
 -- Returns the goal and { samples, learning, level, gap, gapKnown, margin, raised and lowered (days that moved it),
--- recentSold and recentExpired (the last RECENT days), limited = "gold" when gold lowered it (full = the goal
--- without that), pair }.
+-- recentSold and recentExpired (the last RECENT days), lost and earned (copper, behind a pause), paused, retryIn,
+-- retry, limited = "gold" when gold lowered it (full = the goal without that), pair }.
 function Planner.SmartGoal(input)
 	local smart = Planner.SMART
 	local info = { pair = input.pair or nil, level = input.level or smart.LEVEL, gapKnown = input.gapKnown or nil,
@@ -355,14 +365,44 @@ function Planner.SmartGoal(input)
 		local pace = math.max(0.5, math.min(2, eager))
 		local cut = math.max(0.1, math.min(1, smart.CUT * (1.5 - margin) / eager))
 		local level = input.base
+		local profit = input.profit
+		local lost, earned, expired, lastAge = 0, 0, 0, nil
+		local pausedAt, wait
 		for _, day in ipairs(days) do
 			if day.e > 0 then
-				local excess = day.e / (day.s + day.e) - tolerated
+				-- By what these expiries really cost, when that's on record.
+				local dayMargin = profit and day.d and Planner.SmartMargin(profit, day.d / day.e)
+				local dayCut, dayTolerated = cut, tolerated
+				if dayMargin then
+					dayCut = math.max(0.1, math.min(1, smart.CUT * (1.5 - dayMargin) / eager))
+					dayTolerated = smart.TOLERATE * dayMargin
+				end
+				local excess = day.e / (day.s + day.e) - dayTolerated
 				if excess > 0 then
-					level = math.max(1, level * (1 - cut * excess))
+					level = math.max(1, level * (1 - dayCut * excess))
 					info.lowered = info.lowered + 1
 				end
-			elseif not (input.unsettled and day.age <= input.unsettled) then
+			end
+			if profit then
+				local dayLost, dayEarned = day.d or 0, day.s * profit
+				if pausedAt then
+					-- A result while paused is a try.
+					if day.s > 0 and dayEarned >= dayLost then
+						pausedAt, wait = nil, nil
+						lost, earned, expired = dayLost, dayEarned, day.e
+					elseif day.e > 0 then
+						pausedAt, wait = day.age, math.min(wait * 2, smart.RETRY_MAX)
+					end
+				else
+					local fade = lastAge and 0.5 ^ ((lastAge - day.age) / smart.PAUSE_HALF) or 1
+					lost, earned, expired = lost * fade + dayLost, earned * fade + dayEarned, expired + day.e
+					if day.e > 0 and expired >= smart.PAUSE_MIN and lost > earned then
+						pausedAt, wait = day.age, smart.RETRY
+					end
+				end
+				lastAge = day.age
+			end
+			if day.e == 0 and not (input.unsettled and day.age <= input.unsettled) then
 				local room = day.s * info.gap * eager * up
 				if room > level then
 					level = math.min(level + math.max(1, smart.STEP * level) * up * pace, room)
@@ -373,6 +413,16 @@ function Planner.SmartGoal(input)
 		-- To the nearest whole one, or the nearest pair.
 		local unit = input.pair and 2 or 1
 		goal = math.max(1, math.min(math.floor(level / unit + 0.5) * unit, smart.MAX))
+		if pausedAt then
+			info.lost, info.earned = lost, earned
+			if pausedAt >= wait then
+				info.retry = true
+				goal = 1
+			else
+				info.paused, info.retryIn = true, wait - pausedAt
+				return 0, info
+			end
+		end
 	end
 	if input.unitCost and input.unitCost > 0 and input.gold then
 		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / input.unitCost))

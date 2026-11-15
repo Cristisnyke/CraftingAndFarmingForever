@@ -704,6 +704,16 @@ function UI.SmartGoalLines(smart, goal)
 	local smartness = ns.Planner.SMART
 	if smart.learning then
 		lines[1] = ("Smart goal: too few sales yet, so the default (%d) is used."):format(smart.base)
+	elseif smart.paused or smart.retry then
+		lines[1] = ("Paused: lately its expired auctions lost %s in deposits and its sales earned %s."):format(
+			ns.Money(smart.lost), ns.Money(math.max(0, smart.earned)))
+		if smart.paused then
+			lines[2] = ("It's tried again with one in %s. Set a goal of your own to keep stocking it."):format(
+				ns.Plural(math.max(1, math.ceil(smart.retryIn)), "day", "days"))
+		else
+			lines[2] = "Time for another try: one is stocked. If it sells, the goal grows again; if it expires, "
+				.. "the pause comes back for twice as long."
+		end
 	else
 		local full = smart.full or goal or smart.base
 		if smart.raised > 0 and full > smart.base then
@@ -1839,7 +1849,7 @@ local function SetRow(row, data)
 		row.colAH:SetText(item.onAH and tostring(item.onAH) or Color(COLOR_MUTED, "?"))
 		row.colHave:SetText(tostring(item.owned))
 		if item.goal == 0 then
-			row.colCraft:SetText(Color(COLOR_MUTED, "skip"))
+			row.colCraft:SetText(smart and smart.paused and Color("ffffb040", "paused") or Color(COLOR_MUTED, "skip"))
 		elseif item.wanted then
 			-- Cut to what your gold covers: crafts of wanted.
 			row.colCraft:SetText(Color(item.crafts > 0 and "ffffb040" or COLOR_LOSS, tostring(item.crafts))

@@ -914,6 +914,33 @@ do
 	ns.db.sales.lots = { { name = name, qty = 1, at = at - 86400, dur = 3 * 86400 } }
 	ns.Restock.ForgetSmart()
 	check("not sold out while its auctions run", ns.Restock.Goal(4), 1)
+	-- Expiries that lose more in deposits than the sales earn: paused, with the row still listed.
+	do
+		local record = ns.db.sales.items[name:lower()]
+		local days, today = record.days, math.floor(time() / 86400)
+		record.days = { [today - 2] = { s = 0, e = 1, g = 0 }, [today - 1] = { s = 0, e = 1, g = 0 }, [today] = { s = 0, e = 1, g = 0 } }
+		ns.db.sales.lots, ns.db.deposits = {}, { [4] = 1e9 }
+		ns.Restock.ForgetSmart()
+		check("losing item is paused", ns.Restock.Goal(4), 0)
+		check("paused in the info", ns.Restock.SmartInfo(4).paused, true)
+		check("posting doesn't ask for a paused item", ns.Restock.FullGoal(4), 0)
+		local pausedLines = table.concat(ns.UI.SmartGoalLines(ns.Restock.SmartInfo(4), 0), " ")
+		check("paused lines say why", pausedLines:find("Paused: lately") ~= nil, true)
+		check("paused lines say when it's tried again", pausedLines:find("tried again with one in 3 days") ~= nil, true)
+		local pausedRow
+		for _, row in ipairs((ns.Restock.Rows())) do if row.itemID == 4 then pausedRow = row end end
+		check("paused item stays listed", pausedRow ~= nil and pausedRow.crafts, 0)
+		ns.Restock.SetGoal(4, 3)
+		check("own goal beats a pause", ns.Restock.Goal(4), 3)
+		ns.Restock.ResetGoal(4)
+		-- Three days later it's tried again.
+		record.days = { [today - 5] = { s = 0, e = 1, g = 0 }, [today - 4] = { s = 0, e = 1, g = 0 }, [today - 3] = { s = 0, e = 1, g = 0 } }
+		ns.Restock.ForgetSmart()
+		check("paused item is tried again", ns.Restock.Goal(4), 1)
+		check("try in the info", ns.Restock.SmartInfo(4).retry, true)
+		check("try lines", table.concat(ns.UI.SmartGoalLines(ns.Restock.SmartInfo(4), 1), " "):find("another try") ~= nil, true)
+		record.days = days
+	end
 	ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits = {}, {}, {}
 	ns.Restock.ForgetSmart()
 	ns.Restock.SetSmartLevel(204)
@@ -1220,7 +1247,8 @@ check("a second event doesn't record twice", #ns.db.sales.lots, 1)
 check("the post is noted as a restock", #ns.db.sales.trips, 1)
 
 -- Mail: sold and expired are counted, other mail and pending sales aren't. Quantities come from subject or attachment.
-ns.db.sales.lots[1].at = os.time() - 3600 * 6
+ns.db.sales.lots[1].at = os.time() - 3600 * 13
+ns.db.sales.lots[1].dep = 3
 inbox = {
 	{ subject = "Auction successful: Bolt of Linen (4)", money = 950, daysLeft = 30 },
 	{ subject = "Auction successful: Bolt of Linen (4)", money = 950, daysLeft = 30 },
@@ -1233,6 +1261,14 @@ local bolt = ns.Sales.Item("Bolt of Linen")
 check("sold units", bolt.sold, 8)
 check("identical mails both counted", bolt.gold, 1900)
 check("expired units", bolt.expired, 2)
+do
+	local lost, units = 0, 0
+	for _, day in pairs(bolt.days) do lost, units = lost + (day.d or 0), units + (day.dk or 0) end
+	check("deposit lost on the expired units kept", lost, 6)
+	check("for the units whose post is on record", units, 2)
+	local history = ns.Sales.History("Bolt of Linen", 30)
+	check("history carries the deposit lost", history[1].d, 6)
+end
 check("expired item ID from attachment", bolt.itemID, 2)
 
 -- The same mail seen again doesn't count again, and a slightly different expiry is still the same mail.
