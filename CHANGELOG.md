@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.13.1
 
 - Restock keeps gold back for posting: a restock now counts the auction house deposits for everything it makes and everything you already hold, so buying the materials never leaves you unable to list the items. With too little gold for both, it queues fewer crafts.
 
