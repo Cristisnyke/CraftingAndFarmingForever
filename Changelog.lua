@@ -4,6 +4,18 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.13.0", lines = {
+		"- Smart restock goals work in a new way. A goal now moves by what happened to your auctions: every day that everything you listed sold, it goes up a step (you probably ran out); when auctions expire, it comes down, and the last few days decide, so an item that stops selling drops within a day or two instead of a week",
+		"- Smart goals know how often you restock. A goal never rises past what sold between two of your restocks, measured from when you post (long breaks, like overnight, count most). Until a few restocks are on record it uses one auction's length",
+		"- Smart goals look at profit: an unsold item only costs its deposit, so items that earn a lot next to their deposit get bigger steps up and shrug off a few expiries, and thin-margin items are stocked carefully. The deposit is learned the first time you post an item",
+		"- Smart goals weigh an expiry by the deposit it really lost: a short, cheap auction that expires moves the goal less than a long, dear one. This starts with auctions you post from now on; for older ones the item's last deposit is used",
+		"- Smart goals pause an item that loses money: when the deposits lost on its expired auctions lately are more than its sales earned, its goal becomes 0 and the Restock tab shows \"paused\" with the numbers in the tooltip. After 3 days one is tried again. If it sells, the goal grows as usual; if it expires, the pause returns for twice as long (up to 2 weeks). A goal you set yourself overrides a pause",
+		"- The Stock level slider is now cautious to aggressive: 50% stocks up to what sold between two restocks, 100% up to twice that and in bigger steps, low values stay close to the default and drop faster. A smart goal's tooltip explains in plain words why it is what it is",
+		"- Restock no longer changes its mind halfway through a trip. Once you queue a restock it's committed: buying its materials (which lowers your gold) or prices moving after you bought can't swap it for different items. The Restock tab shows what's already queued (5q) and says \"Restock is on your queue\"",
+		"- Pressing restock again only adds what's still missing (more sold meanwhile), and takes crafts off only when your stock says they aren't needed any more (expired auctions came back, or you lowered a goal)",
+		"- Restock crafts are queued grouped by profession, so one visit to the anvil or tanning rack does them all",
+		"- Fixed: after spending gold on materials, the Restocking tab at the auction house could ask you to post fewer than you just crafted, because smart goals shrink with your gold. That limit now only decides what to craft",
+	} },
 	{ version = "1.12.0", lines = {
 		"- New Crates tab for Waylaid Crates: every labelled crate with its auction house price, its cheapest bundle of materials (crafted by your characters when that's cheaper), the Merchant's Favor it pays, and the gold each Merchant's Favor costs you. The cheapest one is marked \"best buy\". Sort by any column or show one level",
 		"- Writs and crates go on your queue: + on a writ or a crate adds it to the Queue tab, and the queue's shopping list gets the writ or crate and what it needs, less what you hold. An item or bundle that's cheaper to craft yourself is planned as a craft. A crate comes off the queue when you fill it, a writ when you hand it in",
