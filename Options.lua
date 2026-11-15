@@ -311,16 +311,15 @@ function Options.Build(parent, top)
 	-- How much gold a restock never touches.
 	Label(parent, "Gold kept", y)
 	local keep = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
-	keep:SetSize(58, 20)
+	keep:SetSize(96, 20)
 	keep:SetPoint("TOPLEFT", LEFT + 84, -y)
 	keep:SetAutoFocus(false)
-	keep:SetNumeric(true)
-	keep:SetMaxLetters(6)
+	keep:SetMaxLetters(20)
 	local keepText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	keepText:SetPoint("LEFT", keep, "RIGHT", 6, 0)
-	keepText:SetText("gold " .. MUTED .. "a restock never spends|r")
+	keepText:SetText(MUTED .. "a restock never spends, like 1g 50s 20c|r")
 	local function SaveKeep(self)
-		local value = tonumber(self:GetText())
+		local value = ns.Planner.ParseMoney(self:GetText())
 		if value and value ~= ns.Restock.KeepGold() then
 			ns.Restock.SetKeepGold(value)
 			ns.UI.Refresh("restock")
@@ -332,14 +331,18 @@ function Options.Build(parent, top)
 		self:Sync()
 	end)
 	keep:SetScript("OnEscapePressed", function(self)
-		self:SetText(tostring(ns.Restock.KeepGold()))
+		self:SetText(ns.Planner.MoneyText(ns.Restock.KeepGold()))
 		self:ClearFocus()
 	end)
-	keep:SetScript("OnEditFocusLost", SaveKeep)
+	keep:SetScript("OnEditFocusLost", function(self)
+		SaveKeep(self)
+		self:SetText(ns.Planner.MoneyText(ns.Restock.KeepGold()))
+	end)
 	keep.Sync = function(self)
-		if not self:HasFocus() then self:SetText(tostring(ns.Restock.KeepGold())) end
+		if not self:HasFocus() then self:SetText(ns.Planner.MoneyText(ns.Restock.KeepGold())) end
 	end
-	Tip(keep, "Gold kept", "Gold a restock never plans to spend, on top of the deposits for posting. Buying materials "
+	Tip(keep, "Gold kept", "Gold a restock never plans to spend, on top of the deposits for posting. Type it as gold, silver and "
+		.. "copper, like 1g 50s 20c; any part alone works (75s), and a bare number is gold. Buying materials "
 		.. "usually costs more than the last scan said, because only the cheapest listing's price is known. "
 		.. "This is what's left for that, and for posting again when auctions expire.")
 	controls.keepGold = keep

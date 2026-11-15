@@ -389,14 +389,14 @@ function Restock.SmartLevel()
 	return ns.db.restock.smartLevel or ns.Planner.SMART.LEVEL * 100
 end
 
--- Gold a restock leaves alone, in whole gold.
-Restock.KEEP_MAX = 999999
+-- Gold a restock leaves alone, in copper.
+Restock.KEEP_MAX = 9999999999
 function Restock.KeepGold()
-	return ns.db.restock.keep or ns.Planner.RESTOCK_KEEP
+	return ns.db.restock.keepCopper or ns.Planner.RESTOCK_KEEP
 end
 
-function Restock.SetKeepGold(gold)
-	ns.db.restock.keep = math.max(0, math.min(Restock.KEEP_MAX, math.floor(gold)))
+function Restock.SetKeepGold(copper)
+	ns.db.restock.keepCopper = math.max(0, math.min(Restock.KEEP_MAX, math.floor(copper)))
 	budgetCache = nil
 end
 
@@ -543,7 +543,7 @@ local function FitToGold(ctx, rows)
 	local all = {}
 	for key, value in pairs(ctx) do all[key] = value end
 	all.me = nil
-	local info = ns.Planner.RestockBudget(all, rows, manual, GetMoney(), Restock.KeepGold() * 10000)
+	local info = ns.Planner.RestockBudget(all, rows, manual, GetMoney(), Restock.KeepGold())
 	cache = { signature = signature, at = GetTime(), info = info, crafts = {} }
 	for _, row in ipairs(rows) do
 		if row.wanted then cache.crafts[row.recipeID] = row.crafts end

@@ -562,7 +562,35 @@ end
 -- material cost of what's kept, deposit = deposits kept back for what's kept and held, short = true when it was cut,
 -- keep }. keep (copper, optional) is gold the restock leaves alone on top of the deposits: buying usually costs more
 -- than the last scan said, since only the cheapest listing is known.
-Planner.RESTOCK_KEEP = 1 -- whole gold, until the player sets their own
+Planner.RESTOCK_KEEP = 10000 -- copper, until the player sets their own
+
+-- An amount typed as "1g 50s 20c" (any part alone, any order, spaces optional), in copper; a bare number is gold.
+-- nil when it isn't an amount.
+function Planner.ParseMoney(text)
+	text = (text or ""):lower():gsub("%s+", "")
+	if text == "" then return nil end
+	if text:match("^%d+$") then return tonumber(text) * 10000 end
+	local total, seen = 0, {}
+	local rest = text:gsub("(%d+)([gsc])", function(number, unit)
+		if seen[unit] then seen.bad = true end
+		seen[unit] = true
+		total = total + tonumber(number) * (unit == "g" and 10000 or unit == "s" and 100 or 1)
+		return ""
+	end)
+	if rest ~= "" or seen.bad then return nil end
+	return total
+end
+
+-- Copper as "1g 50s 20c", leaving out the parts that are zero ("0c" for nothing).
+function Planner.MoneyText(copper)
+	copper = math.max(0, math.floor((copper or 0) + 0.5))
+	local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+	local parts = {}
+	if g > 0 then parts[#parts + 1] = g .. "g" end
+	if s > 0 then parts[#parts + 1] = s .. "s" end
+	if c > 0 or #parts == 0 then parts[#parts + 1] = c .. "c" end
+	return table.concat(parts, " ")
+end
 function Planner.RestockBudget(ctx, rows, queue, gold, keep)
 	keep = math.max(0, math.min(gold, math.floor(keep or 0)))
 	local entries = {}

@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Gold kept** on the Options tab now takes gold, silver and copper, typed like `1g 50s 20c`, so you can keep back any amount down to 1 copper. An amount you already set is carried over.
+
 ## 1.14.0
 
 - A restock now leaves some of your gold alone: 1 gold unless you set your own amount in the new **Gold kept** box on the Options tab. Before, a restock could plan to spend all your gold but the deposits, and since buying materials often costs more than the last scan said, you could end up with a bag of crafted items and no gold to post them.
