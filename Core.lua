@@ -57,12 +57,13 @@ end
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
--- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (% of a day's sales, nil = 50), duration = 1 to 3 for posting,
+-- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (cautious to aggressive in %, nil = 50), duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
 -- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents
 -- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
 -- db.costs             = { [itemID] = { q, c } }, what the items you hold cost you (see Sales.lua)
+-- db.deposits          = { [itemID] = copper per unit }, the deposit its last post cost (see Sales.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
 --                          adEnabled, nextStep, scanPopup, chatTips (off only when false), adText, quoteText (own wording), ... }
@@ -95,6 +96,7 @@ local function Normalize(db)
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
 	db.costs = db.costs or {}
+	db.deposits = db.deposits or {}
 	db.wanted = db.wanted or {}
 	db.writs, db.crates = nil, nil -- picks from before writs and crates went on the queue
 	-- 1.7.0 valued the materials held when costs began at market prices, which made sales of things crafted from

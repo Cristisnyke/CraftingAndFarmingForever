@@ -692,20 +692,55 @@ local function ChanceText(name)
 end
 
 -- The sales history block of a tooltip: chance to sell, then sold and expired per period.
--- Why a smart restock goal is what it is, in plain words.
-function UI.SmartGoalLines(smart)
+-- "14 hours", "2 days", for the time between restocks.
+local function GapText(days)
+	if days < 1.5 then return ns.Plural(math.max(1, math.floor(days * 24 + 0.5)), "hour", "hours") end
+	return (("%.1f days"):format(days):gsub("%.0 ", " "))
+end
+
+-- Why a smart restock goal is what it is, in plain words. goal is what the row shows.
+function UI.SmartGoalLines(smart, goal)
 	local lines = {}
+	local smartness = ns.Planner.SMART
 	if smart.learning then
 		lines[1] = ("Smart goal: too few sales yet, so the default (%d) is used."):format(smart.base)
 	else
-		local perDay = smart.perDay >= 10 and ("%d"):format(smart.perDay + 0.5) or ("%.1f"):format(smart.perDay)
-		lines[1] = ("Smart goal: you sold about %s a day lately, and %d%% of what you listed sold."):format(
-			perDay, smart.soldShare * 100 + 0.5)
-		lines[2] = ("Stock level %d%% of that (Options tab). Default goal: %d."):format(smart.level * 100 + 0.5, smart.base)
+		local full = smart.full or goal or smart.base
+		if smart.raised > 0 and full > smart.base then
+			lines[1] = ("Smart goal: raised from the default (%d). On %s everything you listed sold, so more might have.")
+				:format(smart.base, ns.Plural(smart.raised, "day", "days"))
+		elseif full < smart.base then
+			lines[1] = ("Smart goal: lowered from the default (%d), because too many came back unsold."):format(smart.base)
+		else
+			lines[1] = ("Smart goal: the default (%d) fits what sold."):format(smart.base)
+		end
+		local recent = smart.recentSold + smart.recentExpired
+		if smart.recentExpired > 0 then
+			lines[#lines + 1] = ("In the last %d days %d of %d came back unsold%s."):format(smartness.RECENT,
+				smart.recentExpired, recent, smart.lowered > 0 and ", which lowers it" or ": few enough to leave it")
+		end
+		if smart.gapKnown then
+			lines[#lines + 1] = ("It never rises past what sold between two restocks, and yours are about %s apart "
+				.. "(long breaks count most)."):format(GapText(smart.gap))
+		else
+			lines[#lines + 1] = ("It never rises past what sold in one auction's length (%s), until a few of your "
+				.. "restocks are on record."):format(GapText(smart.gap))
+		end
+		if smart.margin == nil then
+			lines[#lines + 1] = "The deposit isn't known until you post one, so a usual profit is assumed."
+		elseif smart.margin >= 0.85 then
+			lines[#lines + 1] = "An unsold one only costs a small deposit next to its profit: bigger steps up, smaller steps down."
+		elseif smart.margin <= 0.5 then
+			lines[#lines + 1] = "The deposit is large next to its profit: smaller steps up, bigger steps down."
+		end
+		if math.abs(smart.level - smartness.LEVEL) > 0.001 then
+			lines[#lines + 1] = ("Stock level %d%% (Options tab): %s."):format(smart.level * 100 + 0.5,
+				smart.level < smartness.LEVEL and "more cautious" or "more aggressive")
+		end
 	end
 	if smart.limited == "gold" then
 		lines[#lines + 1] = ("Kept low: more would cost over %d%% of your gold to make."):format(
-			ns.Planner.SMART.GOLD_SHARE * 100)
+			smartness.GOLD_SHARE * 100)
 	end
 	if smart.pair then lines[#lines + 1] = "Daggers are stocked in pairs: buyers usually want two." end
 	return lines
@@ -1036,7 +1071,7 @@ local function RowOnEnter(row)
 				or "Left out for now: your gold goes to items that earn more for their materials.", 1, 0.6, 0.2, true)
 		end
 		if smart then
-			for _, line in ipairs(UI.SmartGoalLines(smart)) do GameTooltip:AddLine(line, 0.45, 0.75, 1, true) end
+			for _, line in ipairs(UI.SmartGoalLines(smart, item.goal)) do GameTooltip:AddLine(line, 0.45, 0.75, 1, true) end
 		end
 		AddSalesLines(ns.Items.Name(item.itemID))
 		GameTooltip:AddLine("+ and - change this item's goal (Shift for 10). A goal of 0 skips the item.", 0.6, 0.6, 0.6, true)

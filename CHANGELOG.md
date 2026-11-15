@@ -4,6 +4,10 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- Smart restock goals work in a new way. A goal now moves by what happened to your auctions: every day that everything you listed sold, it goes up a step (you probably ran out); when auctions expire, it comes down, and the last few days decide, so an item that stops selling drops within a day or two instead of a week
+- Smart goals know how often you restock. A goal never rises past what sold between two of your restocks, measured from when you post (long breaks, like overnight, count most). Until a few restocks are on record it uses one auction's length
+- Smart goals look at profit: an unsold item only costs its deposit, so items that earn a lot next to their deposit get bigger steps up and shrug off a few expiries, and thin-margin items are stocked carefully. The deposit is learned the first time you post an item
+- The Stock level slider is now cautious to aggressive: 50% stocks up to what sold between two restocks, 100% up to twice that and in bigger steps, low values stay close to the default and drop faster. A smart goal's tooltip explains in plain words why it is what it is
 - Restock no longer changes its mind halfway through a trip. Once you queue a restock it's committed: buying its materials (which lowers your gold) or prices moving after you bought can't swap it for different items. The Restock tab shows what's already queued (5q) and says "Restock is on your queue"
 - Pressing restock again only adds what's still missing (more sold meanwhile), and takes crafts off only when your stock says they aren't needed any more (expired auctions came back, or you lowered a goal)
 - Restock crafts are queued grouped by profession, so one visit to the anvil or tanning rack does them all

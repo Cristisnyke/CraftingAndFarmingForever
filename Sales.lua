@@ -18,6 +18,8 @@
 --                                    amount = copper after the AH cut (nil if unknown), rough = true when estimated,
 --                                    told = true once its arrival has been announced }
 -- db.sales.seen[char][i]         = { key, expires }
+-- db.sales.trips[i]              = when a restock was posted (posts close together are one), the latest SMART.TRIPS
+-- db.deposits[itemID]            = copper per unit the last post of it cost in deposit
 
 local _, ns = ...
 
@@ -199,16 +201,80 @@ function Sales.History(name, window)
 	local item = name and ns.db.sales.items[name:lower()]
 	if not item then return nil end
 	local today = DayNumber(time())
-	local days, oldest = {}, nil
+	local days, byAge, oldest = {}, {}, nil
 	for dayNumber, day in pairs(item.days) do
 		local age = today - math.ceil(dayNumber) -- a day moved by a profit reset sits half a key earlier
 		if age >= 0 and (day.s > 0 or day.e > 0) then
 			if not oldest or age > oldest then oldest = age end
-			if age < window then days[#days + 1] = { age = age, s = day.s, e = day.e } end
+			if age < window then
+				local entry = byAge[age]
+				if not entry then
+					entry = { age = age, s = 0, e = 0 }
+					byAge[age] = entry
+					days[#days + 1] = entry
+				end
+				entry.s, entry.e = entry.s + day.s, entry.e + day.e
+			end
 		end
 	end
 	if not oldest then return nil end
 	return days, oldest + 1
+end
+
+-- How many days ago the oldest auction of this item that's still running was posted, nil with none running. Up to
+-- that day nothing can be called sold out yet.
+function Sales.RunningAge(name)
+	if not name then return nil end
+	local key, now = name:lower(), time()
+	local oldest
+	for _, lot in ipairs(ns.db.sales.lots) do
+		if lot.qty > 0 and lot.name and lot.name:lower() == key and lot.at + lot.dur > now then
+			if not oldest or lot.at < oldest then oldest = lot.at end
+		end
+	end
+	return oldest and DayNumber(now) - DayNumber(oldest) or nil
+end
+
+---------------------------------------------------------------------------
+-- Restock times and deposits
+---------------------------------------------------------------------------
+
+-- When restocks were posted. Posts within SMART.SESSION of the one before belong to the same restock. The first
+-- time, it's filled from the posts still on record from the last three days: older ones are too thin to go by,
+-- since a post leaves the record once its result is read from the mail.
+local SEED_DAYS = 3
+
+local function Trips()
+	local sales = ns.db.sales
+	if not sales.trips then
+		local times, now = {}, time()
+		for _, lot in ipairs(sales.lots) do
+			if lot.at and lot.at >= now - SEED_DAYS * DAY then times[#times + 1] = lot.at end
+		end
+		table.sort(times)
+		sales.trips = {}
+		for _, at in ipairs(times) do Sales.NoteTrip(at) end
+	end
+	return sales.trips
+end
+
+function Sales.NoteTrip(at)
+	local trips = ns.db.sales.trips or Trips()
+	local smart = ns.Planner.SMART
+	local last = trips[#trips]
+	if last and at - last < smart.SESSION then return end
+	trips[#trips + 1] = at
+	while #trips > smart.TRIPS do table.remove(trips, 1) end
+end
+
+-- Days your stock has to last between two restocks (see Planner.RestockGap), nil until enough are on record.
+function Sales.RestockGap()
+	return ns.Planner.RestockGap(Trips())
+end
+
+-- What listing one unit cost in deposit the last time it was posted, nil if never seen. Lost when it doesn't sell.
+function Sales.Deposit(itemID)
+	return ns.db.deposits[itemID]
 end
 
 function Sales.Item(name)
@@ -481,6 +547,14 @@ local function OnPost(itemLocation, duration, quantity, price, commodity)
 		price = type(price) == "number" and price > 0 and price or nil,
 		commodity = commodity or nil,
 	}
+	-- The deposit, for smart restock goals: what a unit that doesn't sell costs.
+	local ok, deposit
+	if commodity then
+		ok, deposit = pcall(C_AuctionHouse.CalculateCommodityDeposit, post.itemID, duration or 2, post.qty)
+	else
+		ok, deposit = pcall(C_AuctionHouse.CalculateItemDeposit, itemLocation, duration or 2, post.qty)
+	end
+	if ok and type(deposit) == "number" and deposit >= 0 then post.deposit = deposit / post.qty end
 	if post.itemID then ns.Items.Name(post.itemID) end
 	table.insert(pendingPosts, post)
 end
@@ -498,6 +572,9 @@ ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
 	if not post or not post.itemID then return end
 	post.name = ns.Items.Name(post.itemID)
 	post.char = ns.CharKey()
+	if post.deposit then ns.db.deposits[post.itemID], post.deposit = post.deposit, nil end
+	Sales.NoteTrip(post.at)
+	if ns.Restock then ns.Restock.ForgetSmart() end
 	table.insert(ns.db.sales.lots, post)
 	if ns.UI then ns.UI.Refresh("sales") end
 	if ns.Posting then ns.Posting.OnPosted(post) end

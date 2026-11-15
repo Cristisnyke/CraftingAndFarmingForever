@@ -249,8 +249,8 @@ function Options.Build(parent, top)
 	Heading(parent, "Restock", y)
 	y = y + 22
 	AddCheck("smartRestock", "Smart restock goals",
-		"Goals follow your sales: more of what sells well, fewer of what expires, daggers in pairs, and never more "
-			.. "than a quarter of your gold on one item. They keep adjusting as you sell. Without the gold for a full "
+		"Goals follow your auctions: a step up each day an item sells out, down when it expires, daggers in pairs, "
+			.. "and never more than a quarter of your gold on one item. They keep adjusting as you sell. Without the gold for a full "
 			.. "restock you get a partial one, the most profitable part. A goal you set yourself always stays. Off: "
 			.. "every item uses the default goals.",
 		nil, function(on)
@@ -283,7 +283,8 @@ function Options.Build(parent, top)
 	local levelText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	levelText:SetPoint("LEFT", level, "RIGHT", 10, 0)
 	local function ShowLevel(percent)
-		levelText:SetText(("%d%%|r %sof what sells in a day|r"):format(percent, MUTED))
+		levelText:SetText(("%d%%|r %s%s|r"):format(percent, MUTED,
+			percent < 50 and "cautious" or percent > 50 and "aggressive" or "balanced"))
 	end
 	level:SetScript("OnValueChanged", function(self, value)
 		if self.syncing then return end
@@ -301,9 +302,9 @@ function Options.Build(parent, top)
 		self.syncing = false
 		ShowLevel(ns.Restock.SmartLevel())
 	end
-	Tip(level, "Stock level", "How many of an item smart goals keep in stock, as a share of what you sell in a day. "
-		.. "50%: sell 12 a day, stock 6. Lower is safer for your gold; higher means fewer trips. Items that expire "
-		.. "get fewer either way.")
+	Tip(level, "Stock level", "How eagerly smart goals stock up. A goal rises a step each day everything you listed "
+		.. "sold, and drops when auctions expire. At 50% it can rise to what sold between two of your restocks; "
+		.. "at 100% to twice that, in bigger steps. Lower is safer for your gold and drops faster on expiries.")
 	controls.smartLevel = level
 	y = y + 22 + 10
 

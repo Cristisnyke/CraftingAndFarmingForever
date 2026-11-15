@@ -316,50 +316,108 @@ check("restock over goal", Planner.RestockCrafts(1, 3, 0, 0, 1), 0)
 check("restock missing", Planner.RestockCrafts(10, 2, 3, 1, 1), 4)
 check("restock batches round up", Planner.RestockCrafts(10, 0, 0, 0, 3), 4)
 
--- Smart restock goals.
+-- Smart restock goals: recomputed from the history, oldest day first, starting at the default.
 do
 	local function Days(count, sold, expired)
 		local days = {}
 		for age = 0, count - 1 do days[#days + 1] = { age = age, s = sold, e = expired } end
 		return days
 	end
-	local goal, info = Planner.SmartGoal({ base = 10, days = {}, coverDays = 1 })
+	local function Goal(input)
+		input.margin = input.margin or 0.5 -- neutral: steps of one, a fifth expiring tolerated
+		return Planner.SmartGoal(input)
+	end
+	local goal, info = Goal({ base = 10, days = {} })
 	check("smart: no sales keeps the default", goal, 10)
 	check("smart: no sales is learning", info.learning, true)
-	check("smart: two results aren't enough", (Planner.SmartGoal({ base = 1, days = Days(1, 2, 0), span = 1 })), 1)
-	check("smart: dagger default is a pair", (Planner.SmartGoal({ base = 1, days = {}, pair = true })), 2)
+	check("smart: two results aren't enough", (Goal({ base = 1, days = Days(1, 2, 0), gap = 3 })), 1)
+	check("smart: dagger default is a pair", (Goal({ base = 1, days = {}, pair = true })), 2)
 
-	-- Two a day, all sold, two-day auctions, stocking all of it: 2 x 2.
-	goal, info = Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14, coverDays = 2, level = 1 })
-	check("smart: good seller gets more", goal, 4)
-	check("smart: rate per day", math.floor(info.perDay * 100 + 0.5), 200)
-	check("smart: all sold", info.soldShare, 1)
-	check("smart: level in the info", info.level, 1)
-	check("smart: default level is half", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14, coverDays = 2 })), 2)
-	check("smart: higher level, more", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14, coverDays = 2, level = 2 })), 8)
-	check("smart: half expiring gets half", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 2), span = 14, coverDays = 2, level = 1 })), 2)
+	-- Sold out with no expiries: one step a day.
+	goal, info = Goal({ base = 1, days = Days(1, 10, 0) })
+	check("smart: a sold-out day raises the goal a step", goal, 2)
+	check("smart: says it was raised", info.raised, 1)
+	check("smart: three sold-out days, three steps", (Goal({ base = 1, days = Days(3, 10, 0) })), 4)
+	check("smart: steps grow with the goal", (Goal({ base = 10, days = Days(1, 100, 0) })), 13)
+	-- Bounded: never past what sold between two restocks, however many days sold out.
+	check("smart: stops at what sold in a restock gap", (Goal({ base = 1, days = Days(20, 4, 0) })), 4)
+	check("smart: a short gap between restocks needs less", (Goal({ base = 1, days = Days(20, 4, 0), gap = 0.5 })), 2)
+	check("smart: a long gap needs more", (Goal({ base = 1, days = Days(20, 4, 0), gap = 2 })), 8)
+	check("smart: the gap is limited", select(2, Goal({ base = 1, days = Days(3, 1, 0), gap = 40 })).gap, Planner.SMART.GAP_MAX)
+	check("smart: few sold, all sold keeps the default", (Goal({ base = 10, days = Days(5, 3, 0) })), 10)
+	check("smart: never over the most", (Goal({ base = 190, days = Days(30, 5000, 0) })), Planner.SMART.MAX)
+	-- Auctions of today's are still up: today can't be called sold out yet.
+	check("smart: not sold out while auctions run", (Goal({ base = 1, days = Days(1, 10, 0), unsettled = 0 })), 1)
+	check("smart: earlier days still count then", (Goal({ base = 1, days = Days(2, 10, 0), unsettled = 0 })), 2)
 
-	-- Mostly expiring: under the default. Selling everything you listed, however little: never under it.
-	check("smart: expiries lower the goal", (Planner.SmartGoal({ base = 10, days = { { age = 0, s = 1, e = 9 } }, span = 1 })), 1)
-	check("smart: few listed, all sold keeps the default", (Planner.SmartGoal({ base = 10, days = { { age = 0, s = 3, e = 0 } }, span = 1 })), 10)
+	-- Expiries lower it, by the share that expired past what's tolerated.
+	goal, info = Goal({ base = 10, days = { { age = 0, s = 1, e = 9 } } })
+	check("smart: expiries lower the goal", goal, 3)
+	check("smart: says it was lowered", info.lowered, 1)
+	check("smart: a few expiring is fine", (Goal({ base = 10, days = { { age = 0, s = 9, e = 1 } } })), 10)
+	check("smart: never under one", (Goal({ base = 1, days = Days(5, 0, 4) })), 1)
+	-- The latest days decide: a seller that stopped selling drops at once, one that recovered climbs back.
+	local stopped = { { age = 5, s = 10, e = 0 }, { age = 4, s = 10, e = 0 }, { age = 3, s = 10, e = 0 },
+		{ age = 1, s = 1, e = 4 }, { age = 0, s = 0, e = 4 } }
+	goal, info = Goal({ base = 1, days = stopped })
+	check("smart: two bad days undo three good ones", goal, 1)
+	check("smart: recent results in the info", info.recentExpired, 8)
+	check("smart: old expiries, sold out since", (Goal({ base = 5, days = { { age = 6, s = 0, e = 5 },
+		{ age = 2, s = 20, e = 0 }, { age = 1, s = 20, e = 0 }, { age = 0, s = 20, e = 0 } } })), 4)
+	check("smart: results past the window don't count", (Goal({ base = 1, days = { { age = 40, s = 50, e = 0 } } })), 1)
 
-	-- Old sales fade.
-	local recent = Planner.SmartGoal({ base = 1, days = { { age = 0, s = 20, e = 0 } }, span = 29, level = 1 })
-	local old = Planner.SmartGoal({ base = 1, days = { { age = 28, s = 20, e = 0 } }, span = 29, level = 1 })
-	check("smart: recent sales count more", recent > old, true)
-	check("smart: results past the window don't count", (Planner.SmartGoal({ base = 1, days = { { age = 40, s = 50, e = 0 } }, span = 41 })), 1)
+	-- Profit against the deposit: a good margin steps up faster and shrugs off more expiries.
+	check("smart: margin from profit and deposit", Planner.SmartMargin(900, 100), 0.9)
+	check("smart: no profit, no margin", Planner.SmartMargin(-5, 100), 0)
+	check("smart: deposit unknown", Planner.SmartMargin(900, nil), nil)
+	local thin = Goal({ base = 1, days = Days(4, 20, 0), margin = 0.1 })
+	local fat = Goal({ base = 1, days = Days(4, 20, 0), margin = 0.95 })
+	check("smart: thin margin, small steps", thin, 3)
+	check("smart: good margin, bigger steps", fat, 7)
+	check("smart: good margin tolerates expiries", (Goal({ base = 10, days = { { age = 0, s = 7, e = 3 } }, margin = 0.95 })), 10)
+	check("smart: thin margin doesn't", (Goal({ base = 10, days = { { age = 0, s = 7, e = 3 } }, margin = 0.1 })), 7)
+	check("smart: unknown margin is a usual one", (Planner.SmartGoal({ base = 1, days = Days(4, 20, 0) })),
+		(Planner.SmartGoal({ base = 1, days = Days(4, 20, 0), margin = Planner.SMART.MARGIN })))
 
-	-- Gold: a quarter of 1200 buys 3 at 100 each.
-	goal, info = Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14, coverDays = 2, level = 1, unitCost = 100, gold = 1200 })
+	-- The slider: cautious to aggressive.
+	local careful = Goal({ base = 1, days = Days(10, 10, 0), level = 0.1 })
+	local normal = Goal({ base = 1, days = Days(10, 10, 0) })
+	local eager = Goal({ base = 1, days = Days(10, 10, 0), level = 1 })
+	check("smart: default level stocks what sold in a gap", normal, 10)
+	check("smart: cautious stocks less", careful, 2)
+	check("smart: aggressive stocks more", eager, 20)
+	check("smart: level in the info", select(2, Goal({ base = 1, days = Days(3, 1, 0), level = 1 })).level, 1)
+	check("smart: cautious drops harder", Goal({ base = 10, days = { { age = 0, s = 2, e = 8 } }, margin = 0.95, level = 0.25 })
+		< Goal({ base = 10, days = { { age = 0, s = 2, e = 8 } }, margin = 0.95 }), true)
+
+	-- It can't run away or swing: the same history always gives the same goal, and one more day moves it one step.
+	local before = Goal({ base = 1, days = Days(6, 50, 0) })
+	local after = Goal({ base = 1, days = Days(7, 50, 0) })
+	check("smart: one more sold-out day is one more step", after - before <= math.max(1, 0.25 * before) + 1, true)
+	check("smart: the same history, the same goal", Goal({ base = 1, days = Days(6, 50, 0) }), before)
+
+	-- Gold: a quarter of 1200 buys 3 at 100 each. Nothing else in the goal looks at gold.
+	goal, info = Goal({ base = 1, days = Days(20, 4, 0), unitCost = 100, gold = 1200 })
 	check("smart: gold limits the goal", goal, 3)
 	check("smart: says gold limited it", info.limited, "gold")
-	check("smart: gold-limited pair rounds down", (Planner.SmartGoal({ base = 1, days = Days(14, 2, 0), span = 14,
-		coverDays = 2, level = 1, unitCost = 100, gold = 1200, pair = true })), 2)
 	check("smart: the goal without the gold limit is kept", info.full, 4)
-	check("smart: always at least one", (Planner.SmartGoal({ base = 1, days = {}, unitCost = 100, gold = 0 })), 1)
-	check("smart: odd goal", (Planner.SmartGoal({ base = 1, days = Days(14, 1, 0), span = 14, coverDays = 2, level = 1.5 })), 3)
-	check("smart: pairs round up to even", (Planner.SmartGoal({ base = 1, days = Days(14, 1, 0), span = 14, coverDays = 2,
-		level = 1.5, pair = true })), 4)
+	check("smart: gold-limited pair rounds down", (Goal({ base = 1, days = Days(20, 4, 0), unitCost = 100, gold = 1200,
+		pair = true })), 2)
+	check("smart: plenty of gold changes nothing", (Goal({ base = 1, days = Days(20, 4, 0), unitCost = 100, gold = 1e9 })), 4)
+	check("smart: always at least one", (Goal({ base = 1, days = {}, unitCost = 100, gold = 0 })), 1)
+	check("smart: odd goal", (Goal({ base = 1, days = Days(20, 3, 0) })), 3)
+	check("smart: pairs go to the nearest pair", (Goal({ base = 1, days = Days(20, 3, 0), pair = true })), 4)
+	check("smart: a pair is the least for daggers", (Goal({ base = 1, days = Days(5, 0, 4), pair = true })), 2)
+
+	-- The time between restocks: long gaps count most, time away doesn't count, too few gaps give nothing.
+	local hour = 3600
+	check("gap: too few restocks", Planner.RestockGap({ 0, 5 * hour, 10 * hour }), nil)
+	check("gap: even restocks", Planner.RestockGap({ 0, 12 * hour, 24 * hour, 36 * hour }), 0.5)
+	local uneven = Planner.RestockGap({ 0, 3 * hour, 6 * hour, 24 * hour })
+	check("gap: long gaps count most", uneven > 8 / 24 and uneven < 18 / 24, true)
+	check("gap: time away is left out", Planner.RestockGap({ 0, 12 * hour, 24 * hour, 36 * hour, 36 * hour + 10 * 86400 }), 0.5)
+	check("gap: never under the least", Planner.RestockGap({ 0, hour, 2 * hour, 3 * hour }), Planner.SMART.GAP_MIN)
+	check("gap: order doesn't matter", Planner.RestockGap({ 36 * hour, 0, 24 * hour, 12 * hour }), 0.5)
 end
 
 -- Restock rows: only sellable, profitable items above the minimum, best recipe per item, needed items first.

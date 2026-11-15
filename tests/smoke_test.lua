@@ -875,10 +875,47 @@ do
 	ns.db.sales.items[name:lower()] = { name = name, itemID = 4, sold = 12, expired = 0, gold = 0, exposure = 1,
 		days = { [math.floor(time() / 86400) - 1] = { s = 12, e = 0, g = 0 } } }
 	ns.Restock.ForgetSmart()
+	local savedTrips, savedLots, savedDeposits = ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits
+	ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits = {}, {}, {}
 	local smartGoal = ns.Restock.Goal(4)
 	check("smart goal above the default", smartGoal > 1, true)
-	check("smart info given", ns.Restock.SmartInfo(4).perDay > 0, true)
-	check("smart lines explain it", ns.UI.SmartGoalLines(ns.Restock.SmartInfo(4))[1]:find("a day lately") ~= nil, true)
+	local smartInfo = ns.Restock.SmartInfo(4)
+	check("smart info: the sold-out day raised it", smartInfo.raised, 1)
+	check("smart info: no restocks on record, auction length used", smartInfo.gapKnown, nil)
+	check("smart info: deposit not seen", smartInfo.margin, nil)
+	local smartLines = table.concat(ns.UI.SmartGoalLines(smartInfo, smartGoal), " ")
+	check("smart lines say it was raised", smartLines:find("raised from the default") ~= nil, true)
+	check("smart lines name the auction length", smartLines:find("one auction's length") ~= nil, true)
+	check("smart lines say the deposit is unknown", smartLines:find("deposit isn't known") ~= nil, true)
+	-- Gold only matters as the cap: spending most of it on materials leaves the goal alone.
+	playerMoney = 50000000
+	ns.Restock.ForgetSmart()
+	check("smart goal holds while gold is spent", ns.Restock.Goal(4), smartGoal)
+	playerMoney = 100000000
+	-- Restocks two days apart: the stock has to last longer, so the same sales allow more.
+	local at = time()
+	ns.db.sales.trips = { at - 6 * 86400, at - 4 * 86400, at - 2 * 86400, at }
+	ns.Restock.ForgetSmart()
+	check("measured restock gap used", ns.Restock.SmartInfo(4).gap, 2)
+	check("measured restock gap known", ns.Restock.SmartInfo(4).gapKnown, true)
+	check("smart lines name the gap", table.concat(ns.UI.SmartGoalLines(ns.Restock.SmartInfo(4), 2), " "):find("about 2 days apart") ~= nil, true)
+	-- A deposit on record gives the margin.
+	ns.db.deposits[4] = 1
+	ns.Restock.ForgetSmart()
+	check("margin from the deposit", ns.Restock.SmartInfo(4).margin ~= nil, true)
+	ns.db.deposits = {}
+	-- Restock times start from the posts still on record.
+	ns.db.sales.trips = nil
+	ns.db.sales.lots = { { name = "x", qty = 1, at = at - 86400, dur = 3600 }, { name = "x", qty = 1, at = at - 86400 + 60, dur = 3600 },
+		{ name = "x", qty = 1, at = at - 43200, dur = 3600 }, { name = "x", qty = 1, at = at - 10 * 86400, dur = 3600 } }
+	check("too few restocks on record: no gap", ns.Sales.RestockGap(), nil)
+	check("restock times seeded from recent posts", #ns.db.sales.trips, 2)
+	-- An auction posted yesterday that's still up: yesterday can't be called sold out.
+	ns.db.sales.lots = { { name = name, qty = 1, at = at - 86400, dur = 3 * 86400 } }
+	ns.Restock.ForgetSmart()
+	check("not sold out while its auctions run", ns.Restock.Goal(4), 1)
+	ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits = {}, {}, {}
+	ns.Restock.ForgetSmart()
 	ns.Restock.SetSmartLevel(204)
 	check("stock level clamped to the slider's range", ns.Restock.SmartLevel(), 200)
 	check("higher stock level, higher goal", ns.Restock.Goal(4) > smartGoal, true)
@@ -900,6 +937,7 @@ do
 	check("smart off: no info", ns.Restock.SmartInfo(4), nil)
 	ns.SetOption("smartRestock", true)
 	ns.db.sales.items[name:lower()], playerMoney = saved, money
+	ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits = savedTrips, savedLots, savedDeposits
 	ns.Restock.ForgetSmart()
 end
 
@@ -1179,6 +1217,7 @@ check("post quantity", ns.db.sales.lots[1].qty, 10)
 check("post duration", ns.db.sales.lots[1].dur, 86400)
 Fire("AUCTION_HOUSE_AUCTION_CREATED", 2)
 check("a second event doesn't record twice", #ns.db.sales.lots, 1)
+check("the post is noted as a restock", #ns.db.sales.trips, 1)
 
 -- Mail: sold and expired are counted, other mail and pending sales aren't. Quantities come from subject or attachment.
 ns.db.sales.lots[1].at = os.time() - 3600 * 6
@@ -1956,6 +1995,8 @@ do
 	ns.db.sales.lots = {}
 	C_Item.GetItemID = function(location) return location.itemID end
 	local realTime = time
+	ns.db.sales.trips = { realTime() - 7200 }
+	local trips = 1
 	C_AuctionHouse.PostCommodity({ itemID = 1 }, 2, 3)
 	time = function() return realTime() + 120 end
 	C_AuctionHouse.PostCommodity({ itemID = 3 }, 2, 5)
@@ -1965,6 +2006,7 @@ do
 	check("its quantity", ns.db.sales.lots[1].qty, 5)
 	Fire("AUCTION_HOUSE_AUCTION_CREATED")
 	check("second post matched", ns.db.sales.lots[2].itemID, 1)
+	check("posts minutes apart are one restock", #ns.db.sales.trips, trips + 1)
 	time = realTime
 	ns.db.sales.lots = {}
 end
@@ -2135,6 +2177,7 @@ do
 
 	Fire("AUCTION_HOUSE_AUCTION_CREATED")
 	check("post recorded for the odds", ns.db.sales.lots[#ns.db.sales.lots].itemID, shirt)
+	check("deposit per unit kept for smart goals", ns.Sales.Deposit(shirt), 9 / 2)
 	bags[1].stackCount = 1
 	RunTimers()
 	ns.UI.Refresh("posting")

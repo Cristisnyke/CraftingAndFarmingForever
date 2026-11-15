@@ -375,6 +375,7 @@ local function DefaultGoal(itemID)
 end
 
 -- Smart goals: the default, moved by the item's own sales (Planner.SmartGoal). Kept for a moment, as every row asks.
+-- Nothing in one depends on your gold but the cap at the end, so it holds still through a shopping trip.
 local SMART_SECONDS = 5
 local smartGoals, smartAt = {}, 0
 local budgetCache -- see FitToGold
@@ -383,7 +384,7 @@ function Restock.SmartOn()
 	return ns.Option("smartRestock")
 end
 
--- How much of a day's sales smart goals keep in stock, in percent.
+-- How eagerly smart goals stock up, cautious to aggressive, in percent.
 function Restock.SmartLevel()
 	return ns.db.restock.smartLevel or ns.Planner.SMART.LEVEL * 100
 end
@@ -407,11 +408,18 @@ local function SmartGoal(itemID)
 	if now - smartAt > SMART_SECONDS then smartGoals, smartAt = {}, now end
 	local cached = smartGoals[itemID]
 	if cached and cached.base == base then return cached.goal, cached.info end
-	local days, span = ns.Sales.History(ns.Items.Name(itemID), ns.Planner.SMART.WINDOW)
+	local name = ns.Items.Name(itemID)
+	local days = ns.Sales.History(name, ns.Planner.SMART.WINDOW)
+	-- The time a stock has to last: between your restocks, or one auction's length until those are known.
+	local gap = ns.Sales.RestockGap()
+	local unitCost, sale = ns.Sales.CraftUnit(itemID), ns.Prices.AH(itemID)
+	local profit = unitCost and sale and sale > 0 and sale * (1 - ns.AH_CUT) - unitCost or nil
 	local goal, info = ns.Planner.SmartGoal({
-		base = base, days = days, span = span,
-		coverDays = math.max(1, math.min(2, ns.Sales.DurationHours(ns.db.restock.duration) / 24)),
-		unitCost = ns.Sales.CraftUnit(itemID), gold = GetMoney(),
+		base = base, days = days,
+		gap = gap or ns.Sales.DurationHours(ns.db.restock.duration) / 24, gapKnown = gap ~= nil,
+		margin = ns.Planner.SmartMargin(profit, ns.Sales.Deposit(itemID)),
+		unsettled = ns.Sales.RunningAge(name),
+		unitCost = unitCost, gold = GetMoney(),
 		pair = ns.Items.SoldInPairs(itemID),
 		level = Restock.SmartLevel() / 100,
 	})

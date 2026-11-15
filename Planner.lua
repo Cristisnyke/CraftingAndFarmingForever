@@ -266,49 +266,113 @@ function Planner.RestockCrafts(goal, onAH, owned, queued, yield)
 	return math.ceil(missing / yield)
 end
 
--- Smart restock goals. Recent days weigh more (a day SMART.HALF_LIFE days back counts half), so a goal follows what
--- sells now. GOLD_SHARE is the most of your gold one item's whole stock may cost to make.
--- LEVEL is how much of a day's sales to keep in stock (the Options slider), as a fraction.
-Planner.SMART = { HALF_LIFE = 7, WINDOW = 30, MIN_SPAN = 3, MIN_SAMPLES = 3, GOLD_SHARE = 0.25, MAX = 200, LEVEL = 0.5,
-	LEVEL_MIN = 0.1, LEVEL_MAX = 2 }
+-- Smart restock goals move by sell-through: a day that sold everything raises the goal a step, expiries cut it.
+--   WINDOW       days of results that count; MIN_SAMPLES results are needed before the default is left
+--   STEP         a step up, as a share of the goal (never under one unit before the profit scaling)
+--   CUT          how much of a day's expired share, past what's tolerated, comes off the goal
+--   TOLERATE     the expired share that's fine at a margin of 1: some unsold stock is the price of not running out
+--   MARGIN       the margin assumed until an item's deposit has been seen
+--   RECENT       days the tooltip's "lately" covers
+--   LEVEL        the Options slider, cautious to aggressive; at LEVEL the goal can rise to what sold between two
+--                restocks on a sold-out day, at twice LEVEL to twice that
+--   GAP_*        limits on the time between restocks, in days, and the gaps needed to trust a measured one
+--   SESSION      posts closer together than this many seconds are one restock
+--   GOLD_SHARE   the most of your gold one item's whole stock may cost to make
+Planner.SMART = { WINDOW = 30, MIN_SAMPLES = 3, GOLD_SHARE = 0.25, MAX = 200, LEVEL = 0.5, LEVEL_MIN = 0.1, LEVEL_MAX = 2,
+	STEP = 0.25, CUT = 1, TOLERATE = 0.4, MARGIN = 0.75, RECENT = 3, GAP_MIN = 0.25, GAP_MAX = 3, GAP_SAMPLES = 3, SESSION = 30 * 60, TRIPS = 20 }
+
+-- The time your stock has to last: days between restocks, from the times (seconds) restocks were posted. Long gaps
+-- count for more, as a buyer is more likely to arrive during one (the mean weighted by length). Gaps over GAP_MAX
+-- are time away and don't count. Nil with under GAP_SAMPLES gaps.
+function Planner.RestockGap(times)
+	local smart = Planner.SMART
+	local sorted = {}
+	for index, at in ipairs(times or {}) do sorted[index] = at end
+	table.sort(sorted)
+	local sum, squares, count = 0, 0, 0
+	for index = 2, #sorted do
+		local gap = (sorted[index] - sorted[index - 1]) / 86400
+		if gap > 0 and gap <= smart.GAP_MAX then
+			sum, squares, count = sum + gap, squares + gap * gap, count + 1
+		end
+	end
+	if count < smart.GAP_SAMPLES then return nil end
+	return math.max(smart.GAP_MIN, math.min(smart.GAP_MAX, squares / sum))
+end
+
+-- How much a sale earns against what an unsold unit costs, from 0 (nothing to gain) to 1 (nothing to lose): the
+-- profit's share of profit plus deposit. Nil when the deposit isn't known.
+function Planner.SmartMargin(profit, deposit)
+	if not (profit and deposit) then return nil end
+	if profit <= 0 then return 0 end
+	return profit / (profit + math.max(0, deposit))
+end
 
 -- A stock goal from an item's own sales. input:
---   base      the default goal, used until there are MIN_SAMPLES results
---   days      { { age = days ago, s = sold, e = expired }, ... } within WINDOW
---   span      days since the first result, today included
---   coverDays how long a stock should last (the auction's length)
+--   base      the default goal: where it starts, and what's used until there are MIN_SAMPLES results
+--   days      { { age = days ago, s = sold, e = expired }, ... }, one per day, within WINDOW
+--   gap       days your stock has to last between restocks (default 1), gapKnown = true when measured
+--   margin    Planner.SmartMargin (nil = unknown: SMART.MARGIN)
+--   unsettled age of the newest day that still has auctions running: up to it nothing counts as sold out
 --   unitCost  copper to make one, gold = copper held (both optional: without them gold is no limit)
 --   pair      true for things bought two at a time
---   level     how much of that to stock, 1 = all of it (default SMART.LEVEL)
--- The goal is what sells in coverDays x the share of listed units that sold x level. It only goes under the default
--- because of expiries, never because little was listed. Returns the goal and
--- { perDay, soldShare, samples, level, limited = "gold" when gold lowered it (full = the goal without that), pair,
--- learning }.
+--   level     cautious to aggressive (default SMART.LEVEL)
+-- The goal is recomputed from the history each time, oldest day first, starting at the default:
+--   a day with expiries takes CUT x the expired share off it, past the share the margin tolerates (a smaller cut
+--   with a good margin, a bigger one when cautious);
+--   a day that sold with nothing expiring raises it a step (bigger with a good margin or when aggressive), as long as what sold in one
+--   restock gap that day says there's room: never past sold x gap x (level / LEVEL) x (0.5 + margin).
+-- So it only goes under the default through expiries, and only over it by selling out. "Sold out" is an estimate:
+-- the units listed on a past day aren't on record, only that all that came back that day had sold.
+-- Returns the goal and { samples, learning, level, gap, gapKnown, margin, raised and lowered (days that moved it),
+-- recentSold and recentExpired (the last RECENT days), limited = "gold" when gold lowered it (full = the goal
+-- without that), pair }.
 function Planner.SmartGoal(input)
 	local smart = Planner.SMART
-	local info = { pair = input.pair or nil }
-	local goal = input.base
-	local sold, expired, samples = 0, 0, 0
+	local info = { pair = input.pair or nil, level = input.level or smart.LEVEL, gapKnown = input.gapKnown or nil,
+		margin = input.margin, raised = 0, lowered = 0, recentSold = 0, recentExpired = 0 }
+	info.gap = math.max(smart.GAP_MIN, math.min(smart.GAP_MAX, input.gap or 1))
+	local days, samples = {}, 0
 	for _, day in ipairs(input.days or {}) do
-		if day.age >= 0 and day.age < smart.WINDOW then
-			local weight = 0.5 ^ (day.age / smart.HALF_LIFE)
-			sold, expired = sold + day.s * weight, expired + day.e * weight
+		if day.age >= 0 and day.age < smart.WINDOW and day.s + day.e > 0 then
+			days[#days + 1] = day
 			samples = samples + day.s + day.e
+			if day.age < smart.RECENT then
+				info.recentSold, info.recentExpired = info.recentSold + day.s, info.recentExpired + day.e
+			end
 		end
 	end
 	info.samples = samples
-	if samples < smart.MIN_SAMPLES or sold + expired <= 0 then
+	local goal = input.base
+	if samples < smart.MIN_SAMPLES then
 		info.learning = true
 	else
-		local span = math.max(smart.MIN_SPAN, math.min(smart.WINDOW, input.span or smart.WINDOW))
-		local weights = 0
-		for age = 0, span - 1 do weights = weights + 0.5 ^ (age / smart.HALF_LIFE) end
-		info.perDay = sold / weights
-		info.soldShare = sold / (sold + expired)
-		info.level = input.level or smart.LEVEL
-		goal = math.ceil(info.perDay * (input.coverDays or 1) * info.soldShare * info.level - 1e-9)
-		if goal < input.base then goal = math.max(goal, math.ceil(input.base * info.soldShare - 1e-9)) end
-		goal = math.max(1, math.min(goal, smart.MAX))
+		table.sort(days, function(a, b) return a.age > b.age end)
+		local eager = info.level / smart.LEVEL
+		local margin = input.margin or smart.MARGIN
+		local tolerated = smart.TOLERATE * margin
+		local up = 0.5 + margin
+		local pace = math.max(0.5, math.min(2, eager))
+		local cut = math.max(0.1, math.min(1, smart.CUT * (1.5 - margin) / eager))
+		local level = input.base
+		for _, day in ipairs(days) do
+			if day.e > 0 then
+				local excess = day.e / (day.s + day.e) - tolerated
+				if excess > 0 then
+					level = math.max(1, level * (1 - cut * excess))
+					info.lowered = info.lowered + 1
+				end
+			elseif not (input.unsettled and day.age <= input.unsettled) then
+				local room = day.s * info.gap * eager * up
+				if room > level then
+					level = math.min(level + math.max(1, smart.STEP * level) * up * pace, room)
+					info.raised = info.raised + 1
+				end
+			end
+		end
+		-- To the nearest whole one, or the nearest pair.
+		local unit = input.pair and 2 or 1
+		goal = math.max(1, math.min(math.floor(level / unit + 0.5) * unit, smart.MAX))
 	end
 	if input.unitCost and input.unitCost > 0 and input.gold then
 		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / input.unitCost))
