@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- A restock now leaves part of your gold alone: 20% unless you change it with the new **Gold kept** slider on the Options tab. Before, a restock could plan to spend all your gold but the deposits, and since buying materials often costs more than the last scan said, you could end up with a bag of crafted items and no gold to post them.
+
 ## 1.13.1
 
 - Restock keeps gold back for posting: a restock now counts the auction house deposits for everything it makes and everything you already hold, so buying the materials never leaves you unable to list the items. With too little gold for both, it queues fewer crafts.

@@ -559,8 +559,12 @@ end
 -- already holds or has queued (row.holds) and for each new craft (row.yield units), so a restock never leaves you
 -- with items and no gold to list them. Returns nil when nothing needs crafting, else { gold, queued = cost of the
 -- hand-queued entries, full = material cost of the whole restock, fullDeposit = deposits to post all of it, cost =
--- material cost of what's kept, deposit = deposits kept back for what's kept and held, short = true when it was cut }.
-function Planner.RestockBudget(ctx, rows, queue, gold)
+-- material cost of what's kept, deposit = deposits kept back for what's kept and held, short = true when it was cut,
+-- keep }. keep (copper, optional) is gold the restock leaves alone on top of the deposits: buying usually costs more
+-- than the last scan said, since only the cheapest listing is known.
+Planner.RESTOCK_KEEP = 0.2
+function Planner.RestockBudget(ctx, rows, queue, gold, keep)
+	keep = math.max(0, math.min(gold, math.floor(keep or 0)))
 	local entries = {}
 	for _, entry in ipairs(queue or {}) do entries[#entries + 1] = entry end
 	local first = #entries + 1
@@ -585,8 +589,8 @@ function Planner.RestockBudget(ctx, rows, queue, gold)
 		if row.crafts > 0 then newDeposits = newDeposits + perCraft[row.recipeID] * row.crafts end
 	end
 	reserve, newDeposits = math.ceil(reserve), math.ceil(newDeposits)
-	local info = { gold = gold, queued = base, full = Cost() - base, fullDeposit = reserve + newDeposits }
-	local budget = math.max(0, gold - base - reserve)
+	local info = { gold = gold, queued = base, full = Cost() - base, fullDeposit = reserve + newDeposits, keep = keep }
+	local budget = math.max(0, gold - keep - base - reserve)
 	if info.full + newDeposits <= budget then
 		info.cost, info.deposit = info.full, info.fullDeposit
 		return info

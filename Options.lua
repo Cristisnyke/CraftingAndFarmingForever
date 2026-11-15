@@ -306,6 +306,47 @@ function Options.Build(parent, top)
 		.. "sold, and drops when auctions expire. At 50% it can rise to what sold between two of your restocks; "
 		.. "at 100% to twice that, in bigger steps. Lower is safer for your gold and drops faster on expiries.")
 	controls.smartLevel = level
+	y = y + 22
+
+	-- How much gold a restock never touches.
+	Label(parent, "Gold kept", y)
+	local keep = CreateFrame("Slider", nil, parent)
+	keep:SetSize(220, 14)
+	keep:SetPoint("TOPLEFT", LEFT + 84, -y - 3)
+	keep:SetOrientation("HORIZONTAL")
+	local keepTrack = keep:CreateTexture(nil, "BACKGROUND")
+	keepTrack:SetPoint("LEFT")
+	keepTrack:SetPoint("RIGHT")
+	keepTrack:SetHeight(4)
+	keepTrack:SetColorTexture(1, 1, 1, 0.12)
+	local keepThumb = keep:CreateTexture(nil, "OVERLAY")
+	keepThumb:SetColorTexture(edge[1], edge[2], edge[3], 1)
+	keepThumb:SetSize(10, 14)
+	keep:SetThumbTexture(keepThumb)
+	keep:SetMinMaxValues(0, ns.Restock.KEEP_MAX)
+	keep:SetValueStep(ns.Restock.KEEP_STEP)
+	keep:SetObeyStepOnDrag(true)
+	local keepText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	keepText:SetPoint("LEFT", keep, "RIGHT", 10, 0)
+	local function ShowKeep(percent)
+		keepText:SetText(("%d%%|r %sof your gold|r"):format(percent, MUTED))
+	end
+	keep:SetScript("OnValueChanged", function(self, value)
+		if self.syncing then return end
+		ns.Restock.SetKeepGold(value)
+		ShowKeep(ns.Restock.KeepGold())
+		ns.Debounce("keepGold", 0.1, function() ns.UI.Refresh("restock") end)
+	end)
+	keep.Sync = function(self)
+		self.syncing = true
+		self:SetValue(ns.Restock.KeepGold())
+		self.syncing = false
+		ShowKeep(ns.Restock.KeepGold())
+	end
+	Tip(keep, "Gold kept", "The share of your gold a restock never plans to spend, on top of the deposits for "
+		.. "posting. Buying materials usually costs more than the last scan said, because only the cheapest "
+		.. "listing's price is known. This is what's left for that, and for posting again when auctions expire.")
+	controls.keepGold = keep
 	y = y + 22 + 10
 
 	Heading(parent, "Advertising", y)
@@ -400,6 +441,7 @@ function Options.Build(parent, top)
 			end
 		end
 		controls.smartLevel:Sync()
+		controls.keepGold:Sync()
 		controls.priceCap:Sync()
 		controls.capMax:Sync()
 		controls.capNormal:Sync()

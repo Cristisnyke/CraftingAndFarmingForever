@@ -389,6 +389,18 @@ function Restock.SmartLevel()
 	return ns.db.restock.smartLevel or ns.Planner.SMART.LEVEL * 100
 end
 
+-- The share of your gold a restock leaves alone, in percent.
+Restock.KEEP_MAX, Restock.KEEP_STEP = 90, 5
+function Restock.KeepGold()
+	return ns.db.restock.keepGold or ns.Planner.RESTOCK_KEEP * 100
+end
+
+function Restock.SetKeepGold(percent)
+	percent = math.floor(percent / Restock.KEEP_STEP + 0.5) * Restock.KEEP_STEP
+	ns.db.restock.keepGold = math.max(0, math.min(Restock.KEEP_MAX, percent))
+	budgetCache = nil
+end
+
 function Restock.SetSmartLevel(percent)
 	local smart = ns.Planner.SMART
 	percent = math.floor(percent / 10 + 0.5) * 10
@@ -509,7 +521,7 @@ local BUDGET_SECONDS = 10
 -- materials (Planner.RestockBudget). Returns what that found, or nil.
 local function FitToGold(ctx, rows)
 	if not Restock.SmartOn() then return nil end
-	local manual, parts = {}, { tostring(GetMoney()) }
+	local manual, parts = {}, { tostring(GetMoney()), "k" .. Restock.KeepGold() }
 	for _, entry in ipairs(ns.db.queue) do
 		manual[#manual + 1] = entry
 		parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty
@@ -532,7 +544,7 @@ local function FitToGold(ctx, rows)
 	local all = {}
 	for key, value in pairs(ctx) do all[key] = value end
 	all.me = nil
-	local info = ns.Planner.RestockBudget(all, rows, manual, GetMoney())
+	local info = ns.Planner.RestockBudget(all, rows, manual, GetMoney(), GetMoney() * Restock.KeepGold() / 100)
 	cache = { signature = signature, at = GetTime(), info = info, crafts = {} }
 	for _, row in ipairs(rows) do
 		if row.wanted then cache.crafts[row.recipeID] = row.crafts end

@@ -3172,7 +3172,9 @@ function CreateRestockPane()
 				ns.Money(budget.gold),
 				budget.queued > 0 and (", " .. ns.Money(budget.queued) .. " of it for your queue") or "",
 				ns.Money(budget.cost),
-				deposit and (" with " .. ns.Money(budget.deposit) .. " kept for posting") or "")) }
+				(deposit and (" with " .. ns.Money(budget.deposit) .. " kept for posting") or "")
+					.. ((budget.keep or 0) > 0 and ((deposit and " and " or " with ") .. ns.Money(budget.keep)
+						.. " left alone") or ""))) }
 		end
 		if toPost > 0 then
 			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))

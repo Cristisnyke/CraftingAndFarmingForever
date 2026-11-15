@@ -602,6 +602,25 @@ do
 	rows, info = WithDeposits(300, 10)
 	check("deposits: held units are posted too", info.deposit, 50 + 30 + 40)
 	check("deposits: held units leave less to craft with", rows[1].crafts, 2)
+	-- Gold left alone: 20% of 370 is 74, so what fitted before no longer does.
+	local function Kept(gold, keep)
+		local ctx = Context({
+			recipes = { [1] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } } },
+			known = { [BAR] = { 1 } },
+			ah = { [ORE] = 10, [BAR] = 500 },
+		})
+		local list = { { itemID = BAR, recipeID = 1, net = 400, crafts = 10, deposit = 5, yield = 1 } }
+		return list, Planner.RestockBudget(ctx, list, nil, gold, keep)
+	end
+	_, info = Kept(150, 0)
+	check("keep: nothing kept, all fits", info.short, nil)
+	rows, info = Kept(150, 30)
+	check("keep: kept gold cuts the restock", rows[1].crafts, 8)
+	check("keep: told", info.keep, 30)
+	check("keep: gold left after materials and posting", 150 - info.cost - info.deposit >= 30, true)
+	rows, info = Kept(150, 1000)
+	check("keep: never more than the gold", info.keep, 150)
+	check("keep: nothing crafted", rows[1].crafts, 0)
 	check("budget: nothing needed", select(2, (function()
 		return nil, Planner.RestockBudget(Context(), { { itemID = BAR, recipeID = 100, net = 1, crafts = 0 } }, nil, 0)
 	end)()), nil)
