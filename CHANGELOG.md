@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.14.1
 
 - **Gold kept** on the Options tab now takes gold, silver and copper, typed like `1g 50s 20c`, so you can keep back any amount down to 1 copper. An amount you already set is carried over.
 
