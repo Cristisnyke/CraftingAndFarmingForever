@@ -454,12 +454,14 @@ function Restock.SetGoal(itemID, goal)
 	ns.db.restock.goals[itemID] = goal ~= (AutoGoal(itemID)) and goal or nil
 end
 
--- Units already planned by entries the user queued by hand. Earlier restock entries don't count: they get replaced.
+-- Units already planned by queue entries, hand-queued or from an earlier restock. A restock you already queued is
+-- committed: you may have bought its materials, so it must not be re-planned (and swapped for something else) because
+-- your gold or the prices moved since.
 local function ManualQueued()
 	local queued = {}
 	for _, entry in ipairs(ns.db.queue) do
 		local recipe = ns.db.recipes[entry.recipeID]
-		if not entry.restock and recipe and recipe.o then
+		if recipe and recipe.o then
 			queued[recipe.o] = (queued[recipe.o] or 0) + entry.qty * (recipe.qmin or 1)
 		end
 	end
@@ -475,10 +477,8 @@ local function FitToGold(ctx, rows)
 	if not Restock.SmartOn() then return nil end
 	local manual, parts = {}, { tostring(GetMoney()) }
 	for _, entry in ipairs(ns.db.queue) do
-		if not entry.restock then
-			manual[#manual + 1] = entry
-			parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty
-		end
+		manual[#manual + 1] = entry
+		parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty
 	end
 	for _, row in ipairs(rows) do
 		if row.crafts > 0 then parts[#parts + 1] = row.recipeID .. "x" .. row.crafts end
@@ -519,27 +519,38 @@ function Restock.Rows()
 	return rows, FitToGold(ctx, rows)
 end
 
--- Replaces the previous restock entries of a profession (nil for all) with what these rows need now. Other
--- professions' restock entries and hand-queued entries aren't touched.
-function Restock.Apply(rows, profession)
+-- Adds what these rows need now (rows only hold what the queue doesn't already cover) to the queue as restock
+-- entries, merged into a restock entry of the same recipe and character. Entries already queued are kept: they may
+-- have been shopped for. `profession` (nil for all) is no longer needed to clear anything; it is kept for callers.
+-- Crafts are added grouped by profession, so one trip to a station does them all.
+function Restock.Apply(rows, _)
 	local queue = ns.db.queue
-	for index = #queue, 1, -1 do
-		local recipe = ns.db.recipes[queue[index].recipeID]
-		if queue[index].restock and (not profession or (recipe and recipe.p == profession)) then
-			table.remove(queue, index)
+	local order = {}
+	for index, row in ipairs(rows) do
+		if row.crafts > 0 then
+			local recipe = ns.db.recipes[row.recipeID]
+			order[#order + 1] = { row = row, p = recipe and recipe.p or 0, index = index }
 		end
 	end
+	table.sort(order, function(a, b)
+		if a.p ~= b.p then return a.p < b.p end
+		return a.index < b.index
+	end)
 	local added = 0
-	for _, row in ipairs(rows) do
-		if row.crafts > 0 then
-			table.insert(queue, {
-				recipeID = row.recipeID,
-				qty = row.crafts,
-				char = Recipes.Crafter(row.recipeID, ns.CharKey()),
-				restock = true,
-			})
-			added = added + 1
+	for _, item in ipairs(order) do
+		local row = item.row
+		local char = Recipes.Crafter(row.recipeID, ns.CharKey())
+		local merged
+		for _, entry in ipairs(queue) do
+			if entry.restock and entry.recipeID == row.recipeID and entry.char == char then
+				entry.qty, merged = entry.qty + row.crafts, true
+				break
+			end
 		end
+		if not merged then
+			table.insert(queue, { recipeID = row.recipeID, qty = row.crafts, char = char, restock = true })
+		end
+		added = added + 1
 	end
 	ns.RequestPlan()
 	return added

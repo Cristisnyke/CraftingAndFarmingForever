@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Restock no longer changes its mind halfway through a trip. Once you queue a restock it's committed: buying its materials (which lowers your gold) can't swap it for a different item the next time you press Restock. Pressing it again only adds what's still missing, and adds to the existing entry instead of replacing it
+- Queued restock crafts are grouped by profession, so one visit to the anvil or tanning rack does them all
+
 ## 1.12.0
 
 - New Crates tab for Waylaid Crates: every labelled crate with its auction house price, its cheapest bundle of materials (crafted by your characters when that's cheaper), the Merchant's Favor it pays, and the gold each Merchant's Favor costs you. The cheapest one is marked "best buy". Sort by any column or show one level

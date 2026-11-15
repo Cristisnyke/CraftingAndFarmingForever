@@ -982,9 +982,9 @@ RunTimers()
 local manual = ns.db.queue[1]
 ns.Restock.Apply({ { recipeID = 20, crafts = 3 }, { recipeID = 10, crafts = 0 } })
 ns.Restock.Apply({ { recipeID = 20, crafts = 1 } })
-check("restock replaced", #ns.db.queue, 2)
+check("restock merged, not duplicated", #ns.db.queue, 2)
 check("manual entry kept", ns.db.queue[1], manual)
-check("restock quantity", ns.db.queue[2].qty, 1)
+check("restock quantity adds up", ns.db.queue[2].qty, 4)
 check("restock flagged", ns.db.queue[2].restock, true)
 ns.Queue.Add(20, 1)
 check("manual add doesn't merge into restock", #ns.db.queue, 3)
@@ -1051,13 +1051,13 @@ do
 	check("clearing shows everything again", Shown(), everything)
 end
 
--- Restock on one tab leaves the other profession's restock entries alone.
+-- A restock already queued is committed: a later restock adds to it and never removes it.
 ns.db.queue[1] = { recipeID = 500, qty = 2, char = "Player-2-ALT", restock = true }
 ns.db.queue[2] = { recipeID = 20, qty = 2, char = me, restock = true }
 ns.Restock.Apply({ { recipeID = 10, crafts = 1 } }, 197)
-check("other profession's restock kept", ns.db.queue[1].recipeID, 500)
-check("this profession's restock replaced", ns.db.queue[2].recipeID, 10)
-check("restock entry count", #ns.db.queue, 2)
+check("earlier restock kept", ns.db.queue[1].recipeID, 500)
+check("committed restock kept", ns.db.queue[2].recipeID, 20)
+check("new restock added after", ns.db.queue[3].recipeID, 10)
 wipe(ns.db.queue)
 ns.db.chars["Player-2-ALT"] = nil
 ns.db.recipes[500] = nil
