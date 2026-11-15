@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.14.0", lines = {
+		"- A restock now leaves some of your gold alone: 1 gold unless you set your own amount in the new Gold kept box on the Options tab. Before, a restock could plan to spend all your gold but the deposits, and since buying materials often costs more than the last scan said, you could end up with a bag of crafted items and no gold to post them.",
+	} },
 	{ version = "1.13.1", lines = {
 		"- Restock keeps gold back for posting: a restock now counts the auction house deposits for everything it makes and everything you already hold, so buying the materials never leaves you unable to list the items. With too little gold for both, it queues fewer crafts.",
 	} },
