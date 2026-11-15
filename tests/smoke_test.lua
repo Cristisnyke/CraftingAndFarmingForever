@@ -868,12 +868,17 @@ check("bind-on-pickup not restocked", (function()
 end)(), false)
 
 -- Smart goals: sales raise the goal, a goal of your own wins, and the option turns it off.
+-- Days are numbered by the local date, as Sales.lua does: in UTC these checks failed between local and UTC midnight.
+local function LocalDay()
+	local d = os.date("*t", time())
+	return math.floor(os.time({ year = d.year, month = d.month, day = d.day, hour = 12 }) / 86400)
+end
 do
 	local name = ns.Items.Name(4)
 	local saved, money = ns.db.sales.items[name:lower()], playerMoney
 	playerMoney = 100000000
 	ns.db.sales.items[name:lower()] = { name = name, itemID = 4, sold = 12, expired = 0, gold = 0, exposure = 1,
-		days = { [math.floor(time() / 86400) - 1] = { s = 12, e = 0, g = 0 } } }
+		days = { [LocalDay() - 1] = { s = 12, e = 0, g = 0 } } }
 	ns.Restock.ForgetSmart()
 	local savedTrips, savedLots, savedDeposits = ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits
 	ns.db.sales.trips, ns.db.sales.lots, ns.db.deposits = {}, {}, {}
@@ -917,7 +922,7 @@ do
 	-- Expiries that lose more in deposits than the sales earn: paused, with the row still listed.
 	do
 		local record = ns.db.sales.items[name:lower()]
-		local days, today = record.days, math.floor(time() / 86400)
+		local days, today = record.days, LocalDay()
 		record.days = { [today - 2] = { s = 0, e = 1, g = 0 }, [today - 1] = { s = 0, e = 1, g = 0 }, [today] = { s = 0, e = 1, g = 0 } }
 		ns.db.sales.lots, ns.db.deposits = {}, { [4] = 1e9 }
 		ns.Restock.ForgetSmart()
