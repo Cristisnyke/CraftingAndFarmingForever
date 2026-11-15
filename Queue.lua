@@ -401,6 +401,18 @@ function Restock.ForgetSmart()
 	budgetCache = nil
 end
 
+-- What posting one unit costs in deposit: what its last post paid, else a guess from what a vendor pays for it (15%
+-- for the shortest auction, more for longer ones in step with their length; a little high rather than low).
+local DEPOSIT_SHARE = 0.15
+function Restock.Deposit(itemID)
+	local known = ns.Sales.Deposit(itemID)
+	if known then return known end
+	local sell = ns.Items.SellPrice(itemID)
+	if not sell or sell <= 0 then return 0 end
+	local hours = ns.Sales.DurationHours(ns.db.restock.duration)
+	return math.ceil(sell * DEPOSIT_SHARE * hours / ns.Sales.DurationHours(1))
+end
+
 local function SmartGoal(itemID)
 	local base = DefaultGoal(itemID)
 	if not base then return nil end
@@ -419,7 +431,7 @@ local function SmartGoal(itemID)
 		gap = gap or ns.Sales.DurationHours(ns.db.restock.duration) / 24, gapKnown = gap ~= nil,
 		margin = ns.Planner.SmartMargin(profit, ns.Sales.Deposit(itemID)), profit = profit,
 		unsettled = ns.Sales.RunningAge(name),
-		unitCost = unitCost, gold = GetMoney(),
+		unitCost = unitCost, gold = GetMoney(), deposit = Restock.Deposit(itemID),
 		pair = ns.Items.SoldInPairs(itemID),
 		level = Restock.SmartLevel() / 100,
 	})
@@ -503,7 +515,9 @@ local function FitToGold(ctx, rows)
 		parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty
 	end
 	for _, row in ipairs(rows) do
+		row.deposit = Restock.Deposit(row.itemID)
 		if row.crafts > 0 then parts[#parts + 1] = row.recipeID .. "x" .. row.crafts end
+		if (row.holds or 0) > 0 then parts[#parts + 1] = row.itemID .. "h" .. row.holds .. "d" .. row.deposit end
 	end
 	local signature = table.concat(parts, ",")
 	local cache = budgetCache

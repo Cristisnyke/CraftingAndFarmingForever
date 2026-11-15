@@ -425,7 +425,7 @@ function Planner.SmartGoal(input)
 		end
 	end
 	if input.unitCost and input.unitCost > 0 and input.gold then
-		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / input.unitCost))
+		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / (input.unitCost + (input.deposit or 0))))
 		if afford < goal then
 			info.full = input.pair and math.max(2, goal + goal % 2) or goal
 			goal = afford
@@ -526,7 +526,11 @@ function Planner.RestockRows(ctx, opts)
 				local row = {
 					itemID = itemID, recipeID = best.recipeID, net = best.net, goal = goal, onAH = onAH, owned = owned,
 					crafts = earns and Planner.RestockCrafts(goal, onAH or 0, owned, planned, yield) or 0,
+					yield = yield,
 				}
+				-- Units held or queued already that will go on the AH: their deposits have to be paid too.
+				local wholeGoal = math.max(goal, opts.fullGoal and opts.fullGoal(itemID) or goal)
+				row.holds = math.max(0, math.min(owned + planned, wholeGoal - (onAH or 0)))
 				if queued > 0 then
 					row.queued = queued
 					local full = math.max(goal, opts.fullGoal and opts.fullGoal(itemID) or goal)
@@ -550,9 +554,12 @@ end
 -- Fits a restock to your gold. rows are RestockRows; queue holds the entries queued by hand, whose materials are paid
 -- for first. When the materials for every row cost more than the gold left, the rows giving the most profit for
 -- their material cost are kept and the rest cut down: row.wanted is then what the goal asks and row.crafts what the
--- gold covers. Costs are what a plan would really spend, so materials already held are free. Returns nil when
--- nothing needs crafting, else { gold, queued = cost of the hand-queued entries, full = cost of the whole restock,
--- cost = cost of what's kept, short = true when it was cut }.
+-- gold covers. Costs are what a plan would really spend, so materials already held are free.
+-- Gold to post everything is kept back: a row with deposit (copper per unit) has it set aside for the units it
+-- already holds or has queued (row.holds) and for each new craft (row.yield units), so a restock never leaves you
+-- with items and no gold to list them. Returns nil when nothing needs crafting, else { gold, queued = cost of the
+-- hand-queued entries, full = material cost of the whole restock, fullDeposit = deposits to post all of it, cost =
+-- material cost of what's kept, deposit = deposits kept back for what's kept and held, short = true when it was cut }.
 function Planner.RestockBudget(ctx, rows, queue, gold)
 	local entries = {}
 	for _, entry in ipairs(queue or {}) do entries[#entries + 1] = entry end
@@ -569,10 +576,19 @@ function Planner.RestockBudget(ctx, rows, queue, gold)
 		end
 	end
 	if #wanted == 0 then return nil end
-	local info = { gold = gold, queued = base, full = Cost() - base }
-	local budget = math.max(0, gold - base)
-	if info.full <= budget then
-		info.cost = info.full
+	-- Deposits: for what's held or queued whatever is crafted, and per craft of a row.
+	local reserve, perCraft, newDeposits = 0, {}, 0
+	for _, row in ipairs(rows) do
+		local deposit = row.deposit or 0
+		reserve = reserve + deposit * (row.holds or 0)
+		perCraft[row.recipeID] = deposit * (row.yield or 1)
+		if row.crafts > 0 then newDeposits = newDeposits + perCraft[row.recipeID] * row.crafts end
+	end
+	reserve, newDeposits = math.ceil(reserve), math.ceil(newDeposits)
+	local info = { gold = gold, queued = base, full = Cost() - base, fullDeposit = reserve + newDeposits }
+	local budget = math.max(0, gold - base - reserve)
+	if info.full + newDeposits <= budget then
+		info.cost, info.deposit = info.full, info.fullDeposit
 		return info
 	end
 
@@ -607,26 +623,34 @@ function Planner.RestockBudget(ctx, rows, queue, gold)
 	entries[first] = alone
 	for _, row in ipairs(wanted) do
 		alone.recipeID = row.recipeID
-		local fit = Fit(alone, row.crafts, left, function() return Cost() - base end)
+		local per = perCraft[row.recipeID]
+		local function Price() return Cost() - base + math.ceil(alone.qty * per) end
+		local fit = Fit(alone, row.crafts, left, Price)
 		if fit < row.crafts then row.wanted, row.crafts = row.crafts, fit end
 		if fit > 0 then
-			left = left - (Cost() - base)
+			left = left - Price()
 			kept[#kept + 1] = { recipeID = row.recipeID, qty = fit, row = row }
 		end
 	end
 
 	-- Then all of them together, cutting from the least valuable end until the real cost fits.
 	for index, entry in ipairs(kept) do entries[first + index - 1] = entry end
-	local spent = Cost() - base
+	local function Fees()
+		local fees = 0
+		for _, entry in ipairs(kept) do fees = fees + entry.qty * perCraft[entry.recipeID] end
+		return math.ceil(fees)
+	end
+	local function Price() return Cost() - base + Fees() end
+	local spent = Price()
 	for index = #kept, 1, -1 do
 		if spent <= budget then break end
 		local entry = kept[index]
 		local row = entry.row
-		local fit = Fit(entry, entry.qty - 1, budget, function() return Cost() - base end)
+		local fit = Fit(entry, entry.qty - 1, budget, Price)
 		row.wanted, row.crafts = row.wanted or (row.crafts), fit
-		spent = Cost() - base
+		spent = Price()
 	end
-	info.cost, info.short = spent, true
+	info.cost, info.deposit, info.short = Cost() - base, reserve + Fees(), true
 	return info
 end
 

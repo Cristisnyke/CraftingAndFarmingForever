@@ -574,6 +574,34 @@ do
 	rows, info = Budget(100, nil, { { recipeID = 1, qty = 5 } })
 	check("budget: queue's cost told", info.queued, 50)
 	check("budget: queue paid first", rows[2].crafts, 5)
+	-- Deposits are kept back: 6 bars at 10 ore + 5 deposit each, shirts 50 + 20 each.
+	local function WithDeposits(gold, holds)
+		local ctx = Context({
+			recipes = {
+				[1] = { o = BAR, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+				[2] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 5, ORE } } },
+			},
+			known = { [BAR] = { 1 }, [SHIRT] = { 2 } },
+			ah = { [ORE] = 10, [BAR] = 500, [SHIRT] = 200 },
+		})
+		local list = {
+			{ itemID = SHIRT, recipeID = 2, net = 100, crafts = 4, deposit = 20, yield = 1 },
+			{ itemID = BAR, recipeID = 1, net = 400, crafts = 6, deposit = 5, yield = 1, holds = holds },
+		}
+		return list, Planner.RestockBudget(ctx, list, nil, gold)
+	end
+	_, info = WithDeposits(370)
+	check("deposits: enough for materials and posting", info.short, nil)
+	check("deposits: told in full", info.fullDeposit, 110)
+	rows, info = WithDeposits(300)
+	check("deposits: materials alone would fit, posting doesn't", info.short, true)
+	check("deposits: best earner whole", rows[2].crafts, 6)
+	check("deposits: the rest cut to leave its posting gold", rows[1].crafts, 3)
+	check("deposits: materials and deposits within gold", info.cost + info.deposit <= 300, true)
+	check("deposits: kept back", info.deposit, 90)
+	rows, info = WithDeposits(300, 10)
+	check("deposits: held units are posted too", info.deposit, 50 + 30 + 40)
+	check("deposits: held units leave less to craft with", rows[1].crafts, 2)
 	check("budget: nothing needed", select(2, (function()
 		return nil, Planner.RestockBudget(Context(), { { itemID = BAR, recipeID = 100, net = 1, crafts = 0 } }, nil, 0)
 	end)()), nil)

@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Restock keeps gold back for posting: a restock now counts the auction house deposits for everything it makes and everything you already hold, so buying the materials never leaves you unable to list the items. With too little gold for both, it queues fewer crafts.
+
 ## 1.13.0
 
 - Smart restock goals work in a new way. A goal now moves by what happened to your auctions: every day that everything you listed sold, it goes up a step (you probably ran out); when auctions expire, it comes down, and the last few days decide, so an item that stops selling drops within a day or two instead of a week

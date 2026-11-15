@@ -3164,11 +3164,15 @@ function CreateRestockPane()
 			notes[1] = "A queued restock stays as it is while you shop and craft. " .. notes[1]
 		end
 		if short then
-			notes = { Color("ffffb040", ("Not enough gold for a full restock: its materials cost %s and you have %s%s. "
-				.. "This is a partial restock, %s of materials, picked for the most profit."):format(
-				ns.Money(budget.full), ns.Money(budget.gold),
+			local deposit = (budget.deposit or 0) > 0
+			notes = { Color("ffffb040", ("Not enough gold for a full restock: its materials cost %s%s and you have %s%s. "
+				.. "This is a partial restock, %s of materials%s, picked for the most profit."):format(
+				ns.Money(budget.full),
+				(budget.fullDeposit or 0) > 0 and (" plus " .. ns.Money(budget.fullDeposit) .. " in deposits to post it") or "",
+				ns.Money(budget.gold),
 				budget.queued > 0 and (", " .. ns.Money(budget.queued) .. " of it for your queue") or "",
-				ns.Money(budget.cost))) }
+				ns.Money(budget.cost),
+				deposit and (" with " .. ns.Money(budget.deposit) .. " kept for posting") or "")) }
 		end
 		if toPost > 0 then
 			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))
