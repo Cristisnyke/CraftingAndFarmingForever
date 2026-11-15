@@ -562,7 +562,7 @@ end
 -- material cost of what's kept, deposit = deposits kept back for what's kept and held, short = true when it was cut,
 -- keep }. keep (copper, optional) is gold the restock leaves alone on top of the deposits: buying usually costs more
 -- than the last scan said, since only the cheapest listing is known.
-Planner.RESTOCK_KEEP = 0.2
+Planner.RESTOCK_KEEP = 1 -- whole gold, until the player sets their own
 function Planner.RestockBudget(ctx, rows, queue, gold, keep)
 	keep = math.max(0, math.min(gold, math.floor(keep or 0)))
 	local entries = {}

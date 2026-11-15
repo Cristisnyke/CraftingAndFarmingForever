@@ -80,7 +80,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 
 - A goal for each item you sell: how many you want listed. Your auctions, bags, banks and mail count towards it.
 - **Smart goals** learn from your auctions: a step up each day an item sells out, a step down when it expires (quickly, if it stops selling), sized for how often you restock and for the profit against the deposit. An item whose expired auctions cost more in deposits than its sales earn is paused and tried again a few days later. Never more than a quarter of your gold on one item, and daggers in pairs (buyers usually want two). A slider goes from cautious to aggressive, and you can turn them off.
-- Short on gold? You get a **partial restock**: the items that earn the most for their materials, cut to what you can afford. Gold for the auction house deposits is always kept back, plus a share of your gold you choose (20% to start with), so you can post what you craft.
+- Short on gold? You get a **partial restock**: the items that earn the most for their materials, cut to what you can afford. Gold for the auction house deposits is always kept back, plus an amount of gold you choose (1 gold to start with), so you can post what you craft.
 - Clear columns for what's listed, what you hold and what to craft. Goals you set yourself stand out from the defaults, and one click puts them back.
 - One button queues whatever is missing.
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.

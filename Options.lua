@@ -310,44 +310,40 @@ function Options.Build(parent, top)
 
 	-- How much gold a restock never touches.
 	Label(parent, "Gold kept", y)
-	local keep = CreateFrame("Slider", nil, parent)
-	keep:SetSize(220, 14)
-	keep:SetPoint("TOPLEFT", LEFT + 84, -y - 3)
-	keep:SetOrientation("HORIZONTAL")
-	local keepTrack = keep:CreateTexture(nil, "BACKGROUND")
-	keepTrack:SetPoint("LEFT")
-	keepTrack:SetPoint("RIGHT")
-	keepTrack:SetHeight(4)
-	keepTrack:SetColorTexture(1, 1, 1, 0.12)
-	local keepThumb = keep:CreateTexture(nil, "OVERLAY")
-	keepThumb:SetColorTexture(edge[1], edge[2], edge[3], 1)
-	keepThumb:SetSize(10, 14)
-	keep:SetThumbTexture(keepThumb)
-	keep:SetMinMaxValues(0, ns.Restock.KEEP_MAX)
-	keep:SetValueStep(ns.Restock.KEEP_STEP)
-	keep:SetObeyStepOnDrag(true)
+	local keep = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
+	keep:SetSize(58, 20)
+	keep:SetPoint("TOPLEFT", LEFT + 84, -y)
+	keep:SetAutoFocus(false)
+	keep:SetNumeric(true)
+	keep:SetMaxLetters(6)
 	local keepText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	keepText:SetPoint("LEFT", keep, "RIGHT", 10, 0)
-	local function ShowKeep(percent)
-		keepText:SetText(("%d%%|r %sof your gold|r"):format(percent, MUTED))
+	keepText:SetPoint("LEFT", keep, "RIGHT", 6, 0)
+	keepText:SetText("gold " .. MUTED .. "a restock never spends|r")
+	local function SaveKeep(self)
+		local value = tonumber(self:GetText())
+		if value and value ~= ns.Restock.KeepGold() then
+			ns.Restock.SetKeepGold(value)
+			ns.UI.Refresh("restock")
+		end
 	end
-	keep:SetScript("OnValueChanged", function(self, value)
-		if self.syncing then return end
-		ns.Restock.SetKeepGold(value)
-		ShowKeep(ns.Restock.KeepGold())
-		ns.Debounce("keepGold", 0.1, function() ns.UI.Refresh("restock") end)
+	keep:SetScript("OnEnterPressed", function(self)
+		SaveKeep(self)
+		self:ClearFocus()
+		self:Sync()
 	end)
+	keep:SetScript("OnEscapePressed", function(self)
+		self:SetText(tostring(ns.Restock.KeepGold()))
+		self:ClearFocus()
+	end)
+	keep:SetScript("OnEditFocusLost", SaveKeep)
 	keep.Sync = function(self)
-		self.syncing = true
-		self:SetValue(ns.Restock.KeepGold())
-		self.syncing = false
-		ShowKeep(ns.Restock.KeepGold())
+		if not self:HasFocus() then self:SetText(tostring(ns.Restock.KeepGold())) end
 	end
-	Tip(keep, "Gold kept", "The share of your gold a restock never plans to spend, on top of the deposits for "
-		.. "posting. Buying materials usually costs more than the last scan said, because only the cheapest "
-		.. "listing's price is known. This is what's left for that, and for posting again when auctions expire.")
+	Tip(keep, "Gold kept", "Gold a restock never plans to spend, on top of the deposits for posting. Buying materials "
+		.. "usually costs more than the last scan said, because only the cheapest listing's price is known. "
+		.. "This is what's left for that, and for posting again when auctions expire.")
 	controls.keepGold = keep
-	y = y + 22 + 10
+	y = y + 24 + 10
 
 	Heading(parent, "Advertising", y)
 	y = y + 22

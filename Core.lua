@@ -57,7 +57,7 @@ end
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
--- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (cautious to aggressive in %, nil = 50), keepGold (% of gold a restock leaves alone, nil = 20), duration = 1 to 3 for posting,
+-- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (cautious to aggressive in %, nil = 50), keep (whole gold a restock leaves alone, nil = 1), duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
 -- db.mail              = { [charKey] = { items = { [itemID] = count }, scanned } }, the mailbox's last contents
@@ -92,6 +92,7 @@ local function Normalize(db)
 	db.restock.singleGoal = db.restock.singleGoal or 1
 	db.restock.minProfitSilver = db.restock.minProfitSilver or 1
 	db.restock.goals = db.restock.goals or {}
+	db.restock.keepGold = nil -- a percentage, in a build that was never released
 	db.restock.duration = db.restock.duration or 2
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
