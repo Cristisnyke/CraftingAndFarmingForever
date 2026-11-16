@@ -4616,7 +4616,7 @@ local function Diagnostics()
 	Add("queue entries: " .. #ns.db.queue .. ", crafts planned: " .. #ns.plan.crafts)
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
 	Add("listings: " .. ns.Depth.Diag())
-	Add("screen lock: " .. ns.Lock.Diag())
+	if ns.Lock then Add("screen lock: " .. ns.Lock.Diag()) end -- a new file: not there after a /reload alone
 	local status = ns.Shopping.status
 	local soldTotal, expiredTotal = 0, 0
 	for _, item in pairs(ns.db.sales.items) do
