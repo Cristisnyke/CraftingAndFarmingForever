@@ -45,7 +45,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - The Queue tab is a numbered to-do list in working order: fetch from an alt, take from the bank, buy at the auction house, collect the mail, buy from a vendor, then craft.
 - **Tools**: crafts that need a Blacksmith Hammer, an Arclight Spanner or a runed rod put the tool on that list when it isn't in your bags, so you don't reach the anvil without it.
 - Each character only buys and crafts its own part; then you're told which alt to log in to next.
-- Sub-crafts like bars, bolts and leather are worked out for you, and shrink as your stock grows.
+- Sub-crafts like bars, bolts and leather are worked out for you, and shrink as your stock grows. They're only made while that's cheaper than buying, down every listing: when the cheap ore runs out, the rest of the bars are bought.
 - **Bag space**: when a big queue's materials won't fit in your bags, it tells you what to put in the bank first and, if that isn't enough, splits the queue into runs that fit, crafting what uses up the most room first. At the bank, **Bank it** on the Next step bar does the moving for you.
 - **Total profit** for the whole queue, and **Still to buy** compared with the gold you're carrying.
 - **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. Fold it to one line; it disappears when the queue is empty.

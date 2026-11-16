@@ -116,7 +116,7 @@ end
 -- Whether an item's listings are worth keeping: something the add-on may have to buy, not everything you look at.
 local function Wanted(itemID)
 	return queued[itemID] or shopping[itemID] or ns.db.depth[itemID] ~= nil
-		or (ns.plan and ns.plan.buy[itemID] ~= nil)
+		or (ns.plan and (ns.plan.buy[itemID] ~= nil or (ns.plan.compare and ns.plan.compare[itemID])))
 end
 
 -- The client sometimes answers a search with nothing though there are listings. An empty answer only counts when
@@ -318,6 +318,8 @@ function Depth.CheckWanted(again)
 		for _, itemID in ipairs(ids) do items[#items + 1] = itemID end
 	end
 	Add(ns.plan.buy)
+	-- Both sides of each buy-or-craft choice: the bars and the ore they're smelted from.
+	Add(ns.plan.compare or {})
 	Add(shopping)
 	Depth.Check(items, again)
 end

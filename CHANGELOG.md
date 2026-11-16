@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Sub-crafts only as far as they pay.** A sub-craft used to be all or nothing: smelt every bar, or buy every bar. Now the add-on makes bars from the ore only while that's cheaper than buying the bars, and buys the rest. When the first 50 Iron Ore are cheap and the next 50 dear, it smelts what the cheap ore makes and buys the other bars, whichever costs less in total. When the two cost the same, it buys, since that's a step less.
+- **Both sides are read.** At the auction house the add-on now reads the listings of the bars as well as the ore (and the bolts as well as the cloth), so buying 200 bars is weighed at what 200 bars really cost, not at the cheapest one's price.
+
 ## 1.17.0
 
 - **Buying many now counts at what many cost.** A price scan only knows each material's cheapest listing, so 50 Iron Ore used to count as 50 times the price of the first few. At the auction house the add-on now reads every listing of what your queue and your restock would buy (a few seconds, after your own searches), and also learns from every item you open to buy. **Still to buy**, the restock's gold check and the choice between buying and crafting a material all use the real cost. In the Queue tab a row shows the average price ("avg 8s 33c") when the cheapest listing doesn't cover it all, and says when fewer are listed than you need.

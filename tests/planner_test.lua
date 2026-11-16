@@ -1117,10 +1117,32 @@ do
 	check("depth: two bars bought", few.buy[BAR], 2)
 	check("depth: two bars cost", few.cost, 30)
 	local many = Planner.BuildPlan(Context(bars), { { recipeID = 9, qty = 10 } })
-	check("depth: ten bars not bought", many.buy[BAR], nil)
-	check("depth: ore for ten bars", many.buy[ORE], 20)
-	check("depth: ten bars smelted", many.crafts[1].recipeID == 100 and many.crafts[1].count, 10)
-	check("depth: smelting cost", many.cost, 200)
+	-- Ten: the two cheap bars are still bought and the other eight smelted (30 + 160 = 190, not 200 for all ten).
+	check("depth: ten bars, the cheap two bought", many.buy[BAR], 2)
+	check("depth: ore for eight bars", many.buy[ORE], 16)
+	check("depth: eight bars smelted", many.crafts[1].recipeID == 100 and many.crafts[1].count, 8)
+	check("depth: smelting cost", many.cost, 190)
+
+	-- The ore gets dear: 5 at 5, then 100 at 40. Bars sell at 30 apiece in plenty. Smelt what the cheap ore makes
+	-- (2 bars from 4 ore, a 5th ore would start a bar at 45) and buy the other bars: 20 + 8 x 30 = 260.
+	local dearOre = { recipes = bars.recipes, known = bars.known, ah = { [ORE] = 5, [BAR] = 30 },
+		depth = { [ORE] = { { 5, 5 }, { 40, 100 } }, [BAR] = { { 30, 100 } } } }
+	local mix = Planner.BuildPlan(Context(dearOre), { { recipeID = 9, qty = 10 } })
+	check("split: bars smelted from the cheap ore", mix.crafts[1].recipeID == 100 and mix.crafts[1].count, 2)
+	check("split: cheap ore only", mix.buy[ORE], 4)
+	check("split: the rest bought", mix.buy[BAR], 8)
+	check("split: cost", mix.cost, 260)
+	check("split: both sides to read at the AH", mix.compare[ORE] and mix.compare[BAR], true)
+	-- The plan doesn't hold the bars yet either: compare lists what would decide it before anything is bought.
+	local plain = Planner.BuildPlan(Context(), { { recipeID = 300, qty = 1 } })
+	check("compare: bolt and cloth", plain.compare[BOLT] and plain.compare[CLOTH], true)
+	check("compare: not the queued result", plain.compare[SHIRT], nil)
+
+	-- Same price either way: bought, one step fewer.
+	local even = Planner.BuildPlan(Context({ recipes = bars.recipes, known = bars.known, ah = { [ORE] = 10, [BAR] = 20 } }),
+		{ { recipeID = 9, qty = 4 } })
+	check("even: bars bought", even.buy[BAR], 4)
+	check("even: nothing smelted", #even.crafts, 1)
 
 	-- A vendor item listed under the vendor's price: the cheap listings, then the vendor.
 	local thread = Planner.BuildPlan(Context({

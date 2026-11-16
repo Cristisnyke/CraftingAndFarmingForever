@@ -561,7 +561,8 @@ end
 -- cut to the most crafts that still earn it: the worst row first, as each cut makes the materials cheaper for the
 -- rest. row.dear = the crafts it had before, row.listNet = its profit at the cheapest listings, row.net = at the
 -- averages. Crafts already queued (row.queued) are never cut here. Without listings nothing is cut.
--- Returns what the whole restock, before any cut, would buy at the auction house beside the queue: itemID -> units.
+-- Returns what the whole restock, before any cut, would buy at the auction house beside the queue: itemID -> units
+-- (0 for an item it doesn't buy whose listings decide whether a material is crafted or bought).
 function Planner.RestockDepth(ctx, rows, queue, minProfit)
 	minProfit = minProfit or 0
 	local entries, wanted = {}, {}
@@ -608,7 +609,12 @@ function Planner.RestockDepth(ctx, rows, queue, minProfit)
 	for _ = 1, #wanted + 1 do
 		local plan
 		Net, plan = Averaged()
-		shopping = shopping or plan.buy
+		if not shopping then
+			-- What it buys, and the other side of each buy-or-craft choice, so both get their listings read.
+			shopping = {}
+			for itemID, count in pairs(plan.buy) do shopping[itemID] = count end
+			for itemID in pairs(plan.compare) do shopping[itemID] = shopping[itemID] or 0 end
+		end
 		if not Net then break end
 		local worst, worstNet
 		for _, item in ipairs(wanted) do
@@ -948,11 +954,24 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 	-- taken[itemID] = stock an estimate in progress already counts on, so it isn't counted twice by two materials
 	-- that need the same thing; each branch works on its own copy, as a branch not chosen takes nothing.
 	-- taken[-itemID] = units the estimate already buys at the auction house, so the next ones cost what the listings
-	-- after those ask. Returns the
-	-- spend (nil when something still to get has no price), the recipe to craft with and its crafts (nil: buy), and
-	-- the taken table after it.
+	-- after those ask. Crafting part and buying the rest is weighed too, as the cheap listings of the ore can make the
+	-- first bars and the bars' own listings the rest. Returns the spend (nil when something still to get has no
+	-- price), the recipe to craft with and its crafts
+	-- (nil: buy all), and the taken table after it.
 	local SPEND_DEPTH = 8
 	local Spend
+
+	-- plan.compare = items whose listings decide a buy-or-craft choice: the material and what a recipe makes it from,
+	-- so the auction house check can read both sides and buying 50 isn't weighed at the cheapest one's price.
+	plan.compare = {}
+	local function NoteChoice(itemID, recipeID)
+		if Priced(ctx.ahPrice(itemID)) then plan.compare[itemID] = true end
+		for _, slot in ipairs(ctx.recipes[recipeID].r or {}) do
+			for i = 2, #slot do
+				if Priced(ctx.ahPrice(slot[i])) then plan.compare[slot[i]] = true end
+			end
+		end
+	end
 
 	local function CopyTaken(taken)
 		local copy = {}
@@ -1005,6 +1024,7 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		end
 		for _, candidate in ipairs(ctx.known[itemID] or {}) do
 			if Usable(candidate, char) then
+				NoteChoice(itemID, candidate)
 				local yield = MinimumYield(ctx.recipes[candidate])
 				local crafts = math.ceil(count / yield)
 				local function Estimate(n)
@@ -1014,25 +1034,42 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 					if active[candidate] == 0 then active[candidate] = nil end
 					return spend, after
 				end
-				-- Crafting comes in whole batches, so a small need can cost more than buying even when the unit cost
-				-- is lower.
-				local spend, after = Estimate(crafts)
-				Consider(spend, candidate, crafts, after)
-				-- When the batch isn't free, what's held may still cover part of it: make that part and buy the rest,
-				-- if that spends less. The largest free batch is found by halving, as spends only grow with crafts.
-				if buy and spend and spend > 0 and crafts > 1 then
-					local low, high = 0, crafts - 1
+				if not buy then
+					local spend, after = Estimate(crafts)
+					Consider(spend, candidate, crafts, after)
+				else
+					-- Make some and buy the rest. The first crafts use what's held and the cheapest materials, the
+					-- first purchases the cheapest listings, and each side only gets dearer the more it does: so the
+					-- best mix is where one more craft stops saving, found by halving. Equal spends buy, fewer steps.
+					local mixes = {}
+					local function Mixed(n)
+						local mix = mixes[n]
+						if not mix then
+							local part, after = Estimate(n)
+							local rest = math.max(0, count - n * yield)
+							if part and rest > 0 then
+								local cost, fromAH = Quote(itemID, rest, after[-itemID])
+								if cost then
+									after[-itemID] = (after[-itemID] or 0) + fromAH
+									part = part + cost
+								else
+									part = nil
+								end
+							end
+							mix = { part, after }
+							mixes[n] = mix
+						end
+						return mix[1], mix[2]
+					end
+					local low, high = 0, crafts
 					while low < high do
-						local mid = math.ceil((low + high) / 2)
-						if Estimate(mid) == 0 then low = mid else high = mid - 1 end
+						local mid = math.floor((low + high) / 2)
+						local now, more = Mixed(mid), Mixed(mid + 1)
+						if more and (not now or more < now) then low = mid + 1 else high = mid end
 					end
 					if low > 0 then
-						local part, partTaken = Estimate(low)
-						local rest, restAH = Quote(itemID, count - low * yield, partTaken[-itemID])
-						if rest then
-							partTaken[-itemID] = (partTaken[-itemID] or 0) + restAH
-							Consider(part + rest, candidate, low, partTaken)
-						end
+						local spend, after = Mixed(low)
+						Consider(spend, candidate, low, after)
 					end
 				end
 			end
@@ -1084,8 +1121,8 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		if farming then return AcquireByFarming(itemID, count, char) end
 
 		-- Materials you already hold cost nothing more, however deep down they're used: compare what buying and
-		-- each usable recipe would actually spend, for the whole need or for the part what's held covers. Equal
-		-- spends buy, which is fewer steps.
+		-- each usable recipe would actually spend, for the whole need or for the best mix of crafting part and
+		-- buying the rest. Equal spends buy, which is fewer steps.
 		local _, bestRecipe, bestCrafts = Spend(itemID, count, char, {}, 0)
 		if bestRecipe then
 			Require(bestRecipe, bestCrafts, char, true)

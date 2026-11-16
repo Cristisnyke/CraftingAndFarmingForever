@@ -3336,13 +3336,16 @@ do
 	end
 	local savedPrices = { prices[1], prices[2] }
 	prices[1], prices[2] = 10, 100
-	ns.db.depth = {}
+	-- The bolts' own listings were read a moment ago (plenty at the scan price), so only the cloth is searched; the
+	-- add-on reads both sides of a buy-or-craft choice.
+	ns.db.depth = { [2] = { at = time(), { 100, 50 } } }
 	ns.db.ui.depthCheck = true
 	AuctionHouseFrame.shown = false
 	Fire("AUCTION_HOUSE_CLOSED")
 	ns.Queue.Clear()
 	ns.Queue.Add(20, 2) -- 6 bolts, made from 12 cloth
 	RunTimers()
+	check("depth: both sides of the bolts' choice to read", ns.plan.compare[1] and ns.plan.compare[2], true)
 	check("depth: cloth to buy", ns.plan.buy[1], 12)
 	check("depth: cheapest listing for all, before the listings are read", ns.plan.cost, 12 * 10 + 2 * 10)
 	check("depth: nothing sent away from the auction house", #sent, 0)
@@ -3420,14 +3423,16 @@ do
 	-- You open the cloth yourself and it got dearer: read without asking, and now bolts are cheaper to buy, which
 	-- is something new to look up. That waits while you're busy at the auction house.
 	results[1] = { { unitPrice = 10, quantity = 2 }, { unitPrice = 80, quantity = 100 } }
+	ns.db.depth[2] = nil -- the bolts' listings forgotten
 	Wait(20) -- long after the add-on's own search of it
 	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
 	Step()
 	Step()
 	check("depth: read from your own search", ns.db.depth[1][2][1], 80)
 	check("lock: no lock for listings read from your search", ns.Lock.Shown(), false)
-	check("depth: bolts bought instead", ns.plan.buy[2], 6)
-	check("depth: cloth not bought", ns.plan.buy[1], nil)
+	-- One bolt is still made from the two cheap cloth (20 against 100); the other five are bought.
+	check("depth: bolts bought instead", ns.plan.buy[2], 5)
+	check("depth: only the cheap cloth bought", ns.plan.buy[1], 2)
 	check("depth: holds off while you search", #sent, 1)
 	RunTimers()
 	check("depth: then looks up the bolts", sent[2] and sent[2].itemID, 2)
@@ -3440,7 +3445,7 @@ do
 	check("depth: empty answer not stored", ns.db.depth[2], nil)
 	check("depth: asked once more, then given up", #sent, 3)
 	check("depth: given up", ns.Depth.Status(), nil)
-	check("depth: scan price still used", ns.plan.cost, 6 * 100 + 2 * 10)
+	check("depth: scan price still used", ns.plan.cost, 5 * 100 + 2 * 10 + 2 * 10)
 	ns.Depth.CheckWanted()
 	RunTimers()
 	check("depth: not asked again right away", #sent, 3)
@@ -3450,7 +3455,7 @@ do
 	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 2)
 	RunTimers()
 	check("depth: nothing listed stored", ns.db.depth[2] and #ns.db.depth[2], 0)
-	check("depth: nothing listed, noted on the plan", ns.plan.thin[2] or ns.plan.buy[1], ns.plan.thin[2] and 6 or 12)
+	check("depth: nothing listed, noted on the plan", ns.plan.thin[2] or ns.plan.buy[1], ns.plan.thin[2] and 5 or 12)
 
 	-- The auction house not ready: nothing goes out until it says so. (A new visit: searches given up before
 	-- are tried again.)
@@ -3479,7 +3484,7 @@ do
 		local function Visit()
 			FireNow("AUCTION_HOUSE_CLOSED")
 			RunTimers()
-			ns.db.depth = {}
+			ns.db.depth = { [2] = { at = time(), { 100, 50 } } } -- the bolts' listings known: only the cloth is read
 			FireNow("AUCTION_HOUSE_SHOW")
 			Step()
 			Step()

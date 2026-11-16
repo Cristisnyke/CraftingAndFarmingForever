@@ -59,12 +59,13 @@ Materials you already hold count as free when it decides whether crafting a mate
 
 ### What buying many really costs
 
-A price scan only knows each material's cheapest listing. If 5 Iron Ore are listed at 5s and the next 10 at 10s, buying 15 costs 1g 25s, not 75s. So at the auction house the add-on reads every listing of the materials your queue and your restock would buy:
+A price scan only knows each material's cheapest listing. If 5 Iron Ore are listed at 5s and the next 10 at 10s, buying 15 costs 1g 25s, not 75s. So at the auction house the add-on reads every listing of the materials your queue and your restock would buy, and of the materials they could be made from:
 
 - It starts a second after you open the auction house and takes a few seconds, one material at a time. It waits for your own searches and other add-ons', and pauses while you browse, scan or buy. The Queue tab's auction house step says "reading listings, 4 to go" meanwhile.
 - While it reads, the screen is locked: the window opens on the Queue tab and goes dark, a notice in its middle says "Screen locked: scanning your items" and how many are left ("Reading listings, 4 to go"), and clicks and keys do nothing, so a search or a purchase can't get in the way. It unlocks by itself the moment the reading is done, and also when you close the auction house, a fight starts, the reading pauses for something of yours already under way, the auction house hasn't answered for 15 seconds, or after 2 minutes whatever happens. **Escape** unlocks it at once; the reading then goes on in the background. Listings read from the items you open yourself never lock the screen.
 - Every item you open to buy is read too, so the costs follow the market while you shop.
 - **Still to buy**, the restock's gold check and the choice between buying a material and crafting it then use the real cost of the amount you need. Your own auctions aren't counted: you can't buy those.
+- **Sub-crafts stop where they stop paying.** For a material you can make, both sides are read: the ore and the bars. The add-on smelts bars only while that's cheaper than buying them and buys the rest, so when the cheap ore runs out halfway, half the bars are smelted and half bought, whichever mix costs least in total. When smelting and buying cost the same, it buys.
 - In the Queue tab, a row says **avg** with the average price when the cheapest listing doesn't cover it all, and its total is what all of them cost. "30 listed" in orange means fewer are listed than you need; the rest count at the dearest listing.
 - Listings are kept for a day. A material whose listings were never read still counts at its cheapest listing times the amount, as before. The profit list is per craft, so it keeps using the cheapest listing.
 
