@@ -246,9 +246,11 @@ local function SortValue(result, key)
 end
 
 -- Levelling mode: recipe colours as the game shows them, and what each colour means here.
-local SKILL_COLORS = { [0] = "ffff8040", [1] = "ffffff00", [2] = "ff40bf40" }
-local SKILL_CHANCE_TEXT = { [0] = "100%", [1] = "~50%", [2] = "~25%" }
-local SKILL_NAMES = { [0] = "Orange", [1] = "Yellow", [2] = "Green" }
+local SKILL = {
+	COLORS = { [0] = "ffff8040", [1] = "ffffff00", [2] = "ff40bf40" },
+	CHANCE_TEXT = { [0] = "100%", [1] = "~50%", [2] = "~25%" },
+	NAMES = { [0] = "Orange", [1] = "Yellow", [2] = "Green" },
+}
 
 -- The profession levelling looks at: the selected tab, or on All the one that's open.
 function UI.SkillProfession()
@@ -833,9 +835,9 @@ local function ShowSkillTooltip(row, item)
 	StartItemTooltip(row, item.itemID, item.recipeID)
 	AddPartLines(item.parts)
 	GameTooltip:AddLine(" ")
-	local hex = SKILL_COLORS[item.difficulty]
-	GameTooltip:AddDoubleLine("Colour", Color(hex, SKILL_NAMES[item.difficulty]), 1, 1, 1, 1, 1, 1)
-	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL_CHANCE_TEXT[item.difficulty]), 1, 1, 1, 1, 1, 1)
+	local hex = SKILL.COLORS[item.difficulty]
+	GameTooltip:AddDoubleLine("Colour", Color(hex, SKILL.NAMES[item.difficulty]), 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL.CHANCE_TEXT[item.difficulty]), 1, 1, 1, 1, 1, 1)
 	if item.points > 1 then GameTooltip:AddDoubleLine("Skill points per craft", tostring(item.points), 1, 1, 1, 1, 1, 1) end
 	GameTooltip:AddDoubleLine("Materials per craft", item.cost and ns.Money(item.cost) or "no price", 1, 1, 1, 1, 1, 1)
 	GameTooltip:AddDoubleLine("Expected cost per skill point", item.perPoint and ns.Money(item.perPoint) or "no price",
@@ -1192,9 +1194,14 @@ local function SmallButton(parent, text, onClick)
 	return button
 end
 
-local QUEUE_COLUMN_WIDTH = 80
-local PROFIT_COLUMN_WIDTH = 110 -- fits "cost 12g 34s 56c" for bind-on-pickup crafts
-local CHANCE_COLUMN_WIDTH = 44
+-- Column widths in the lists.
+local COLUMN = {
+	QUEUE = 80,
+	PROFIT = 110, -- fits "cost 12g 34s 56c" for bind-on-pickup crafts
+	CHANCE = 44,
+	RESTOCK = 38,
+	WRIT = 76,
+}
 
 -- Tooltips for + and -, by the kind of row they're on: title, then the help line.
 local PLUS_TIPS = {
@@ -1299,16 +1306,15 @@ local function PlaceRight(row, controls, show)
 end
 
 local function ProfitControls(row)
-	row.profit:SetWidth(PROFIT_COLUMN_WIDTH)
+	row.profit:SetWidth(COLUMN.PROFIT)
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.chance, 6 } }
 end
 
 local function SkillControls(row)
-	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
+	row.profit:SetWidth(COLUMN.QUEUE)
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.cost, 6 }, { row.chance, 6 } }
 end
 
-local RESTOCK_COLUMN_WIDTH = 38
 -- The Stock level slider and the flashes on restock rows when their numbers change. seen = what each restock row last
 -- showed, by item; emptied when the tab closes. sliders = the slider on the Restock tab and the one in Options.
 local Live = {
@@ -1330,14 +1336,13 @@ local function RestockControls(row)
 end
 
 local function SalesControls(row)
-	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
+	row.profit:SetWidth(COLUMN.QUEUE)
 	return { { row.profit, 6 }, { row.cost, 6 }, { row.colAH, 6 }, { row.colHave, 6 }, { row.chance, 6 } }
 end
 
-local WRIT_COLUMN_WIDTH = 76
 
 local function WritControls(row)
-	for _, region in ipairs({ row.profit, row.cost, row.colHave, row.colAH }) do region:SetWidth(WRIT_COLUMN_WIDTH) end
+	for _, region in ipairs({ row.profit, row.cost, row.colHave, row.colAH }) do region:SetWidth(COLUMN.WRIT) end
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.cost, 6 }, { row.colHave, 6 }, { row.colAH, 6 } }
 end
 
@@ -1346,7 +1351,7 @@ local function IncomingControls(row)
 end
 
 local function QueueControls(row)
-	row.profit:SetWidth(QUEUE_COLUMN_WIDTH)
+	row.profit:SetWidth(COLUMN.QUEUE)
 	return {
 		{ row.remove, 4 }, { row.quote, 8 }, { row.plus, 6 }, { row.amount, 6 }, { row.minus, 8 },
 		{ row.profit, 8 }, { row.cost, 4 },
@@ -1569,7 +1574,7 @@ local function CreateRow(parent)
 	-- Columns: the queue's materials and profit for the whole entry, the Profit tab's sell chance and profit.
 	for _, key in ipairs({ "cost", "profit", "chance" }) do
 		row[key] = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		row[key]:SetWidth(key == "chance" and CHANCE_COLUMN_WIDTH or QUEUE_COLUMN_WIDTH)
+		row[key]:SetWidth(key == "chance" and COLUMN.CHANCE or COLUMN.QUEUE)
 		row[key]:SetJustifyH("RIGHT")
 		row[key]:SetWordWrap(false)
 	end
@@ -1577,7 +1582,7 @@ local function CreateRow(parent)
 	-- Restock's columns: on the AH, held, crafts to queue.
 	for _, key in ipairs({ "colAH", "colHave", "colCraft" }) do
 		row[key] = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		row[key]:SetWidth(RESTOCK_COLUMN_WIDTH)
+		row[key]:SetWidth(COLUMN.RESTOCK)
 		row[key]:SetJustifyH("RIGHT")
 		row[key]:SetWordWrap(false)
 	end
@@ -1852,11 +1857,11 @@ local function SetRow(row, data)
 		local spellIcon = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(item.recipeID))
 			or (GetSpellTexture and GetSpellTexture(item.recipeID))
 		row.icon:SetTexture(item.itemID and ns.Items.Icon(item.itemID) or spellIcon or 134400)
-		local hex = SKILL_COLORS[item.difficulty]
+		local hex = SKILL.COLORS[item.difficulty]
 		row.left:SetText(Color(hex, recipe and recipe.n or "?")
 			.. (item.points > 1 and Color(COLOR_MUTED, (" +%d per craft"):format(item.points)) or ""))
 		PlaceRight(row, SkillControls(row), true)
-		row.chance:SetText(Color(hex, SKILL_CHANCE_TEXT[item.difficulty]))
+		row.chance:SetText(Color(hex, SKILL.CHANCE_TEXT[item.difficulty]))
 		row.cost:SetText(item.cost and ns.Money(item.cost) or Color(COLOR_MUTED, "no price"))
 		row.profit:SetText(item.perPoint and ns.Money(item.perPoint) or Color(COLOR_MUTED, "?"))
 	elseif data.kind == "queue" then
@@ -2589,17 +2594,19 @@ end
 -- on them and on all your crafts, and a thin light line under it fills through all crafts.
 -- One blue palette on the main window's dark background, solid colours only: a status bar's texture takes its colour
 -- from SetStatusBarColor, and the earlier gradient attempt (SetVertexColor(1, 1, 1) after SetGradient) left it white.
-local CRAFT_BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
-local CRAFT_BAR_TRACK = { 0.05, 0.05, 0.07 }
-local CRAFT_BAR_STYLES = {
+local CRAFT_BAR = {
+	TRACK = { 0.05, 0.05, 0.07 },
+	-- The all-crafts line: pale ice blue on a near-black blue track, so it stands out against the fill above it.
+	ALL_COLOR = { 0.62, 0.88, 1.00 },
+	ALL_TRACK = { 0.02, 0.04, 0.08 },
+}
+CRAFT_BAR.STYLES = {
 	--            fill                  border
 	ready    = { { 0.13, 0.36, 0.70 }, { 0.28, 0.56, 0.95 } },
 	crafting = { { 0.18, 0.48, 0.90 }, { 0.38, 0.68, 1.00 } },
 	paused   = { { 0.10, 0.24, 0.46 }, { 0.20, 0.38, 0.65 } },
 	blocked  = { { 0.11, 0.12, 0.16 }, { 0.20, 0.22, 0.28 } },
 }
--- The all-crafts line: pale ice blue on a near-black blue track, so it stands out against the fill above it.
-local CRAFT_ALL_COLOR, CRAFT_ALL_TRACK = { 0.62, 0.88, 1.00 }, { 0.02, 0.04, 0.08 }
 local craftBars = {}
 
 
@@ -2658,7 +2665,7 @@ local function RenderCraftBar(bar)
 	if all then detail = detail and (detail .. "   " .. all) or all end
 
 	bar.cf.state = state
-	local style = CRAFT_BAR_STYLES[state]
+	local style = CRAFT_BAR.STYLES[state]
 	if bar.cf.paintedState ~= state then
 		bar.cf.paintedState = state
 		bar.fill:SetStatusBarColor(style[1][1], style[1][2], style[1][3])
@@ -2758,7 +2765,7 @@ local function CreateCraftBar(parent, height)
 		edgeSize = 1,
 		insets = { left = 1, right = 1, top = 1, bottom = 1 },
 	})
-	bar:SetBackdropColor(CRAFT_BAR_TRACK[1], CRAFT_BAR_TRACK[2], CRAFT_BAR_TRACK[3], 0.97)
+	bar:SetBackdropColor(CRAFT_BAR.TRACK[1], CRAFT_BAR.TRACK[2], CRAFT_BAR.TRACK[3], 0.97)
 	bar:RegisterForClicks("LeftButtonUp")
 	bar:SetScript("OnClick", function(self)
 		if self.cf.state == "ready" or self.cf.state == "paused" then ns.Queue.CraftNext() end
@@ -2767,7 +2774,7 @@ local function CreateCraftBar(parent, height)
 	local fill = CreateFrame("StatusBar", nil, bar)
 	fill:SetPoint("TOPLEFT", 2, -2)
 	fill:SetPoint("BOTTOMRIGHT", -2, 2)
-	fill:SetStatusBarTexture(CRAFT_BAR_TEXTURE)
+	fill:SetStatusBarTexture(WHITE)
 	fill:SetMinMaxValues(0, 1)
 	fill:SetValue(0)
 	bar.fill = fill
@@ -2823,8 +2830,8 @@ local function CreateCraftBar(parent, height)
 	local allTrack = allStrip:CreateTexture(nil, "BACKGROUND")
 	allTrack:SetTexture("Interface\\Buttons\\WHITE8X8")
 	allTrack:SetAllPoints()
-	allTrack:SetVertexColor(CRAFT_ALL_TRACK[1], CRAFT_ALL_TRACK[2], CRAFT_ALL_TRACK[3], 0.9)
-	allStrip:SetStatusBarColor(CRAFT_ALL_COLOR[1], CRAFT_ALL_COLOR[2], CRAFT_ALL_COLOR[3])
+	allTrack:SetVertexColor(CRAFT_BAR.ALL_TRACK[1], CRAFT_BAR.ALL_TRACK[2], CRAFT_BAR.ALL_TRACK[3], 0.9)
+	allStrip:SetStatusBarColor(CRAFT_BAR.ALL_COLOR[1], CRAFT_BAR.ALL_COLOR[2], CRAFT_BAR.ALL_COLOR[3])
 	allStrip:Hide()
 	bar.allStrip = allStrip
 
@@ -3036,18 +3043,20 @@ end
 -- exists only while something is queued, opens by itself, and can be folded down to its title line, which still
 -- names the step. Not a tab: it stays up while you play. In Farm It mode it's also the list of what to gather and
 -- where, with a Buy It button to go back to buying.
-local NEXT_WIDTH = 300
-local NEXT_MAX_ROWS = 10
-local NEXT_MAX_ROWS_FARMING = 16 -- every gathering group at once
-local NEXT_BUTTON_ROOM = 42
+local NEXT = {
+	WIDTH = 300,
+	MAX_ROWS = 10,
+	MAX_ROWS_FARMING = 16, -- every gathering group at once
+	BUTTON_ROOM = 42,
+}
 
 local function CreateNextWindow()
 	local frame = CreateFrame("Frame", "CFFNextStep", UIParent, "BackdropTemplate")
-	local window = { key = "next", frame = frame, list = {}, offset = 0, rows = {}, mini = true, maxRows = NEXT_MAX_ROWS }
+	local window = { key = "next", frame = frame, list = {}, offset = 0, rows = {}, mini = true, maxRows = NEXT.MAX_ROWS }
 	windows.next = window
 	MakeMovable(frame, "next")
 	frame:SetFrameStrata("MEDIUM") -- under the main window and dialogs, as it's always there
-	frame:SetSize(NEXT_WIDTH, MINI_TOP + 8)
+	frame:SetSize(NEXT.WIDTH, MINI_TOP + 8)
 	ThemeBackdrop(frame, 0.88)
 
 	local fold = HeaderButton(frame, "-", 22, function()
@@ -3109,7 +3118,7 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount, window.blocking, window.open, window.crafting = nil, nil, nil, nil, false
-		window.maxRows = ns.db.ui.farmMode and NEXT_MAX_ROWS_FARMING or NEXT_MAX_ROWS
+		window.maxRows = ns.db.ui.farmMode and NEXT.MAX_ROWS_FARMING or NEXT.MAX_ROWS
 		window.gatherGroups = 0
 		if step and step.gather then
 			window.gatherGroups = 1
@@ -3133,7 +3142,7 @@ local function CreateNextWindow()
 		end
 		-- On a crafting step the button stays, saying what to finish while it can't craft.
 		local button = window.crafting
-		local footer = button and NEXT_BUTTON_ROOM + 6 or 6
+		local footer = button and NEXT.BUTTON_ROOM + 6 or 6
 		SetFooter(footer)
 		window.container:SetShown(not folded)
 		frame:SetHeight(folded and (MINI_TOP + 2)
@@ -4030,7 +4039,11 @@ end
 local Advertise = {}
 ns.Advertise = Advertise
 
-local AD_COOLDOWN_SECONDS = 60
+local AD = {
+	COOLDOWN_SECONDS = 60,
+	BOX_WIDTH = 26, BOX_HEIGHT = 20,
+	BUTTON_WIDTH = 130, BUTTON_HEIGHT = 20,
+}
 local lastAdvertised = {} -- by destination
 
 -- Where an ad can go. The slash command is for the chat box fallback; Trade's depends on its channel number.
@@ -4151,7 +4164,7 @@ local function DestinationState(destination)
 end
 
 local function CooldownLeft(destination)
-	return math.max(0, AD_COOLDOWN_SECONDS - (time() - (lastAdvertised[destination.key] or 0)))
+	return math.max(0, AD.COOLDOWN_SECONDS - (time() - (lastAdvertised[destination.key] or 0)))
 end
 
 -- The chat command for an ad, or nil and the reason there can't be one right now.
@@ -4191,8 +4204,6 @@ end
 -- Beside the chat frame: one small box that opens a destination picker and a button per crafting profession of this
 -- character. They work with no profession window open, using the link saved when the profession was last opened, and
 -- show whenever the chosen destination can take a post. Posting closes them again.
-local AD_BOX_WIDTH, AD_BOX_HEIGHT = 26, 20
-local AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT = 130, 20
 local adButtons = {}
 Advertise.buttons = adButtons
 local cooldownTimerRunning = false
@@ -4200,7 +4211,7 @@ local adBox, destinationButton, destinationMenu
 local adOpen = false
 
 local function CreateDestinationPicker()
-	adBox = FlatButton(UIParent, "Ad", AD_BOX_WIDTH, AD_BOX_HEIGHT, false, "CFFAdBox")
+	adBox = FlatButton(UIParent, "Ad", AD.BOX_WIDTH, AD.BOX_HEIGHT, false, "CFFAdBox")
 	-- Past the chat frame's own scroll bar.
 	adBox:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMRIGHT", 28, 0)
 	adBox:SetText("Ad")
@@ -4215,20 +4226,20 @@ local function CreateDestinationPicker()
 	end)
 	Advertise.box = adBox
 
-	destinationButton = FlatButton(UIParent, "", AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT, false, "CFFAdDestination")
+	destinationButton = FlatButton(UIParent, "", AD.BUTTON_WIDTH, AD.BUTTON_HEIGHT, false, "CFFAdDestination")
 	destinationButton:SetPoint("BOTTOMLEFT", adBox, "TOPLEFT", 0, 2)
 	destinationButton:Hide()
 	Advertise.destinationButton = destinationButton
 
 	destinationMenu = CreateFrame("Frame", nil, destinationButton)
-	destinationMenu:SetSize(60, #DESTINATIONS * AD_BUTTON_HEIGHT)
+	destinationMenu:SetSize(60, #DESTINATIONS * AD.BUTTON_HEIGHT)
 	destinationMenu:SetPoint("BOTTOMLEFT", destinationButton, "BOTTOMRIGHT", 2, 0)
 	destinationMenu:Hide()
 	Advertise.destinationMenu = destinationMenu
 	destinationMenu.options = {}
 	for index, destination in ipairs(DESTINATIONS) do
-		local option = FlatButton(destinationMenu, "", 60, AD_BUTTON_HEIGHT)
-		option:SetPoint("BOTTOMLEFT", 0, (index - 1) * AD_BUTTON_HEIGHT)
+		local option = FlatButton(destinationMenu, "", 60, AD.BUTTON_HEIGHT)
+		option:SetPoint("BOTTOMLEFT", 0, (index - 1) * AD.BUTTON_HEIGHT)
 		option:SetText(destination.label)
 		option:SetScript("OnClick", function()
 			ns.db.ui.adDestination = destination.key
@@ -4264,7 +4275,7 @@ end
 local function AdButton(index)
 	local button = adButtons[index]
 	if not button then
-		button = FlatButton(UIParent, "", AD_BUTTON_WIDTH, AD_BUTTON_HEIGHT, false, "CFFAdvertiseButton" .. index,
+		button = FlatButton(UIParent, "", AD.BUTTON_WIDTH, AD.BUTTON_HEIGHT, false, "CFFAdvertiseButton" .. index,
 			"SecureActionButtonTemplate")
 		button:RegisterForClicks("AnyUp", "AnyDown")
 		button:SetAttribute("type", "macro")
@@ -4300,7 +4311,7 @@ function Advertise.UpdateButtons()
 
 	-- The profession buttons stack above the picker, which sits above the box.
 	local left = adBox and adBox:GetLeft()
-	local top = adBox and adBox:GetTop() and (adBox:GetTop() + AD_BUTTON_HEIGHT + 2)
+	local top = adBox and adBox:GetTop() and (adBox:GetTop() + AD.BUTTON_HEIGHT + 2)
 	local available = DestinationState(destination)
 	local wait = CooldownLeft(destination)
 	local shown = 0
@@ -4314,7 +4325,7 @@ function Advertise.UpdateButtons()
 				button.destinationKey = destination.key
 				button:SetAttribute("macrotext", command)
 				button:ClearAllPoints()
-				button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left, top + 2 + (shown - 1) * (AD_BUTTON_HEIGHT + 2))
+				button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left, top + 2 + (shown - 1) * (AD.BUTTON_HEIGHT + 2))
 				button:SetText(wait > 0 and ("%s (%d)"):format(profession.name, wait) or profession.name)
 				button:SetEnabled(wait <= 0)
 				button:Show()
