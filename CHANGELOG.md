@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.18.0
 
 - **Sub-crafts only as far as they pay.** A sub-craft used to be all or nothing: smelt every bar, or buy every bar. Now the add-on makes bars from the ore only while that's cheaper than buying the bars, and buys the rest. When the first 50 Iron Ore are cheap and the next 50 dear, it smelts what the cheap ore makes and buys the other bars, whichever costs less in total. When the two cost the same, it buys, since that's a step less.
 - **The plan checks itself after new prices.** When your shopping list search, a price scan or the add-on's own listings check finishes, the plan is worked out again with the new prices. If it changed, the rows that changed pulse gold and a note says "Plan updated for the new prices: 3 changes". If it didn't, the window pulses green and says "Plan checked: still the cheapest way". With no window open, chat says it. Buying what the list says doesn't count as a change, and closing the auction house halfway through a search gives no verdict.
