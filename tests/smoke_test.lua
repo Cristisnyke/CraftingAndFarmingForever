@@ -3219,5 +3219,69 @@ do
 	C_Container, C_Item.GetItemCount = container, itemCount
 end
 
+
+-- The bank step done from the Next step bar: put away, then take out, through the cursor, one stack at a time.
+do
+	local container, itemCount, bagIndex = C_Container, C_Item.GetItemCount, Enum.BagIndex
+	local TAB = 12
+	Enum.BagIndex = { CharacterBankTab_1 = TAB }
+	local slots = { [0] = { { itemID = 4, stackCount = 1 }, false, false }, [TAB] = { { itemID = 1, stackCount = 5 }, false, false, false } }
+	local cursor
+	C_Container = {
+		GetContainerNumSlots = function(bag) return slots[bag] and #slots[bag] or 0 end,
+		GetContainerItemInfo = function(bag, slot)
+			local item = slots[bag] and slots[bag][slot]
+			return item or nil
+		end,
+		PickupContainerItem = function(bag, slot)
+			if not cursor then
+				cursor = { bag = bag, slot = slot, count = slots[bag][slot].stackCount }
+				return
+			end
+			local from = slots[cursor.bag][cursor.slot]
+			local target = slots[bag][slot]
+			if target then
+				target.stackCount = target.stackCount + cursor.count
+			else
+				slots[bag][slot] = { itemID = from.itemID, stackCount = cursor.count }
+			end
+			from.stackCount = from.stackCount - cursor.count
+			if from.stackCount <= 0 then slots[cursor.bag][cursor.slot] = false end
+			cursor = nil
+		end,
+		SplitContainerItem = function(bag, slot, count) cursor = { bag = bag, slot = slot, count = count } end,
+	}
+	GetCursorInfo = function() return cursor and "item" or nil end
+	ClearCursor = function() cursor = nil end
+	C_Item.GetItemCount = function(id, includeBank) return id == 1 and includeBank and 5 or 0 end
+	ns.Queue.Clear()
+	ns.Queue.Add(10, 1)
+	RunTimers()
+	check("bank step: plan takes from the bank", ns.plan.bank[1], 2)
+	local bar = ns.UI.windows.next
+	check("bank step: bar is on the bank step", bar.banking, true)
+	local ok, why = ns.Bank.Run()
+	check("bank step: needs the bank open", ok, false)
+	check("bank step: says why", why, "Open your bank first.")
+	Fire("BANKFRAME_OPENED")
+	check("bank step: button closed bank", bar.bankButton.text ~= nil, true)
+	ns.UI.Refresh("next")
+	-- Three slots (stacks of one here): two cloth and the bolt made from them need the shirt's slot.
+	check("bank step: button offers the move", bar.bankButton.text, "Bank it: put away 1, take out 2")
+	check("bank step: starts", (ns.Bank.Run()), true)
+	for _ = 1, 5 do RunTimers() end
+	check("bank step: shirt put away", slots[TAB][2] and slots[TAB][2].itemID, 4)
+	check("bank step: two taken out, split off the stack", slots[0][1] and slots[0][1].stackCount, 2)
+	check("bank step: rest stays in the bank", slots[TAB][1].stackCount, 3)
+	check("bank step: job finished", ns.Bank.Progress(), nil)
+	check("bank step: cursor empty", cursor, nil)
+	Fire("BANKFRAME_CLOSED")
+	check("bank step: closed", ns.Bank.IsOpen(), false)
+	ns.Queue.Clear()
+	RunTimers()
+	C_Container, C_Item.GetItemCount, Enum.BagIndex = container, itemCount, bagIndex
+	GetCursorInfo, ClearCursor = nil, nil
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

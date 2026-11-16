@@ -16,6 +16,7 @@ Sources.lua
 Farm.lua
 Data.lua
 Queue.lua
+Bank.lua
 Sales.lua
 Shopping.lua
 Writs.lua

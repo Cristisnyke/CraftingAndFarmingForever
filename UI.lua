@@ -451,8 +451,13 @@ local function BuildQueueList()
 	for _, name in ipairs(names) do Section("Get from " .. name .. " (log in there and mail them over)", plan.fetch[name]) end
 	-- Bags too full for the queue: what to put in the bank, on the same trip as what to take out of it.
 	local room = plan.room
+	local function BankSection(title, items)
+		local at = #list + 1
+		Section(title, items)
+		if list[at] then list[at].bank = true end -- the Next step bar can do it at the bank
+	end
 	if room and next(room.bank) then
-		Section("Make room: put these in your bank (your bags would fill up)", room.bank)
+		BankSection("Make room: put these in your bank (your bags would fill up)", room.bank)
 	end
 	if room and room.short > 0 then
 		if not (room.bank and next(room.bank)) then
@@ -461,7 +466,7 @@ local function BuildQueueList()
 		table.insert(list, { kind = "warn", text = ("Still %s short: sell, mail or bank something else."):format(
 			ns.Plural(room.short, "bag slot", "bag slots")) })
 	end
-	Section("Take from your bank", plan.bank)
+	BankSection("Take from your bank", plan.bank)
 	local beforeBuy = #list
 	Section("Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
 	-- New players don't know where the list is: say it under the heading, short enough for the Next step bar.
@@ -3103,6 +3108,7 @@ local NEXT = {
 	MAX_ROWS = 10,
 	MAX_ROWS_FARMING = 16, -- every gathering group at once
 	BUTTON_ROOM = 42,
+	BANK_BUTTON_ROOM = 30,
 }
 
 local function CreateNextWindow()
@@ -3161,6 +3167,48 @@ local function CreateNextWindow()
 	craft:SetPoint("BOTTOMRIGHT", -10, 8)
 	window.craftButton = craft
 
+	-- On a bank step: moves it all for you while the bank is open.
+	local bank = FlatButton(frame, "", 10, 24, true)
+	bank:SetPoint("BOTTOMLEFT", 10, 8)
+	bank:SetPoint("BOTTOMRIGHT", -10, 8)
+	bank:SetScript("OnClick", function()
+		local ok, why = ns.Bank.Run()
+		if not ok and why then ns.Print(why) end
+	end)
+	bank:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Do the bank step")
+		GameTooltip:AddLine("With your bank open, puts away what this step says to make room with, then takes out "
+			.. "what the queue needs from the bank. One stack at a time; it stops if the bank closes or a fight starts.",
+			1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	bank:SetScript("OnLeave", GameTooltip_Hide)
+	bank.Sync = function(self)
+		local moved, total = ns.Bank.Progress()
+		if moved then
+			self:SetText(("Moving... %d / %d"):format(moved, total))
+			self:Disable()
+		elseif ns.Bank.IsOpen() then
+			local pending = ns.Bank.Pending()
+			local away, take = 0, 0
+			for _, units in pairs(pending and pending.deposit or {}) do away = away + units end
+			for _, units in pairs(pending and pending.take or {}) do take = take + units end
+			local parts = {}
+			if away > 0 then table.insert(parts, "put away " .. away) end
+			if take > 0 then table.insert(parts, "take out " .. take) end
+			self:SetText(#parts > 0 and ("Bank it: " .. table.concat(parts, ", ")) or "Nothing to move")
+			self:SetEnabled(#parts > 0)
+		else
+			self:SetText("Open your bank and this does it for you")
+			self:Disable()
+		end
+	end
+	window.bankButton = bank
+	UI.SyncBankButton = function()
+		if window.banking and frame:IsShown() then bank:Sync() end
+	end
+
 	-- The list area's bottom moves up when the Craft Next button is there.
 	local function SetFooter(footer)
 		window.container:SetPoint("BOTTOMRIGHT", -24, footer)
@@ -3173,6 +3221,7 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount, window.blocking, window.open, window.crafting = nil, nil, nil, nil, false
+		window.banking = false
 		window.maxRows = ns.db.ui.farmMode and NEXT.MAX_ROWS_FARMING or NEXT.MAX_ROWS
 		window.gatherGroups = 0
 		if step and step.gather then
@@ -3194,10 +3243,11 @@ local function CreateNextWindow()
 				window.crafting = true
 				if not nextCraft and reason and not open then table.insert(list, { kind = "note", text = reason }) end
 			end
+			window.banking = step.bank or false
 		end
 		-- On a crafting step the button stays, saying what to finish while it can't craft.
 		local button = window.crafting
-		local footer = button and NEXT.BUTTON_ROOM + 6 or 6
+		local footer = button and NEXT.BUTTON_ROOM + 6 or window.banking and NEXT.BANK_BUTTON_ROOM + 6 or 6
 		SetFooter(footer)
 		window.container:SetShown(not folded)
 		frame:SetHeight(folded and (MINI_TOP + 2)
@@ -3226,6 +3276,8 @@ local function CreateNextWindow()
 		else
 			craft:Hide()
 		end
+		bank:SetShown(window.banking and not folded)
+		if window.banking and not folded then bank:Sync() end
 	end
 
 	frame:HookScript("OnShow", function() UI.Refresh("next") end)

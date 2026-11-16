@@ -105,7 +105,9 @@ When it doesn't fit:
 2. If banking still isn't enough, the queue is crafted in **runs**. A run is as much of the queue as your bags hold, starting with the crafts that use up the most room (a craft that turns a stack of ore into one item before one that turns two bolts into a shirt). The list then shows **Craft this run: N crafts**, each row says **this run: 7** when only part of it is in the run, and the rest is listed under **Next run**. The shopping list, Still to buy and the Next step bar follow the run, so you only buy what this run needs.
 3. Once the run is crafted, the list starts over: bank what you made if there's no room, then buy for the next run. A run stays as it is until it's crafted, so the list doesn't change halfway through; adding to the queue plans a new run.
 
-The bank's own free space isn't checked. Turn it all off with **Plan around bag space** on the Options tab. Farm It plans don't use runs: you gather what you come across.
+On the Next step bar, a **Make room** or **Take from your bank** step has a **Bank it** button. Open your bank and click it: it puts away everything the step lists, then takes out what the queue needs from the bank, one stack at a time, splitting stacks when only part is needed (crafting reagents go to the reagent bag first). It says in chat when it's done, if your bank or bags filled up, or if something wasn't found. It stops when the bank closes or a fight starts, and won't start while you hold something on the cursor.
+
+The bank's own free space isn't checked before planning; **Bank it** stops and says so when it's full. Turn it all off with **Plan around bag space** on the Options tab. Farm It plans don't use runs: you gather what you come across.
 
 ### Next step bar
 
