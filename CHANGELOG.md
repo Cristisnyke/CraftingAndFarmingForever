@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- `/cff` with an unknown command now lists `writs` and `crates` among the commands.
+
 ## 1.15.1
 
 - **Full bags no longer block the queue.** The game won't start a craft unless a bag slot is free, even a craft that would free slots. Bag space planning now keeps one slot free before every craft: with full bags, the Queue tab first tells you what to put in the bank (or, if there's nothing of the queue's to bank, that you're a slot short).

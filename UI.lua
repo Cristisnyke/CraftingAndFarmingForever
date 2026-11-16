@@ -4574,7 +4574,7 @@ local function Diagnostics()
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	local off = {}
-	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap", "smartRestock" }) do
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap", "smartRestock", "bagSpace" }) do
 		if not ns.Option(key) then table.insert(off, key) end
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
@@ -4614,6 +4614,6 @@ SlashCmdList.CFF = function(input)
 	elseif command == "" then
 		UI.ToggleMain()
 	else
-		ns.Print("/cff [profit | queue | restock | sales | options | changelog | next | minimap | advertise | refresh | clear | auto | diag]")
+		ns.Print("/cff [profit | queue | restock | sales | writs | crates | options | changelog | next | minimap | advertise | refresh | clear | auto | diag]")
 	end
 end
