@@ -3358,7 +3358,10 @@ do
 	check("depth: status while reading", (ns.Depth.Status()), 1)
 	check("lock: screen locked while it reads", ns.Lock.Shown(), true)
 	check("lock: window open on the Queue tab", ns.UI.IsOpen() and ns.db.ui.tab, "queue")
-	check("lock: says how many are left", ns.Lock.frame.title.text, "Reading listings, 1 to go")
+	check("lock: says the screen is locked", ns.Lock.frame.title.text, "Screen locked: scanning your items")
+	check("lock: says how many are left", ns.Lock.frame.note.text, "Reading listings, 1 to go. Escape unlocks it.")
+	check("lock: window blacked out", ns.Lock.frame.cover.shown, true)
+	check("lock: notice in the middle of the window", ns.Lock.frame.box.lastPoint[2], ns.UI.main.frame)
 	check("depth: header says it's reading", BuyHeader():find("reading listings, 1 to go", 1, true) ~= nil, true)
 
 	-- 2 at 10, plenty at 30, and 4 of your own at 9 that you can't buy.

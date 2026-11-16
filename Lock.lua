@@ -1,7 +1,8 @@
 -- Crafting and Farming Forever :: Lock
 -- While the add-on reads listings at the auction house (Depth.lua's own check), the screen is locked: a see-through
--- sheet over everything takes every click and key, so no search or purchase of yours gets in the check's way, and
--- the window opens on the Queue tab, where the buy step counts down.
+-- sheet over everything takes every click and key, so no search or purchase of yours gets in the check's way. The
+-- window opens on the Queue tab and is blacked out, with the notice and the countdown in its middle; when the lock
+-- lifts, the buy step is there with the real costs.
 --
 -- The lock can't get stuck. It asks every frame whether it still has a reason to be there, and goes when the check
 -- ends or holds off, the auction house closes, a fight starts, nothing has been read for a while, it has simply been
@@ -57,7 +58,7 @@ function Lock.Update()
 	if now - progressAt > Lock.STALL or now - since > Lock.MAX then return Release(true) end
 	if frame.shownLeft ~= left then
 		frame.shownLeft = left
-		frame.title:SetText(("Reading listings, %d to go"):format(left))
+		frame.note:SetText(("Reading listings, %d to go. Escape unlocks it."):format(left))
 		frame.bar:SetMinMaxValues(0, math.max(total, 1))
 		frame.bar:SetValue(math.max(total - left, 0))
 	end
@@ -85,6 +86,10 @@ local function Create()
 	shade:SetAllPoints(frame)
 	shade:SetColorTexture(0, 0, 0, 0.35)
 
+	-- The window itself goes dark: what it shows is changing under the lock anyway.
+	frame.cover = frame:CreateTexture(nil, "ARTWORK")
+	frame.cover:SetColorTexture(0, 0, 0, 0.93)
+
 	local box = CreateFrame("Frame", nil, frame)
 	frame.box = box
 	box:SetSize(WIDTH, HEIGHT)
@@ -98,9 +103,9 @@ local function Create()
 
 	frame.title = box:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	frame.title:SetPoint("TOP", 0, -9)
-	local note = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	note:SetPoint("TOP", frame.title, "BOTTOM", 0, -4)
-	note:SetText("The screen is locked until the auction house has answered. Escape unlocks it.")
+	frame.title:SetText("Screen locked: scanning your items")
+	frame.note = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	frame.note:SetPoint("TOP", frame.title, "BOTTOM", 0, -4)
 
 	local bar = CreateFrame("StatusBar", nil, box)
 	frame.bar = bar
@@ -114,16 +119,18 @@ local function Create()
 	track:SetColorTexture(theme.field[1], theme.field[2], theme.field[3], 1)
 end
 
--- The progress box sits just above the window, or under it when the window is at the top of the screen.
+-- The window is blacked out, with the notice in its middle. No window (it can't be shown): the middle of the screen.
 local function PlaceBox()
-	local box, window = frame.box, ns.UI.main and ns.UI.main.frame
+	local box, cover, window = frame.box, frame.cover, ns.UI.main and ns.UI.main.frame
 	box:ClearAllPoints()
-	if not (window and window:IsShown()) then return box:SetPoint("TOP", UIParent, "TOP", 0, -140) end
-	local top, screen = window:GetTop(), UIParent:GetTop()
-	if type(top) == "number" and type(screen) == "number" and top + HEIGHT + 12 <= screen then
-		box:SetPoint("BOTTOM", window, "TOP", 0, 6)
+	cover:ClearAllPoints()
+	if window and window:IsShown() then
+		cover:SetAllPoints(window)
+		cover:Show()
+		box:SetPoint("CENTER", window, "CENTER", 0, 0)
 	else
-		box:SetPoint("TOP", window, "BOTTOM", 0, -6)
+		cover:Hide()
+		box:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	end
 end
 
