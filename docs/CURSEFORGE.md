@@ -28,6 +28,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - Every recipe any of your characters knows, ranked by profit after the auction house cut.
 - Each material is costed the cheapest way: auction house, vendor, or crafting it yourself.
 - Materials you already hold count as free, so ore in your bank means it smelts bars instead of buying them.
+- **Real buying costs**: a price scan only knows the cheapest listing. At the auction house the add-on reads every listing of what you're about to buy, so 50 ore count at what 50 really cost, not 50 times the cheapest one.
 - A tab per profession, a search box, and sorting by name, sell chance or profit.
 - Hide unprofitable recipes with one tick.
 - Bind-on-pickup crafts are listed with their crafting cost, so you can still plan them.
@@ -82,6 +83,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - A goal for each item you sell: how many you want listed. Your auctions, bags, banks and mail count towards it.
 - **Smart goals** learn from your auctions: a step up each day an item sells out, a step down when it expires (quickly, if it stops selling), sized for how often you restock and for the profit against the deposit. An item whose expired auctions cost more in deposits than its sales earn is paused and tried again a few days later. Never more than a quarter of your gold on one item, and daggers in pairs (buyers usually want two). A slider goes from cautious to aggressive (on the Restock tab and in Options, goals update as you drag it), and you can turn them off.
 - Short on gold? You get a **partial restock**: the items that earn the most for their materials, cut to what you can afford. Gold for the auction house deposits is always kept back, plus an amount of gold you choose (1 gold to start with), so you can post what you craft.
+- A restock stops where it stops paying: when the cheap materials on the auction house run out, an item is cut to the crafts that still earn your minimum profit.
 - Clear columns for what's listed, what you hold and what to craft. Goals you set yourself stand out from the defaults, and one click puts them back.
 - One button queues whatever is missing.
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.

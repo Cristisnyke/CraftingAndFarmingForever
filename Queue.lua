@@ -37,6 +37,7 @@ local function NewContext()
 		recipes = ns.db.recipes,
 		known = Recipes.KnownMap(),
 		ahPrice = ns.Prices.AH,
+		ahDepth = ns.Depth.Of,
 		vendorPrice = ns.Prices.Vendor,
 		ownStock = ns.Stock.Own,
 		bankStock = ns.Stock.Bank,
@@ -109,6 +110,7 @@ local function RebuildPlan()
 	ns.farmPlan = ns.Planner.BuildPlan(ctx, ns.db.queue, true, wanted)
 	ns.totals = ns.Planner.QueueTotals(ctx, ns.db.queue, ns.Items.CanSellOnAH)
 	if ns.Shopping then ns.Shopping.Sync() end
+	ns.Depth.CheckWanted()
 	if ns.UI then ns.UI.RefreshQueue() end
 end
 
@@ -382,6 +384,7 @@ end
 local SMART_SECONDS = 5
 local smartGoals, smartAt = {}, 0
 local budgetCache -- see FitToGold
+local listingsCache -- see FitToListings
 
 function Restock.SmartOn()
 	return ns.Option("smartRestock")
@@ -519,11 +522,39 @@ end
 -- The last fit of a restock to your gold, reused while nothing it depends on changed: every redraw asks.
 local BUDGET_SECONDS = 10
 
+-- A restock buys further down the listings than the cheapest one its profit is worked out at: rows that don't earn
+-- the minimum at what their materials really average are cut (Planner.RestockDepth). all = the context for every
+-- character at once.
+local function FitToListings(all, rows)
+	local parts = { "d" .. ns.Depth.version, "r" .. ns.db.priceRound, "m" .. ns.db.restock.minProfitSilver }
+	for _, entry in ipairs(ns.db.queue) do parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty end
+	for _, row in ipairs(rows) do
+		if row.crafts > 0 then parts[#parts + 1] = row.recipeID .. "x" .. row.crafts end
+	end
+	local signature = table.concat(parts, ",")
+	local cache = listingsCache
+	if not (cache and cache.signature == signature and GetTime() - cache.at < BUDGET_SECONDS) then
+		local shopping = ns.Planner.RestockDepth(all, rows, ns.db.queue, ns.db.restock.minProfitSilver * 100)
+		cache = { signature = signature, at = GetTime(), rows = {} }
+		for _, row in ipairs(rows) do
+			cache.rows[row.recipeID] = { crafts = row.crafts, dear = row.dear, net = row.net, listNet = row.listNet }
+		end
+		listingsCache = cache
+		ns.Depth.SetShopping(shopping)
+		return
+	end
+	for _, row in ipairs(rows) do
+		local fit = cache.rows[row.recipeID]
+		if fit then row.crafts, row.dear, row.net, row.listNet = fit.crafts, fit.dear, fit.net, fit.listNet end
+	end
+	ns.Planner.SortRestock(rows)
+end
+
 -- With smart restocking on, a restock your gold can't pay for is cut to the part that earns the most for its
 -- materials (Planner.RestockBudget). Returns what that found, or nil.
-local function FitToGold(ctx, rows)
+local function FitToGold(all, rows)
 	if not Restock.SmartOn() then return nil end
-	local manual, parts = {}, { tostring(GetMoney()), "k" .. Restock.KeepGold() }
+	local manual, parts = {}, { tostring(GetMoney()), "k" .. Restock.KeepGold(), "d" .. ns.Depth.version }
 	for _, entry in ipairs(ns.db.queue) do
 		manual[#manual + 1] = entry
 		parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty
@@ -542,10 +573,6 @@ local function FitToGold(ctx, rows)
 		end
 		return cache.info
 	end
-	-- Costed for all characters at once: an alt's crafts need buying for too.
-	local all = {}
-	for key, value in pairs(ctx) do all[key] = value end
-	all.me = nil
 	local info = ns.Planner.RestockBudget(all, rows, manual, GetMoney(), Restock.KeepGold())
 	cache = { signature = signature, at = GetTime(), info = info, crafts = {} }
 	for _, row in ipairs(rows) do
@@ -568,7 +595,12 @@ function Restock.Rows()
 		fullGoal = Restock.FullGoal,
 		minProfit = ns.db.restock.minProfitSilver * 100,
 	})
-	return rows, FitToGold(ctx, rows)
+	-- Costed for all characters at once: an alt's crafts need buying for too.
+	local all = {}
+	for key, value in pairs(ctx) do all[key] = value end
+	all.me = nil
+	FitToListings(all, rows)
+	return rows, FitToGold(all, rows)
 end
 
 -- Brings the queue's restock entries in line with these rows: adds the crafts a row still needs (merged into a

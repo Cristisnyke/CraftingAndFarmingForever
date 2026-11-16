@@ -375,11 +375,17 @@ local function RecipeName(recipeID)
 end
 
 -- priceLabel and priceOf are for lists bought with gold: the price each row's quantity was costed at.
-local function AddItemRows(list, title, items, priceLabel, priceOf)
+-- plan (optional): the plan these are bought for. What it pays for each item is the row's total, which is more than
+-- price x count when buying that many goes past the cheapest listing (row.deep: worked out from the listings;
+-- row.thin: units wanted beyond everything listed).
+local function AddItemRows(list, title, items, priceLabel, priceOf, plan)
 	local sorted = {}
 	for itemID, count in pairs(items) do
+		local price = priceOf and priceOf(itemID)
 		table.insert(sorted, {
-			kind = "item", itemID = itemID, count = count, priceLabel = priceLabel, price = priceOf and priceOf(itemID),
+			kind = "item", itemID = itemID, count = count, priceLabel = priceLabel, price = price,
+			total = plan and plan.paid[itemID] or (price and price * count),
+			deep = plan and plan.deep[itemID] or nil, thin = plan and plan.thin[itemID] or nil,
 		})
 	end
 	if #sorted == 0 then return end
@@ -387,7 +393,7 @@ local function AddItemRows(list, title, items, priceLabel, priceOf)
 	if priceOf then
 		local subtotal, allPriced = 0, true
 		for _, row in ipairs(sorted) do
-			if row.price then subtotal = subtotal + row.price * row.count else allPriced = false end
+			if row.total then subtotal = subtotal + row.total else allPriced = false end
 		end
 		title = title:format((allPriced and "" or "at least ") .. ns.Money(subtotal))
 	end
@@ -468,7 +474,10 @@ local function BuildQueueList()
 	end
 	BankSection("Take from your bank", plan.bank)
 	local beforeBuy = #list
-	Section("Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
+	-- While the listings of what's to buy are being read, the total can still move.
+	local reading = ns.Depth.Status()
+	Section("Buy at auction house: %s (" .. (reading and ("reading listings, %d to go"):format(reading)
+		or "red: dearer since last scan, green: cheaper") .. ")", plan.buy, "max", ns.Prices.AH, plan)
 	-- New players don't know where the list is: say it under the heading, short enough for the Next step bar.
 	if #list > beforeBuy then
 		for offset, text in ipairs(UI.SHOPPING_HOW) do
@@ -623,7 +632,7 @@ local function BuildNextStep()
 			elseif data.kind == "item" then
 				local copy = {}
 				for key, value in pairs(data) do copy[key] = value end
-				copy.priceLabel, copy.price = nil, nil
+				copy.priceLabel, copy.price, copy.total, copy.deep, copy.thin = nil, nil, nil, nil, nil
 				table.insert(rows, copy)
 			else
 				table.insert(rows, data)
@@ -1101,6 +1110,22 @@ local function RowOnEnter(row)
 				if age and age > 0 then
 					GameTooltip:AddLine(("That price is %s old."):format(ns.Plural(age, "day", "days")), 1, 0.6, 0.2)
 				end
+				if data.deep and data.total then
+					GameTooltip:AddDoubleLine(("Buying %d costs"):format(data.count), ns.Money(data.total), 1, 1, 1, 1, 1, 1)
+					GameTooltip:AddDoubleLine("On average, each", ns.Money(data.total / data.count), 1, 1, 1, 1, 1, 1)
+					local seen = ns.Depth.Age(data.itemID)
+					GameTooltip:AddLine(("From the listings at the auction house%s: the cheapest one only covers so "
+						.. "many, the rest cost more."):format(seen and (", read " .. UI.AgoText(seen)) or ""),
+						0.6, 0.6, 0.6, true)
+					if data.thin then
+						GameTooltip:AddLine(data.thin >= data.count and "None are listed right now, so this goes by the "
+							.. "last scan's price." or ("Only %d are listed. The other %d count at the dearest listing.")
+							:format(data.count - data.thin, data.thin), 1, 0.6, 0.2, true)
+					end
+				elseif data.total then
+					GameTooltip:AddLine("Its listings haven't been read yet, so the total counts every one at the "
+						.. "cheapest listing. They're read at the auction house.", 0.6, 0.6, 0.6, true)
+				end
 				if ns.totals.counted > 0 and ns.totals.net > 0 then
 					GameTooltip:AddDoubleLine("Queue profit gone at", ns.Money(data.price + ns.totals.net / data.count), 1, 1, 1, 1, 0.6, 0.2)
 					GameTooltip:AddLine("If you paid this for all of them and everything else stayed at its scan price.", 0.6, 0.6, 0.6, true)
@@ -1114,6 +1139,9 @@ local function RowOnEnter(row)
 		local item = data.row
 		StartItemTooltip(row, item.itemID, item.recipeID)
 		GameTooltip:AddDoubleLine("Profit per craft", ns.Money(item.net), 1, 1, 1, 1, 1, 1)
+		if item.listNet then
+			GameTooltip:AddDoubleLine("For one craft alone", ns.Money(item.listNet), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+		end
 		GameTooltip:AddDoubleLine("On the AH", item.onAH and tostring(item.onAH) or "unknown", 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
 		local smart = ns.Restock.SmartInfo(item.itemID)
@@ -1123,7 +1151,16 @@ local function RowOnEnter(row)
 			GameTooltip:AddDoubleLine("Crafts already queued", tostring(item.queued), 0.45, 0.75, 1, 0.45, 0.75, 1)
 		end
 		GameTooltip:AddDoubleLine(item.queued and "More crafts needed" or "Crafts needed",
-			tostring(item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+			tostring(item.dear or item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+		if item.dear then
+			local kept = item.wanted or item.crafts
+			GameTooltip:AddLine((kept > 0 and ("Only %d are worth making: "):format(kept) or "Not worth making now: ")
+				.. "the cheap materials on the auction house run out, and with the dearer ones a craft earns less "
+				.. "than your minimum profit.", 1, 0.6, 0.2, true)
+		elseif item.listNet then
+			GameTooltip:AddLine("Buying materials for the whole restock goes past the cheapest listings, so each "
+				.. "craft earns a little less than one alone.", 0.6, 0.6, 0.6, true)
+		end
 		if item.trim then
 			GameTooltip:AddLine(("%d of the queued crafts aren't needed any more: you have more in stock now. "
 				.. "Update restock takes them off the queue."):format(item.trim), 1, 0.6, 0.2, true)
@@ -1985,10 +2022,11 @@ local function SetRow(row, data)
 		row.colHave:SetText(tostring(item.owned))
 		if item.goal == 0 then
 			row.colCraft:SetText(smart and smart.paused and Color("ffffb040", "paused") or Color(COLOR_MUTED, "skip"))
-		elseif item.wanted then
-			-- Cut to what your gold covers: crafts of wanted.
+		elseif item.wanted or item.dear then
+			-- Cut to what your gold covers, or to what's still worth making at what the materials really cost:
+			-- crafts of wanted.
 			row.colCraft:SetText(Color(item.crafts > 0 and "ffffb040" or COLOR_LOSS, tostring(item.crafts))
-				.. Color(COLOR_MUTED, "/" .. item.wanted))
+				.. Color(COLOR_MUTED, "/" .. (item.dear or item.wanted)))
 		elseif item.trim then
 			-- More queued than the stock still needs.
 			row.colCraft:SetText(Color(COLOR_LOSS, "-" .. item.trim))
@@ -2105,11 +2143,16 @@ local function SetRow(row, data)
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
 		row.left:SetText(ItemLabel(data.itemID))
 		if data.priceLabel then
-			local price = data.priceLabel == "max" and PriceChangeText(data.itemID, true)
+			-- Bought down the listings: what they average, as the cheapest one doesn't cover them all.
+			local average = data.deep and data.total and (not data.price or data.total > data.price * data.count)
+				and ("avg " .. ns.Money(data.total / data.count))
+			local price = average or data.priceLabel == "max" and PriceChangeText(data.itemID, true)
 				or (data.price and (data.priceLabel .. " " .. ns.Money(data.price)))
 				or Color(COLOR_LOSS, "no price")
-			local total = data.price and (", total " .. ns.Money(data.price * data.count)) or ""
-			row.right:SetText("x" .. data.count .. ", " .. price .. total)
+			local total = data.total and (", total " .. ns.Money(data.total)) or ""
+			local thin = data.thin and Color(COLOR_WARN, data.thin >= data.count and ", none listed"
+				or (", %d listed"):format(data.count - data.thin)) or ""
+			row.right:SetText("x" .. data.count .. ", " .. price .. total .. thin)
 		else
 			row.right:SetText("x" .. data.count)
 		end
@@ -2506,6 +2549,13 @@ function CreateProfitPane()
 		if hidden > 0 then text = text .. " " .. Color(COLOR_MUTED, ("%d unprofitable hidden."):format(hidden)) end
 		status:SetText(text)
 	end
+end
+
+-- "just now", "12 min ago", "3 h ago".
+function UI.AgoText(seconds)
+	if seconds < 90 then return "just now" end
+	if seconds < 5400 then return ("%d min ago"):format(math.floor(seconds / 60 + 0.5)) end
+	return ("%d h ago"):format(math.floor(seconds / 3600 + 0.5))
 end
 
 -- What's left to spend, against the gold this character is carrying.
@@ -3451,6 +3501,14 @@ function CreateRestockPane()
 				(deposit and (" with " .. ns.Money(budget.deposit) .. " kept for posting") or "")
 					.. ((budget.keep or 0) > 0 and ((deposit and " and " or " with ") .. ns.Money(budget.keep)
 						.. " left alone") or ""))) }
+		end
+		-- Until the listings of what a restock buys are read, its costs go by the cheapest listing alone.
+		local reading, unread = ns.Depth.Status(), ns.Depth.Unchecked()
+		if reading then
+			table.insert(notes, ("Reading auction house listings (%d to go): the crafts can still change."):format(reading))
+		elseif unread > 0 and needed > 0 then
+			table.insert(notes, ("What buying really costs isn't known for %s yet. It's read at the auction house, "
+				.. "and the crafts can change then."):format(ns.Plural(unread, "material", "materials")))
 		end
 		if toPost > 0 then
 			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))
@@ -4557,6 +4615,7 @@ local function Diagnostics()
 	Add("Syndicator active: " .. tostring(ns.Stock.HasSyndicator()))
 	Add("queue entries: " .. #ns.db.queue .. ", crafts planned: " .. #ns.plan.crafts)
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
+	Add("listings: " .. ns.Depth.Diag())
 	local status = ns.Shopping.status
 	local soldTotal, expiredTotal = 0, 0
 	for _, item in pairs(ns.db.sales.items) do
@@ -4574,7 +4633,7 @@ local function Diagnostics()
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	local off = {}
-	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap", "smartRestock", "bagSpace" }) do
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap", "smartRestock", "bagSpace", "depthCheck" }) do
 		if not ns.Option(key) then table.insert(off, key) end
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "

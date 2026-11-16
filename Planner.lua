@@ -493,6 +493,14 @@ function Planner.ReservedMaterials(ctx, plan)
 	return reserved
 end
 
+-- Rows with something to craft first, then those already queued, then by profit.
+local function RestockOrder(a, b)
+	if (a.crafts > 0) ~= (b.crafts > 0) then return a.crafts > 0 end
+	if ((a.queued or 0) > 0) ~= ((b.queued or 0) > 0) then return (a.queued or 0) > 0 end
+	if a.net ~= b.net then return a.net > b.net end
+	return a.itemID < b.itemID
+end
+
 -- One row per profitable item the characters can make, using its most profitable recipe. opts supplies:
 --   isSellable(itemID) -> true when it can go on the AH (false or nil leaves it out)
 --   goal(itemID)       -> stock goal, nil while unknown
@@ -542,13 +550,100 @@ function Planner.RestockRows(ctx, opts)
 			end
 		end
 	end
-	table.sort(rows, function(a, b)
-		if (a.crafts > 0) ~= (b.crafts > 0) then return a.crafts > 0 end
-		if ((a.queued or 0) > 0) ~= ((b.queued or 0) > 0) then return (a.queued or 0) > 0 end
-		if a.net ~= b.net then return a.net > b.net end
-		return a.itemID < b.itemID
-	end)
+	table.sort(rows, RestockOrder)
 	return rows
+end
+
+-- Fits a restock to what its materials really cost. A row's profit is per craft at each material's cheapest listing,
+-- which holds for the first craft; a whole restock buys further down the listings (ctx.ahDepth, see
+-- Planner.DepthCost). So the restock is planned beside the queue to see how much of each material it buys, every
+-- material counts at the average that many cost, and a row earning less than minProfit a craft at those prices is
+-- cut to the most crafts that still earn it: the worst row first, as each cut makes the materials cheaper for the
+-- rest. row.dear = the crafts it had before, row.listNet = its profit at the cheapest listings, row.net = at the
+-- averages. Crafts already queued (row.queued) are never cut here. Without listings nothing is cut.
+-- Returns what the whole restock, before any cut, would buy at the auction house beside the queue: itemID -> units.
+function Planner.RestockDepth(ctx, rows, queue, minProfit)
+	minProfit = minProfit or 0
+	local entries, wanted = {}, {}
+	for _, entry in ipairs(queue or {}) do entries[#entries + 1] = entry end
+	for _, row in ipairs(rows) do
+		row.dear, row.listNet = nil, nil
+		if row.crafts > 0 then
+			local entry = { recipeID = row.recipeID, qty = row.crafts }
+			entries[#entries + 1] = entry
+			wanted[#wanted + 1] = { row = row, entry = entry }
+		end
+	end
+	if #wanted == 0 then return {} end
+
+	-- Profit per craft of a recipe with every material at the average the plan pays (nil when no listing says
+	-- anything the scan didn't), and the plan.
+	local function Averaged()
+		local plan = Planner.BuildPlan(ctx, entries)
+		local average
+		for itemID, count in pairs(plan.buy) do
+			if plan.deep[itemID] and plan.paid[itemID] and count > 0 then
+				local unit = plan.paid[itemID] / count
+				if unit ~= ctx.ahPrice(itemID) then
+					average = average or {}
+					average[itemID] = unit
+				end
+			end
+		end
+		if not average then return nil, plan end
+		local priced = {}
+		for key, value in pairs(ctx) do priced[key] = value end
+		priced.ahPrice = function(itemID) return average[itemID] or ctx.ahPrice(itemID) end
+		Planner.NewContext(priced)
+		return function(recipeID)
+			local result = Planner.Profit(priced, recipeID)
+			return result and result.net
+		end, plan
+	end
+	local function Earns(net)
+		return net == nil or (net > 0 and net >= minProfit)
+	end
+
+	local Net, shopping
+	for _ = 1, #wanted + 1 do
+		local plan
+		Net, plan = Averaged()
+		shopping = shopping or plan.buy
+		if not Net then break end
+		local worst, worstNet
+		for _, item in ipairs(wanted) do
+			local net = item.entry.qty > 0 and Net(item.row.recipeID)
+			if net and not Earns(net) and (not worst or net < worstNet) then worst, worstNet = item, net end
+		end
+		if not worst then break end
+		-- The most crafts of it that still earn enough: its materials only get dearer with the count.
+		local entry = worst.entry
+		local low, high = 0, entry.qty - 1
+		while low < high do
+			local middle = math.ceil((low + high) / 2)
+			entry.qty = middle
+			local At = Averaged()
+			if Earns(At and At(entry.recipeID)) then low = middle else high = middle - 1 end
+		end
+		entry.qty = low
+	end
+
+	for _, item in ipairs(wanted) do
+		local row = item.row
+		if item.entry.qty < row.crafts then row.dear, row.crafts = row.crafts, item.entry.qty end
+	end
+	if Net then
+		for _, row in ipairs(rows) do
+			local net = Net(row.recipeID)
+			if net and net ~= row.net then row.listNet, row.net = row.net, net end
+		end
+	end
+	table.sort(rows, RestockOrder)
+	return shopping
+end
+
+function Planner.SortRestock(rows)
+	table.sort(rows, RestockOrder)
 end
 
 -- Fits a restock to your gold. rows are RestockRows; queue holds the entries queued by hand, whose materials are paid
@@ -686,6 +781,33 @@ function Planner.RestockBudget(ctx, rows, queue, gold, keep)
 	return info
 end
 
+-- Listing depth. A scan only knows an item's cheapest listing, but buying fifty takes the dearer ones after it too.
+-- depth = { { price, units }, ... }, cheapest first: the listings a search of that item showed (depth.more = true
+-- when there are more listings than it holds). Returns what `count` units cost after the first `taken`, which are
+-- spoken for: the cost (nil with nothing to price by), units bought at the auction house, units bought from the
+-- vendor, and units past the last listing known.
+--   ceiling   the vendor's price, if one sells it: listings at or above it are left alone and the vendor sells the rest
+--   fallback  the price to count units past the last listing at, when there are no listings at all
+-- Units past the last listing count at the dearest one.
+function Planner.DepthCost(depth, taken, count, ceiling, fallback)
+	local cost, listed, left, last = 0, 0, count, nil
+	for _, tier in ipairs(depth) do
+		if left <= 0 then break end
+		local price, units = tier[1], tier[2]
+		if ceiling and price >= ceiling then break end
+		last = price
+		local skipped = math.min(taken, units)
+		taken = taken - skipped
+		local use = math.min(units - skipped, left)
+		cost, listed, left = cost + use * price, listed + use, left - use
+	end
+	if left <= 0 then return cost, listed, 0, 0 end
+	if ceiling then return cost + left * ceiling, listed, left, 0 end
+	local unit = last or fallback
+	if not unit then return nil, count, 0, left end
+	return cost + left * unit, count, 0, left
+end
+
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups. With farming
 -- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
 -- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.
@@ -695,9 +817,14 @@ end
 -- character): their materials are bought, gathered and made on that character, when you log in there. Sub-crafts are
 -- made by the character who needs them, so a material only an alt can make is bought (or gathered) instead. Without
 -- ctx.me every entry is planned here, as before.
+-- With ctx.ahDepth(itemID) (see Planner.DepthCost; nil for an item never searched) buying is costed down the
+-- listings, each purchase after the ones the plan already makes of that item, so plan.cost is what the whole
+-- shopping trip costs and a craft is weighed against what buying that many really costs. plan.paid[itemID] = copper
+-- for the units bought at the auction house, plan.deep[itemID] = true when that came from listings, and
+-- plan.thin[itemID] = units wanted beyond everything listed.
 function Planner.BuildPlan(ctx, queue, farming, wanted)
 	local plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0,
-		elsewhere = {} }
+		elsewhere = {}, paid = {}, deep = {}, thin = {} }
 	local bags, bank, mail, alts = {}, {}, {}, {}
 	local craftIndex = {}
 	local active = {}
@@ -779,11 +906,49 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		return count
 	end
 
+	-- What buying count of an item costs: at the auction house or from a vendor, whichever is cheaper, and down the
+	-- listings when they're known, after the units the plan already buys there plus `ahead` (units an estimate in
+	-- progress buys). Returns the cost (nil without a price), the units from the auction house, the units from the
+	-- vendor, the units past every listing, and true when listings priced it.
+	local function Quote(itemID, count, ahead)
+		local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
+		local depth = ctx.ahDepth and ctx.ahDepth(itemID)
+		if not depth then
+			local useVendor = vendor and (not ah or vendor < ah)
+			local unit = useVendor and vendor or ah
+			return unit and unit * count, useVendor and 0 or count, useVendor and count or 0, 0, false
+		end
+		local cost, fromAH, fromVendor, beyond =
+			Planner.DepthCost(depth, (plan.buy[itemID] or 0) + (ahead or 0), count, vendor, ah)
+		return cost, fromAH, fromVendor, depth.more and 0 or beyond, true
+	end
+
+	local function Purchase(itemID, count)
+		local cost, fromAH, fromVendor, beyond, deep = Quote(itemID, count)
+		if fromVendor > 0 then plan.vendor[itemID] = (plan.vendor[itemID] or 0) + fromVendor end
+		if fromAH > 0 then
+			plan.buy[itemID] = (plan.buy[itemID] or 0) + fromAH
+			if deep then plan.deep[itemID] = true end
+			if beyond > 0 then plan.thin[itemID] = (plan.thin[itemID] or 0) + beyond end
+		end
+		if cost then
+			plan.cost = plan.cost + cost
+			if fromAH > 0 then
+				local vendor = fromVendor > 0 and Priced(ctx.vendorPrice(itemID)) or 0
+				plan.paid[itemID] = (plan.paid[itemID] or 0) + cost - fromVendor * vendor
+			end
+		else
+			plan.unpriced = true
+		end
+	end
+
 	-- Gold actually spent to get count of an item, the cheapest way this character has: what's held (bags, mail,
 	-- bank, alts) costs nothing, the rest is bought or crafted, whichever spends less, with a craft's own materials
 	-- costed the same way. So wool in the bank makes the cloth that makes the bolt for nothing, two steps down.
 	-- taken[itemID] = stock an estimate in progress already counts on, so it isn't counted twice by two materials
-	-- that need the same thing; each branch works on its own copy, as a branch not chosen takes nothing. Returns the
+	-- that need the same thing; each branch works on its own copy, as a branch not chosen takes nothing.
+	-- taken[-itemID] = units the estimate already buys at the auction house, so the next ones cost what the listings
+	-- after those ask. Returns the
 	-- spend (nil when something still to get has no price), the recipe to craft with and its crafts (nil: buy), and
 	-- the taken table after it.
 	local SPEND_DEPTH = 8
@@ -825,10 +990,16 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		taken[itemID] = (taken[itemID] or 0) + use
 		count = count - use
 		if count <= 0 then return 0, nil, nil, taken end
-		local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
-		local buyUnit = vendor and (not ah or vendor < ah) and vendor or ah
-		local best, bestRecipe, bestCrafts, bestTaken = buyUnit and buyUnit * count, nil, nil, taken
-		if depth >= SPEND_DEPTH then return best, nil, nil, taken end
+		local buy, buyAH = Quote(itemID, count, taken[-itemID])
+		local best, bestRecipe, bestCrafts, bestTaken = buy, nil, nil, taken
+		-- Noted only once every recipe has had its copy of taken: a branch that crafts doesn't buy these.
+		local function Bought()
+			if buy and not bestRecipe then taken[-itemID] = (taken[-itemID] or 0) + buyAH end
+		end
+		if depth >= SPEND_DEPTH then
+			Bought()
+			return best, nil, nil, taken
+		end
 		local function Consider(spend, recipeID, crafts, after)
 			if spend and (not best or spend < best) then best, bestRecipe, bestCrafts, bestTaken = spend, recipeID, crafts, after end
 		end
@@ -849,7 +1020,7 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 				Consider(spend, candidate, crafts, after)
 				-- When the batch isn't free, what's held may still cover part of it: make that part and buy the rest,
 				-- if that spends less. The largest free batch is found by halving, as spends only grow with crafts.
-				if buyUnit and spend and spend > 0 and crafts > 1 then
+				if buy and spend and spend > 0 and crafts > 1 then
 					local low, high = 0, crafts - 1
 					while low < high do
 						local mid = math.ceil((low + high) / 2)
@@ -857,11 +1028,16 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 					end
 					if low > 0 then
 						local part, partTaken = Estimate(low)
-						Consider(part + buyUnit * (count - low * yield), candidate, low, partTaken)
+						local rest, restAH = Quote(itemID, count - low * yield, partTaken[-itemID])
+						if rest then
+							partTaken[-itemID] = (partTaken[-itemID] or 0) + restAH
+							Consider(part + rest, candidate, low, partTaken)
+						end
 					end
 				end
 			end
 		end
+		Bought()
 		return best, bestRecipe, bestCrafts, bestTaken
 	end
 
@@ -906,9 +1082,6 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 
 	Acquire = function(itemID, count, char)
 		if farming then return AcquireByFarming(itemID, count, char) end
-		local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
-		local useVendor = vendor and (not ah or vendor < ah)
-		local buyUnit = useVendor and vendor or ah
 
 		-- Materials you already hold cost nothing more, however deep down they're used: compare what buying and
 		-- each usable recipe would actually spend, for the whole need or for the part what's held covers. Equal
@@ -923,13 +1096,7 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 			end
 			count = count - made -- the part held materials didn't cover is bought
 		end
-
-		if useVendor then
-			plan.vendor[itemID] = (plan.vendor[itemID] or 0) + count
-		else
-			plan.buy[itemID] = (plan.buy[itemID] or 0) + count
-		end
-		if buyUnit then plan.cost = plan.cost + buyUnit * count else plan.unpriced = true end
+		Purchase(itemID, count)
 	end
 
 	Require = function(recipeID, count, preferredChar, isAuto)
@@ -1007,9 +1174,7 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		for _, item in ipairs(want.items) do
 			local missing = TakeFromStock(item[1], item[2] * want.qty)
 			if missing > 0 and item.buy then
-				plan.buy[item[1]] = (plan.buy[item[1]] or 0) + missing
-				local unit = Priced(ctx.ahPrice(item[1]))
-				if unit then plan.cost = plan.cost + unit * missing else plan.unpriced = true end
+				Purchase(item[1], missing)
 			elseif missing > 0 then
 				Acquire(item[1], missing, ctx.me)
 			end

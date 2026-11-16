@@ -192,6 +192,19 @@ function Options.Build(parent, top)
 	AddCheck("chatTips", "Reminders in chat",
 		"The chat lines about old prices at login, and where the shopping list is at the auction house. Warnings on a "
 			.. "quote and sale messages stay either way.")
+	-- Beside it, in the second column.
+	controls.depthCheck = Check(parent, "Read listings at the auction house",
+		"A price scan only knows each material's cheapest listing. At the auction house the add-on looks up every "
+			.. "listing of what your queue and restock would buy, so buying 50 counts at what 50 really cost. It waits "
+			.. "for your own searches. Off: only the listings of items you open yourself are read.", y - 22,
+		function() return ns.Option("depthCheck") end, function(on)
+			ns.SetOption("depthCheck", on)
+			ns.Depth.CheckWanted()
+		end)
+	controls.depthCheck:ClearAllPoints()
+	controls.depthCheck:SetPoint("TOPLEFT", LEFT + 380, -(y - 22))
+	controls.depthCheck:SetHitRectInsets(0, -230, 0, 0)
+	controls.chatTips:SetHitRectInsets(0, -340, 0, 0)
 
 	y = y + 10
 	Heading(parent, "Profit", y)
@@ -397,7 +410,7 @@ function Options.Build(parent, top)
 			.. "of them. Press Enter to save.")
 
 	local function Update()
-		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "bagSpace", "smartRestock", "adEnabled" }) do
+		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "bagSpace", "depthCheck", "smartRestock", "adEnabled" }) do
 			controls[key]:Sync()
 		end
 		local current = ns.Advertise.DestinationLabel()

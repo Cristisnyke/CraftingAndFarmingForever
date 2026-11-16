@@ -57,6 +57,8 @@ end
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
+-- db.depth[itemID]     = { at = time read, more = true when there are more, { price, units }, ... }: the listings a
+--                        search of that item showed, cheapest first, without your own (Depth.lua)
 -- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (cautious to aggressive in %, nil = 50), keepCopper (what a restock leaves alone, nil = 1 gold), duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal } }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
@@ -66,7 +68,7 @@ end
 -- db.deposits          = { [itemID] = copper per unit }, the deposit its last post cost (see Sales.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
---                          adEnabled, nextStep, scanPopup, chatTips (off only when false), adText, quoteText (own wording), ... }
+--                          adEnabled, nextStep, scanPopup, chatTips, depthCheck (off only when false), adText, quoteText (own wording), ... }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -82,6 +84,10 @@ local function Normalize(db)
 	db.ui.quoteMargin = db.ui.quoteMargin or 10
 	db.prices = db.prices or {}
 	db.priceRound = db.priceRound or 1
+	db.depth = db.depth or {}
+	for itemID, record in pairs(db.depth) do
+		if type(record) ~= "table" or time() - (record.at or 0) > ns.STALE_SECONDS then db.depth[itemID] = nil end
+	end
 	db.sales = db.sales or {}
 	db.sales.items = db.sales.items or {}
 	db.sales.lots = db.sales.lots or {}

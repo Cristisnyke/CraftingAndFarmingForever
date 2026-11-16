@@ -141,7 +141,7 @@ end
 AUCTION_SOLD_MAIL_SUBJECT = "Auction successful: %s"
 AUCTION_EXPIRED_MAIL_SUBJECT = "Auction expired: %s"
 AUCTION_REMOVED_MAIL_SUBJECT = "Auction cancelled: %s"
-Enum = { CraftingReagentType = { Basic = 0 } }
+Enum = { CraftingReagentType = { Basic = 0 }, ItemClass = { Weapon = 2, Armor = 4 } }
 print = print
 
 C_AuctionHouse = {
@@ -153,6 +153,11 @@ C_AuctionHouse = {
 	PlaceBid = function() end,
 	GetNumItemSearchResults = function() return #itemResults end,
 	GetItemSearchResultInfo = function(_, index) return itemResults[index] end,
+	GetNumCommoditySearchResults = function() return 0 end,
+	GetCommoditySearchResultInfo = function() return nil end,
+	IsThrottledMessageSystemReady = function() return true end,
+	MakeItemKey = function(itemID) return { itemID = itemID } end,
+	GetItemKeyInfo = function() return {} end,
 }
 itemResults = {}
 ATTACHMENTS_MAX_RECEIVE = 1
@@ -179,6 +184,7 @@ local names = { [1] = "Linen Cloth", [2] = "Bolt of Linen", [3] = "Coarse Thread
 local namesReady = false
 local requests = {}
 C_Item = {
+	GetItemInfoInstant = function(itemID) return itemID, "", "", "", 1, 7, 0 end,
 	GetItemNameByID = function(id) return namesReady and names[id] or nil end,
 	GetItemIconByID = function() return 1 end,
 	RequestLoadItemDataByID = function(id) requests[id] = true end,
@@ -318,6 +324,8 @@ Fire("PLAYER_LOGIN")
 check("price cap on by default", ns.Queue.PriceCap() ~= nil, true)
 -- The fixture's sale prices are far above material cost; the cap has its own test further down.
 ns.db.ui.priceCap = false
+-- And the add-on's own searches of what it has to buy, which the auction house tests would otherwise have to count.
+ns.db.ui.depthCheck = false
 check("no list before anything is queued", lists[ns.LIST_NAME], nil)
 check("nothing unseen before the saved data is known", ns.WhatsNew.HasUnseen(), false)
 
@@ -3281,6 +3289,201 @@ do
 	RunTimers()
 	C_Container, C_Item.GetItemCount, Enum.BagIndex = container, itemCount, bagIndex
 	GetCursorInfo, ClearCursor = nil, nil
+end
+
+-- Listing depth: at the auction house the add-on reads every listing of what it has to buy, so buying many counts at
+-- what they really cost, not all at the cheapest listing.
+do
+	local realSearch, realInfo, realCount = C_AuctionHouse.SendSearchQuery, C_Item.GetItemInfo, C_Item.GetItemCount
+	local realReady = C_AuctionHouse.IsThrottledMessageSystemReady
+	local sent, results, full, has, ready = {}, {}, true, true, true
+	C_AuctionHouse.SendSearchQuery = function(key, sorts) table.insert(sent, { itemID = key.itemID, sort = sorts[1].sortOrder }) end
+	C_AuctionHouse.GetNumCommoditySearchResults = function(id) return #(results[id] or {}) end
+	C_AuctionHouse.GetCommoditySearchResultInfo = function(id, index) return results[id][index] end
+	C_AuctionHouse.HasFullCommoditySearchResults = function() return full end
+	C_AuctionHouse.HasSearchResults = function() return has end
+	C_AuctionHouse.IsThrottledMessageSystemReady = function() return ready end
+	C_Item.GetItemInfo = function(id) return names[id], "link", 1, 1, 1, "", "", 20, "", 1, 1, 1, 1, 2 end
+	C_Item.GetItemCount = function() return 0 end
+	-- One round of timers: the stub runs them at once whatever their delay, so a search's time-out would fire
+	-- before it could be answered.
+	local function Step()
+		local batch = timers
+		timers = {}
+		for _, fn in ipairs(batch) do fn() end
+	end
+	-- The stub's clock moves a second each time it's read.
+	local function Wait(seconds)
+		for _ = 1, seconds do GetTime() end
+	end
+	local function QueueText(itemID)
+		ns.UI.Show("queue")
+		local text
+		for _, row in ipairs(ns.UI.windows.queue.rows) do
+			if row.data and row.data.kind == "item" and row.data.itemID == itemID then text = row.right.text end
+		end
+		ns.UI.Hide()
+		return text
+	end
+	local function BuyHeader()
+		ns.UI.Show("queue")
+		local text
+		for _, data in ipairs(ns.UI.windows.queue.list) do
+			if data.kind == "header" and data.text:find("Buy at auction house", 1, true) then text = data.text end
+		end
+		ns.UI.Hide()
+		return text
+	end
+	local savedPrices = { prices[1], prices[2] }
+	prices[1], prices[2] = 10, 100
+	ns.db.depth = {}
+	ns.db.ui.depthCheck = true
+	AuctionHouseFrame.shown = false
+	Fire("AUCTION_HOUSE_CLOSED")
+	ns.Queue.Clear()
+	ns.Queue.Add(20, 2) -- 6 bolts, made from 12 cloth
+	RunTimers()
+	check("depth: cloth to buy", ns.plan.buy[1], 12)
+	check("depth: cheapest listing for all, before the listings are read", ns.plan.cost, 12 * 10 + 2 * 10)
+	check("depth: nothing sent away from the auction house", #sent, 0)
+
+	-- At the auction house: one search for the cloth, as a commodity.
+	AuctionHouseFrame.shown = true
+	FireNow("AUCTION_HOUSE_SHOW")
+	Step()
+	Step()
+	check("depth: search sent", #sent, 1)
+	check("depth: search is for the cloth", sent[1] and sent[1].itemID, 1)
+	check("depth: commodity sort", sent[1] and sent[1].sort, 0)
+	check("depth: status while reading", (ns.Depth.Status()), 1)
+	check("depth: header says it's reading", BuyHeader():find("reading listings, 1 to go", 1, true) ~= nil, true)
+
+	-- 2 at 10, plenty at 30, and 4 of your own at 9 that you can't buy.
+	results[1] = {
+		{ unitPrice = 30, quantity = 100 },
+		{ unitPrice = 10, quantity = 2 },
+		{ unitPrice = 9, quantity = 4, containsOwnerItem = true, numOwnerItems = 4 },
+	}
+	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+	RunTimers()
+	check("depth: no time-out after the answer", #sent, 1)
+	check("depth: check finished", ns.Depth.Status(), nil)
+	check("depth: cheapest tier stored", ns.db.depth[1][1][1] == 10 and ns.db.depth[1][1][2], 2)
+	check("depth: next tier stored", ns.db.depth[1][2][1] == 30 and ns.db.depth[1][2][2], 100)
+	check("depth: own auctions left out", #ns.db.depth[1], 2)
+	check("depth: plan pays down the listings", ns.plan.paid[1], 2 * 10 + 10 * 30)
+	check("depth: plan cost", ns.plan.cost, 320 + 2 * 10)
+	check("depth: still cheaper than buying bolts", ns.plan.buy[2], nil)
+	check("depth: row shows the average", QueueText(1), "x12, avg 27c, total 3s 20c")
+	check("depth: header total", BuyHeader():find("3s 20c", 1, true) ~= nil, true)
+	check("depth: header back to normal", BuyHeader():find("reading listings", 1, true), nil)
+	ns.UI.Show("queue")
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "item" then row.scripts.OnEnter(row) end
+	end
+	ns.UI.Hide()
+
+	-- The same answer again changes nothing; fresh listings aren't searched again.
+	local version = ns.Depth.version
+	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+	RunTimers()
+	check("depth: same listings, no change", ns.Depth.version, version)
+	ns.Depth.CheckWanted()
+	RunTimers()
+	check("depth: fresh listings not searched again", #sent, 1)
+
+	-- Buying two takes the cheap ones off until the next search.
+	C_AuctionHouse.ConfirmCommoditiesPurchase(1, 2)
+	Fire("COMMODITY_PURCHASE_SUCCEEDED")
+	RunTimers()
+	check("depth: bought units leave the listings", ns.db.depth[1][1][1], 30)
+	check("depth: the rest costs the dearer price", ns.plan.paid[1], 10 * 30)
+	-- Listings read again after the purchase was priced are already without it: nothing more comes off.
+	FireNow("COMMODITY_PRICE_UPDATED", 30, 60)
+	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+	local left = ns.db.depth[1][1][2]
+	C_AuctionHouse.ConfirmCommoditiesPurchase(1, 2)
+	Fire("COMMODITY_PURCHASE_SUCCEEDED")
+	RunTimers()
+	check("depth: listings read after the purchase aren't cut twice", ns.db.depth[1][1][2], left)
+	Wait(40)
+	Fire("MAIL_SHOW") -- an empty inbox: the purchases are gone again
+	RunTimers()
+
+	-- You open the cloth yourself and it got dearer: read without asking, and now bolts are cheaper to buy, which
+	-- is something new to look up. That waits while you're busy at the auction house.
+	results[1] = { { unitPrice = 10, quantity = 2 }, { unitPrice = 80, quantity = 100 } }
+	Wait(20) -- long after the add-on's own search of it
+	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+	Step()
+	Step()
+	check("depth: read from your own search", ns.db.depth[1][2][1], 80)
+	check("depth: bolts bought instead", ns.plan.buy[2], 6)
+	check("depth: cloth not bought", ns.plan.buy[1], nil)
+	check("depth: holds off while you search", #sent, 1)
+	RunTimers()
+	check("depth: then looks up the bolts", sent[2] and sent[2].itemID, 2)
+
+	-- An empty answer the client doesn't vouch for isn't believed: asked again, then given up, and the bolts stay
+	-- at the scan price.
+	has = false
+	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 2)
+	RunTimers()
+	check("depth: empty answer not stored", ns.db.depth[2], nil)
+	check("depth: asked once more, then given up", #sent, 3)
+	check("depth: given up", ns.Depth.Status(), nil)
+	check("depth: scan price still used", ns.plan.cost, 6 * 100 + 2 * 10)
+	ns.Depth.CheckWanted()
+	RunTimers()
+	check("depth: not asked again right away", #sent, 3)
+
+	-- A believed empty answer: nothing listed. The row says so.
+	has = true
+	FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 2)
+	RunTimers()
+	check("depth: nothing listed stored", ns.db.depth[2] and #ns.db.depth[2], 0)
+	check("depth: nothing listed, noted on the plan", ns.plan.thin[2] or ns.plan.buy[1], ns.plan.thin[2] and 6 or 12)
+
+	-- The auction house not ready: nothing goes out until it says so. (A new visit: searches given up before
+	-- are tried again.)
+	ns.Queue.Clear()
+	Fire("AUCTION_HOUSE_CLOSED")
+	ns.db.depth = {}
+	ready = false
+	local before = #sent
+	ns.Queue.Add(20, 1)
+	RunTimers()
+	check("depth: waits for the auction house", #sent, before)
+	ready = true
+	Wait(20)
+	FireNow("AUCTION_HOUSE_THROTTLED_SYSTEM_READY")
+	Step()
+	check("depth: sent when ready", #sent, before + 1)
+	FireNow("AUCTION_HOUSE_CLOSED")
+	RunTimers()
+	check("depth: closing stops the check", ns.Depth.Status(), nil)
+
+	-- Turned off: no searches of its own.
+	ns.db.ui.depthCheck = false
+	ns.db.depth = {}
+	before = #sent
+	FireNow("AUCTION_HOUSE_SHOW")
+	RunTimers()
+	check("depth: off, nothing sent", #sent, before)
+
+	-- Old listings aren't used, and are dropped at the next login.
+	ns.db.depth[1] = { at = time() - ns.Depth.MAX_AGE - 10, { 50, 100 } }
+	check("depth: old listings not used", ns.Depth.Of(1), nil)
+
+	SlashCmdList.CFF("diag")
+	AuctionHouseFrame.shown = false
+	ns.db.depth = {}
+	ns.Queue.Clear()
+	RunTimers()
+	prices[1], prices[2] = savedPrices[1], savedPrices[2]
+	C_AuctionHouse.SendSearchQuery, C_Item.GetItemInfo, C_Item.GetItemCount = realSearch, realInfo, realCount
+	C_AuctionHouse.IsThrottledMessageSystemReady = realReady
+	C_AuctionHouse.HasFullCommoditySearchResults, C_AuctionHouse.HasSearchResults = nil, nil
 end
 
 print(("%d checks, %d failures"):format(checks, failures))

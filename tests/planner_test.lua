@@ -27,6 +27,7 @@ local function Context(over)
 		ownStock = function(id) return (over.own or {})[id] or 0 end,
 		altStock = function(id) return (over.alts or {})[id] or {} end,
 		crafter = function() return "me" end,
+		ahDepth = over.depth and function(id) return over.depth[id] end or nil,
 	})
 end
 
@@ -1055,6 +1056,140 @@ do
 	local wanted = { { qty = 1, items = { { CLOTH, 2 } } } }
 	local writ = Planner.SpacePlan(SpaceContext({ [CLOTH] = 180 }), { { recipeID = 400, qty = 1 } }, wanted, Space({ [CLOTH] = 180 }))
 	check("space: wanted item kept", writ.room and writ.room.bank[CLOTH], nil)
+end
+
+-- Listing depth: buying many goes down the listings, not all at the cheapest one.
+do
+	local ladder = { { 5, 5 }, { 10, 10 } }
+	local function Cost(...) return (Planner.DepthCost(...)) end
+	check("depth: 15 units", Cost(ladder, 0, 15), 125)
+	check("depth: after 5 taken", Cost(ladder, 5, 5), 50)
+	check("depth: across a tier", Cost(ladder, 3, 4), 2 * 5 + 2 * 10)
+	local cost, fromAH, _, beyond = Planner.DepthCost(ladder, 0, 20)
+	check("depth: past the last listing, at the dearest", cost, 175)
+	check("depth: past the last listing, all from the AH", fromAH, 20)
+	check("depth: past the last listing, units beyond", beyond, 5)
+	local fromVendor
+	cost, fromAH, fromVendor, beyond = Planner.DepthCost(ladder, 0, 15, 8)
+	check("depth: vendor ceiling cost", cost, 25 + 10 * 8)
+	check("depth: vendor ceiling, cheap ones from the AH", fromAH, 5)
+	check("depth: vendor ceiling, rest from the vendor", fromVendor, 10)
+	check("depth: vendor ceiling, nothing beyond", beyond, 0)
+	check("depth: no listings, last scan price", Cost({}, 0, 3, nil, 7), 21)
+	check("depth: no listings, no price", Cost({}, 0, 3), nil)
+
+	-- One craft of 15 ore: 5 at 5 and 10 at 10, not 15 at 5.
+	local recipes = {
+		[1] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 15, ORE } } },
+		[2] = { o = GEM, qmin = 1, qmax = 1, r = { { 5, ORE } } },
+		[3] = { o = BOLT, qmin = 1, qmax = 1, r = { { 10, ORE } } },
+	}
+	local known = { [SHIRT] = { 1 }, [GEM] = { 2 }, [BOLT] = { 3 } }
+	local function Ctx(depth) return Context({ recipes = recipes, known = known, ah = { [ORE] = 5 }, depth = depth }) end
+	local flat = Planner.BuildPlan(Ctx(), { { recipeID = 1, qty = 1 } })
+	check("depth: no listings known, cheapest price for all", flat.cost, 75)
+	check("depth: no listings known, not marked", flat.deep[ORE], nil)
+	local deep = Planner.BuildPlan(Ctx({ [ORE] = ladder }), { { recipeID = 1, qty = 1 } })
+	check("depth: plan cost down the listings", deep.cost, 125)
+	check("depth: plan buys them all", deep.buy[ORE], 15)
+	check("depth: paid per item", deep.paid[ORE], 125)
+	check("depth: marked", deep.deep[ORE], true)
+	check("depth: nothing beyond the listings", deep.thin[ORE], nil)
+
+	-- Two crafts wanting the same ore share the listings: the second starts where the first stopped.
+	local shared = Planner.BuildPlan(Ctx({ [ORE] = ladder }), { { recipeID = 2, qty = 1 }, { recipeID = 3, qty = 1 } })
+	check("depth: shared listings", shared.cost, 125)
+
+	-- More wanted than is listed: the rest at the dearest listing, and noted; not when there are more listings.
+	local thin = Planner.BuildPlan(Ctx({ [ORE] = ladder }), { { recipeID = 1, qty = 1 }, { recipeID = 2, qty = 1 } })
+	check("depth: thin cost", thin.cost, 175)
+	check("depth: thin units", thin.thin[ORE], 5)
+	local more = Planner.BuildPlan(Ctx({ [ORE] = { { 5, 5 }, { 10, 10 }, more = true } }),
+		{ { recipeID = 1, qty = 1 }, { recipeID = 2, qty = 1 } })
+	check("depth: more listings than known, not thin", more.thin[ORE], nil)
+
+	-- Bars are cheaper to buy than to smelt (15 against 20) but only two are listed at that: ten are smelted.
+	local bars = { recipes = {
+		[100] = { o = BAR, qmin = 1, qmax = 1, r = { { 2, ORE } } },
+		[9] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, BAR } } },
+	}, known = { [BAR] = { 100 }, [SHIRT] = { 9 } }, ah = { [ORE] = 10, [BAR] = 15 }, depth = { [BAR] = { { 15, 2 }, { 100, 50 } } } }
+	local few = Planner.BuildPlan(Context(bars), { { recipeID = 9, qty = 2 } })
+	check("depth: two bars bought", few.buy[BAR], 2)
+	check("depth: two bars cost", few.cost, 30)
+	local many = Planner.BuildPlan(Context(bars), { { recipeID = 9, qty = 10 } })
+	check("depth: ten bars not bought", many.buy[BAR], nil)
+	check("depth: ore for ten bars", many.buy[ORE], 20)
+	check("depth: ten bars smelted", many.crafts[1].recipeID == 100 and many.crafts[1].count, 10)
+	check("depth: smelting cost", many.cost, 200)
+
+	-- A vendor item listed under the vendor's price: the cheap listings, then the vendor.
+	local thread = Planner.BuildPlan(Context({
+		recipes = { [1] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 6, THREAD } } } }, known = { [SHIRT] = { 1 } },
+		ah = { [THREAD] = 3 }, depth = { [THREAD] = { { 3, 2 }, { 9, 10 } } },
+	}), { { recipeID = 1, qty = 1 } })
+	check("depth: vendor split, AH", thread.buy[THREAD], 2)
+	check("depth: vendor split, vendor", thread.vendor[THREAD], 4)
+	check("depth: vendor split, cost", thread.cost, 6 + 20)
+	check("depth: vendor split, paid at the AH", thread.paid[THREAD], 6)
+end
+
+-- Restock against listing depth: a row is cut to the crafts that still earn enough at what the materials average.
+do
+	local recipes = {
+		[1] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+		[2] = { o = GEM, qmin = 1, qmax = 1, r = { { 1, ORE } } },
+	}
+	local function Ctx(depth)
+		return Context({ recipes = recipes, known = { [SHIRT] = { 1 }, [GEM] = { 2 } },
+			ah = { [ORE] = 5, [SHIRT] = 30, [GEM] = 100 }, depth = depth })
+	end
+	local ladder = { [ORE] = { { 5, 5 }, { 25, 100 } } }
+	local function Rows(gems)
+		local rows = { { itemID = SHIRT, recipeID = 1, net = 23.5, crafts = 10 } }
+		if gems then table.insert(rows, 1, { itemID = GEM, recipeID = 2, net = 90, crafts = 5 }) end
+		return rows
+	end
+	local function Round(value) return value and math.floor(value * 100 + 0.5) / 100 end
+
+	-- 10 shirts: ore averages 15, so 13.5 a craft. Fine for a minimum of 10.
+	local rows = Rows()
+	Planner.RestockDepth(Ctx(ladder), rows, nil, 10)
+	check("restock depth: still earns, not cut", rows[1].crafts, 10)
+	check("restock depth: still earns, no mark", rows[1].dear, nil)
+	check("restock depth: profit at the average", Round(rows[1].net), 13.5)
+	check("restock depth: profit at the cheapest listing kept", rows[1].listNet, 23.5)
+
+	-- Minimum 15: ore may average 13.5 at most, which 8 crafts do (12.5) and 9 don't (13.89).
+	rows = Rows()
+	Planner.RestockDepth(Ctx(ladder), rows, nil, 15)
+	check("restock depth: cut to what earns", rows[1].crafts, 8)
+	check("restock depth: crafts before the cut", rows[1].dear, 10)
+	check("restock depth: profit after the cut", Round(rows[1].net), 16)
+
+	-- Five gems want the same ore: they earn plenty and stay, the shirts get what's left of the cheap ore.
+	rows = Rows(true)
+	Planner.RestockDepth(Ctx(ladder), rows, nil, 15)
+	check("restock depth: shared, good row kept", rows[1].itemID == GEM and rows[1].crafts, 5)
+	check("restock depth: shared, good row unmarked", rows[1].dear, nil)
+	check("restock depth: shared, weak row cut", rows[2].crafts, 3)
+
+	-- The same five gems queued by hand count too.
+	rows = Rows()
+	Planner.RestockDepth(Ctx(ladder), rows, { { recipeID = 2, qty = 5 } }, 15)
+	check("restock depth: queue counts", rows[1].crafts, 3)
+
+	-- Never worth it past the cheap ore: dropped to nothing, and sorted after rows with crafts.
+	rows = Rows(true)
+	Planner.RestockDepth(Ctx({ [ORE] = { { 5, 5 }, { 500, 100 } } }), rows, nil, 15)
+	check("restock depth: dear ore, good row kept", rows[1].itemID == GEM and rows[1].crafts or nil, 5)
+	check("restock depth: shirts dropped", rows[2].crafts, 0)
+	check("restock depth: shirts marked", rows[2].dear, 10)
+
+	-- No listings known: nothing changes.
+	rows = Rows()
+	Planner.RestockDepth(Ctx(), rows, nil, 15)
+	check("restock depth: no listings, untouched", rows[1].crafts, 10)
+	check("restock depth: no listings, profit untouched", rows[1].net, 23.5)
 end
 
 print(("%d checks, %d failures"):format(checks, failures))

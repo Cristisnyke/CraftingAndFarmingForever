@@ -15,6 +15,7 @@ Planner.lua
 Sources.lua
 Farm.lua
 Data.lua
+Depth.lua
 Queue.lua
 Bank.lua
 Sales.lua

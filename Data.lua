@@ -377,6 +377,7 @@ function Stock.AddPurchase(itemID, count, paid)
 	local _, key = MailRecord()
 	if not (key and itemID and count and count > 0) then return end
 	if ns.Sales then ns.Sales.NotePurchase(itemID, count, paid) end
+	if ns.Depth then ns.Depth.Bought(itemID, count) end
 	ns.db.purchases[key] = ns.db.purchases[key] or {}
 	local now = time()
 	local kept = {}
