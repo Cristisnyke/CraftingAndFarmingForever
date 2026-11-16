@@ -3591,5 +3591,48 @@ do
 	C_AuctionHouse.HasFullCommoditySearchResults, C_AuctionHouse.HasSearchResults = nil, nil
 end
 
+-- Tools: read from the recipe's requirements; a tool on the bank step is marked, one you have nowhere gets its own
+-- step, and one the add-on can't look for is a reminder on the crafting step.
+do
+	local realReq = C_TradeSkillUI.GetRecipeRequirements
+	C_TradeSkillUI.GetRecipeRequirements = function()
+		return { { name = "Anvil", met = false, type = 0 }, { name = "Blacksmith Hammer", met = false, type = 1 } }
+	end
+	Enum.RecipeRequirementType = { SpellFocus = 0, Totem = 1, Area = 2 }
+	local tools = ns.Recipes.Tools(10)
+	check("tools: the tool kind, not the anvil", tools and table.concat(tools, ","), "Blacksmith Hammer")
+	Enum.RecipeRequirementType = nil
+	tools = ns.Recipes.Tools(10)
+	check("tools: no kind given, known tool names", tools and table.concat(tools, ","), "Blacksmith Hammer")
+	C_TradeSkillUI.GetRecipeRequirements = function() return { { name = "Anvil", met = true } } end
+	check("tools: none", ns.Recipes.Tools(10), nil)
+	C_TradeSkillUI.GetRecipeRequirements = realReq
+	check("tool items by name", ns.Recipes.ToolItems("Arclight Spanner")[1], 6219)
+
+	table.insert(ns.db.queue, { recipeID = 10, qty = 1, char = ns.CharKey() })
+	local realPlan = ns.plan
+	ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = { [5956] = 1 }, mail = {}, farm = {}, smelt = {},
+		cost = 0, elsewhere = {}, paid = {}, deep = {}, thin = {},
+		tools = { [5956] = { name = "Blacksmith Hammer", recipeID = 10 } },
+		noTool = { { name = "Arclight Spanner", recipeID = 10 }, { name = "Strange Tool", recipeID = 10, unknown = true } } }
+	local list = ns.UI.windows.queue.build()
+	local titles, toolRow, warns = {}, nil, {}
+	for at, data in ipairs(list) do
+		if data.kind == "header" then table.insert(titles, (data.text:gsub(":.*", ""))) end
+		if data.kind == "item" and data.itemID == 5956 then toolRow = data end
+		if data.kind == "warn" then warns[#warns + 1] = at .. ":" .. data.text end
+	end
+	check("tools: steps", table.concat(titles, "|"), "1. Take from your bank|2. Get your tools|3. Craft your queue")
+	check("tools: bank row is the tool", toolRow and toolRow.tool and toolRow.tool.name, "Blacksmith Hammer")
+	check("tools: missing one", warns[1], "4:Recipe10 needs an Arclight Spanner and you have none: a trade supplier sells it.")
+	check("tools: reminder under the crafting step", warns[2], "6:Recipe10 needs a Strange Tool: have it in your bags.")
+	ns.UI.RefreshQueue()
+	ns.UI.Refresh("queue")
+	ns.UI.Refresh("next")
+	ns.plan = realPlan
+	ns.Queue.Clear()
+	RunTimers()
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

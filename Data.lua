@@ -527,6 +527,58 @@ function Recipes.UnmetRequirements(recipeID)
 	return unmet
 end
 
+-- Tools a recipe needs in the bags (a Blacksmith Hammer, an Arclight Spanner), as the game names them. The game
+-- calls them totems. The item that is each tool, by its English name: the game only gives the tool's name.
+ns.TOOLS = {
+	[5956] = "Blacksmith Hammer",
+	[6219] = "Arclight Spanner",
+	[10498] = "Gyromatic Micro-Adjustor",
+	[6218] = "Runed Copper Rod",
+	[6339] = "Runed Silver Rod",
+	[11130] = "Runed Golden Rod",
+	[11145] = "Runed Truesilver Rod",
+	[16207] = "Runed Arcanite Rod",
+	[9149] = "Philosopher's Stone",
+	[2901] = "Mining Pick",
+	[7005] = "Skinning Knife",
+}
+
+-- The items that are a tool, by the tool's name: the client's name for the item where it has loaded, else the English
+-- one. Empty for a tool this list doesn't know.
+function Recipes.ToolItems(name)
+	local items = {}
+	for itemID, english in pairs(ns.TOOLS) do
+		if name == english or name == Items.Name(itemID) then table.insert(items, itemID) end
+	end
+	table.sort(items)
+	return items
+end
+
+-- Names of the tools a recipe needs, nil for none. Requirements of the tool kind count; when the client doesn't say
+-- the kind, a name this add-on knows as a tool does. Places (an anvil, a forge) aren't tools.
+function Recipes.Tools(recipeID)
+	local fn = C_TradeSkillUI.GetRecipeRequirements
+	if not fn then return nil end
+	local ok, requirements = pcall(fn, recipeID)
+	if not ok or type(requirements) ~= "table" then return nil end
+	local totem = Enum.RecipeRequirementType and Enum.RecipeRequirementType.Totem
+	local tools
+	for _, requirement in ipairs(requirements) do
+		local name = requirement.name
+		local isTool
+		if requirement.type ~= nil and totem ~= nil then
+			isTool = requirement.type == totem
+		else
+			isTool = name and #Recipes.ToolItems(name) > 0
+		end
+		if name and isTool then
+			tools = tools or {}
+			table.insert(tools, name)
+		end
+	end
+	return tools
+end
+
 local function BasicReagentType()
 	return Enum.CraftingReagentType and Enum.CraftingReagentType.Basic or 0
 end
@@ -571,6 +623,7 @@ function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
 		p = professionID,
 		pn = professionName,
 		r = slots,
+		t = Recipes.Tools(recipeID),
 		x = usesCurrency or nil,
 	}
 	ns.db.recipes[recipeID] = recipe

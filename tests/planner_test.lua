@@ -1192,5 +1192,73 @@ do
 	check("restock depth: no listings, profit untouched", rows[1].net, 23.5)
 end
 
+-- Tools: a craft needing a Blacksmith Hammer won't start without one in the bags. One goes on the step where it is.
+do
+	local HAMMER, SPANNER, BELT, HAMMER_RECIPE = 50, 51, 52, 800
+	local function ToolContext(over)
+		return Planner.NewContext({
+			recipes = {
+				[700] = { o = BELT, qmin = 1, qmax = 1, r = { { 2, BAR } }, t = { "Blacksmith Hammer" } },
+				[701] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, BAR } }, t = { "Blacksmith Hammer", "Strange Tool" } },
+				[HAMMER_RECIPE] = { o = HAMMER, qmin = 1, qmax = 1, r = { { 20, ORE } } },
+			},
+			known = {},
+			ahPrice = function(id) return ({ [BAR] = 50, [ORE] = 10 })[id] end,
+			vendorPrice = function(id) return (over.vendor or {})[id] end,
+			ownStock = function(id) return (over.own or {})[id] or 0 end,
+			bankStock = function(id) return (over.bank or {})[id] or 0 end,
+			mailStock = function(id) return (over.mail or {})[id] or 0 end,
+			altStock = function(id) return (over.alts or {})[id] or {} end,
+			toolItems = function(name)
+				if name == "Blacksmith Hammer" then return { SPANNER + 100, HAMMER } end
+				return {}
+			end,
+			crafter = function(_, char) return char or "me" end,
+			me = "me",
+		})
+	end
+	local queue = { { recipeID = 700, qty = 3, char = "me" } }
+
+	local held = Planner.BuildPlan(ToolContext({ own = { [HAMMER] = 1 } }), queue)
+	check("tool in bags: nothing to fetch", next(held.tools), nil)
+	check("tool in bags: no note", #held.noTool, 0)
+	check("tool in bags: kept", held.keep[HAMMER], true)
+
+	local banked = Planner.BuildPlan(ToolContext({ own = { [HAMMER] = 1 }, bank = { [HAMMER] = 1 } }), queue)
+	check("tool in bank: take one", banked.bank[HAMMER], 1)
+	check("tool in bank: marked as the tool", banked.tools[HAMMER].name, "Blacksmith Hammer")
+	check("tool in bank: for the belt", banked.tools[HAMMER].recipeID, 700)
+
+	local mailed = Planner.BuildPlan(ToolContext({ own = {}, mail = { [HAMMER] = 1 }, bank = {} }), queue)
+	check("tool in mail: collect it", mailed.mail[HAMMER], 1)
+
+	local onAlt = Planner.BuildPlan(ToolContext({ alts = { [HAMMER] = { { name = "Alt", count = 1 } } } }), queue)
+	check("tool on an alt: mail it over", onAlt.fetch.Alt and onAlt.fetch.Alt[HAMMER], 1)
+
+	local bare = Planner.BuildPlan(ToolContext({ vendor = { [HAMMER] = 16 } }), queue)
+	check("no tool, vendor sells it: buy one", bare.vendor[HAMMER], 1)
+	check("no tool: its price is spent", bare.cost, 3 * 2 * 50 + 16)
+
+	local none = Planner.BuildPlan(ToolContext({}), queue)
+	check("no tool anywhere: a note", none.noTool[1] and none.noTool[1].name, "Blacksmith Hammer")
+	check("no tool anywhere: a known tool", none.noTool[1] and none.noTool[1].unknown, nil)
+
+	local two = Planner.BuildPlan(ToolContext({ bank = { [HAMMER] = 2 }, own = { [HAMMER] = 2 } }),
+		{ { recipeID = 700, qty = 1, char = "me" }, { recipeID = 701, qty = 1, char = "me" } })
+	check("two crafts, one hammer", two.bank[HAMMER], 1)
+	check("a tool this add-on can't look for: reminder", two.noTool[1] and two.noTool[1].unknown, true)
+	check("a tool this add-on can't look for: its name", two.noTool[1] and two.noTool[1].name, "Strange Tool")
+
+	local alts = Planner.BuildPlan(ToolContext({ bank = { [HAMMER] = 1 }, own = { [HAMMER] = 1 } }),
+		{ { recipeID = 700, qty = 1, char = "alt" } })
+	check("another character's craft: no tool here", alts.bank[HAMMER], nil)
+
+	-- Bags short of room: the hammer is never put away to make it, even though a recipe makes it.
+	local space = { slots = 3, reagentSlots = 0, usedOther = 2, usedReagent = 0, bags = { [HAMMER] = 1 },
+		itemSlots = { [HAMMER] = 1 }, stack = function() return 20 end, isReagent = function() return false end }
+	local tight = Planner.SpacePlan(ToolContext({ own = { [HAMMER] = 1 } }), queue, nil, space)
+	check("tight bags: hammer stays in the bags", tight.room and tight.room.bank[HAMMER], nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

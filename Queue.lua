@@ -43,6 +43,7 @@ local function NewContext()
 		bankStock = ns.Stock.Bank,
 		mailStock = ns.Stock.Mail,
 		altStock = ns.Stock.Alts,
+		toolItems = Recipes.ToolItems,
 		crafter = Recipes.Crafter,
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
 		me = ns.CharKey(),

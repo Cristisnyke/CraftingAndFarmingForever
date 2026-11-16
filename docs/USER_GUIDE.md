@@ -84,9 +84,10 @@ With Farm It, gathering comes first (step 0 below), so the trip to town covers o
 3. **Buy at auction house** (in Auctionator's Shopping tab, see [The shopping list](#the-shopping-list)).
 4. **Collect from your mailbox**: what you bought, or had mailed over. It comes once the whole shopping list is bought, and the mailbox is right beside the auction house.
 5. **Buy from vendor**. With Farm It, then what to smelt.
-6. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
-7. **Craft your queue**: the crafts this character makes. When your bags can't hold the whole queue: **Craft this run**, then **Next run** with what's left.
-8. **Log in to** another character: one step per alt with crafts in the queue, listing them.
+6. **Get your tools**: only when a craft needs a tool you have nowhere (see Tools below).
+7. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
+8. **Craft your queue**: the crafts this character makes. When your bags can't hold the whole queue: **Craft this run**, then **Next run** with what's left.
+9. **Log in to** another character: one step per alt with crafts in the queue, listing them.
 
 The list is for the character you're logged in on. Crafts another character makes, such as your tailor's shirts while you're on your blacksmith, are only listed under **Log in to**: nothing is bought, gathered or made for them here. Log in to that character and its own list shows what to get, buy and craft there. What an alt holds for its own crafts isn't asked for by your other characters, and a sub-craft only an alt knows is bought instead (or gathered, with Farm It). This also goes for **Queue restock** on the All tab, the Auctionator shopping list, Still to buy and the Next step bar.
 
@@ -104,6 +105,7 @@ Steps with nothing to do are left out and the rest renumbered.
 - **Total profit**: sale prices after the auction house cut, minus materials at market price. Bind-on-pickup crafts show their cost and aren't counted.
 - **Still to buy**: what you'll actually spend after what you own, compared with the gold you're carrying.
 - **Take from your bank**: materials the plan uses that are in your bank, not your bags.
+- **Tools**: some crafts need a tool in your bags, such as a Blacksmith Hammer, an Arclight Spanner or a Runed Copper Rod. When one isn't in your bags, it goes on the step where it is, marked "(tool)": **Take from your bank**, **Collect from your mailbox**, **Get from** an alt, or **Buy from vendor** when you have none and you've seen a vendor sell it. When you have none and no vendor price is known, **Get your tools** says so. Only one of each tool is listed, and **Make room** never puts a tool your queue needs in the bank. A tool the add-on doesn't know gets a reminder under **Craft your queue** instead. The add-on learns which tools a recipe needs when you open its profession.
 - **Buy from a vendor**: vendor materials. They're shown here only, never on the Auctionator list.
 - **Quote** on each row fills in a whisper to the last person who whispered you, with one price for the whole queued amount: the material cost of every craft plus your margin, for example `[Healing Potion] x20: 5g 20s`. The count is the number of items made, so a recipe that makes 5 queued twice says x10. Hover **Quote** to see the material cost and the quote before sending. Press Enter to send it.
 - The margin is set on the **Options** tab: 10% by default, anything from 0 to 1000%. You can also write your own quote message there.

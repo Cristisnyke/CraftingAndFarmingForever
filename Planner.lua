@@ -1180,6 +1180,68 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 			end
 		end
 	end
+
+	-- Tools: a craft that needs a Blacksmith Hammer won't start without one in the bags, and it's easily left in the
+	-- bank. One of each tool your crafts need goes on the step where it is: mailbox, bank, an alt, else a vendor.
+	-- What's left in the bags after the materials are taken counts, so a rod used up as a material doesn't.
+	-- plan.tools[itemID] = { name, recipeID } for what a step gets as a tool; plan.keep[itemID] = tools never to be
+	-- banked for room; plan.noTool = { { name, recipeID, unknown = true when no item for it is known } }.
+	plan.tools, plan.keep, plan.noTool = {}, {}, {}
+	local function NeedTool(name, recipeID)
+		local items = ctx.toolItems and ctx.toolItems(name) or {}
+		if #items == 0 then
+			table.insert(plan.noTool, { name = name, recipeID = recipeID, unknown = true })
+			return
+		end
+		for _, itemID in ipairs(items) do
+			plan.keep[itemID] = true
+			Load(itemID)
+		end
+		for _, itemID in ipairs(items) do
+			if bags[itemID] > 0 then return end
+		end
+		local function Get(itemID, where)
+			where[itemID] = (where[itemID] or 0) + 1
+			plan.tools[itemID] = { name = name, recipeID = recipeID }
+		end
+		for _, pool in ipairs({ { mail, plan.mail }, { bank, plan.bank } }) do
+			for _, itemID in ipairs(items) do
+				if pool[1][itemID] > 0 then
+					pool[1][itemID] = pool[1][itemID] - 1
+					return Get(itemID, pool[2])
+				end
+			end
+		end
+		for _, itemID in ipairs(items) do
+			for _, alt in ipairs(AltsLeft(itemID)) do
+				if alt.count > 0 then
+					alt.count = alt.count - 1
+					plan.fetch[alt.name] = plan.fetch[alt.name] or {}
+					return Get(itemID, plan.fetch[alt.name])
+				end
+			end
+		end
+		for _, itemID in ipairs(items) do
+			local price = Priced(ctx.vendorPrice(itemID))
+			if price then
+				plan.cost = plan.cost + price
+				return Get(itemID, plan.vendor)
+			end
+		end
+		table.insert(plan.noTool, { name = name, recipeID = recipeID })
+	end
+	local needed = {}
+	for _, craft in ipairs(plan.crafts) do
+		local recipe = ctx.recipes[craft.recipeID]
+		if recipe and (not ctx.me or craft.char == ctx.me) then
+			for _, name in ipairs(recipe.t or {}) do
+				if not needed[name] then
+					needed[name] = true
+					NeedTool(name, craft.recipeID)
+				end
+			end
+		end
+	end
 	return plan
 end
 
@@ -1291,7 +1353,7 @@ function Planner.MakeRoom(ctx, plan, space, protected)
 	local candidates = {}
 	for itemID, count in pairs(space.bags) do
 		local units = math.min(low[itemID] or count, count)
-		if units > 0 and ours[itemID] and not (protected and protected[itemID]) then
+		if units > 0 and ours[itemID] and not (protected and protected[itemID]) and not (plan.keep and plan.keep[itemID]) then
 			local slots
 			if units == count then
 				slots = space.itemSlots and space.itemSlots[itemID] or StackSlots(space, itemID, count)

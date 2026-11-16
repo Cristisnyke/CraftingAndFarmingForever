@@ -423,6 +423,11 @@ local function AddGatherRows(list, plan, step)
 	end
 end
 
+-- "a Blacksmith Hammer", "an Arclight Spanner".
+local function WithArticle(name)
+	return (name:match("^[AEIOUaeiou]") and "an " or "a ") .. name
+end
+
 -- Where to buy, under the auction house step and in chat when the auction house opens.
 UI.SHOPPING_HOW = {
 	"At the auction house, open the Shopping tab",
@@ -445,7 +450,13 @@ local function BuildQueueList()
 
 	local function Section(title, items, ...)
 		if not items or next(items) == nil then return end
+		local at = #list
 		AddItemRows(list, Step() .. title, items, ...)
+		-- A tool your crafts need, got here so it's in your bags at the crafting station.
+		for i = at + 1, #list do
+			local row = list[i]
+			if row.kind == "item" and plan.tools and plan.tools[row.itemID] then row.tool = plan.tools[row.itemID] end
+		end
 	end
 
 	-- Farming, gather first: what you pick up out there shrinks every errand after it, so you only go to town (alts,
@@ -489,6 +500,25 @@ local function BuildQueueList()
 	Section("Collect from your mailbox", plan.mail)
 	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	if farming then Section("Smelt with Mining", plan.smelt) end
+	-- Tools you have nowhere: a step of their own before the crafting, gone once one is in your bags. Tools this
+	-- add-on can't look for only get a reminder on the first crafting step, so they never hold up the steps.
+	local toolReminders = {}
+	local missingTools = {}
+	for _, need in ipairs(plan.noTool or {}) do
+		local recipe = ns.db.recipes[need.recipeID]
+		local craft = recipe and recipe.n or "your queue"
+		if need.unknown then
+			table.insert(toolReminders, { kind = "warn", text = ("%s needs %s: have it in your bags."):format(craft, WithArticle(need.name)) })
+		else
+			table.insert(missingTools, { kind = "warn",
+				text = ("%s needs %s and you have none: a trade supplier sells it."):format(craft, WithArticle(need.name)) })
+		end
+	end
+	if #missingTools > 0 then
+		table.insert(list, { kind = "header", text = Step() .. "Get your tools" })
+		for _, row in ipairs(missingTools) do table.insert(list, row) end
+	end
+	local toolsAt = #list + 1
 	local autoHeader = false
 	for _, craft in ipairs(plan.crafts) do
 		if (craft.subCount or 0) > 0 then
@@ -590,6 +620,12 @@ local function BuildQueueList()
 		if #rows > 0 then
 			table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Hand in writs, fill crates" })
 			for _, row in ipairs(rows) do table.insert(list, row) end
+		end
+	end
+	for at = toolsAt, #list do
+		if list[at].crafting then
+			for offset, row in ipairs(toolReminders) do table.insert(list, at + offset, row) end
+			break
 		end
 	end
 	if #list == 0 then
@@ -1100,6 +1136,12 @@ local function RowOnEnter(row)
 	elseif data.kind == "item" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
+		if data.tool then
+			local recipe = ns.db.recipes[data.tool.recipeID]
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(("A tool: %s won't start without %s in your bags. It isn't used up."):format(
+				recipe and recipe.n or "your queue", WithArticle(data.tool.name)), 1, 1, 1, true)
+		end
 		if data.priceLabel == "max" then
 			GameTooltip:AddLine(" ")
 			if data.price then
@@ -2141,7 +2183,7 @@ local function SetRow(row, data)
 		row.left:SetText(Color("ff66ccff", data.text))
 	elseif data.kind == "item" then
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
-		row.left:SetText(ItemLabel(data.itemID))
+		row.left:SetText(ItemLabel(data.itemID) .. (data.tool and Color(COLOR_MUTED, " (tool)") or ""))
 		if data.priceLabel then
 			-- Bought down the listings: what they average, as the cheapest one doesn't cover them all.
 			local average = data.deep and data.total and (not data.price or data.total > data.price * data.count)
