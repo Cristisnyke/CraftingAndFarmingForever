@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.15.0
 
 - The **Stock level** slider is now on the Restock tab too, under the goals. Drag it and the goals and crafts update as you move it: a row flashes green when it goes up and red when it goes down. It's the same setting as the one on the Options tab.
 - **Bags too small for a big queue?** The Queue tab now checks that everything it sends you to buy and craft fits in your bags. When it doesn't, it first tells you what to put in your bank (materials the queue doesn't need yet, and crafted items), on the same bank trip as what to take out. If that's still not enough, the queue is crafted in **runs**: each run buys only the materials it needs, the crafts that use up the most bag room go first, and once the run is crafted the list moves on to the next one. Nothing changes while everything fits. You can turn it off on the Options tab (**Plan around bag space**).

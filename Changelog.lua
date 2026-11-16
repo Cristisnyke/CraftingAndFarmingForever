@@ -4,6 +4,11 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.15.0", lines = {
+		"- The Stock level slider is now on the Restock tab too, under the goals. Drag it and the goals and crafts update as you move it: a row flashes green when it goes up and red when it goes down. It's the same setting as the one on the Options tab.",
+		"- Bags too small for a big queue? The Queue tab now checks that everything it sends you to buy and craft fits in your bags. When it doesn't, it first tells you what to put in your bank (materials the queue doesn't need yet, and crafted items), on the same bank trip as what to take out. If that's still not enough, the queue is crafted in runs: each run buys only the materials it needs, the crafts that use up the most bag room go first, and once the run is crafted the list moves on to the next one. Nothing changes while everything fits. You can turn it off on the Options tab (Plan around bag space).",
+		"- Bank it button on the Next step bar: on a \"Make room\" or \"Take from your bank\" step, open your bank and click it. It puts away what the step says, then takes out what your queue needs, stack by stack. It stops if the bank closes or a fight starts.",
+	} },
 	{ version = "1.14.1", lines = {
 		"- Gold kept on the Options tab now takes gold, silver and copper, typed like 1g 50s 20c, so you can keep back any amount down to 1 copper. An amount you already set is carried over.",
 	} },
