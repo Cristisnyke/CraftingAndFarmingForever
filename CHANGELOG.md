@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.17.0
 
 - **Buying many now counts at what many cost.** A price scan only knows each material's cheapest listing, so 50 Iron Ore used to count as 50 times the price of the first few. At the auction house the add-on now reads every listing of what your queue and your restock would buy (a few seconds, after your own searches), and also learns from every item you open to buy. **Still to buy**, the restock's gold check and the choice between buying and crafting a material all use the real cost. In the Queue tab a row shows the average price ("avg 8s 33c") when the cheapest listing doesn't cover it all, and says when fewer are listed than you need.
 - **Restock stops where it stops paying.** When the cheap materials run out, a craft earns less. An item whose crafts would earn less than your minimum profit at what the materials really cost is cut to the number that still pays: **Craft** shows it as 6/10, and the tooltip says why.
