@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Full bags no longer block the queue.** The game won't start a craft unless a bag slot is free, even a craft that would free slots. Bag space planning now keeps one slot free before every craft: with full bags, the Queue tab first tells you what to put in the bank (or, if there's nothing of the queue's to bank, that you're a slot short).
+
 ## 1.15.0
 
 - The **Stock level** slider is now on the Restock tab too, under the goals. Drag it and the goals and crafts update as you move it: a row flashes green when it goes up and red when it goes down. It's the same setting as the one on the Options tab.

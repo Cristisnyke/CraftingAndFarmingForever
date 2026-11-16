@@ -959,15 +959,16 @@ end
 
 -- Bag space: room to bank, runs that fit, crafts freeing the most room first, a committed run kept until done.
 do
-	local KIT, SHIRT2 = 40, 41
+	local KIT, SHIRT2, DAGGER = 40, 41, 42
 	local function SpaceContext(own)
 		return Planner.NewContext({
 			recipes = {
 				[100] = { o = BAR, qmin = 1, qmax = 1, r = { { 2, ORE } } },
 				[400] = { o = KIT, qmin = 1, qmax = 1, r = { { 20, ORE } } },  -- a whole stack in, a twentieth out
 				[500] = { o = SHIRT2, qmin = 1, qmax = 1, r = { { 2, CLOTH } } },
+				[600] = { o = DAGGER, qmin = 1, qmax = 1, r = { { 20, ORE }, { 20, CLOTH } } }, -- two stacks in, one out
 			},
-			known = { [BAR] = { 100 }, [KIT] = { 400 }, [SHIRT2] = { 500 } },
+			known = { [BAR] = { 100 }, [KIT] = { 400 }, [SHIRT2] = { 500 }, [DAGGER] = { 600 } },
 			ahPrice = function(id) return ({ [ORE] = 10, [CLOTH] = 10, [BAR] = 500, [KIT] = 1000, [SHIRT2] = 100 })[id] end,
 			vendorPrice = function() return nil end,
 			ownStock = function(id) return (own or {})[id] or 0 end,
@@ -1040,6 +1041,15 @@ do
 	local stuck = Planner.SpacePlan(SpaceContext(), { { recipeID = 400, qty = 1 } }, nil, Space({}, 9))
 	check("space: junk not banked", stuck.room and next(stuck.room.bank), nil)
 	check("space: short a slot", stuck.room and stuck.room.short, 1)
+
+	-- Bags full, the craft would free a slot, but the game wants one free before it starts: bank something first.
+	local full = Planner.SpacePlan(SpaceContext({ [ORE] = 20, [CLOTH] = 20, [BAR] = 20 }), { { recipeID = 600, qty = 1 } },
+		nil, Space({ [ORE] = 20, [CLOTH] = 20, [BAR] = 20 }, 7))
+	check("space: full bags, craft that frees a slot still needs one", full.room and full.room.bank[BAR], 20)
+	check("space: full bags, banking one stack is enough", full.room and full.room.short, 0)
+	local blocked = Planner.SpacePlan(SpaceContext({ [ORE] = 20, [CLOTH] = 20 }), { { recipeID = 600, qty = 1 } },
+		nil, Space({ [ORE] = 20, [CLOTH] = 20 }, 8))
+	check("space: full bags, nothing to bank, a slot short", blocked.room and blocked.room.short, 1)
 
 	-- A queued writ's items are never sent to the bank.
 	local wanted = { { qty = 1, items = { { CLOTH, 2 } } } }

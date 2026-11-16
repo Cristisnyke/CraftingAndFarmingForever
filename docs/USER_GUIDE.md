@@ -97,7 +97,7 @@ Steps with nothing to do are left out and the rest renumbered.
 
 ### Bag space
 
-Buying the materials for a big queue can fill your bags before you've crafted anything. So the plan follows your bags (backpack, bags and reagent bag) through the list: everything you take out of the bank, buy and collect, then each craft taking its materials and adding what it makes. One slot is always kept free for a craft's result. While all of it fits, nothing changes.
+Buying the materials for a big queue can fill your bags before you've crafted anything. So the plan follows your bags (backpack, bags and reagent bag) through the list: everything you take out of the bank, buy and collect, then each craft taking its materials and adding what it makes. One slot is always kept free before and after every craft, because the game won't start a craft with full bags, even one that would free room. While all of it fits, nothing changes.
 
 When it doesn't fit:
 

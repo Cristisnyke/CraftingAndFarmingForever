@@ -1035,7 +1035,7 @@ end
 --   stack(itemID) -> stack size, nil while unknown;  isReagent(itemID) -> true when the reagent bag takes it
 -- }
 Planner.BAG = {
-	RESERVE = 1,       -- slots kept free: a craft's result needs somewhere to go
+	RESERVE = 1,       -- slots kept free, before and after every craft: the game wants one for the result
 	DEFAULT_STACK = 20, -- stack size of an item whose data hasn't loaded
 }
 
@@ -1080,6 +1080,8 @@ local function BagWalk(ctx, plan, space)
 	for _, craft in ipairs(plan.crafts) do
 		local recipe = ctx.recipes[craft.recipeID]
 		if recipe and (not ctx.me or craft.char == ctx.me) then
+			-- The game won't start a craft without a free slot for its result, even one that frees slots.
+			worst = math.max(worst, Short())
 			for _, slot in ipairs(recipe.r or {}) do
 				local need = (slot[1] or 1) * craft.count
 				for i = 2, #slot do
