@@ -3356,6 +3356,9 @@ do
 	check("depth: search is for the cloth", sent[1] and sent[1].itemID, 1)
 	check("depth: commodity sort", sent[1] and sent[1].sort, 0)
 	check("depth: status while reading", (ns.Depth.Status()), 1)
+	check("lock: screen locked while it reads", ns.Lock.Shown(), true)
+	check("lock: window open on the Queue tab", ns.UI.IsOpen() and ns.db.ui.tab, "queue")
+	check("lock: says how many are left", ns.Lock.frame.title.text, "Reading listings, 1 to go")
 	check("depth: header says it's reading", BuyHeader():find("reading listings, 1 to go", 1, true) ~= nil, true)
 
 	-- 2 at 10, plenty at 30, and 4 of your own at 9 that you can't buy.
@@ -3368,6 +3371,7 @@ do
 	RunTimers()
 	check("depth: no time-out after the answer", #sent, 1)
 	check("depth: check finished", ns.Depth.Status(), nil)
+	check("lock: gone the moment the check ends", ns.Lock.Shown(), false)
 	check("depth: cheapest tier stored", ns.db.depth[1][1][1] == 10 and ns.db.depth[1][1][2], 2)
 	check("depth: next tier stored", ns.db.depth[1][2][1] == 30 and ns.db.depth[1][2][2], 100)
 	check("depth: own auctions left out", #ns.db.depth[1], 2)
@@ -3418,6 +3422,7 @@ do
 	Step()
 	Step()
 	check("depth: read from your own search", ns.db.depth[1][2][1], 80)
+	check("lock: no lock for listings read from your search", ns.Lock.Shown(), false)
 	check("depth: bolts bought instead", ns.plan.buy[2], 6)
 	check("depth: cloth not bought", ns.plan.buy[1], nil)
 	check("depth: holds off while you search", #sent, 1)
@@ -3459,9 +3464,90 @@ do
 	FireNow("AUCTION_HOUSE_THROTTLED_SYSTEM_READY")
 	Step()
 	check("depth: sent when ready", #sent, before + 1)
+	check("lock: locked again on the next check", ns.Lock.Shown(), true)
 	FireNow("AUCTION_HOUSE_CLOSED")
+	check("lock: gone when the auction house closes", ns.Lock.Shown(), false)
 	RunTimers()
 	check("depth: closing stops the check", ns.Depth.Status(), nil)
+
+	-- The screen lock gives way: each time a new visit, with one search out and no answer yet.
+	do
+		local lock = ns.Lock.frame
+		local function Visit()
+			FireNow("AUCTION_HOUSE_CLOSED")
+			RunTimers()
+			ns.db.depth = {}
+			FireNow("AUCTION_HOUSE_SHOW")
+			Step()
+			Step()
+		end
+		local function Frames(count)
+			for _ = 1, count do lock.scripts.OnUpdate(lock, 0.1) end
+		end
+
+		-- A fight starts.
+		Visit()
+		check("lock: locked on a new visit", ns.Lock.Shown(), true)
+		inCombat = true
+		FireNow("PLAYER_REGEN_DISABLED")
+		check("lock: gone when a fight starts", ns.Lock.Shown(), false)
+		check("lock: the check goes on", (ns.Depth.Status()), 1)
+		Visit()
+		check("lock: not put up in a fight", ns.Lock.Shown(), false)
+		inCombat = false
+		FireNow("PLAYER_REGEN_ENABLED")
+
+		-- Escape takes the screen back until the check is over; other keys do nothing.
+		Visit()
+		lock.scripts.OnKeyDown(lock, "W")
+		check("lock: keys are swallowed", ns.Lock.Shown(), true)
+		lock.scripts.OnKeyDown(lock, "ESCAPE")
+		check("lock: Escape unlocks", ns.Lock.Shown(), false)
+		before = #sent
+		Step() -- no answer: asked once more
+		Step()
+		check("lock: the check went on", #sent, before + 1)
+		check("lock: stays away for the rest of that check", ns.Lock.Shown(), false)
+
+		-- Nothing answered for a while.
+		Visit()
+		check("lock: back on the next check", ns.Lock.Shown(), true)
+		Frames(ns.Lock.STALL)
+		check("lock: waits for an answer", ns.Lock.Shown(), true)
+		Frames(1)
+		check("lock: gone when nothing is answered", ns.Lock.Shown(), false)
+		check("lock: check still running then", (ns.Depth.Status()), 1)
+
+		-- Up too long, though answers keep coming.
+		Visit()
+		local stall, max = ns.Lock.STALL, ns.Lock.MAX
+		ns.Lock.STALL, ns.Lock.MAX = 1000, 5
+		Frames(4)
+		check("lock: up", ns.Lock.Shown(), true)
+		Frames(2)
+		check("lock: never longer than the limit", ns.Lock.Shown(), false)
+		ns.Lock.STALL, ns.Lock.MAX = stall, max
+
+		-- The check holds off (a purchase being priced): the screen is yours meanwhile, locked again as it resumes.
+		Visit()
+		FireNow("COMMODITY_PRICE_UPDATED")
+		Frames(1)
+		check("lock: gone while the check holds off", ns.Lock.Shown(), false)
+		Wait(20)
+		before = #sent
+		Step()
+		Step()
+		check("lock: check resumed", #sent, before + 1)
+		check("lock: locked again as it resumes", ns.Lock.Shown(), true)
+
+		-- The option turned off under it.
+		ns.db.ui.depthCheck = false
+		Frames(1)
+		check("lock: gone with the option off", ns.Lock.Shown(), false)
+		ns.db.ui.depthCheck = true
+		FireNow("AUCTION_HOUSE_CLOSED")
+		RunTimers()
+	end
 
 	-- Turned off: no searches of its own.
 	ns.db.ui.depthCheck = false

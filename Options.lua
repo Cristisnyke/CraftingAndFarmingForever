@@ -196,7 +196,7 @@ function Options.Build(parent, top)
 	controls.depthCheck = Check(parent, "Read listings at the auction house",
 		"A price scan only knows each material's cheapest listing. At the auction house the add-on looks up every "
 			.. "listing of what your queue and restock would buy, so buying 50 counts at what 50 really cost. It waits "
-			.. "for your own searches. Off: only the listings of items you open yourself are read.", y - 22,
+			.. "for your own searches, and locks the screen for the few seconds it reads. Off: only the listings of items you open yourself are read.", y - 22,
 		function() return ns.Option("depthCheck") end, function(on)
 			ns.SetOption("depthCheck", on)
 			ns.Depth.CheckWanted()

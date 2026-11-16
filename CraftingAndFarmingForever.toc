@@ -23,6 +23,7 @@ Shopping.lua
 Writs.lua
 Crates.lua
 UI.lua
+Lock.lua
 Posting.lua
 Options.lua
 Changelog.lua

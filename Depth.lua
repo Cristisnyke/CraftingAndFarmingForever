@@ -16,6 +16,7 @@ Depth.MAX_AGE = ns.STALE_SECONDS -- listings older than this aren't used, like p
 Depth.REFRESH = 10 * 60 -- seconds; at the auction house an item is searched again once its listings are this old
 Depth.MAX_TIERS = 40 -- price levels kept per item
 Depth.version = 0 -- goes up with every change, for whoever caches something worked out from listings
+Depth.round = 0 -- goes up as a check ends, for the screen lock (Lock.lua)
 
 local YIELD = 0.3 -- seconds after the auction house is ready before a search goes out: everyone else first
 local QUIET_BROWSE = 2 -- seconds the check holds off after browse results (a list search, a scan)
@@ -187,6 +188,13 @@ local function Stop()
 	wipe(retried)
 	wipe(waits)
 	asked, total = nil, 0
+	Depth.round = Depth.round + 1
+	if ns.Lock then ns.Lock.Update() end
+end
+
+-- Seconds the check still holds off for your own searches and purchases.
+function Depth.Holding(now)
+	return math.max(0, quietUntil - (now or GetTime()))
 end
 
 -- Searches left and searches in this round; nil when no check is running.
@@ -234,6 +242,7 @@ Next = function()
 				table.remove(pending, index)
 				local search = { itemID = itemID, commodity = stackable }
 				asked, recent[itemID] = search, now
+				if ns.Lock then ns.Lock.Start() end
 				local sorts = { { sortOrder = stackable and SORT_PRICE or SORT_BUYOUT, reverseSort = false } }
 				if equipment then
 					C_AuctionHouse.SendSellSearchQuery(itemKey, sorts, true)
