@@ -125,6 +125,8 @@ function ns.RefreshEverything()
 	end
 	ns.InvalidateProfit()
 	RebuildPlan()
+	-- At the auction house: the listings of what the queue (and the restock) buys are read again, fresh or not.
+	ns.Depth.CheckWanted(true)
 	ns.UI.RefreshAll()
 end
 

@@ -3962,9 +3962,11 @@ local function CreateMain()
 		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 		GameTooltip:SetText("Refresh")
 		GameTooltip:AddLine("Re-reads your recipes, item data, prices from Auctionator and stock, then redraws "
-			.. "everything. At the auction house it also re-reads your auctions.", 1, 1, 1, true)
-		GameTooltip:AddLine("It doesn't scan the auction house. Scan with Auctionator, or with Scan now when prices "
-			.. "are old.", 0.6, 0.6, 0.6, true)
+			.. "everything.", 1, 1, 1, true)
+		GameTooltip:AddLine("At the auction house it also re-reads your auctions and looks up every listing of the "
+			.. "materials your queue buys again, so the costs are as of now.", 1, 1, 1, true)
+		GameTooltip:AddLine("It isn't a price scan: sale prices come from Auctionator's scan (Scan now when prices "
+			.. "are old).", 0.6, 0.6, 0.6, true)
 		GameTooltip:Show()
 	end)
 	refresh:SetScript("OnLeave", GameTooltip_Hide)

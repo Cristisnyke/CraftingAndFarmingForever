@@ -3540,6 +3540,22 @@ do
 		check("lock: check resumed", #sent, before + 1)
 		check("lock: locked again as it resumes", ns.Lock.Shown(), true)
 
+		-- Refresh reads the queue's listings again though they're fresh; the check on its own doesn't.
+		results[1] = { { unitPrice = 10, quantity = 100 } }
+		FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+		check("refresh: listings read", ns.Depth.Status(), nil)
+		before = #sent
+		ns.Depth.CheckWanted()
+		Step()
+		Step()
+		check("refresh: fresh listings left alone by the check", #sent, before)
+		ns.RefreshEverything()
+		Step()
+		Step()
+		check("refresh: Refresh searches them again", #sent, before + 1)
+		check("refresh: for the cloth", sent[#sent].itemID, 1)
+		check("refresh: screen locked meanwhile", ns.Lock.Shown(), true)
+
 		-- The option turned off under it.
 		ns.db.ui.depthCheck = false
 		Frames(1)

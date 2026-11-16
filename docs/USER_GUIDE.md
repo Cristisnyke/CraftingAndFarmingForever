@@ -10,7 +10,7 @@ Hover any row with an item icon to see the game's item tooltip followed by the a
 
 Drag the window's bottom-right corner to resize it; right-click that corner for the default size. The window alone and the window with the queue beside Restock each keep their own width.
 
-**Refresh** at the top re-reads recipes, item data, Auctionator's prices and your stock, and redraws everything; at the auction house it also re-reads your auctions. It doesn't scan the auction house.
+**Refresh** at the top re-reads recipes, item data, Auctionator's prices and your stock, and redraws everything; at the auction house it also re-reads your auctions and looks up every listing of the materials your queue (and your restock) would buy again, even ones read a minute ago, so the costs are as of now (see [What buying many really costs](#what-buying-many-really-costs)). It isn't a price scan: sale prices still come from Auctionator's scan.
 
 ## Before you start
 

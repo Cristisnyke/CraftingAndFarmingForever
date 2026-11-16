@@ -279,7 +279,8 @@ Next = function()
 end
 
 -- Searches these items, in this order, skipping those whose listings are fresh. Only at the auction house.
-function Depth.Check(items)
+-- again: fresh ones too, and those a search was given up for (the Refresh button).
+function Depth.Check(items, again)
 	if not (AuctionHouseOpen() and ns.Option("depthCheck")) then return end
 	local now = time()
 	local added = false
@@ -287,7 +288,8 @@ function Depth.Check(items)
 		local record = ns.db.depth[itemID]
 		local fresh = record and now - record.at < Depth.REFRESH
 		local gaveUp = failed[itemID] and now - failed[itemID] < Depth.REFRESH
-		if not (queued[itemID] or fresh or gaveUp) then
+		if not queued[itemID] and (again or not (fresh or gaveUp)) then
+			failed[itemID] = nil
 			queued[itemID] = true
 			pending[#pending + 1] = itemID
 			total = total + 1
@@ -301,7 +303,7 @@ function Depth.Check(items)
 end
 
 -- What the plan buys, then what the restock last looked at would buy.
-function Depth.CheckWanted()
+function Depth.CheckWanted(again)
 	if not (AuctionHouseOpen() and ns.Option("depthCheck")) then return end
 	local items, seen = {}, {}
 	local function Add(set)
@@ -317,7 +319,7 @@ function Depth.CheckWanted()
 	end
 	Add(ns.plan.buy)
 	Add(shopping)
-	Depth.Check(items)
+	Depth.Check(items, again)
 end
 
 -- The materials a restock would buy (itemID -> anything), noted each time the Restock rows are worked out.
