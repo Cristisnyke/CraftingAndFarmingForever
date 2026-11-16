@@ -1309,6 +1309,18 @@ local function SkillControls(row)
 end
 
 local RESTOCK_COLUMN_WIDTH = 38
+-- The Stock level slider and the flashes on restock rows when their numbers change. seen = what each restock row last
+-- showed, by item; emptied when the tab closes. sliders = the slider on the Restock tab and the one in Options.
+local Live = {
+	LEVEL_BOTTOM = 98, -- the slider's row in the Restock footer
+	REDRAW_DELAY = 0.03, -- one redraw per frame or so while dragging
+	FLASHES = 2,
+	FLASH_ALPHA = 0.45,
+	UP = { 0.25, 0.9, 0.35 },
+	DOWN = { 1, 0.3, 0.25 },
+	seen = {},
+	sliders = {},
+}
 
 local function RestockControls(row)
 	return {
@@ -1525,6 +1537,35 @@ local function CreateRow(parent)
 	row.tint:SetColorTexture(0.8, 0.1, 0.1, 0.18)
 	row.tint:Hide()
 
+	-- A restock row's numbers flash green when its goal or crafts go up, red when they go down (Stock level slider,
+	-- gold, sales). Over the right-hand columns only; placed in SetRow, since those move.
+	row.flash = row:CreateTexture(nil, "BORDER")
+	row.flash:SetTexture(WHITE)
+	row.flash:SetPoint("TOP", row, "TOP", 0, 0)
+	row.flash:SetPoint("BOTTOM", row, "BOTTOM", 0, 0)
+	row.flash:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+	row.flash:SetAlpha(0)
+	row.live = {} -- anim, item (the stub test's frames answer every unset field, so not on the row itself)
+	local flash = row.flash.CreateAnimationGroup and row.flash:CreateAnimationGroup()
+	if flash then
+		flash:SetLooping("NONE")
+		for i = 1, Live.FLASHES do
+			local up = flash:CreateAnimation("Alpha")
+			up:SetFromAlpha(0)
+			up:SetToAlpha(Live.FLASH_ALPHA)
+			up:SetDuration(0.12)
+			up:SetOrder(i * 2 - 1)
+			local down = flash:CreateAnimation("Alpha")
+			down:SetFromAlpha(Live.FLASH_ALPHA)
+			down:SetToAlpha(0)
+			down:SetDuration(0.38)
+			down:SetOrder(i * 2)
+			if down.SetSmoothing then down:SetSmoothing("OUT") end
+		end
+		flash:SetScript("OnFinished", function() row.flash:SetAlpha(0) end)
+		row.live.anim = flash
+	end
+
 	-- Columns: the queue's materials and profit for the whole entry, the Profit tab's sell chance and profit.
 	for _, key in ipairs({ "cost", "profit", "chance" }) do
 		row[key] = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1648,6 +1689,31 @@ local function CreateRow(parent)
 	return row
 end
 
+function Live.StopFlash(row)
+	if row.live.anim then row.live.anim:Stop() end
+	row.flash:SetAlpha(0)
+	row.live.item = nil
+end
+
+-- Compares a restock row with what was last shown for its item and flashes the change: green for more (goal, or crafts
+-- when the goal stayed), red for fewer.
+function Live.Flash(row, item)
+	local seen = Live.seen[item.itemID]
+	Live.seen[item.itemID] = { goal = item.goal, crafts = item.crafts }
+	if not seen then return end
+	local change = item.goal - seen.goal
+	if change == 0 then change = item.crafts - seen.crafts end
+	if change == 0 then return end
+	local color = change > 0 and Live.UP or Live.DOWN
+	row.flash:SetVertexColor(color[1], color[2], color[3])
+	row.flash:SetPoint("LEFT", row.colCraft, "LEFT", -4, 0)
+	row.live.item = item.itemID
+	if row.live.anim then
+		row.live.anim:Stop()
+		row.live.anim:Play()
+	end
+end
+
 local function SetRow(row, data)
 	row.data = data
 	row.plus:Hide()
@@ -1670,6 +1736,10 @@ local function SetRow(row, data)
 	row.band:SetShown(banded)
 	row.bandMark:SetShown(banded)
 	row.tint:Hide()
+	-- A flash belongs to its item: a reused row mustn't carry it to another.
+	if row.live.item and not (data.kind == "restock" and data.row.itemID == row.live.item) then
+		Live.StopFlash(row)
+	end
 	row.amountLabel:Hide()
 	row.amount:SetTextColor(1, 1, 1)
 	-- Left alone on rows that keep it, so a redraw doesn't take the focus from someone typing in it.
@@ -1865,6 +1935,7 @@ local function SetRow(row, data)
 		else
 			row.colCraft:SetText(Color(COLOR_PROFIT, "0"))
 		end
+		Live.Flash(row, item)
 	elseif data.kind == "incoming" then
 		local entry = data.entry
 		row.icon:SetTexture(entry.itemID and ns.Items.Icon(entry.itemID) or 134400)
@@ -2419,6 +2490,85 @@ local function NumberBox(parent, labelText, previous, read, write, paneKey)
 		if not self:HasFocus() then self:SetText(tostring(read())) end
 	end
 	return box, label
+end
+
+-- The Stock level slider (smart goals, cautious to aggressive). One on the Restock tab, one in Options; moving either
+-- moves the other and redraws the restock straight away, so its goals change under your mouse.
+
+function Live.LevelWord(percent)
+	return percent < 50 and "cautious" or percent > 50 and "aggressive" or "balanced"
+end
+
+function UI.StockLevelSlider(parent, width)
+	local level = CreateFrame("Slider", nil, parent)
+	level:SetSize(width, 14)
+	level:SetOrientation("HORIZONTAL")
+	level:SetHitRectInsets(0, 0, -4, -4)
+	local track = level:CreateTexture(nil, "BACKGROUND")
+	track:SetPoint("LEFT")
+	track:SetPoint("RIGHT")
+	track:SetHeight(4)
+	track:SetColorTexture(1, 1, 1, 0.12)
+	local thumb = level:CreateTexture(nil, "OVERLAY")
+	local edge = THEME.buttonEdge
+	thumb:SetColorTexture(edge[1], edge[2], edge[3], 1)
+	thumb:SetSize(10, 14)
+	level:SetThumbTexture(thumb)
+	local smart = ns.Planner.SMART
+	level:SetMinMaxValues(smart.LEVEL_MIN * 100, smart.LEVEL_MAX * 100)
+	level:SetValueStep(10)
+	level:SetObeyStepOnDrag(true)
+	level.text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	level.text:SetPoint("LEFT", level, "RIGHT", 10, 0)
+	level.ShowLevel = function(self)
+		local percent = ns.Restock.SmartLevel()
+		if not ns.Restock.SmartOn() then
+			self.text:SetText(Color(COLOR_MUTED, ("%d%%  smart goals are off"):format(percent)))
+			return
+		end
+		self.text:SetText(("%d%%  %s"):format(percent, Color(COLOR_MUTED, Live.LevelWord(percent))))
+	end
+	level:SetScript("OnValueChanged", function(self, value)
+		if self.syncing then return end
+		local before = ns.Restock.SmartLevel()
+		ns.Restock.SetSmartLevel(value)
+		for _, other in ipairs(Live.sliders) do
+			if other ~= self then other:Sync() end
+		end
+		self:ShowLevel()
+		if ns.Restock.SmartLevel() == before then return end
+		ns.Debounce("smartLevel", Live.REDRAW_DELAY, function()
+			UI.Refresh("restock")
+			UI.Refresh("posting")
+		end)
+	end)
+	level.Sync = function(self)
+		self.syncing = true
+		self:SetValue(ns.Restock.SmartLevel())
+		self.syncing = false
+		local on = ns.Restock.SmartOn()
+		if on then self:Enable() else self:Disable() end
+		self:SetAlpha(on and 1 or 0.4)
+		self:ShowLevel()
+	end
+	level:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Stock level")
+		GameTooltip:AddLine("How eagerly smart goals stock up. A goal rises a step each day everything you listed "
+			.. "sold, and drops when auctions expire. At 50% it can rise to what sold between two of your restocks; "
+			.. "at 100% to twice that, in bigger steps. Lower is safer for your gold and drops faster on expiries.",
+			1, 1, 1, true)
+		if not ns.Restock.SmartOn() then
+			GameTooltip:AddLine("Smart restock goals are off (Options), so this does nothing.", 1, 0.6, 0.2, true)
+		else
+			GameTooltip:AddLine("Restock goals that change flash green (more) or red (fewer).", 0.6, 0.6, 0.6, true)
+		end
+		GameTooltip:Show()
+	end)
+	level:SetScript("OnLeave", GameTooltip_Hide)
+	table.insert(Live.sliders, level)
+	UI.stockLevelSliders = Live.sliders
+	return level
 end
 
 -- "Craft Next: Smelt Bronze x12"; "Open Mining: Smelt Bronze x12" when Craft Next opens its profession first; or,
@@ -3085,7 +3235,7 @@ end)
 -- A labelled number box in the restock footer. Saves on Enter or when it loses focus.
 
 function CreateRestockPane()
-	local window = CreatePane("restock", 96, true)
+	local window = CreatePane("restock", 120, true)
 	window.build = BuildRestockList
 
 	local showQueue = HeaderButton(window.frame, "Show Queue", 100, function() UI.ToggleQueueBeside() end)
@@ -3104,6 +3254,15 @@ function CreateRestockPane()
 		function() return ns.db.restock.singleGoal end, function(v) ns.db.restock.singleGoal = v end)
 	local minProfit = NumberBox(window.frame, "Min profit (s)", single,
 		function() return ns.db.restock.minProfitSilver end, function(v) ns.db.restock.minProfitSilver = v end)
+
+	-- Smart goals' stock level, right here: the goals above follow it as it moves.
+	local levelLabel = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	levelLabel:SetPoint("BOTTOMLEFT", 12, Live.LEVEL_BOTTOM)
+	levelLabel:SetText("Stock level")
+	local level = UI.StockLevelSlider(window.frame, 180)
+	level:SetPoint("LEFT", levelLabel, "RIGHT", 10, 0)
+	-- A fresh look at the tab doesn't flash: only changes seen while it's open do.
+	window.frame:HookScript("OnHide", function() wipe(Live.seen) end)
 
 	local status = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	status:SetPoint("BOTTOMLEFT", 12, 40)
@@ -3128,6 +3287,7 @@ function CreateRestockPane()
 
 	window.update = function(self)
 		showQueue:SetText(ns.db.ui.queueBeside and "Hide Queue" or "Show Queue")
+		level:Sync()
 		stack:Sync()
 		single:Sync()
 		minProfit:Sync()

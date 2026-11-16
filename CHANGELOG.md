@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- The **Stock level** slider is now on the Restock tab too, under the goals. Drag it and the goals and crafts update as you move it: a row flashes green when it goes up and red when it goes down. It's the same setting as the one on the Options tab.
+
 ## 1.14.1
 
 - **Gold kept** on the Options tab now takes gold, silver and copper, typed like `1g 50s 20c`, so you can keep back any amount down to 1 copper. An amount you already set is carried over.

@@ -897,6 +897,32 @@ do
 	ns.Restock.ForgetSmart()
 	check("smart goal holds while gold is spent", ns.Restock.Goal(4), smartGoal)
 	playerMoney = 100000000
+	-- The Stock level slider on the Restock tab: moving it redraws the goals at once and flashes the ones that moved.
+	do
+		ns.UI.Show("restock")
+		ns.UI.Refresh("restock")
+		local function ItemRow()
+			for _, r in ipairs(ns.UI.windows.restock.rows) do
+				if r.data and r.data.kind == "restock" and r.data.row.itemID == 4 then return r end
+			end
+		end
+		check("slider: item listed", ItemRow() ~= nil, true)
+		check("slider: first look doesn't flash", ItemRow().live.item, nil)
+		local slider = ns.UI.stockLevelSliders[#ns.UI.stockLevelSliders]
+		local level = ns.Restock.SmartLevel()
+		slider.scripts.OnValueChanged(slider, 200)
+		RunTimers()
+		check("slider: level saved", ns.Restock.SmartLevel(), 200)
+		check("slider: goal moved", ItemRow().data.row.goal ~= smartGoal, true)
+		check("slider: changed row flashes", ItemRow().live.item, 4)
+		ns.UI.Refresh("restock")
+		check("slider: redraw with no change keeps the flash", ItemRow().live.item, 4)
+		slider.scripts.OnValueChanged(slider, level)
+		RunTimers()
+		check("slider: back to the old goal", ItemRow().data.row.goal, smartGoal)
+		ns.UI.windows.restock.frame.scripts.OnHide() -- what closing the tab does: forget what was shown
+		ns.Restock.ForgetSmart()
+	end
 	-- Restocks two days apart: the stock has to last longer, so the same sales allow more.
 	local at = time()
 	ns.db.sales.trips = { at - 6 * 86400, at - 4 * 86400, at - 2 * 86400, at }

@@ -262,49 +262,8 @@ function Options.Build(parent, top)
 	y = y + 4
 	-- How much of a day's sales to stock: a slider from careful to plenty.
 	Label(parent, "Stock level", y)
-	local level = CreateFrame("Slider", nil, parent)
-	level:SetSize(220, 14)
+	local level = ns.UI.StockLevelSlider(parent, 220)
 	level:SetPoint("TOPLEFT", LEFT + 84, -y - 3)
-	level:SetOrientation("HORIZONTAL")
-	local track = level:CreateTexture(nil, "BACKGROUND")
-	track:SetPoint("LEFT")
-	track:SetPoint("RIGHT")
-	track:SetHeight(4)
-	track:SetColorTexture(1, 1, 1, 0.12)
-	local thumb = level:CreateTexture(nil, "OVERLAY")
-	local edge = ns.UI.THEME.buttonEdge
-	thumb:SetColorTexture(edge[1], edge[2], edge[3], 1)
-	thumb:SetSize(10, 14)
-	level:SetThumbTexture(thumb)
-	local smart = ns.Planner.SMART
-	level:SetMinMaxValues(smart.LEVEL_MIN * 100, smart.LEVEL_MAX * 100)
-	level:SetValueStep(10)
-	level:SetObeyStepOnDrag(true)
-	local levelText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	levelText:SetPoint("LEFT", level, "RIGHT", 10, 0)
-	local function ShowLevel(percent)
-		levelText:SetText(("%d%%|r %s%s|r"):format(percent, MUTED,
-			percent < 50 and "cautious" or percent > 50 and "aggressive" or "balanced"))
-	end
-	level:SetScript("OnValueChanged", function(self, value)
-		if self.syncing then return end
-		ns.Restock.SetSmartLevel(value)
-		ShowLevel(ns.Restock.SmartLevel())
-		ns.Debounce("smartLevel", 0.1, function()
-			ns.UI.Refresh("restock")
-			ns.UI.Refresh("posting")
-			Options.Sync()
-		end)
-	end)
-	level.Sync = function(self)
-		self.syncing = true
-		self:SetValue(ns.Restock.SmartLevel())
-		self.syncing = false
-		ShowLevel(ns.Restock.SmartLevel())
-	end
-	Tip(level, "Stock level", "How eagerly smart goals stock up. A goal rises a step each day everything you listed "
-		.. "sold, and drops when auctions expire. At 50% it can rise to what sold between two of your restocks; "
-		.. "at 100% to twice that, in bigger steps. Lower is safer for your gold and drops faster on expiries.")
 	controls.smartLevel = level
 	y = y + 22
 
