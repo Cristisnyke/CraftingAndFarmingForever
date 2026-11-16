@@ -49,6 +49,12 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 tools/check.sh
 ```
 
+Besides syntax, the toc and the tests it checks:
+
+- **Room for locals:** Lua 5.1 refuses a file with more than 200 locals at its top level. Every file must still have room for 15 more (`LOCALS_SPARE`); when one doesn't, group constants into a table (UI.lua's `COLUMN`, `NEXT`, `AD`, `Live`) rather than adding top-level locals.
+- **Calls between files** (`tools/check_calls.lua`): every `ns.fn(...)`, `ns.Module.fn(...)` and `Module.fn(...)` through a local alias must name a function some file defines. It catches typos and calls left behind by a rename, which luacheck can't see because modules are fields of `ns`.
+- **Unused arguments** are reported by luacheck, except `self`, `event` and names starting with `_`: when a handler's signature forces an argument you don't use, call it `_elapsed`, `_button` and so on.
+
 It also runs `luacheck` (settings and the list of game globals in `.luacheckrc`) and `shellcheck` on `tools/*.sh` when they are installed (`sudo pacman -S luacheck shellcheck`), and skips them with a note when they are not. A new game global the add-on reads must be added to `.luacheckrc`.
 
 It must pass before every commit. It:

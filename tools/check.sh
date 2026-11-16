@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Syntax check, accidental-global check and tests, on Lua 5.1 as the game uses. Run from anywhere.
+# Syntax, top-level local room, calls between files, accidental globals, lint and tests, on Lua 5.1 as the game uses. Run from anywhere.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,6 +10,21 @@ for f in *.lua; do
 done
 
 for f in "${ADDON_FILES[@]}" tests/*.lua; do luac5.1 -p "$f"; done
+
+# Lua 5.1 refuses a chunk with more than 200 locals at its top level, and UI.lua has come close. Fail while there's
+# still room (LOCALS_SPARE more must fit), so the next feature doesn't find out by breaking the build: group
+# constants into a table instead of adding top-level locals. The spares go first, since a file may end in return.
+LOCALS_SPARE=15
+spare_locals=$(for ((i = 1; i <= LOCALS_SPARE; i++)); do printf 'local spare%d\n' "$i"; done)
+for f in "${ADDON_FILES[@]}"; do
+	if ! printf '%s\n%s\n' "$spare_locals" "$(cat "$f")" | luac5.1 -p - 2>/dev/null; then
+		echo "$f has room for fewer than $LOCALS_SPARE more top-level locals (Lua 5.1 allows 200): group some into a table"
+		exit 1
+	fi
+done
+
+# Calls between files name functions that exist (luacheck can't see fields of ns).
+lua5.1 tools/check_calls.lua "${ADDON_FILES[@]}"
 
 # Globals the add-on itself may assign: its saved data and slash command name.
 ALLOWED='CraftingAndFarmingForeverDB|SLASH_CFF1|SLASH_CFF2'

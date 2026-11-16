@@ -2,8 +2,9 @@
 std = "lua51"
 max_line_length = false
 exclude_files = { "dist/" }
--- Unused arguments are usually a callback's fixed signature (self, event, ...).
-unused_args = false
+-- Unused arguments are reported, except a callback's fixed ones: self, event, and any name starting with _ (write
+-- _elapsed, _button when a handler's signature forces an argument you don't use).
+ignore = { "212/self", "212/event", "21./_.*" }
 
 globals = { "CraftingAndFarmingForeverDB", "SLASH_CFF1", "SLASH_CFF2" }
 
