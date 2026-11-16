@@ -99,6 +99,78 @@ local function Wanted(ctx)
 	return list
 end
 
+-- Plan check: when the auction house brings new prices (the add-on's own listings check, a price scan, a search of the
+-- queue's shopping list), the plan is worked out again once they're all in. Rows whose buying or sub-crafting changed
+-- then pulse; when nothing changed the window pulses green: the plan still holds.
+-- Shape of a plan for that: units of each item got by buying (purchases waiting in the mail count, so buying what the
+-- list says isn't a change) and sub-crafts of each recipe. Keys "i<itemID>" and "r<recipeID>".
+local PlanCheck = { SETTLE = 1, id = 0 } -- SETTLE: seconds after the last price comes in before the plan is checked
+ns.PlanCheck = PlanCheck
+
+function PlanCheck.Shape(plan)
+	local shape = {}
+	local function Add(key, count)
+		if (count or 0) > 0 then shape[key] = (shape[key] or 0) + count end
+	end
+	for _, list in ipairs({ plan.buy, plan.vendor, plan.mail }) do
+		for itemID, count in pairs(list or {}) do Add("i" .. itemID, count) end
+	end
+	for _, craft in ipairs(plan.crafts or {}) do Add("r" .. craft.recipeID, craft.subCount) end
+	return shape
+end
+
+-- Keys whose counts differ, as a set, and how many.
+function PlanCheck.Diff(before, after)
+	local changed, count = {}, 0
+	for _, side in ipairs({ before, after }) do
+		for key in pairs(side) do
+			if not changed[key] and (before[key] or 0) ~= (after[key] or 0) then
+				changed[key] = true
+				count = count + 1
+			end
+		end
+	end
+	return changed, count
+end
+
+-- New prices are on their way: remember the plan as it was, once, until the check ends.
+function PlanCheck.Begin()
+	if PlanCheck.before or ns.db.ui.farmMode or ns.Queue.Count() == 0 then return end
+	PlanCheck.id = (PlanCheck.id or 0) + 1
+	PlanCheck.before, PlanCheck.ended, PlanCheck.ending = PlanCheck.Shape(ns.plan), nil, nil
+end
+
+-- They're in: the plan is worked out again a moment later, when anything still arriving has arrived.
+function PlanCheck.End()
+	if not PlanCheck.before then return end
+	PlanCheck.ended = true
+	local id = PlanCheck.id
+	C_Timer.After(PlanCheck.SETTLE, function()
+		if PlanCheck.id ~= id or not PlanCheck.before then return end
+		PlanCheck.ending = true
+		ns.InvalidateProfit()
+		ns.RequestPlan()
+	end)
+end
+
+-- After each plan: with the check ended and no listings still being read, the verdict.
+function PlanCheck.AfterBuild()
+	if not (PlanCheck.ending and PlanCheck.before) or ns.Depth.Status() then return end
+	local before = PlanCheck.before
+	PlanCheck.before, PlanCheck.ended, PlanCheck.ending = nil, nil, nil
+	if ns.db.ui.farmMode or ns.Queue.Count() == 0 then return end
+	local changed, count = PlanCheck.Diff(before, PlanCheck.Shape(ns.plan))
+	PlanCheck.result = { at = GetTime(), changed = changed, count = count, pulsed = {} }
+	if ns.UI and ns.UI.PlanChecked then ns.UI.PlanChecked(PlanCheck.result) end
+end
+
+-- Leaving the auction house halfway through: no verdict on half the prices. One that had ended still comes.
+ns.On("AUCTION_HOUSE_CLOSED", function()
+	if PlanCheck.ended then return end
+	PlanCheck.id = (PlanCheck.id or 0) + 1
+	PlanCheck.before, PlanCheck.ending = nil, nil
+end)
+
 local function RebuildPlan()
 	wipe(craftedSinceBuild)
 	local ctx = NewContext()
@@ -113,6 +185,7 @@ local function RebuildPlan()
 	if ns.Shopping then ns.Shopping.Sync() end
 	ns.Depth.CheckWanted()
 	if ns.UI then ns.UI.RefreshQueue() end
+	PlanCheck.AfterBuild()
 end
 
 -- The Refresh button: re-reads recipes, item data, prices and stock, rebuilds the plan and the shopping list and

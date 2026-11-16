@@ -1462,8 +1462,14 @@ local Live = {
 	FLASH_ALPHA = 0.45,
 	UP = { 0.25, 0.9, 0.35 },
 	DOWN = { 1, 0.3, 0.25 },
+	CHANGED = { 1, 0.82, 0.2 }, -- a plan check changed this row
+	PLAN_NEWS = 10, -- seconds a changed row still pulses when it's first drawn (on opening the Queue tab)
+	NOTE_SECONDS = 6,
+	HELD_TEXT = "Plan checked: still the cheapest way",
+	CHANGED_TEXT = "Plan updated for the new prices: %d change%s",
 	seen = {},
 	sliders = {},
+	verdicts = {}, -- frame -> its plan check note and glow (the stub test's frames answer every unset field)
 }
 
 local function RestockControls(row)
@@ -1857,6 +1863,123 @@ function Live.Flash(row, item)
 	end
 end
 
+-- Plan check (ns.PlanCheck): the key a Queue row has in a plan's shape, nil for rows a price can't change.
+function Live.PlanKey(data)
+	if data.kind == "item" and data.itemID then return "i" .. data.itemID end
+	if data.kind == "auto" and data.craft then return "r" .. data.craft.recipeID end
+	return nil
+end
+
+-- A row whose buying or sub-crafting the last plan check changed pulses, once, while that's news.
+function Live.PlanPulse(row, key)
+	local result = ns.PlanCheck and ns.PlanCheck.result
+	if not (result and result.changed[key]) or GetTime() - result.at > Live.PLAN_NEWS then return end
+	if result.pulsed[row] == key then return end
+	result.pulsed[row] = key
+	local color = Live.CHANGED
+	row.flash:SetVertexColor(color[1], color[2], color[3])
+	row.flash:SetPoint("LEFT", row, "LEFT", 0, 0)
+	row.live.item = key
+	if row.live.anim then
+		row.live.anim:Stop()
+		row.live.anim:Play()
+	end
+end
+
+-- The verdict on a window: a note on it for a few seconds, and a green pulse round it when the plan held.
+-- above = put the note above the window (the small Next step bar) instead of inside its top.
+function Live.Verdict(frame, held, text, above)
+	local verdict = Live.verdicts[frame]
+	if not verdict then
+		verdict = {}
+		local glow = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+		glow:SetAllPoints()
+		glow:SetFrameLevel((frame:GetFrameLevel() or 0) + 40)
+		glow:EnableMouse(false)
+		glow:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = 3 })
+		glow:SetBackdropColor(Live.UP[1], Live.UP[2], Live.UP[3], 0.12)
+		glow:SetBackdropBorderColor(Live.UP[1], Live.UP[2], Live.UP[3], 1)
+		glow:SetAlpha(0)
+		glow:Hide()
+		local anim = glow.CreateAnimationGroup and glow:CreateAnimationGroup()
+		if anim then
+			for i = 1, Live.FLASHES do
+				local up = anim:CreateAnimation("Alpha")
+				up:SetFromAlpha(0)
+				up:SetToAlpha(1)
+				up:SetDuration(0.15)
+				up:SetOrder(i * 2 - 1)
+				local down = anim:CreateAnimation("Alpha")
+				down:SetFromAlpha(1)
+				down:SetToAlpha(0)
+				down:SetDuration(0.45)
+				down:SetOrder(i * 2)
+			end
+			anim:SetScript("OnFinished", function()
+				glow:SetAlpha(0)
+				glow:Hide()
+			end)
+		end
+		verdict.glow, verdict.anim = glow, anim
+
+		local note = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+		note:SetFrameLevel((frame:GetFrameLevel() or 0) + 41)
+		note:EnableMouse(false)
+		ThemeBackdrop(note, 0.95)
+		note:SetHeight(26)
+		if above then
+			note:SetPoint("BOTTOM", frame, "TOP", 0, 4)
+		else
+			note:SetPoint("TOP", frame, "TOP", 0, -40)
+		end
+		local label = note:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		label:SetPoint("CENTER")
+		note.label = label
+		note:Hide()
+		verdict.note = note
+		Live.verdicts[frame] = verdict
+	end
+
+	local color = held and Live.UP or Live.CHANGED
+	verdict.note.label:SetText(text)
+	verdict.note.label:SetTextColor(color[1], color[2], color[3])
+	verdict.note:SetBackdropBorderColor(color[1], color[2], color[3], 1)
+	verdict.note:SetWidth(math.max(160, (verdict.note.label:GetStringWidth() or 0) + 28))
+	verdict.note:Show()
+	verdict.shownAt = GetTime()
+	local shownAt = verdict.shownAt
+	C_Timer.After(Live.NOTE_SECONDS, function()
+		if verdict.shownAt == shownAt then verdict.note:Hide() end
+	end)
+	if held then
+		verdict.glow:Show()
+		if verdict.anim then
+			verdict.anim:Stop()
+			verdict.anim:Play()
+		end
+	end
+end
+
+-- A plan check ended (ns.PlanCheck.AfterBuild): say so on whichever windows are up, in chat when none is, and redraw
+-- so the changed rows pulse.
+function UI.PlanChecked(result)
+	local held = result.count == 0
+	local text = held and Live.HELD_TEXT
+		or Live.CHANGED_TEXT:format(result.count, result.count == 1 and "" or "s")
+	local shown = false
+	if main and main.frame:IsShown() then
+		Live.Verdict(main.frame, held, text)
+		shown = true
+	end
+	if windows.next and windows.next.frame:IsShown() then
+		Live.Verdict(windows.next.frame, held, text, true)
+		shown = true
+	end
+	if not shown then ns.Print(text) end
+	UI.lastVerdict = text
+	UI.RefreshQueue()
+end
+
 local function SetRow(row, data)
 	row.data = data
 	row.plus:Hide()
@@ -1880,9 +2003,12 @@ local function SetRow(row, data)
 	row.bandMark:SetShown(banded)
 	row.tint:Hide()
 	-- A flash belongs to its item: a reused row mustn't carry it to another.
-	if row.live.item and not (data.kind == "restock" and data.row.itemID == row.live.item) then
+	local planKey = Live.PlanKey(data)
+	if row.live.item and not ((data.kind == "restock" and data.row.itemID == row.live.item)
+		or (planKey and planKey == row.live.item)) then
 		Live.StopFlash(row)
 	end
+	if planKey then Live.PlanPulse(row, planKey) end
 	row.amountLabel:Hide()
 	row.amount:SetTextColor(1, 1, 1)
 	-- Left alone on rows that keep it, so a redraw doesn't take the focus from someone typing in it.

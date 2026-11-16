@@ -250,12 +250,12 @@ local listManager = {
 local busListener
 Auctionator = {
 	EventBus = { Register = function(_, listener, events) busListener = listener; busEvents = events end },
-	FullScan = { Events = { ScanStart = "full start" } },
+	FullScan = { Events = { ScanStart = "full start", ScanComplete = "full done", ScanFailed = "full failed" } },
 	IncrementalScan = { Events = { ScanStart = "incremental start" } },
 	SavedState = { TimeOfLastBrowseScan = os.time() - 90000 },
 	State = {},
 	Config = { Options = { REPLICATE_SCAN = "r" }, Get = function() return false end },
-	Shopping = { ListManager = listManager, Tab = { Events = { SearchStart = "shopping start" } } },
+	Shopping = { ListManager = listManager, Tab = { Events = { SearchStart = "shopping start", SearchEnd = "shopping end" } } },
 	API = { v1 = {
 		GetAuctionPriceByItemID = function(_, id) return prices[id] end,
 		GetVendorPriceByItemID = function(_, id) return id == 3 and 10 or nil end,
@@ -3383,6 +3383,8 @@ do
 	check("depth: own auctions left out", #ns.db.depth[1], 2)
 	check("depth: plan pays down the listings", ns.plan.paid[1], 2 * 10 + 10 * 30)
 	check("depth: plan cost", ns.plan.cost, 320 + 2 * 10)
+	check("plan check: after the listings check, the plan holds", ns.PlanCheck.result and ns.PlanCheck.result.count, 0)
+	check("plan check: said on the window", ns.UI.lastVerdict, "Plan checked: still the cheapest way")
 	check("depth: still cheaper than buying bolts", ns.plan.buy[2], nil)
 	check("depth: row shows the average", QueueText(1), "x12, avg 27c, total 3s 20c")
 	check("depth: header total", BuyHeader():find("3s 20c", 1, true) ~= nil, true)
@@ -3635,6 +3637,88 @@ do
 	ns.UI.Refresh("queue")
 	ns.UI.Refresh("next")
 	ns.plan = realPlan
+	ns.Queue.Clear()
+	RunTimers()
+end
+
+-- Plan check: once new prices are in (a search of the queue's list, a scan, the listings check), the plan is worked
+-- out again. Rows that changed pulse; when nothing changed, the window says the plan holds.
+do
+	local saved = { prices[1], prices[2], ns.db.ui.depthCheck, ns.db.depth }
+	ns.db.ui.depthCheck, ns.db.depth = false, {}
+	prices[1], prices[2] = 10, 100
+	ns.Queue.Clear()
+	ns.Queue.Add(20, 2) -- 6 bolts, woven from 12 cloth
+	RunTimers()
+	local boltRecipe
+	for _, craft in ipairs(ns.plan.crafts) do if (craft.subCount or 0) > 0 then boltRecipe = craft.recipeID end end
+	check("plan check: bolts are a sub-craft", boltRecipe ~= nil, true)
+	ns.UI.Show("queue")
+
+	-- Nothing changes: the plan holds.
+	ns.UI.lastVerdict = nil
+	busListener:ReceiveEvent("shopping start", lists[ns.LIST_NAME])
+	check("plan check: started", ns.PlanCheck.before ~= nil, true)
+	busListener:ReceiveEvent("shopping end")
+	RunTimers()
+	check("plan check: nothing changed", ns.PlanCheck.result and ns.PlanCheck.result.count, 0)
+	check("plan check: says it holds", ns.UI.lastVerdict, "Plan checked: still the cheapest way")
+	check("plan check: done", ns.PlanCheck.before, nil)
+
+	-- Cloth got dear during the search: bolts are bought now, and those rows pulse.
+	busListener:ReceiveEvent("shopping start", lists[ns.LIST_NAME])
+	prices[1] = 60
+	busListener:ReceiveEvent("shopping end")
+	RunTimers()
+	local result = ns.PlanCheck.result
+	check("plan check: bolts bought instead", ns.plan.buy[2], 6)
+	check("plan check: three changes (cloth, bolts, the sub-craft)", result.count, 3)
+	check("plan check: the bolts changed", result.changed.i2 and result.changed["r" .. boltRecipe], true)
+	check("plan check: says so", ns.UI.lastVerdict, "Plan updated for the new prices: 3 changes")
+	local pulsed
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "item" and row.data.itemID == 2 then pulsed = row.live.item end
+	end
+	check("plan check: the bolts row pulses", pulsed, "i2")
+
+	-- Buying what the list says isn't a change: purchases waiting in the mail count the same.
+	busListener:ReceiveEvent("shopping start", lists[ns.LIST_NAME])
+	C_AuctionHouse.ConfirmCommoditiesPurchase(2, 6)
+	Fire("COMMODITY_PURCHASE_SUCCEEDED")
+	busListener:ReceiveEvent("shopping end")
+	RunTimers()
+	check("plan check: buying isn't a change", ns.PlanCheck.result.count, 0)
+
+	-- Another list's search doesn't start one; a full scan does, and its end checks.
+	busListener:ReceiveEvent("shopping start", { "a", "b", "c", "d", "e" })
+	check("plan check: other lists ignored", ns.PlanCheck.before, nil)
+	busListener:ReceiveEvent("shopping end")
+	busListener:ReceiveEvent("full start")
+	check("plan check: a scan starts one", ns.PlanCheck.before ~= nil, true)
+	busListener:ReceiveEvent("full done")
+	RunTimers()
+	check("plan check: a scan ends one", ns.PlanCheck.before, nil)
+
+	-- Closing the auction house halfway: no verdict on half the prices.
+	ns.UI.lastVerdict = nil
+	busListener:ReceiveEvent("shopping start", lists[ns.LIST_NAME])
+	prices[1] = 10
+	FireNow("AUCTION_HOUSE_CLOSED")
+	RunTimers()
+	check("plan check: dropped on closing", ns.PlanCheck.before, nil)
+	check("plan check: no verdict", ns.UI.lastVerdict, nil)
+
+	-- With no window open, chat says it.
+	ns.UI.Hide()
+	ns.db.ui.nextStep = false
+	ns.UI.RefreshQueue()
+	busListener:ReceiveEvent("full start") -- the bolts bought above are in the mail: the list is empty now
+	busListener:ReceiveEvent("full done")
+	RunTimers()
+	check("plan check: chat when no window is up", ns.UI.lastVerdict, "Plan checked: still the cheapest way")
+	ns.db.ui.nextStep = nil
+
+	prices[1], prices[2], ns.db.ui.depthCheck, ns.db.depth = saved[1], saved[2], saved[3], saved[4]
 	ns.Queue.Clear()
 	RunTimers()
 end

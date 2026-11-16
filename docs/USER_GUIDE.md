@@ -69,6 +69,8 @@ A price scan only knows each material's cheapest listing. If 5 Iron Ore are list
 - In the Queue tab, a row says **avg** with the average price when the cheapest listing doesn't cover it all, and its total is what all of them cost. "30 listed" in orange means fewer are listed than you need; the rest count at the dearest listing.
 - Listings are kept for a day. A material whose listings were never read still counts at its cheapest listing times the amount, as before. The profit list is per craft, so it keeps using the cheapest listing.
 
+**The plan checks itself.** When a search of the queue's shopping list, a price scan or this listings check finishes, the plan is worked out again with the new prices. Rows whose buying or sub-crafting changed pulse gold, and a note on the window says how many changed. When nothing changed, the window pulses green with "Plan checked: still the cheapest way". The note shows on the main window and above the Next step bar, whichever are open, or in chat when neither is. Buying what the list says isn't a change (purchases waiting in the mail count as bought). Closing the auction house before a search finishes gives no verdict.
+
 **Read listings at the auction house** on the Options tab turns the add-on's own lookups off; it then only learns from the items you open yourself.
 
 ## Queue

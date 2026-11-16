@@ -209,11 +209,21 @@ end
 local function WatchScans()
 	local bus = Auctionator.EventBus
 	local shoppingStart = Auctionator.Shopping.Tab.Events.SearchStart
+	local shoppingEnd = Auctionator.Shopping.Tab.Events.SearchEnd
+	-- Every price scan and search of our list also starts a plan check (ns.PlanCheck), ended when it finishes.
+	local ends, ourSearch = {}, false
 	local listener = {
 		ReceiveEvent = function(_, eventName, terms)
-			if eventName ~= shoppingStart then
+			if ends[eventName] or (eventName == shoppingEnd and ourSearch) then
+				ourSearch = false
+				ns.PlanCheck.End()
+			elseif eventName == shoppingEnd then
+				return
+			elseif eventName ~= shoppingStart then
 				Prices.NewRound()
+				ns.PlanCheck.Begin()
 			elseif type(terms) == "table" and #terms > 0 then
+				ourSearch = false
 				local manager = Auctionator.Shopping.ListManager
 				if not manager:GetIndexForName(ns.LIST_NAME) then return end
 				local items = manager:GetByName(ns.LIST_NAME):GetAllItems()
@@ -221,15 +231,23 @@ local function WatchScans()
 				-- A one-item list's scan looks like a single search, so it must be our list's own item.
 				if #terms == 1 and terms[1] ~= items[1] then return end
 				Prices.NewRound()
+				ourSearch = true
+				ns.PlanCheck.Begin()
 			end
 		end,
 	}
 	local events = { shoppingStart }
-	if Auctionator.FullScan and Auctionator.FullScan.Events then
-		table.insert(events, Auctionator.FullScan.Events.ScanStart)
-	end
-	if Auctionator.IncrementalScan and Auctionator.IncrementalScan.Events then
-		table.insert(events, Auctionator.IncrementalScan.Events.ScanStart)
+	if shoppingEnd then table.insert(events, shoppingEnd) end
+	for _, scan in ipairs({ Auctionator.FullScan, Auctionator.IncrementalScan }) do
+		if scan and scan.Events then
+			table.insert(events, scan.Events.ScanStart)
+			for _, name in ipairs({ "ScanComplete", "ScanFailed" }) do
+				if scan.Events[name] then
+					ends[scan.Events[name]] = true
+					table.insert(events, scan.Events[name])
+				end
+			end
+		end
 	end
 	bus:Register(listener, events)
 end

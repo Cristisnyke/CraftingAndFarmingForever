@@ -182,7 +182,8 @@ local function RefreshStatus()
 	end)
 end
 
-local function Stop()
+-- finished: every search of the round was answered or given up (not cut short by the auction house closing).
+local function Stop(finished)
 	wipe(pending)
 	wipe(queued)
 	wipe(retried)
@@ -190,6 +191,7 @@ local function Stop()
 	asked, total = nil, 0
 	Depth.round = Depth.round + 1
 	if ns.Lock then ns.Lock.Update() end
+	if finished and ns.PlanCheck then ns.PlanCheck.End() end
 end
 
 -- Seconds the check still holds off for your own searches and purchases.
@@ -216,7 +218,7 @@ local function Answered(ok)
 		queued[itemID] = nil
 		if not ok then failed[itemID] = time() end
 	end
-	if #pending == 0 then Stop() end
+	if #pending == 0 then Stop(true) end
 	RefreshStatus()
 	Later(YIELD)
 end
@@ -271,7 +273,7 @@ Next = function()
 		end
 	end
 	if #pending == 0 then
-		Stop()
+		Stop(true)
 		RefreshStatus()
 	else
 		Later(1)
@@ -297,6 +299,7 @@ function Depth.Check(items, again)
 		end
 	end
 	if added then
+		if ns.PlanCheck then ns.PlanCheck.Begin() end
 		RefreshStatus()
 		Later(YIELD)
 	end
