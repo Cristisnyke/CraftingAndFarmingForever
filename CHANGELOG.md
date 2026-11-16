@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.16.0
 
 - `/cff` with an unknown command now lists `writs` and `crates` among the commands.
 
