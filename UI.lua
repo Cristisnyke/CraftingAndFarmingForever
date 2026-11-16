@@ -449,6 +449,18 @@ local function BuildQueueList()
 	for name in pairs(plan.fetch) do table.insert(names, name) end
 	table.sort(names)
 	for _, name in ipairs(names) do Section("Get from " .. name .. " (log in there and mail them over)", plan.fetch[name]) end
+	-- Bags too full for the queue: what to put in the bank, on the same trip as what to take out of it.
+	local room = plan.room
+	if room and next(room.bank) then
+		Section("Make room: put these in your bank (your bags would fill up)", room.bank)
+	end
+	if room and room.short > 0 then
+		if not (room.bank and next(room.bank)) then
+			table.insert(list, { kind = "header", text = Step() .. "Make room in your bags" })
+		end
+		table.insert(list, { kind = "warn", text = ("Still %s short: sell, mail or bank something else."):format(
+			ns.Plural(room.short, "bag slot", "bag slots")) })
+	end
 	Section("Take from your bank", plan.bank)
 	local beforeBuy = #list
 	Section("Buy at auction house: %s (red: dearer since last scan, green: cheaper)", plan.buy, "max", ns.Prices.AH)
@@ -496,9 +508,45 @@ local function BuildQueueList()
 		local function NumberedStep()
 			return (number > 0 or #order > 0) and Step() or ""
 		end
+		-- Bags short of room: your crafts in the plan's order (those freeing the most room first), and with a run, its
+		-- share of each entry; the rest waits for the next run.
+		local later = {}
+		if room and #mine > 1 then
+			local position = {}
+			for at, craft in ipairs(plan.crafts) do
+				local key = ns.Planner.RunKey(craft.recipeID, craft.char)
+				position[key] = position[key] or at
+			end
+			for at, row in ipairs(mine) do row.at = at end
+			table.sort(mine, function(a, b)
+				local left = position[ns.Planner.RunKey(a.entry.recipeID, me)] or math.huge
+				local right = position[ns.Planner.RunKey(b.entry.recipeID, me)] or math.huge
+				if left ~= right then return left < right end
+				return a.at < b.at
+			end)
+		end
+		if plan.run then
+			local left, kept = {}, {}
+			for key, qty in pairs(plan.run.qty) do left[key] = qty end
+			for _, row in ipairs(mine) do
+				local key = ns.Planner.RunKey(row.entry.recipeID, me)
+				row.run = math.min(row.entry.qty, left[key] or 0)
+				left[key] = (left[key] or 0) - row.run
+				table.insert(row.run > 0 and kept or later, row)
+			end
+			mine = kept
+		end
 		if #mine > 0 then
-			table.insert(list, { kind = "header", text = NumberedStep() .. "Craft your queue", columns = "queue", crafting = true })
+			local title = plan.run and ("Craft this run: %s (as many as your bags hold)"):format(
+				ns.Plural(plan.run.crafts, "craft", "crafts")) or "Craft your queue"
+			table.insert(list, { kind = "header", text = NumberedStep() .. title, columns = "queue", crafting = true })
 			for _, row in ipairs(mine) do table.insert(list, row) end
+		end
+		if #later > 0 then
+			table.insert(list, { kind = "header", columns = "queue", text = Step() .. ("Next run: %s left (craft this "
+				.. "run first, then the list starts over with room in your bags)"):format(
+				ns.Plural(plan.run.later, "craft", "crafts")) })
+			for _, row in ipairs(later) do table.insert(list, row) end
 		end
 		table.sort(order, function(a, b) return ns.CharLabel(a) < ns.CharLabel(b) end)
 		for _, crafter in ipairs(order) do
@@ -563,7 +611,8 @@ local function BuildNextStep()
 			end
 		elseif steps == 1 then
 			if data.kind == "queue" then
-				table.insert(rows, { kind = "next", recipeID = data.entry.recipeID, count = data.entry.qty, char = data.entry.char })
+				table.insert(rows, { kind = "next", recipeID = data.entry.recipeID, count = (data.run or 0) > 0 and data.run or data.entry.qty,
+					char = data.entry.char })
 			elseif data.kind == "want" then
 				table.insert(rows, { kind = "item", itemID = data.entry.id, count = data.entry.qty })
 			elseif data.kind == "item" then
@@ -1129,6 +1178,11 @@ local function RowOnEnter(row)
 		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
 		StartItemTooltip(row, queuedRecipe and queuedRecipe.o, data.entry.recipeID)
 		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
+		if data.run then
+			GameTooltip:AddLine(data.run > 0 and ("Your bags don't hold the materials for the whole queue: %d of these "
+				.. "in this run, the rest in the next."):format(data.run)
+				or "Your bags don't hold the materials for the whole queue: this waits for the next run.", 0.6, 0.8, 1, true)
+		end
 		if ns.totals.boundEntries[data.index] then
 			GameTooltip:AddLine("Bind on pickup: can't be sold, so it isn't in the total profit.", 1, 0.6, 0.2, true)
 		elseif queuedRecipe and queuedRecipe.o then
@@ -1877,6 +1931,7 @@ local function SetRow(row, data)
 		local onAlt = crafter ~= ns.CharKey() and Color("ff99ccff", "  " .. ns.CharLabel(crafter)) or ""
 		row.left:SetText(RecipeName(entry.recipeID) .. onAlt
 			.. (entry.restock and Color(COLOR_MUTED, " restock") or "")
+			.. (data.run and data.run > 0 and data.run < entry.qty and Color("ff99ccff", ("  this run: %d"):format(data.run)) or "")
 			.. (capped and Color(COLOR_WARN, "  check price") or "")
 			.. (change and ("   " .. Color(COLOR_MUTED, "sells ") .. change) or ""))
 		PlaceRight(row, QueueControls(row), true)

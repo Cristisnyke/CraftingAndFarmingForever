@@ -100,6 +100,7 @@ local function Normalize(db)
 	db.restock.duration = db.restock.duration or 2
 	db.mail = db.mail or {}
 	db.purchases = db.purchases or {}
+	db.bagRuns = db.bagRuns or {} -- [charKey] = the bag-space run being crafted (Planner.SpacePlan)
 	db.costs = db.costs or {}
 	db.deposits = db.deposits or {}
 	db.wanted = db.wanted or {}

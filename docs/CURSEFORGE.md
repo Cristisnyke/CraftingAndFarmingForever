@@ -44,6 +44,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - The Queue tab is a numbered to-do list in working order: fetch from an alt, take from the bank, buy at the auction house, collect the mail, buy from a vendor, then craft.
 - Each character only buys and crafts its own part; then you're told which alt to log in to next.
 - Sub-crafts like bars, bolts and leather are worked out for you, and shrink as your stock grows.
+- **Bag space**: when a big queue's materials won't fit in your bags, it tells you what to put in the bank first and, if that isn't enough, splits the queue into runs that fit, crafting what uses up the most room first.
 - **Total profit** for the whole queue, and **Still to buy** compared with the gold you're carrying.
 - **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. Fold it to one line; it disappears when the queue is empty.
 - **Craft Next** crafts the next thing this character can make. If it can't, it tells you why (the next craft is on your alt, say), and if the craft needs a different profession it opens that one for you. It's also a progress bar: while you craft it shows how far through the batch you are (8 / 20) and how long until that batch and all your crafts are done.

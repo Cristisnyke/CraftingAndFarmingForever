@@ -956,5 +956,96 @@ do
 	check("no bundle price, no best", empty.best, nil)
 end
 
+
+-- Bag space: room to bank, runs that fit, crafts freeing the most room first, a committed run kept until done.
+do
+	local KIT, SHIRT2 = 40, 41
+	local function SpaceContext(own)
+		return Planner.NewContext({
+			recipes = {
+				[100] = { o = BAR, qmin = 1, qmax = 1, r = { { 2, ORE } } },
+				[400] = { o = KIT, qmin = 1, qmax = 1, r = { { 20, ORE } } },  -- a whole stack in, a twentieth out
+				[500] = { o = SHIRT2, qmin = 1, qmax = 1, r = { { 2, CLOTH } } },
+			},
+			known = { [BAR] = { 100 }, [KIT] = { 400 }, [SHIRT2] = { 500 } },
+			ahPrice = function(id) return ({ [ORE] = 10, [CLOTH] = 10, [BAR] = 500, [KIT] = 1000, [SHIRT2] = 100 })[id] end,
+			vendorPrice = function() return nil end,
+			ownStock = function(id) return (own or {})[id] or 0 end,
+			altStock = function() return {} end,
+			crafter = function() return "me" end,
+			me = "me",
+		})
+	end
+	local function Space(bags, junkSlots)
+		local space = { slots = 10, reagentSlots = 0, usedOther = junkSlots or 0, usedReagent = 0, bags = {}, itemSlots = {},
+			stack = function() return 20 end, isReagent = function() return false end }
+		for itemID, count in pairs(bags or {}) do
+			space.bags[itemID] = count
+			space.itemSlots[itemID] = math.ceil(count / 20)
+			space.usedOther = space.usedOther + space.itemSlots[itemID]
+		end
+		return space
+	end
+	local KEY = Planner.RunKey(400, "me")
+
+	local fits, commit = Planner.SpacePlan(SpaceContext(), { { recipeID = 400, qty = 2 } }, nil, Space())
+	check("space: fits, no run", fits.run, nil)
+	check("space: fits, no room step", fits.room, nil)
+	check("space: fits, nothing to commit", commit, nil)
+	check("space: no space known = plain plan", (Planner.SpacePlan(SpaceContext(), { { recipeID = 400, qty = 2 } })).buy[ORE], 40)
+
+	local empty = Planner.SpacePlan(SpaceContext(), {}, nil, Space({}, 10))
+	check("space: full bags, empty queue, nothing to do", empty.room, nil)
+
+	-- 80 cloth (4 slots) and 200 ore (10 slots) don't fit in 10 slots with one kept free.
+	local queue = { { recipeID = 500, qty = 40 }, { recipeID = 400, qty = 10 } }
+	local run
+	run, commit = Planner.SpacePlan(SpaceContext(), queue, nil, Space())
+	check("space: run planned", run.run ~= nil, true)
+	check("space: run is as big as fits", run.run and run.run.crafts, 9)
+	check("space: rest waits", run.run and run.run.later, 41)
+	check("space: run buys only its ore", run.buy[ORE], 180)
+	check("space: run buys no cloth yet", run.buy[CLOTH], nil)
+	check("space: heaviest craft first", run.crafts[1] and run.crafts[1].recipeID, 400)
+	check("space: commit target", commit and commit[KEY] and commit[KEY].target, 1)
+	check("space: commit for the waiting entry", commit and commit[Planner.RunKey(500, "me")].target, 40)
+
+	-- Four crafted: 100 ore and 4 kits in the bags. The run carries on with what's held, nothing new to buy.
+	queue = { { recipeID = 500, qty = 40 }, { recipeID = 400, qty = 6 } }
+	local again, kept = Planner.SpacePlan(SpaceContext({ [ORE] = 100, [KIT] = 4 }), queue, nil,
+		Space({ [ORE] = 100, [KIT] = 4 }), commit)
+	check("space: committed run kept", kept, commit)
+	check("space: committed run: crafts left", again.run and again.run.crafts, 5)
+	check("space: committed run: nothing to buy", again.buy[ORE], nil)
+
+	-- Raising an entry drops the commitment and plans afresh.
+	local _, fresh = Planner.SpacePlan(SpaceContext({ [ORE] = 100 }), { { recipeID = 500, qty = 40 }, { recipeID = 400, qty = 12 } },
+		nil, Space({ [ORE] = 100 }), commit)
+	check("space: raised entry, new run", fresh ~= commit, true)
+
+	-- Run done (one kit left, as planned): the rest fits now, so no run.
+	local after, none = Planner.SpacePlan(SpaceContext({ [KIT] = 9 }), { { recipeID = 500, qty = 40 }, { recipeID = 400, qty = 1 } },
+		nil, Space({ [KIT] = 9 }), commit)
+	check("space: done run, rest fits", after.run, nil)
+	check("space: done run, nothing kept", none, nil)
+	check("space: done run, cloth bought now", after.buy[CLOTH], 80)
+
+	-- Nine slots of cloth the queue doesn't use: bank them, no run needed.
+	local room = Planner.SpacePlan(SpaceContext(), { { recipeID = 400, qty = 1 } }, nil, Space({ [CLOTH] = 180 }))
+	check("space: bank unused material", room.room and room.room.bank[CLOTH], 180)
+	check("space: banking is enough", room.room and room.room.short, 0)
+	check("space: banking is enough, no run", room.run, nil)
+
+	-- Junk isn't the add-on's to move: still a slot short.
+	local stuck = Planner.SpacePlan(SpaceContext(), { { recipeID = 400, qty = 1 } }, nil, Space({}, 9))
+	check("space: junk not banked", stuck.room and next(stuck.room.bank), nil)
+	check("space: short a slot", stuck.room and stuck.room.short, 1)
+
+	-- A queued writ's items are never sent to the bank.
+	local wanted = { { qty = 1, items = { { CLOTH, 2 } } } }
+	local writ = Planner.SpacePlan(SpaceContext({ [CLOTH] = 180 }), { { recipeID = 400, qty = 1 } }, wanted, Space({ [CLOTH] = 180 }))
+	check("space: wanted item kept", writ.room and writ.room.bank[CLOTH], nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -174,6 +174,18 @@ function Options.Build(parent, top)
 	AddCheck("nextStep", "Show the Next step bar",
 		"The small bar that shows what to do next while there's something in the queue. Without it, the Queue tab "
 			.. "is your list, also when farming.")
+	-- Beside it, in a second column: the window has no room for another row.
+	controls.bagSpace = Check(parent, "Plan around bag space",
+		"When the queue's materials won't fit in your bags, the Queue tab says what to put in the bank first and, if "
+			.. "that isn't enough, splits the queue into runs that fit, crafts using up the most room first.", y - 22,
+		function() return ns.Option("bagSpace") end, function(on)
+			ns.SetOption("bagSpace", on)
+			ns.RequestPlan()
+		end)
+	controls.bagSpace:ClearAllPoints()
+	controls.bagSpace:SetPoint("TOPLEFT", LEFT + 380, -(y - 22))
+	controls.bagSpace:SetHitRectInsets(0, -200, 0, 0)
+	controls.nextStep:SetHitRectInsets(0, -340, 0, 0)
 	AddCheck("scanPopup", "Ask to scan at the auction house when prices are old",
 		"The Yes or No box that offers a new scan when your prices are more than a day old. The orange note in this "
 			.. "window stays either way.")
@@ -385,7 +397,7 @@ function Options.Build(parent, top)
 			.. "of them. Press Enter to save.")
 
 	local function Update()
-		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "smartRestock", "adEnabled" }) do
+		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "bagSpace", "smartRestock", "adEnabled" }) do
 			controls[key]:Sync()
 		end
 		local current = ns.Advertise.DestinationLabel()

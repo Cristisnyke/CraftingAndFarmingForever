@@ -66,6 +66,21 @@ function Items.IsStackable(itemID)
 	return (stackCount or 1) > 1
 end
 
+-- How many fit in one bag slot, or nil while the item data is loading.
+function Items.StackSize(itemID)
+	local name, _, _, _, _, _, _, stackCount = C_Item.GetItemInfo(itemID)
+	if not name then
+		Request(itemID)
+		return nil
+	end
+	return stackCount or 1
+end
+
+-- True when the reagent bag takes it (a crafting reagent).
+function Items.IsReagent(itemID)
+	return select(17, C_Item.GetItemInfo(itemID)) == true
+end
+
 -- Daggers are bought two at a time: a rogue wants one for each hand. Not those for one hand only.
 local DAGGER_CLASS, DAGGER_SUBCLASS = 2, 15
 function Items.SoldInPairs(itemID)
@@ -275,6 +290,38 @@ function Stock.Alts(itemID)
 		end
 	end
 	return result
+end
+
+-- The bags as Planner.SpacePlan reads them: slots, what's in them and what each item takes. Bag 5 is the reagent bag,
+-- which only takes crafting reagents. Nil when the bags can't be read.
+local REAGENT_BAG = 5
+function Stock.BagSpace()
+	if not (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo) then return nil end
+	local space = { slots = 0, reagentSlots = 0, usedOther = 0, usedReagent = 0, bags = {}, itemSlots = {},
+		stack = Items.StackSize, isReagent = Items.IsReagent }
+	for bag = 0, REAGENT_BAG do
+		local slots = C_Container.GetContainerNumSlots(bag) or 0
+		if bag == REAGENT_BAG then
+			space.reagentSlots = slots
+		else
+			space.slots = space.slots + slots
+		end
+		for slot = 1, slots do
+			local info = C_Container.GetContainerItemInfo(bag, slot)
+			if info and info.itemID then
+				local itemID = info.itemID
+				space.bags[itemID] = (space.bags[itemID] or 0) + (info.stackCount or 1)
+				space.itemSlots[itemID] = (space.itemSlots[itemID] or 0) + 1
+				if Items.IsReagent(itemID) then
+					space.usedReagent = space.usedReagent + 1
+				else
+					space.usedOther = space.usedOther + 1
+				end
+			end
+		end
+	end
+	if space.slots == 0 then return nil end
+	return space
 end
 
 -- Mailbox: what the last look in this character's mailbox found, plus auction house purchases made since, which go

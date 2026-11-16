@@ -67,12 +67,12 @@ With Farm It, gathering comes first (step 0 below), so the trip to town covers o
 
 0. With Farm It: what to **gather**, every group (Mine, Pick herbs, Skin, ...) at once.
 1. **Get from** an alt: log in there and mail the materials over.
-2. **Take from your bank**.
+2. **Make room** and **Take from your bank** (only when your bags would fill up, see [Bag space](#bag-space)).
 3. **Buy at auction house** (in Auctionator's Shopping tab, see [The shopping list](#the-shopping-list)).
 4. **Collect from your mailbox**: what you bought, or had mailed over. It comes once the whole shopping list is bought, and the mailbox is right beside the auction house.
 5. **Buy from vendor**. With Farm It, then what to smelt.
 6. **Sub-crafts**: materials you make yourself (smelting bars for a recipe, say).
-7. **Craft your queue**: the crafts this character makes.
+7. **Craft your queue**: the crafts this character makes. When your bags can't hold the whole queue: **Craft this run**, then **Next run** with what's left.
 8. **Log in to** another character: one step per alt with crafts in the queue, listing them.
 
 The list is for the character you're logged in on. Crafts another character makes, such as your tailor's shirts while you're on your blacksmith, are only listed under **Log in to**: nothing is bought, gathered or made for them here. Log in to that character and its own list shows what to get, buy and craft there. What an alt holds for its own crafts isn't asked for by your other characters, and a sub-craft only an alt knows is bought instead (or gathered, with Farm It). This also goes for **Queue restock** on the All tab, the Auctionator shopping list, Still to buy and the Next step bar.
@@ -94,6 +94,18 @@ Steps with nothing to do are left out and the rest renumbered.
 - **Buy from a vendor**: vendor materials. They're shown here only, never on the Auctionator list.
 - **Quote** on each row fills in a whisper to the last person who whispered you, with one price for the whole queued amount: the material cost of every craft plus your margin, for example `[Healing Potion] x20: 5g 20s`. The count is the number of items made, so a recipe that makes 5 queued twice says x10. Hover **Quote** to see the material cost and the quote before sending. Press Enter to send it.
 - The margin is set on the **Options** tab: 10% by default, anything from 0 to 1000%. You can also write your own quote message there.
+
+### Bag space
+
+Buying the materials for a big queue can fill your bags before you've crafted anything. So the plan follows your bags (backpack, bags and reagent bag) through the list: everything you take out of the bank, buy and collect, then each craft taking its materials and adding what it makes. One slot is always kept free for a craft's result. While all of it fits, nothing changes.
+
+When it doesn't fit:
+
+1. **Make room: put these in your bank**. Only materials and crafted items of your known recipes that the plan doesn't need right now, the ones taking the most slots first, and only as many as it takes. It's on the same bank trip as **Take from your bank**. Anything else in your bags is yours to decide about: when even that isn't enough, an orange line says how many slots are still missing.
+2. If banking still isn't enough, the queue is crafted in **runs**. A run is as much of the queue as your bags hold, starting with the crafts that use up the most room (a craft that turns a stack of ore into one item before one that turns two bolts into a shirt). The list then shows **Craft this run: N crafts**, each row says **this run: 7** when only part of it is in the run, and the rest is listed under **Next run**. The shopping list, Still to buy and the Next step bar follow the run, so you only buy what this run needs.
+3. Once the run is crafted, the list starts over: bank what you made if there's no room, then buy for the next run. A run stays as it is until it's crafted, so the list doesn't change halfway through; adding to the queue plans a new run.
+
+The bank's own free space isn't checked. Turn it all off with **Plan around bag space** on the Options tab. Farm It plans don't use runs: you gather what you come across.
 
 ### Next step bar
 
@@ -224,6 +236,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Show the Next step bar | Off: no bar; the Queue tab is your list, also when farming |
 | Ask to scan at the auction house when prices are old | The Yes or No box offering a new scan. The orange note in the window stays |
 | Reminders in chat | The chat lines about old prices at login and where the shopping list is |
+| Plan around bag space | On by default. When the queue's materials won't fit in your bags, says what to bank and splits the queue into runs (see [Bag space](#bag-space)) |
 | Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price**. Off: the listing is used as it is |
 | Smart restock goals | On by default. Restock goals follow your sales (see Restock). Off: every item without its own goal uses the default goals |
 | Stock level | How eagerly smart goals stock up, from cautious to aggressive: 10% to 200%, default 50% (a goal can rise to what sold between two of your restocks; 100% allows twice that) |

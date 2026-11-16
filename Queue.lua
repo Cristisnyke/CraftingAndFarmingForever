@@ -101,7 +101,10 @@ local function RebuildPlan()
 	wipe(craftedSinceBuild)
 	local ctx = NewContext()
 	local wanted = Wanted(ctx)
-	ns.plan = ns.Planner.BuildPlan(ctx, ns.db.queue, false, wanted)
+	-- Bag space: a run of the queue that fits, kept per character until it's crafted.
+	local me = ctx.me or "?"
+	local space = ns.Option("bagSpace") and ns.Stock.BagSpace() or nil
+	ns.plan, ns.db.bagRuns[me] = ns.Planner.SpacePlan(ctx, ns.db.queue, wanted, space, ns.db.bagRuns[me])
 	ctx.smelting = ns.Farm.Smelting
 	ns.farmPlan = ns.Planner.BuildPlan(ctx, ns.db.queue, true, wanted)
 	ns.totals = ns.Planner.QueueTotals(ctx, ns.db.queue, ns.Items.CanSellOnAH)

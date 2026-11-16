@@ -2143,7 +2143,7 @@ end
 do
 	local bags = {}
 	C_Container = {
-		GetContainerNumSlots = function(bag) return bag == 0 and #bags or 0 end,
+		GetContainerNumSlots = function(bag) return bag == 0 and math.max(#bags, 20) or 0 end, -- room to spare: bag space has its own test
 		GetContainerItemInfo = function(_, slot) return bags[slot] end,
 	}
 	ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot, itemID = bags[slot].itemID } end }
@@ -3180,6 +3180,43 @@ do
 	ns.db.ui.crateSort, ns.db.ui.crateSortAsc = nil, nil
 	for _, id in ipairs({ ORE_CRATE, SILVER, IRON, INGOT_CRATE, SILVER_BAR, IRON_BAR }) do prices[id] = nil end
 	ns.UI.Show("profit")
+end
+
+
+-- Bag space: a queue whose materials don't fit is crafted in runs. One-unit stacks here, 4 slots, 1 kept free.
+do
+	local container, itemCount = C_Container, C_Item.GetItemCount
+	C_Container = {
+		GetContainerNumSlots = function(bag) return bag == 0 and 4 or 0 end,
+		GetContainerItemInfo = function() return nil end,
+	}
+	C_Item.GetItemCount = function() return 0 end
+	ns.Queue.Clear()
+	ns.Queue.Add(10, 5)
+	RunTimers()
+	check("bag run: buys for one craft", ns.plan.buy[1], 2)
+	check("bag run: run planned", ns.plan.run and ns.plan.run.crafts, 1)
+	check("bag run: saved for this character", ns.db.bagRuns[ns.CharKey()] ~= nil, true)
+	ns.UI.Show("queue")
+	local titles = {}
+	for _, data in ipairs(ns.UI.windows.queue.list) do
+		if data.kind == "header" then table.insert(titles, data.text) end
+		if data.kind == "queue" then check("bag run: row carries the run", data.run, 1) end
+	end
+	ns.UI.Hide()
+	local all = table.concat(titles, "|")
+	check("bag run: run step", all:find("Craft this run: 1 craft", 1, true) ~= nil, true)
+	check("bag run: no later step when one entry is split", all:find("Next run", 1, true), nil)
+	ns.SetOption("bagSpace", false)
+	ns.RequestPlan()
+	RunTimers()
+	check("bag run: off buys everything", ns.plan.buy[1], 10)
+	check("bag run: off, no run", ns.plan.run, nil)
+	ns.db.ui.bagSpace = nil
+	ns.Queue.Clear()
+	RunTimers()
+	check("bag run: empty queue, nothing kept", ns.db.bagRuns[ns.CharKey()], nil)
+	C_Container, C_Item.GetItemCount = container, itemCount
 end
 
 print(("%d checks, %d failures"):format(checks, failures))

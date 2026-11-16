@@ -1018,6 +1018,289 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 	return plan
 end
 
+---------------------------------------------------------------------------
+-- Bag space: crafting runs that fit in the bags
+---------------------------------------------------------------------------
+
+-- A big queue can need more materials than the bags hold. Then the plan says what to put in the bank first, and when
+-- that still isn't enough, only part of the queue is planned: a run, the most it can do with the room there is, made
+-- of the crafts that use up the most bag room first. Once the run is crafted, the next one is planned.
+--
+-- space = {
+--   slots        = slots in the backpack and bags, not the reagent bag
+--   reagentSlots = slots in the reagent bag (0 without one)
+--   usedOther    = slots taken by things the reagent bag doesn't take
+--   usedReagent  = slots taken by crafting reagents, in any bag
+--   bags[itemID] = units in the bags;  itemSlots[itemID] = slots they take now
+--   stack(itemID) -> stack size, nil while unknown;  isReagent(itemID) -> true when the reagent bag takes it
+-- }
+Planner.BAG = {
+	RESERVE = 1,       -- slots kept free: a craft's result needs somewhere to go
+	DEFAULT_STACK = 20, -- stack size of an item whose data hasn't loaded
+}
+
+local function StackSlots(space, itemID, count)
+	if count <= 0 then return 0 end
+	return math.ceil(count / math.max(space.stack(itemID) or Planner.BAG.DEFAULT_STACK, 1))
+end
+
+-- Walks the plan as you'd do it: everything to fetch and buy goes into the bags, then each craft takes its materials
+-- and adds its result. Returns the most slots it's short at any point (0 or less: it fits) and, per item already in
+-- the bags, the fewest units held at any point: what the plan never touches, so it can go to the bank.
+local function BagWalk(ctx, plan, space)
+	local counts, low = {}, {}
+	local other, reagent = space.usedOther, space.usedReagent
+	local function Short()
+		return other + math.max(0, reagent - space.reagentSlots) + Planner.BAG.RESERVE - space.slots
+	end
+	local function Count(itemID)
+		if counts[itemID] == nil then
+			counts[itemID] = space.bags[itemID] or 0
+			low[itemID] = counts[itemID]
+		end
+		return counts[itemID]
+	end
+	local function Add(itemID, units)
+		local old = Count(itemID)
+		local new = old + units
+		local slots = StackSlots(space, itemID, new) - StackSlots(space, itemID, old)
+		if space.isReagent(itemID) then reagent = reagent + slots else other = other + slots end
+		counts[itemID] = new
+		if new < low[itemID] then low[itemID] = new end
+	end
+	-- Bags as full as they are now are only a problem once something has to go in.
+	local worst, busy = -math.huge, false
+	for _, group in ipairs({ plan.bank, plan.mail, plan.buy, plan.vendor }) do
+		for itemID, units in pairs(group) do Add(itemID, units) busy = true end
+	end
+	for _, items in pairs(plan.fetch) do
+		for itemID, units in pairs(items) do Add(itemID, units) busy = true end
+	end
+	if busy then worst = Short() end
+	for _, craft in ipairs(plan.crafts) do
+		local recipe = ctx.recipes[craft.recipeID]
+		if recipe and (not ctx.me or craft.char == ctx.me) then
+			for _, slot in ipairs(recipe.r or {}) do
+				local need = (slot[1] or 1) * craft.count
+				for i = 2, #slot do
+					local take = math.min(Count(slot[i]), need)
+					if take > 0 then
+						Add(slot[i], -take)
+						need = need - take
+					end
+				end
+			end
+			if recipe.o then Add(recipe.o, craft.count * MinimumYield(recipe)) end
+			worst = math.max(worst, Short())
+		end
+	end
+	if worst == -math.huge then worst = 0 end
+	return worst, low
+end
+
+-- Items the add-on may tell you to bank: materials and results of known recipes. Anything else in the bags is yours
+-- to decide about.
+local function CraftItems(ctx)
+	if ctx.craftItems then return ctx.craftItems end
+	local items = {}
+	for _, recipe in pairs(ctx.recipes) do
+		if recipe.o then items[recipe.o] = true end
+		for _, slot in ipairs(recipe.r or {}) do
+			for i = 2, #slot do items[slot[i]] = true end
+		end
+	end
+	ctx.craftItems = items
+	return items
+end
+
+-- What to put in the bank so the plan fits, biggest bag hogs first, only as much as it takes. protected[itemID] =
+-- never suggested (queued writs and crates, which you hand in). Returns { [itemID] = units } and the slots still
+-- missing after it (0: it fits).
+function Planner.MakeRoom(ctx, plan, space, protected)
+	local short, low = BagWalk(ctx, plan, space)
+	local bank = {}
+	if short <= 0 then return bank, 0 end
+	local ours = CraftItems(ctx)
+	local candidates = {}
+	for itemID, count in pairs(space.bags) do
+		local units = math.min(low[itemID] or count, count)
+		if units > 0 and ours[itemID] and not (protected and protected[itemID]) then
+			local slots
+			if units == count then
+				slots = space.itemSlots and space.itemSlots[itemID] or StackSlots(space, itemID, count)
+			else
+				slots = StackSlots(space, itemID, count) - StackSlots(space, itemID, count - units)
+			end
+			if slots > 0 then table.insert(candidates, { itemID = itemID, units = units, slots = slots }) end
+		end
+	end
+	table.sort(candidates, function(a, b)
+		if a.slots ~= b.slots then return a.slots > b.slots end
+		return a.itemID < b.itemID
+	end)
+	local after = {}
+	for key, value in pairs(space) do after[key] = value end
+	after.bags = {}
+	for itemID, count in pairs(space.bags) do after.bags[itemID] = count end
+	after.itemSlots = nil
+	for _, candidate in ipairs(candidates) do
+		if short <= 0 then break end
+		local itemID = candidate.itemID
+		local field = space.isReagent(itemID) and "usedReagent" or "usedOther"
+		after.bags[itemID] = after.bags[itemID] - candidate.units
+		after[field] = after[field] - candidate.slots
+		local better = BagWalk(ctx, plan, after)
+		if better < short then
+			bank[itemID], short = candidate.units, better
+		else
+			after.bags[itemID] = after.bags[itemID] + candidate.units
+			after[field] = after[field] + candidate.slots
+		end
+	end
+	return bank, math.max(short, 0)
+end
+
+-- Bag slots one craft frees: its materials' share of a stack, less its result's. Crafts that free the most go first.
+local function CraftWeight(ctx, space, recipeID)
+	local recipe = ctx.recipes[recipeID]
+	if not recipe then return 0 end
+	local weight = 0
+	for _, slot in ipairs(recipe.r or {}) do
+		if slot[2] then weight = weight + (slot[1] or 1) / (space.stack(slot[2]) or Planner.BAG.DEFAULT_STACK) end
+	end
+	if recipe.o then weight = weight - MinimumYield(recipe) / (space.stack(recipe.o) or Planner.BAG.DEFAULT_STACK) end
+	return weight
+end
+
+-- This character's queued crafts, one per recipe and crafter, and everyone else's entries as they are.
+local function SplitQueue(ctx, queue)
+	local own, byKey, others = {}, {}, {}
+	for _, queued in ipairs(queue) do
+		if (queued.qty or 0) > 0 then
+			local char = ctx.crafter(queued.recipeID, queued.char)
+			if not ctx.me or char == ctx.me then
+				local key = Planner.RunKey(queued.recipeID, char)
+				local item = byKey[key]
+				if not item then
+					item = { key = key, recipeID = queued.recipeID, char = char, qty = 0, order = #own + 1 }
+					byKey[key] = item
+					table.insert(own, item)
+				end
+				item.qty = item.qty + queued.qty
+			else
+				table.insert(others, queued)
+			end
+		end
+	end
+	return own, others
+end
+
+function Planner.RunKey(recipeID, char)
+	return tostring(recipeID) .. "|" .. tostring(char)
+end
+
+-- A queue for BuildPlan: the others' entries, then this character's, in own order, each with runQty[key] crafts.
+local function RunQueue(own, others, runQty)
+	local queue = {}
+	for _, queued in ipairs(others) do table.insert(queue, queued) end
+	for _, item in ipairs(own) do
+		local qty = runQty and runQty[item.key] or item.qty
+		if qty > 0 then table.insert(queue, { recipeID = item.recipeID, qty = qty, char = item.char }) end
+	end
+	return queue
+end
+
+-- The first `crafts` crafts of own, in order.
+local function FirstCrafts(own, crafts)
+	local runQty = {}
+	for _, item in ipairs(own) do
+		local take = math.min(item.qty, crafts)
+		runQty[item.key] = take
+		crafts = crafts - take
+	end
+	return runQty
+end
+
+-- A committed run still to finish: the crafts left of it per key, or nil when it's done or no longer fits the queue
+-- (an entry added or raised since). committed[key] = { start = crafts queued then, target = crafts left after it }.
+local function CommittedRun(own, committed)
+	if not committed then return nil end
+	local runQty, left = {}, 0
+	for _, item in ipairs(own) do
+		local entry = committed[item.key]
+		if not entry or item.qty > entry.start then return nil end
+		runQty[item.key] = math.max(0, item.qty - entry.target)
+		left = left + runQty[item.key]
+	end
+	if left == 0 then return nil end
+	return runQty
+end
+
+-- Builds the buying plan with bag space in mind. Without space (bags unknown) it's BuildPlan's. When everything fits,
+-- that plan as it is. Otherwise, crafts that free the most bag room come first, and:
+--   plan.room = { bank = { [itemID] = units } to put in the bank first, short = slots still missing }
+--   plan.run  = { qty = { [RunKey] = crafts this run }, crafts = this run's, later = crafts left for later runs }
+--              when the whole queue can't fit even after the bank: the run is as big as fits, at least one craft.
+-- committed = the run being worked through (returned by an earlier call; saved by the caller): kept until its crafts
+-- are done, so the plan doesn't change under you halfway through. Returns the plan and the run to save (nil: none).
+function Planner.SpacePlan(ctx, queue, wanted, space, committed)
+	local full = Planner.BuildPlan(ctx, queue, false, wanted)
+	if not space then return full, nil end
+	local protected = {}
+	for _, want in ipairs(wanted or {}) do
+		for _, item in ipairs(want.items) do protected[item[1]] = true end
+	end
+	local own, others = SplitQueue(ctx, queue)
+	local weights = {}
+	for _, item in ipairs(own) do weights[item.key] = CraftWeight(ctx, space, item.recipeID) end
+	table.sort(own, function(a, b)
+		if weights[a.key] ~= weights[b.key] then return weights[a.key] > weights[b.key] end
+		return a.order < b.order
+	end)
+	local total = 0
+	for _, item in ipairs(own) do total = total + item.qty end
+
+	local function Planned(runQty)
+		local plan = Planner.BuildPlan(ctx, RunQueue(own, others, runQty), false, wanted)
+		local bank, short = Planner.MakeRoom(ctx, plan, space, protected)
+		plan.room = { bank = bank, short = short }
+		return plan, short
+	end
+	local function AsRun(plan, runQty)
+		local crafts = 0
+		for _, qty in pairs(runQty) do crafts = crafts + qty end
+		plan.run = { qty = runQty, crafts = crafts, later = total - crafts }
+		return plan
+	end
+
+	local runQty = CommittedRun(own, committed)
+	if BagWalk(ctx, full, space) <= 0 then return full, nil end
+	if runQty then return AsRun(Planned(runQty), runQty), committed end
+
+	local plan, short = Planned(nil)
+	if short <= 0 or total <= 1 then return plan, nil end
+	-- The biggest first part of the queue that fits; more crafts never need less room, so halving finds it.
+	local low, high = 1, total - 1
+	local best, bestQty
+	while low <= high do
+		local mid = math.floor((low + high) / 2)
+		local qty = FirstCrafts(own, mid)
+		local tried, missing = Planned(qty)
+		if missing <= 0 then
+			best, bestQty, low = tried, qty, mid + 1
+		else
+			high = mid - 1
+		end
+	end
+	if not best then
+		bestQty = FirstCrafts(own, 1)
+		best = Planned(bestQty)
+	end
+	local commit = {}
+	for _, item in ipairs(own) do commit[item.key] = { start = item.qty, target = item.qty - bestQty[item.key] } end
+	return AsRun(best, bestQty), commit
+end
+
 -- Time left on the crafting this character can do. crafts = the plan's crafts ({ recipeID, count, char }); only
 -- those with char == me count. secondsOf(recipeID) = one craft, cast plus the pause before the next.
 -- current (optional) = { recipeID, left = crafts of it still to make including the one being cast, castLeft =
