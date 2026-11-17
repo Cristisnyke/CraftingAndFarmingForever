@@ -2836,7 +2836,7 @@ do
 		{ itemID = 1, name = "Test Sword", qty = 1, at = base - 600, dur = 86400, char = me, price = 10000 },
 		{ itemID = 9, name = "Test Ore", qty = 20, at = base - 600, dur = 86400, char = me, price = 200, commodity = true },
 	}
-	Fire("CHAT_MSG_SYSTEM", "A buyer has been found for your auction of Test Sword.")
+	Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 4, "Test Sword", 123)
 	local list, onItsWay, waiting, nextDue, rough = ns.Sales.Incoming()
 	check("sold message noted", #list, 1)
 	check("amount is the posted price after the cut", list[1].amount, 9500)
@@ -2846,11 +2846,12 @@ do
 	check("due in an hour", nextDue, base + 3600)
 	check("sale said in chat", (said[1] or ""):find("Sold: Test Sword", 1, true) ~= nil, true)
 	check("the post is left for the mail to match", #ns.db.sales.lots, 2)
-	Fire("CHAT_MSG_SYSTEM", "You have learned a new spell.")
-	check("other system messages ignored", #ns.Sales.Incoming(), 1)
+	Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 5, "Test Sword")
+	Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 3, "Test Sword")
+	check("expired and outbid notices ignored", #ns.Sales.Incoming(), 1)
 
 	-- Stackable goods: the message doesn't say how many sold, so one unit, marked as an estimate.
-	Fire("CHAT_MSG_SYSTEM", "A buyer has been found for your auction of Test Ore.")
+	Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 4, "|cffffffff|Hitem:9::::::::|h[Test Ore]|h|r")
 	list, onItsWay, _, _, rough = ns.Sales.Incoming()
 	check("commodity counted as one unit", list[2].amount, 190)
 	check("commodity amount is an estimate", rough, true)
@@ -2883,7 +2884,7 @@ do
 	check("collected at the mailbox", #ns.Sales.Incoming(), 0)
 
 	-- One still on its way stays through a mailbox visit.
-	Fire("CHAT_MSG_SYSTEM", "A buyer has been found for your auction of Test Sword.")
+	Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 4, "Test Sword", 123)
 	Fire("MAIL_SHOW")
 	check("not yet due: kept", #ns.Sales.Incoming(), 1)
 

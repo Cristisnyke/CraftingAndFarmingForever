@@ -4,6 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- **Money on its way works.** It never showed a sale: the add-on listened for the "A buyer has been found" chat message, but the game writes that line into the chat window itself without telling add-ons. It now hears the sale the way the game does, so the moment something sells you get a "Sold" line in chat, and the Sales tab and the minimap button show the money until it reaches your mailbox an hour later.
 - **Sales records stay true to what was really posted.** When the auction house refused a post sent from another add-on (Auctionator's Selling tab, for example), the next item you posted was recorded under the refused item's name, and that record never closed. It then took the next real sale of that item and priced **money on its way** at its old price. Refused posts are now forgotten whichever add-on sent them, and records like that, which can no longer get a result, are cleared the next time you open your mailbox.
 
 ## 1.18.0

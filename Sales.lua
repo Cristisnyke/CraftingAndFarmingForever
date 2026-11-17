@@ -623,16 +623,14 @@ end
 -- Money on its way
 ---------------------------------------------------------------------------
 
--- The game holds a sale's money for an hour before mailing it, and says "A buyer has been found for your auction of
--- X" in chat the moment it sells, wherever the character is. That message starts the hour. It names the item only,
--- so the amount comes from the price recorded when it was posted; stackable goods are counted as one unit sold,
--- since the message doesn't say how many.
+-- The game holds a sale's money for an hour before mailing it, and tells the moment it sells, wherever the character
+-- is: AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION, from which the game's own UI writes "A buyer has been found for your
+-- auction of X" into chat (no CHAT_MSG_SYSTEM: listening for that one never heard a sale). That starts the hour. It
+-- names the item only, so the amount comes from the price recorded when it was posted; stackable goods are counted
+-- as one unit sold, since it doesn't say how many.
 Sales.PAYOUT_DELAY = 60 * 60
 local INCOMING_LIFETIME = 30 * DAY
-
-local function SoldPattern()
-	return SubjectPattern(_G.ERR_AUCTION_SOLD_S or "A buyer has been found for your auction of %s.")
-end
+local AUCTION_SOLD = 4 -- Enum.AuctionHouseNotification.AuctionSold, when the client has no Enum for it
 
 -- What one sale of this item pays after the AH cut, and whether that's an estimate.
 local function ExpectedPayout(name, char)
@@ -739,10 +737,12 @@ local function ClearCollected()
 	if ns.MinimapButton and ns.MinimapButton.Update then ns.MinimapButton.Update() end
 end
 
-ns.On("CHAT_MSG_SYSTEM", function(text)
+ns.On("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", function(notification, text)
+	local kinds = Enum and Enum.AuctionHouseNotification
+	if notification ~= (kinds and kinds.AuctionSold or AUCTION_SOLD) then return end
 	if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return end
-	local name = text:match(SoldPattern())
-	if name then Sales.NoteSold(name, time()) end
+	local name = text:match("|h%[(.-)%]|h") or text -- a link, should it come as one
+	if name ~= "" then Sales.NoteSold(name, time()) end
 end)
 ns.On("MAIL_SHOW", ClearCollected)
 ns.On("PLAYER_LOGIN", function() ns.WhenDataReady(AnnounceArrivals) end)
