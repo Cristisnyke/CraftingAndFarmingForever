@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Sales records stay true to what was really posted.** When the auction house refused a post sent from another add-on (Auctionator's Selling tab, for example), the next item you posted was recorded under the refused item's name, and that record never closed. It then took the next real sale of that item and priced **money on its way** at its old price. Refused posts are now forgotten whichever add-on sent them, and records like that, which can no longer get a result, are cleared the next time you open your mailbox.
+
 ## 1.18.0
 
 - **Sub-crafts only as far as they pay.** A sub-craft used to be all or nothing: smelt every bar, or buy every bar. Now the add-on makes bars from the ore only while that's cheaper than buying the bars, and buys the rest. When the first 50 Iron Ore are cheap and the next 50 dear, it smelts what the cheap ore makes and buys the other bars, whichever costs less in total. When the two cost the same, it buys, since that's a step less.

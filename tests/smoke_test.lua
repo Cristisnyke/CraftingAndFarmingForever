@@ -129,7 +129,8 @@ hooksecurefunc = function(target, name, fn)
 	end
 end
 inbox = {}
-function GetInboxNumItems() return #inbox end
+inboxTotal = nil -- mails waiting beyond the ones shown, when set
+function GetInboxNumItems() return #inbox, inboxTotal or #inbox end
 function GetInboxHeaderInfo(i)
 	local m = inbox[i]
 	return nil, nil, "Auction House", m.subject, m.money, 0, m.daysLeft, m.itemID ~= nil
@@ -1439,6 +1440,37 @@ ns.Sales.Record("cancelled", "Alt Item", 1, 0, now, "other")
 check("cancel consumes post", #ns.db.sales.lots, 1)
 check("cancel isn't a result", ns.Sales.Item("Alt Item").expired, 0)
 
+-- Posts that ended hours before a look at the whole mailbox can't get a result any more: dropped, as nothing will
+-- ever match them. Ones that ended lately, other characters' and any while mail is still waiting are kept.
+do
+	local savedInbox = inbox
+	inbox = {}
+	local function Lots()
+		return {
+			{ name = "Orphan", qty = 2, at = now - 12 * 3600, dur = 8 * 3600, char = me },
+			{ name = "Just Ended", qty = 1, at = now - 9 * 3600, dur = 8 * 3600, char = me },
+			{ name = "Running", qty = 1, at = now - 3600, dur = 8 * 3600, char = me },
+			{ name = "Alt Orphan", qty = 1, at = now - 12 * 3600, dur = 8 * 3600, char = "other" },
+		}
+	end
+	local function Names()
+		local names = {}
+		for _, lot in ipairs(ns.db.sales.lots) do table.insert(names, lot.name) end
+		return table.concat(names, ",")
+	end
+	ns.db.sales.lots = Lots()
+	Fire("MAIL_SHOW")
+	check("mailbox just opened: inbox may not be in yet", #ns.db.sales.lots, 4)
+	inboxTotal = 60
+	Fire("MAIL_INBOX_UPDATE")
+	check("mail still waiting beyond the inbox", #ns.db.sales.lots, 4)
+	inboxTotal = nil
+	Fire("MAIL_INBOX_UPDATE")
+	check("ended posts with no result dropped", Names(), "Just Ended,Running,Alt Orphan")
+	inbox = savedInbox
+	ns.db.sales.lots = {}
+end
+
 -- The window and row text.
 ns.UI.Show("sales")
 check("sales tab lists items", #ns.UI.windows.sales.list >= 1, true)
@@ -2082,6 +2114,24 @@ do
 	Fire("AUCTION_HOUSE_AUCTION_CREATED")
 	check("second post matched", ns.db.sales.lots[2].itemID, 1)
 	check("posts minutes apart are one restock", #ns.db.sales.trips, trips + 1)
+	time = realTime
+	ns.db.sales.lots = {}
+
+	-- A post another add-on sent (Auctionator's Selling tab) that the server refused: the next confirmation is the
+	-- next post's, not the refused one's.
+	C_AuctionHouse.PostItem({ itemID = 7 }, 2, 1)
+	Fire("AUCTION_HOUSE_SHOW_ERROR", 10)
+	C_AuctionHouse.PostItem({ itemID = 8 }, 2, 1)
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+	check("refused post from elsewhere dropped", ns.db.sales.lots[1] and ns.db.sales.lots[1].itemID, 8)
+	check("one lot recorded", #ns.db.sales.lots, 1)
+	-- An error long after a post isn't about it.
+	ns.db.sales.lots = {}
+	C_AuctionHouse.PostItem({ itemID = 9 }, 2, 1)
+	time = function() return realTime() + 30 end
+	Fire("AUCTION_HOUSE_SHOW_ERROR", 10)
+	Fire("AUCTION_HOUSE_AUCTION_CREATED")
+	check("late error leaves the post", ns.db.sales.lots[1] and ns.db.sales.lots[1].itemID, 9)
 	time = realTime
 	ns.db.sales.lots = {}
 end

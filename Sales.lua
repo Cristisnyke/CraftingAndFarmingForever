@@ -33,6 +33,11 @@ local DAY = 24 * 60 * 60
 local MAIL_LIFETIME_DAYS = 30
 local SAME_MAIL_TOLERANCE = 600 -- seconds; a mail's expiry time can differ slightly between scans
 local OPEN_LOT_LIMIT = 45 * DAY
+-- A post's results are all in the mailbox this long after it ended (a sale's money takes an hour). One still open
+-- after that, at a look at the whole mailbox, never got a result that can be matched: a post the server refused, or
+-- a mail emptied before the add-on saw it. Left open it took the next real result of that item and priced money on
+-- its way at its own old price.
+local LOT_RESULT_HOURS = 3
 
 -- Used for outcomes with no recorded post, such as auctions listed before this add-on tracked them.
 local ASSUMED_SOLD_SECONDS = DAY / 2
@@ -548,6 +553,7 @@ end)
 ---------------------------------------------------------------------------
 
 local PENDING_POST_SECONDS = 60
+local REFUSAL_SECONDS = 10 -- an auction house error this soon after a post is its refusal
 -- Oldest first: posts sent quickly can still be waiting for the server when the next one goes.
 local pendingPosts = {}
 
@@ -572,10 +578,12 @@ local function OnPost(itemLocation, duration, quantity, price, commodity)
 	table.insert(pendingPosts, post)
 end
 
--- The server refused the latest post, so the next confirmation isn't for it.
-function Sales.ForgetLastPost()
-	table.remove(pendingPosts)
-end
+-- The server refused the latest post, so the next confirmation isn't for it. Whoever sent it: a refused post from
+-- Auctionator's Selling tab used to stay waiting, and the next post that went through was recorded as that item.
+ns.On("AUCTION_HOUSE_SHOW_ERROR", function()
+	local latest = pendingPosts[#pendingPosts]
+	if latest and time() - latest.at <= REFUSAL_SECONDS then table.remove(pendingPosts) end
+end)
 
 -- A post only counts once the server confirms it, since a post can fail.
 ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
@@ -771,7 +779,9 @@ local function ItemIDFromName(name)
 	return ok and itemID or nil
 end
 
-function Sales.ScanMail()
+-- settled: the inbox has come in from the server (MAIL_INBOX_UPDATE). Right as the mailbox opens it may still be the
+-- last visit's.
+function Sales.ScanMail(settled)
 	local char = ns.CharKey()
 	if not char then return end
 	local seenByChar = ns.db.sales.seen
@@ -835,8 +845,14 @@ function Sales.ScanMail()
 		if seen[index].expires < now then table.remove(seen, index) end
 	end
 	local lots = ns.db.sales.lots
+	local shown, total = GetInboxNumItems()
+	local wholeInbox = settled and (total or shown) <= shown
 	for index = #lots, 1, -1 do
-		if now - lots[index].at > OPEN_LOT_LIMIT then table.remove(lots, index) end
+		local lot = lots[index]
+		if now - lot.at > OPEN_LOT_LIMIT
+			or (wholeInbox and lot.char == char and now - lot.at - lot.dur > LOT_RESULT_HOURS * 3600) then
+			table.remove(lots, index)
+		end
 	end
 
 	if #outcomes > 0 then
@@ -845,7 +861,7 @@ function Sales.ScanMail()
 	end
 end
 
-ns.On("MAIL_INBOX_UPDATE", Sales.ScanMail)
+ns.On("MAIL_INBOX_UPDATE", function() Sales.ScanMail(true) end)
 
 ---------------------------------------------------------------------------
 -- Repair: sales counted twice
@@ -927,4 +943,4 @@ function Sales.RepairEmptiedMail()
 end
 
 ns.On("PLAYER_LOGIN", function() ns.WhenDataReady(Sales.RepairEmptiedMail) end)
-ns.On("MAIL_SHOW", Sales.ScanMail)
+ns.On("MAIL_SHOW", function() Sales.ScanMail(false) end)

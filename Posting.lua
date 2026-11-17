@@ -423,8 +423,7 @@ ns.On("AUCTION_HOUSE_SHOW_ERROR", function(errorCode)
 	ns.db.lastAuctionRefusal = { kind = request.kind, text = request.text, at = request.at, code = errorCode }
 	ns.Print(("The auction house refused this %s (error %s): %s"):format(request.kind, tostring(errorCode), request.text))
 	if request.kind == "post" then
-		posting = false
-		ns.Sales.ForgetLastPost()
+		posting = false -- Sales forgets the post itself
 		UpdateForm()
 	end
 end)
