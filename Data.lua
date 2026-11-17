@@ -706,7 +706,11 @@ local function ScanOpenProfession()
 			skillChanged = true
 		end
 	end
-	if skillChanged and ns.UI then ns.UI.Refresh("profit") end
+	if skillChanged and ns.UI then
+		ns.UI.Refresh("profit")
+		ns.UI.Refresh("queue") -- queued crafts are coloured by it too
+		if ns.UI.UpdateNextStep then ns.UI.UpdateNextStep() end
+	end
 	-- The client only gives a profession's link while it's open, so keep it for advertising later.
 	local link = C_TradeSkillUI.GetTradeSkillListLink and C_TradeSkillUI.GetTradeSkillListLink()
 	if link then
@@ -823,6 +827,15 @@ function Recipes.Knows(charKey, recipeID)
 end
 
 -- The logged-in character when it knows the recipe, then the preferred one, then anyone who does.
+-- A recipe's colour for a character (0 orange, 1 yellow, 2 green, 3 grey) and skill points per craft, as of the
+-- last time that character had the profession open. nil when never seen.
+function Recipes.Difficulty(charKey, recipeID)
+	local char = charKey and ns.db.chars[charKey]
+	local info = char and char.skillUps and char.skillUps[recipeID]
+	if not info or info.d == nil then return nil end
+	return info.d, info.n
+end
+
 function Recipes.Crafter(recipeID, preferred)
 	local me = ns.CharKey()
 	if Recipes.Knows(me, recipeID) then return me end

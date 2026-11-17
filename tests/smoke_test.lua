@@ -442,6 +442,26 @@ check("queue steps in order", (QueueHeaders():gsub("|c%x%x%x%x%x%x%x%x", ""):gsu
 	"4. Craft your queue",
 }, "\n"))
 
+-- Queued crafts and sub-crafts are coloured by how hard they are for their crafter (20 yellow, 10 orange).
+do
+	local names, tooltip = {}, {}
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		local data = row.data
+		if data and data.kind == "queue" then names[data.entry.recipeID] = row.left.text end
+		if data and data.kind == "auto" then names[data.craft.recipeID] = row.left.text end
+	end
+	check("queued craft is yellow", (names[20] or ""):find("^|cffffff00") ~= nil, true)
+	check("sub-craft is orange", (names[10] or ""):find("^|cffff8040") ~= nil, true)
+	local realAddLine = GameTooltip.AddLine
+	GameTooltip.AddLine = function(_, text) table.insert(tooltip, text) end
+	for _, row in ipairs(ns.UI.windows.queue.rows) do
+		if row.data and row.data.kind == "queue" then row.scripts.OnEnter(row) end
+	end
+	GameTooltip.AddLine = realAddLine
+	check("tooltip names the colour", table.concat(tooltip, "\n"):find("Yellow|r: 2 skill points about every other craft", 1, true) ~= nil, true)
+	check("unseen recipe has no colour", ns.Recipes.Difficulty(ns.CharKey(), 999999), nil)
+end
+
 -- Still to buy against the gold carried: 90c AH + 20c vendor = 1s 10c.
 check("plan cost", ns.plan.cost, 110)
 playerMoney = 200

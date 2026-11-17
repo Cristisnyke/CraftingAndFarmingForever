@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **See how hard each queued craft is.** Crafts on the queue, sub-crafts and the Next step bar show their names in the profession window's colours for the character who makes them: orange always gives a skill point, yellow about every other craft, green now and then, grey never. Hover a craft to see what its colour means. A craft stays white until that character opens the profession once.
+
 ## 1.18.1
 
 - **Money on its way works.** It never showed a sale: the add-on listened for the "A buyer has been found" chat message, but the game writes that line into the chat window itself without telling add-ons. It now hears the sale the way the game does, so the moment something sells you get a "Sold" line in chat, and the Sales tab and the minimap button show the money until it reaches your mailbox an hour later.

@@ -247,10 +247,24 @@ end
 
 -- Levelling mode: recipe colours as the game shows them, and what each colour means here.
 local SKILL = {
-	COLORS = { [0] = "ffff8040", [1] = "ffffff00", [2] = "ff40bf40" },
-	CHANCE_TEXT = { [0] = "100%", [1] = "~50%", [2] = "~25%" },
-	NAMES = { [0] = "Orange", [1] = "Yellow", [2] = "Green" },
+	COLORS = { [0] = "ffff8040", [1] = "ffffff00", [2] = "ff40bf40", [3] = "ff808080" },
+	CHANCE_TEXT = { [0] = "100%", [1] = "~50%", [2] = "~25%", [3] = "none" },
+	NAMES = { [0] = "Orange", [1] = "Yellow", [2] = "Green", [3] = "Grey" },
+	MEANING = { [0] = "a skill point every craft", [1] = "a skill point about every other craft",
+		[2] = "a skill point now and then", [3] = "no more skill points" },
 }
+
+-- Tooltip line: how hard a craft is for the character making it (the profession window's colour).
+function SKILL.AddLine(recipeID, charKey)
+	local difficulty, points = ns.Recipes.Difficulty(charKey, recipeID)
+	if not SKILL.NAMES[difficulty] then
+		GameTooltip:AddLine("Difficulty: unknown until " .. ns.CharLabel(charKey) .. " opens the profession.", 0.6, 0.6, 0.6, true)
+		return
+	end
+	local meaning = SKILL.MEANING[difficulty]
+	if difficulty < 3 and (points or 1) > 1 then meaning = meaning:gsub("a skill point", points .. " skill points") end
+	GameTooltip:AddLine(Color(SKILL.COLORS[difficulty], SKILL.NAMES[difficulty]) .. ": " .. meaning, 1, 1, 1, true)
+end
 
 -- The profession levelling looks at: the selected tab, or on All the one that's open.
 function UI.SkillProfession()
@@ -369,9 +383,12 @@ end
 -- Queue data
 ---------------------------------------------------------------------------
 
-local function RecipeName(recipeID)
+-- charKey (optional): colour the name by how hard the craft is for that character, as the profession window does.
+local function RecipeName(recipeID, charKey)
 	local recipe = ns.db.recipes[recipeID]
-	return recipe and recipe.n or ("Recipe " .. tostring(recipeID))
+	local name = recipe and recipe.n or ("Recipe " .. tostring(recipeID))
+	local hex = charKey and SKILL.COLORS[ns.Recipes.Difficulty(charKey, recipeID)]
+	return hex and Color(hex, name) or name
 end
 
 -- priceLabel and priceOf are for lists bought with gold: the price each row's quantity was costed at.
@@ -1261,7 +1278,9 @@ local function RowOnEnter(row)
 	elseif data.kind == "queue" then
 		local queuedRecipe = ns.db.recipes[data.entry.recipeID]
 		StartItemTooltip(row, queuedRecipe and queuedRecipe.o, data.entry.recipeID)
-		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)), 0.6, 0.8, 1)
+		local crafter = ns.Recipes.Crafter(data.entry.recipeID, data.entry.char)
+		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(crafter), 0.6, 0.8, 1)
+		SKILL.AddLine(data.entry.recipeID, crafter)
 		if data.run then
 			GameTooltip:AddLine(data.run > 0 and ("Your bags don't hold the materials for the whole queue: %d of these "
 				.. "in this run, the rest in the next."):format(data.run)
@@ -1298,13 +1317,16 @@ local function RowOnEnter(row)
 	elseif data.kind == "next" then
 		local recipe = ns.db.recipes[data.recipeID]
 		StartItemTooltip(row, recipe and recipe.o, data.recipeID)
-		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(ns.Recipes.Crafter(data.recipeID, data.char)), 0.6, 0.8, 1)
+		local crafter = ns.Recipes.Crafter(data.recipeID, data.char)
+		GameTooltip:AddLine("Crafted by " .. ns.CharLabel(crafter), 0.6, 0.8, 1)
+		SKILL.AddLine(data.recipeID, crafter)
 		GameTooltip:Show()
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		StartItemTooltip(row, recipe and recipe.o, data.craft.recipeID)
 		GameTooltip:AddLine(("Sub-craft: %d needed by the queue, made by %s."):format(data.craft.subCount,
 			ns.CharLabel(data.craft.char)), 0.6, 0.8, 1, true)
+		SKILL.AddLine(data.craft.recipeID, data.craft.char)
 		local queued = data.craft.count - data.craft.subCount
 		if queued > 0 then
 			GameTooltip:AddLine(("You also queued %d yourself, so Craft Next makes %d in all."):format(queued,
@@ -2139,7 +2161,7 @@ local function SetRow(row, data)
 		-- Who crafts it, when that isn't the character you're on.
 		local crafter = ns.Recipes.Crafter(entry.recipeID, entry.char)
 		local onAlt = crafter ~= ns.CharKey() and Color("ff99ccff", "  " .. ns.CharLabel(crafter)) or ""
-		row.left:SetText(RecipeName(entry.recipeID) .. onAlt
+		row.left:SetText(RecipeName(entry.recipeID, crafter) .. onAlt
 			.. (entry.restock and Color(COLOR_MUTED, " restock") or "")
 			.. (data.run and data.run > 0 and data.run < entry.qty and Color("ff99ccff", ("  this run: %d"):format(data.run)) or "")
 			.. (capped and Color(COLOR_WARN, "  check price") or "")
@@ -2285,7 +2307,7 @@ local function SetRow(row, data)
 	elseif data.kind == "auto" then
 		local recipe = ns.db.recipes[data.craft.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
-		local text = RecipeName(data.craft.recipeID) .. " x" .. data.craft.subCount
+		local text = RecipeName(data.craft.recipeID, data.craft.char) .. " x" .. data.craft.subCount
 		if data.craft.count > data.craft.subCount then
 			text = text .. Color(COLOR_MUTED, (" (+%d queued)"):format(data.craft.count - data.craft.subCount))
 		end
@@ -2294,8 +2316,8 @@ local function SetRow(row, data)
 	elseif data.kind == "next" then
 		local recipe = ns.db.recipes[data.recipeID]
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
-		row.left:SetText(RecipeName(data.recipeID))
 		local crafter = ns.Recipes.Crafter(data.recipeID, data.char)
+		row.left:SetText(RecipeName(data.recipeID, crafter))
 		row.right:SetText("x" .. data.count
 			.. (crafter ~= ns.CharKey() and ("  " .. Color("ff99ccff", ns.CharLabel(crafter))) or ""))
 	elseif data.kind == "how" or data.kind == "note" then
@@ -2458,6 +2480,9 @@ function UI.RefreshTabs()
 end
 
 -- Queue, bags or bank changed: everything that counts stock needs redrawing.
+-- For Data.lua: a recipe's colour changed.
+function UI.UpdateNextStep() UpdateNextStep() end
+
 function UI.RefreshQueue()
 	UI.Refresh("queue")
 	UI.Refresh("restock")
