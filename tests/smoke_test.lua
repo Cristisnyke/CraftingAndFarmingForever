@@ -1459,14 +1459,30 @@ do
 		return table.concat(names, ",")
 	end
 	ns.db.sales.lots = Lots()
-	Fire("MAIL_SHOW")
-	check("mailbox just opened: inbox may not be in yet", #ns.db.sales.lots, 4)
 	inboxTotal = 60
-	Fire("MAIL_INBOX_UPDATE")
+	FireNow("MAIL_SHOW")
+	check("mailbox just opened: inbox may not be in yet", #ns.db.sales.lots, 4)
+	RunTimers()
 	check("mail still waiting beyond the inbox", #ns.db.sales.lots, 4)
+	Fire("MAIL_INBOX_UPDATE")
+	check("still waiting at the inbox update", #ns.db.sales.lots, 4)
 	inboxTotal = nil
 	Fire("MAIL_INBOX_UPDATE")
 	check("ended posts with no result dropped", Names(), "Just Ended,Running,Alt Orphan")
+	Fire("MAIL_CLOSED")
+	-- An empty mailbox may send no inbox update: a moment after opening counts as the inbox having come in.
+	ns.db.sales.lots = Lots()
+	FireNow("MAIL_SHOW")
+	check("empty mailbox, just opened", #ns.db.sales.lots, 4)
+	RunTimers()
+	check("empty mailbox: dropped a moment later", Names(), "Just Ended,Running,Alt Orphan")
+	Fire("MAIL_CLOSED")
+	-- Closed before that moment: nothing is concluded.
+	ns.db.sales.lots = Lots()
+	FireNow("MAIL_SHOW")
+	FireNow("MAIL_CLOSED")
+	RunTimers()
+	check("closed at once: kept", #ns.db.sales.lots, 4)
 	inbox = savedInbox
 	ns.db.sales.lots = {}
 end

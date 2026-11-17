@@ -947,4 +947,18 @@ function Sales.RepairEmptiedMail()
 end
 
 ns.On("PLAYER_LOGIN", function() ns.WhenDataReady(Sales.RepairEmptiedMail) end)
-ns.On("MAIL_SHOW", function() Sales.ScanMail(false) end)
+-- The inbox comes in a moment after the mailbox opens, with MAIL_INBOX_UPDATE; an empty one may never send that. So
+-- the mailbox is looked at again shortly after it opens, as having come in.
+local INBOX_SETTLE_SECONDS = 2
+local mailOpen = 0 -- which opening of the mailbox, while open; 0 while closed
+local mailOpenings = 0
+ns.On("MAIL_SHOW", function()
+	Sales.ScanMail(false)
+	mailOpenings = mailOpenings + 1
+	mailOpen = mailOpenings
+	local this = mailOpen
+	C_Timer.After(INBOX_SETTLE_SECONDS, function()
+		if mailOpen == this then Sales.ScanMail(true) end
+	end)
+end)
+ns.On("MAIL_CLOSED", function() mailOpen = 0 end)
