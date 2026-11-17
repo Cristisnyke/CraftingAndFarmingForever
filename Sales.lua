@@ -22,6 +22,7 @@
 --                                    told = true once its arrival has been announced }
 -- db.sales.seen[char][i]         = { key, expires }
 -- db.sales.trips[i]              = when a restock was posted (posts close together are one), the latest SMART.TRIPS
+-- db.sales.inboxSeen / inboxSettled = { at, shown, total, settled }: the last mail scan, and the last after the inbox came in
 -- db.deposits[itemID]            = copper per unit the last post of it cost in deposit
 
 local _, ns = ...
@@ -847,6 +848,9 @@ function Sales.ScanMail(settled)
 	local lots = ns.db.sales.lots
 	local shown, total = GetInboxNumItems()
 	local wholeInbox = settled and (total or shown) <= shown
+	-- For checking from the saved data why posts were or weren't cleared.
+	ns.db.sales.inboxSeen = { at = now, shown = shown, total = total, settled = settled and true or false }
+	if settled then ns.db.sales.inboxSettled = ns.db.sales.inboxSeen end
 	for index = #lots, 1, -1 do
 		local lot = lots[index]
 		if now - lot.at > OPEN_LOT_LIMIT
