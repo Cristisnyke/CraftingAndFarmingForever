@@ -1155,7 +1155,8 @@ do
 	check("depth: vendor split, paid at the AH", thread.paid[THREAD], 6)
 end
 
--- Restock against listing depth: a row is cut to the crafts that still earn enough at what the materials average.
+-- A queued restock decided again at listing depth: a restock entry is cut to the crafts that still earn enough at
+-- what the materials average.
 do
 	local recipes = {
 		[1] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, ORE } } },
@@ -1166,52 +1167,34 @@ do
 			ah = { [ORE] = 5, [SHIRT] = 30, [GEM] = 100 }, depth = depth })
 	end
 	local ladder = { [ORE] = { { 5, 5 }, { 25, 100 } } }
-	local function Rows(gems)
-		local rows = { { itemID = SHIRT, recipeID = 1, net = 23.5, crafts = 10 } }
-		if gems then table.insert(rows, 1, { itemID = GEM, recipeID = 2, net = 90, crafts = 5 }) end
-		return rows
-	end
+	local function Shirts(qty) return { recipeID = 1, qty = qty or 10, restock = true } end
 	local function Round(value) return value and math.floor(value * 100 + 0.5) / 100 end
 
 	-- 10 shirts: ore averages 15, so 13.5 a craft. Fine for a minimum of 10.
-	local rows = Rows()
-	Planner.RestockDepth(Ctx(ladder), rows, nil, 10)
-	check("restock depth: still earns, not cut", rows[1].crafts, 10)
-	check("restock depth: still earns, no mark", rows[1].dear, nil)
-	check("restock depth: profit at the average", Round(rows[1].net), 13.5)
-	check("restock depth: profit at the cheapest listing kept", rows[1].listNet, 23.5)
+	check("restock trim: still earns, not cut", #Planner.RestockTrim(Ctx(ladder), { Shirts() }, 10), 0)
 
 	-- Minimum 15: ore may average 13.5 at most, which 8 crafts do (12.5) and 9 don't (13.89).
-	rows = Rows()
-	Planner.RestockDepth(Ctx(ladder), rows, nil, 15)
-	check("restock depth: cut to what earns", rows[1].crafts, 8)
-	check("restock depth: crafts before the cut", rows[1].dear, 10)
-	check("restock depth: profit after the cut", Round(rows[1].net), 16)
+	local queue = { Shirts() }
+	local cuts = Planner.RestockTrim(Ctx(ladder), queue, 15)
+	check("restock trim: cut to what earns", cuts[1] and cuts[1].to, 8)
+	check("restock trim: crafts before the cut", cuts[1] and cuts[1].from, 10)
+	check("restock trim: which entry", cuts[1] and cuts[1].index == 1 and cuts[1].recipeID, 1)
+	check("restock trim: profit at the averages before the cut", cuts[1] and Round(cuts[1].net), 13.5)
+	check("restock trim: the queue itself is left alone", queue[1].qty, 10)
 
 	-- Five gems want the same ore: they earn plenty and stay, the shirts get what's left of the cheap ore.
-	rows = Rows(true)
-	Planner.RestockDepth(Ctx(ladder), rows, nil, 15)
-	check("restock depth: shared, good row kept", rows[1].itemID == GEM and rows[1].crafts, 5)
-	check("restock depth: shared, good row unmarked", rows[1].dear, nil)
-	check("restock depth: shared, weak row cut", rows[2].crafts, 3)
+	cuts = Planner.RestockTrim(Ctx(ladder), { { recipeID = 2, qty = 5, restock = true }, Shirts() }, 15)
+	check("restock trim: shared, only the weak entry cut", #cuts == 1 and cuts[1].index, 2)
+	check("restock trim: shared, weak entry cut", cuts[1] and cuts[1].to, 3)
 
-	-- The same five gems queued by hand count too.
-	rows = Rows()
-	Planner.RestockDepth(Ctx(ladder), rows, { { recipeID = 2, qty = 5 } }, 15)
-	check("restock depth: queue counts", rows[1].crafts, 3)
-
-	-- Never worth it past the cheap ore: dropped to nothing, and sorted after rows with crafts.
-	rows = Rows(true)
-	Planner.RestockDepth(Ctx({ [ORE] = { { 5, 5 }, { 500, 100 } } }), rows, nil, 15)
-	check("restock depth: dear ore, good row kept", rows[1].itemID == GEM and rows[1].crafts or nil, 5)
-	check("restock depth: shirts dropped", rows[2].crafts, 0)
-	check("restock depth: shirts marked", rows[2].dear, 10)
+	-- The same five gems queued by hand count too, and are never cut themselves.
+	cuts = Planner.RestockTrim(Ctx({ [ORE] = { { 5, 5 }, { 500, 100 } } }), { { recipeID = 2, qty = 5 }, Shirts() }, 15)
+	check("restock trim: hand-queued entry kept", #cuts == 1 and cuts[1].index, 2)
+	check("restock trim: dear ore, shirts dropped", cuts[1] and cuts[1].to, 0)
 
 	-- No listings known: nothing changes.
-	rows = Rows()
-	Planner.RestockDepth(Ctx(), rows, nil, 15)
-	check("restock depth: no listings, untouched", rows[1].crafts, 10)
-	check("restock depth: no listings, profit untouched", rows[1].net, 23.5)
+	check("restock trim: no listings, untouched", #Planner.RestockTrim(Ctx(), { Shirts() }, 15), 0)
+	check("restock trim: nothing queued for restock", #Planner.RestockTrim(Ctx(ladder), { { recipeID = 1, qty = 10 } }, 15), 0)
 end
 
 -- Tools: a craft needing a Blacksmith Hammer won't start without one in the bags. One goes on the step where it is.

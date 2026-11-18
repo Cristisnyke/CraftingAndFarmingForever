@@ -1198,9 +1198,6 @@ local function RowOnEnter(row)
 		local item = data.row
 		StartItemTooltip(row, item.itemID, item.recipeID)
 		GameTooltip:AddDoubleLine("Profit per craft", ns.Money(item.net), 1, 1, 1, 1, 1, 1)
-		if item.listNet then
-			GameTooltip:AddDoubleLine("For one craft alone", ns.Money(item.listNet), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
-		end
 		GameTooltip:AddDoubleLine("On the AH", item.onAH and tostring(item.onAH) or "unknown", 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine("In bags, banks and mail", tostring(item.owned), 1, 1, 1, 1, 1, 1)
 		local smart = ns.Restock.SmartInfo(item.itemID)
@@ -1213,12 +1210,10 @@ local function RowOnEnter(row)
 			tostring(item.dear or item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
 		if item.dear then
 			local kept = item.wanted or item.crafts
-			GameTooltip:AddLine((kept > 0 and ("Only %d are worth making: "):format(kept) or "Not worth making now: ")
-				.. "the cheap materials on the auction house run out, and with the dearer ones a craft earns less "
-				.. "than your minimum profit.", 1, 0.6, 0.2, true)
-		elseif item.listNet then
-			GameTooltip:AddLine("Buying materials for the whole restock goes past the cheapest listings, so each "
-				.. "craft earns a little less than one alone.", 0.6, 0.6, 0.6, true)
+			GameTooltip:AddLine((kept > 0 and ("Only %d more are worth making: "):format(kept)
+				or "Not worth making more now: ")
+				.. "the restock was cut at the auction house, where the cheap materials ran out and with the dearer "
+				.. "ones a craft earned less than your minimum profit. Offered again within the hour.", 1, 0.6, 0.2, true)
 		end
 		if item.trim then
 			GameTooltip:AddLine(("%d of the queued crafts aren't needed any more: you have more in stock now. "
@@ -3695,13 +3690,14 @@ function CreateRestockPane()
 					.. ((budget.keep or 0) > 0 and ((deposit and " and " or " with ") .. ns.Money(budget.keep)
 						.. " left alone") or ""))) }
 		end
-		-- Until the listings of what a restock buys are read, its costs go by the cheapest listing alone.
-		local reading, unread = ns.Depth.Status(), ns.Depth.Unchecked()
+		-- Crafts are picked at the cheapest listing; the queued restock is checked against every listing later.
+		local reading = ns.Depth.Status()
 		if reading then
-			table.insert(notes, ("Reading auction house listings (%d to go): the crafts can still change."):format(reading))
-		elseif unread > 0 and needed > 0 then
-			table.insert(notes, ("What buying really costs isn't known for %s yet. It's read at the auction house, "
-				.. "and the crafts can change then."):format(ns.Plural(unread, "material", "materials")))
+			table.insert(notes, ("Reading listings for your queue (%d to go): the queued restock can still be cut.")
+				:format(reading))
+		elseif needed > 0 and ns.Option("depthCheck") then
+			table.insert(notes, "Picked at the cheapest listings. Once queued, the auction house reads what buying "
+				.. "them really costs and cuts crafts that no longer earn your minimum profit.")
 		end
 		if toPost > 0 then
 			table.insert(notes, 1, (toPost == 1 and "1 item you hold is" or (toPost .. " items you hold are"))

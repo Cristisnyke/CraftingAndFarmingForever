@@ -554,31 +554,29 @@ function Planner.RestockRows(ctx, opts)
 	return rows
 end
 
--- Fits a restock to what its materials really cost. A row's profit is per craft at each material's cheapest listing,
--- which holds for the first craft; a whole restock buys further down the listings (ctx.ahDepth, see
--- Planner.DepthCost). So the restock is planned beside the queue to see how much of each material it buys, every
--- material counts at the average that many cost, and a row earning less than minProfit a craft at those prices is
--- cut to the most crafts that still earn it: the worst row first, as each cut makes the materials cheaper for the
--- rest. row.dear = the crafts it had before, row.listNet = its profit at the cheapest listings, row.net = at the
--- averages. Crafts already queued (row.queued) are never cut here. Without listings nothing is cut.
--- Returns what the whole restock, before any cut, would buy at the auction house beside the queue: itemID -> units
--- (0 for an item it doesn't buy whose listings decide whether a material is crafted or bought).
-function Planner.RestockDepth(ctx, rows, queue, minProfit)
+-- Decides a queued restock again at what its materials really cost. New restock crafts are picked at each material's
+-- cheapest listing (no searching needed); once queued, the auction house reads every listing of what the queue buys
+-- (ctx.ahDepth, see Planner.DepthCost), and the queue's buying goes further down them than the first craft does. So
+-- the whole queue is planned, every material it buys counts at the average it really pays, and a restock entry
+-- (entry.restock) earning less than minProfit a craft at those prices is cut to the most crafts that still earn it:
+-- the worst first, as each cut leaves cheaper listings for the rest. Entries queued by hand are never cut, but their
+-- buying counts. Materials whose listings weren't read stay at the cheapest listing; with none read nothing is cut.
+-- Returns the cuts: { { index = in queue, recipeID, from = crafts, to = crafts, net = profit a craft at the averages
+-- before the cut }, ... } in queue order.
+function Planner.RestockTrim(ctx, queue, minProfit)
 	minProfit = minProfit or 0
 	local entries, wanted = {}, {}
-	for _, entry in ipairs(queue or {}) do entries[#entries + 1] = entry end
-	for _, row in ipairs(rows) do
-		row.dear, row.listNet = nil, nil
-		if row.crafts > 0 then
-			local entry = { recipeID = row.recipeID, qty = row.crafts }
-			entries[#entries + 1] = entry
-			wanted[#wanted + 1] = { row = row, entry = entry }
+	for index, entry in ipairs(queue or {}) do
+		local copy = { recipeID = entry.recipeID, qty = entry.qty, char = entry.char }
+		entries[#entries + 1] = copy
+		if entry.restock and (entry.qty or 0) > 0 then
+			wanted[#wanted + 1] = { index = index, entry = copy, from = entry.qty }
 		end
 	end
 	if #wanted == 0 then return {} end
 
 	-- Profit per craft of a recipe with every material at the average the plan pays (nil when no listing says
-	-- anything the scan didn't), and the plan.
+	-- anything the scan didn't).
 	local function Averaged()
 		local plan = Planner.BuildPlan(ctx, entries)
 		local average
@@ -591,7 +589,7 @@ function Planner.RestockDepth(ctx, rows, queue, minProfit)
 				end
 			end
 		end
-		if not average then return nil, plan end
+		if not average then return nil end
 		local priced = {}
 		for key, value in pairs(ctx) do priced[key] = value end
 		priced.ahPrice = function(itemID) return average[itemID] or ctx.ahPrice(itemID) end
@@ -599,29 +597,23 @@ function Planner.RestockDepth(ctx, rows, queue, minProfit)
 		return function(recipeID)
 			local result = Planner.Profit(priced, recipeID)
 			return result and result.net
-		end, plan
+		end
 	end
 	local function Earns(net)
 		return net == nil or (net > 0 and net >= minProfit)
 	end
 
-	local Net, shopping
+	local nets = {}
 	for _ = 1, #wanted + 1 do
-		local plan
-		Net, plan = Averaged()
-		if not shopping then
-			-- What it buys, and the other side of each buy-or-craft choice, so both get their listings read.
-			shopping = {}
-			for itemID, count in pairs(plan.buy) do shopping[itemID] = count end
-			for itemID in pairs(plan.compare) do shopping[itemID] = shopping[itemID] or 0 end
-		end
+		local Net = Averaged()
 		if not Net then break end
 		local worst, worstNet
 		for _, item in ipairs(wanted) do
-			local net = item.entry.qty > 0 and Net(item.row.recipeID)
+			local net = item.entry.qty > 0 and Net(item.entry.recipeID)
 			if net and not Earns(net) and (not worst or net < worstNet) then worst, worstNet = item, net end
 		end
 		if not worst then break end
+		nets[worst] = nets[worst] or worstNet
 		-- The most crafts of it that still earn enough: its materials only get dearer with the count.
 		local entry = worst.entry
 		local low, high = 0, entry.qty - 1
@@ -634,18 +626,14 @@ function Planner.RestockDepth(ctx, rows, queue, minProfit)
 		entry.qty = low
 	end
 
+	local cuts = {}
 	for _, item in ipairs(wanted) do
-		local row = item.row
-		if item.entry.qty < row.crafts then row.dear, row.crafts = row.crafts, item.entry.qty end
-	end
-	if Net then
-		for _, row in ipairs(rows) do
-			local net = Net(row.recipeID)
-			if net and net ~= row.net then row.listNet, row.net = row.net, net end
+		if item.entry.qty < item.from then
+			cuts[#cuts + 1] = { index = item.index, recipeID = item.entry.recipeID, from = item.from,
+				to = item.entry.qty, net = nets[item] }
 		end
 	end
-	table.sort(rows, RestockOrder)
-	return shopping
+	return cuts
 end
 
 function Planner.SortRestock(rows)

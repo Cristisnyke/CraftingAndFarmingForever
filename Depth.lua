@@ -3,7 +3,9 @@
 -- cheapest listing, so buying fifty used to count at the price of the first five.
 --
 -- Listings are read two ways. From any search that passes by: you opening an item to buy it, the Restocking tab's
--- lookups. And from a check the add-on runs itself at the auction house, for what the plan and a restock would buy.
+-- lookups. And from a check the add-on runs itself at the auction house, for what the queue's plan buys. The Restock
+-- tab doesn't search: it picks crafts at the cheapest listing, and a restock is only checked against the listings once
+-- it's on the queue (Restock.TrimToListings decides it again then).
 -- The check waits its turn: one search at a time, a moment after the auction house says it's ready, so your own
 -- searches and other add-ons' always go first, and it holds off while you browse or buy.
 
@@ -37,7 +39,6 @@ local quietUntil = 0
 local readAt = {} -- [itemID] = GetTime() its listings were last read
 local pricedAt -- GetTime() the game last priced a commodity purchase
 local PURCHASE_SECONDS = 30 -- a purchase is taken to be done this long after it was priced
-local shopping = {} -- [itemID] = true: what the last look at a restock would buy
 -- For /cff diag: searches sent, answered, given up for no answer, answers not believed, others' searches read.
 local stats = { sent = 0, answered = 0, timeouts = 0, unbelieved = 0, passive = 0 }
 
@@ -115,7 +116,7 @@ end
 
 -- Whether an item's listings are worth keeping: something the add-on may have to buy, not everything you look at.
 local function Wanted(itemID)
-	return queued[itemID] or shopping[itemID] or ns.db.depth[itemID] ~= nil
+	return queued[itemID] or ns.db.depth[itemID] ~= nil
 		or (ns.plan and (ns.plan.buy[itemID] ~= nil or (ns.plan.compare and ns.plan.compare[itemID])))
 end
 
@@ -190,13 +191,18 @@ local function Stop(finished)
 	wipe(waits)
 	asked, total = nil, 0
 	Depth.round = Depth.round + 1
-	if ns.Lock then ns.Lock.Update() end
+	if ns.Lock then ns.Lock.Stopped() end
 	if finished and ns.PlanCheck then ns.PlanCheck.End() end
 end
 
 -- Seconds the check still holds off for your own searches and purchases.
 function Depth.Holding(now)
 	return math.max(0, quietUntil - (now or GetTime()))
+end
+
+-- The item whose search is out now, else the next one to go; nil when no check is running.
+function Depth.Current()
+	return asked and asked.itemID or pending[1]
 end
 
 -- Searches left and searches in this round; nil when no check is running.
@@ -305,7 +311,7 @@ function Depth.Check(items, again)
 	end
 end
 
--- What the plan buys, then what the restock last looked at would buy.
+-- What the queue's plan buys, and the other side of each buy-or-craft choice in it.
 function Depth.CheckWanted(again)
 	if not (AuctionHouseOpen() and ns.Option("depthCheck")) then return end
 	local items, seen = {}, {}
@@ -323,24 +329,7 @@ function Depth.CheckWanted(again)
 	Add(ns.plan.buy)
 	-- Both sides of each buy-or-craft choice: the bars and the ore they're smelted from.
 	Add(ns.plan.compare or {})
-	Add(shopping)
 	Depth.Check(items, again)
-end
-
--- The materials a restock would buy (itemID -> anything), noted each time the Restock rows are worked out.
-function Depth.SetShopping(items)
-	wipe(shopping)
-	for itemID in pairs(items) do shopping[itemID] = true end
-	Depth.CheckWanted()
-end
-
--- How many of the restock's materials have no listings read: their cost is still the cheapest listing times the count.
-function Depth.Unchecked()
-	local missing = 0
-	for itemID in pairs(shopping) do
-		if not Depth.Of(itemID) then missing = missing + 1 end
-	end
-	return missing
 end
 
 ---------------------------------------------------------------------------

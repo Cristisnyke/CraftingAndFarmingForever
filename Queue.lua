@@ -138,6 +138,7 @@ function PlanCheck.Begin()
 	if PlanCheck.before or ns.db.ui.farmMode or ns.Queue.Count() == 0 then return end
 	PlanCheck.id = (PlanCheck.id or 0) + 1
 	PlanCheck.before, PlanCheck.ended, PlanCheck.ending = PlanCheck.Shape(ns.plan), nil, nil
+	PlanCheck.trimmed = nil
 end
 
 -- They're in: the plan is worked out again a moment later, when anything still arriving has arrived.
@@ -153,9 +154,14 @@ function PlanCheck.End()
 	end)
 end
 
--- After each plan: with the check ended and no listings still being read, the verdict.
+-- After each plan: with the check ended and no listings still being read, a queued restock is decided again at what
+-- was read, then the verdict, on the plan that follows from that.
 function PlanCheck.AfterBuild()
 	if not (PlanCheck.ending and PlanCheck.before) or ns.Depth.Status() then return end
+	if not PlanCheck.trimmed then
+		PlanCheck.trimmed = true
+		if not ns.db.ui.farmMode and ns.Restock.TrimToListings() then return ns.RequestPlan() end
+	end
 	local before = PlanCheck.before
 	PlanCheck.before, PlanCheck.ended, PlanCheck.ending = nil, nil, nil
 	if ns.db.ui.farmMode or ns.Queue.Count() == 0 then return end
@@ -199,7 +205,7 @@ function ns.RefreshEverything()
 	end
 	ns.InvalidateProfit()
 	RebuildPlan()
-	-- At the auction house: the listings of what the queue (and the restock) buys are read again, fresh or not.
+	-- At the auction house: the listings of what the queue buys are read again, fresh or not.
 	ns.Depth.CheckWanted(true)
 	ns.UI.RefreshAll()
 end
@@ -460,7 +466,6 @@ end
 local SMART_SECONDS = 5
 local smartGoals, smartAt = {}, 0
 local budgetCache -- see FitToGold
-local listingsCache -- see FitToListings
 
 function Restock.SmartOn()
 	return ns.Option("smartRestock")
@@ -598,32 +603,71 @@ end
 -- The last fit of a restock to your gold, reused while nothing it depends on changed: every redraw asks.
 local BUDGET_SECONDS = 10
 
--- A restock buys further down the listings than the cheapest one its profit is worked out at: rows that don't earn
--- the minimum at what their materials really average are cut (Planner.RestockDepth). all = the context for every
--- character at once.
-local function FitToListings(all, rows)
-	local parts = { "d" .. ns.Depth.version, "r" .. ns.db.priceRound, "m" .. ns.db.restock.minProfitSilver }
-	for _, entry in ipairs(ns.db.queue) do parts[#parts + 1] = "q" .. entry.recipeID .. "x" .. entry.qty end
-	for _, row in ipairs(rows) do
-		if row.crafts > 0 then parts[#parts + 1] = row.recipeID .. "x" .. row.crafts end
+-- A queued restock decided again at the auction house. The Restock tab picks crafts at each material's cheapest
+-- listing; once they're on the queue and the listings of what it buys have been read, restock entries that don't earn
+-- the minimum profit at what their materials really average are cut (Planner.RestockTrim). What was kept is
+-- remembered for a while, so the Restock tab doesn't offer the cut crafts straight back at the cheapest prices.
+Restock.CUT_SECONDS = 60 * 60
+
+-- The crafts of a recipe a restock may have on the queue since it was last cut; nil when it wasn't cut lately.
+function Restock.CutTo(recipeID)
+	local cuts = ns.db.restock.cuts
+	local cut = cuts and cuts[recipeID]
+	if not cut then return nil end
+	if time() - cut.at > Restock.CUT_SECONDS then
+		cuts[recipeID] = nil
+		return nil
 	end
-	local signature = table.concat(parts, ",")
-	local cache = listingsCache
-	if not (cache and cache.signature == signature and GetTime() - cache.at < BUDGET_SECONDS) then
-		local shopping = ns.Planner.RestockDepth(all, rows, ns.db.queue, ns.db.restock.minProfitSilver * 100)
-		cache = { signature = signature, at = GetTime(), rows = {} }
-		for _, row in ipairs(rows) do
-			cache.rows[row.recipeID] = { crafts = row.crafts, dear = row.dear, net = row.net, listNet = row.listNet }
+	return cut.kept
+end
+
+-- Rows offering more crafts of a recipe than its last cut kept are held to that: row.dear = what it asked for.
+local function HoldToCuts(rows)
+	for _, row in ipairs(rows) do
+		local kept = row.crafts > 0 and Restock.CutTo(row.recipeID)
+		if kept then
+			local allowed = math.max(0, kept - (row.queued or 0))
+			if row.crafts > allowed then row.dear, row.crafts = row.crafts, allowed end
 		end
-		listingsCache = cache
-		ns.Depth.SetShopping(shopping)
-		return
-	end
-	for _, row in ipairs(rows) do
-		local fit = cache.rows[row.recipeID]
-		if fit then row.crafts, row.dear, row.net, row.listNet = fit.crafts, fit.dear, fit.net, fit.listNet end
 	end
 	ns.Planner.SortRestock(rows)
+end
+
+-- Cuts the queue's restock entries to what still earns the minimum profit at the listings read. Returns true when
+-- anything was cut.
+function Restock.TrimToListings()
+	local hasRestock = false
+	for _, entry in ipairs(ns.db.queue) do
+		if entry.restock then hasRestock = true end
+	end
+	if not hasRestock then return false end
+	-- Costed for all characters at once, like the Restock tab: an alt's crafts need buying for too.
+	local all = {}
+	for key, value in pairs(NewContext()) do all[key] = value end
+	all.me = nil
+	local cuts = ns.Planner.RestockTrim(all, ns.db.queue, ns.db.restock.minProfitSilver * 100)
+	if #cuts == 0 then return false end
+	local queue, texts = ns.db.queue, {}
+	ns.db.restock.cuts = ns.db.restock.cuts or {}
+	for index = #cuts, 1, -1 do
+		local cut = cuts[index]
+		local entry = queue[cut.index]
+		if cut.to > 0 then entry.qty = cut.to else table.remove(queue, cut.index) end
+		local recipe = ns.db.recipes[cut.recipeID]
+		local name = recipe and recipe.o and ns.Items.Name(recipe.o) or recipe and recipe.n or "?"
+		table.insert(texts, 1, ("%s %d -> %s"):format(name, cut.from, cut.to > 0 and cut.to or "none"))
+	end
+	-- What the restock keeps of each recipe it cut, across characters.
+	for _, cut in ipairs(cuts) do
+		local kept = 0
+		for _, entry in ipairs(queue) do
+			if entry.restock and entry.recipeID == cut.recipeID then kept = kept + entry.qty end
+		end
+		ns.db.restock.cuts[cut.recipeID] = { kept = kept, at = time() }
+	end
+	ns.Print(("Restock decided again at what the materials really cost on the auction house: %s. The rest wouldn't "
+		.. "earn your minimum profit."):format(table.concat(texts, ", ")))
+	return true
 end
 
 -- With smart restocking on, a restock your gold can't pay for is cut to the part that earns the most for its
@@ -675,7 +719,7 @@ function Restock.Rows()
 	local all = {}
 	for key, value in pairs(ctx) do all[key] = value end
 	all.me = nil
-	FitToListings(all, rows)
+	HoldToCuts(rows)
 	return rows, FitToGold(all, rows)
 end
 

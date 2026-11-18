@@ -4,6 +4,8 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- **One screen lock, and you can see what it's doing.** Pressing Refresh at the auction house could lock and unlock the screen several times in a row, and each time it jumped to the Queue tab. Now the screen locks once for the whole check, the window stays on the tab you had open (Restock included), and a box at the bottom of the window names the material being read ("Reading Copper Bar: 3 of 12"). The rows that need it are outlined in gold. When it's done it says it's working out the plan with the new prices, then unlocks. If another add-on's search is running, it says it's waiting instead of unlocking and locking again.
+- **Restock is quicker.** The Restock tab no longer reads any listings: it picks what to craft at the cheapest prices, so opening it at the auction house doesn't lock the screen. Once you queue the restock, the auction house reads every listing of what your queue buys and decides the restock again: crafts that no longer earn your minimum profit at what the materials really cost are cut or taken off the queue, and chat says which ("Copper Bracers 10 -> 6"). For an hour after that, the Restock tab doesn't offer the cut crafts again. Crafts you queued by hand are never cut.
 - **See how hard each queued craft is.** Crafts on the queue, sub-crafts and the Next step bar show their names in the profession window's colours for the character who makes them: orange always gives a skill point, yellow about every other craft, green now and then, grey never. Hover a craft to see what its colour means. A craft stays white until that character opens the profession once.
 
 ## 1.18.1

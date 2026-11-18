@@ -3412,6 +3412,10 @@ do
 		ns.UI.Hide()
 		return text
 	end
+	-- The lock lingers a moment after a check, as the plan is worked out again: these frames let it go.
+	local function Linger()
+		for _ = 1, ns.Lock.LINGER + 1 do ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 0.1) end
+	end
 	local function BuyHeader()
 		ns.UI.Show("queue")
 		local text
@@ -3448,10 +3452,18 @@ do
 	check("depth: status while reading", (ns.Depth.Status()), 1)
 	check("lock: screen locked while it reads", ns.Lock.Shown(), true)
 	check("lock: window open on the Queue tab", ns.UI.IsOpen() and ns.db.ui.tab, "queue")
-	check("lock: says the screen is locked", ns.Lock.frame.title.text, "Screen locked: scanning your items")
-	check("lock: says how many are left", ns.Lock.frame.note.text, "Reading listings, 1 to go. Escape unlocks it.")
-	check("lock: window blacked out", ns.Lock.frame.cover.shown, true)
-	check("lock: notice in the middle of the window", ns.Lock.frame.box.lastPoint[2], ns.UI.main.frame)
+	check("lock: says the screen is locked", ns.Lock.frame.title.text,
+		"Screen locked: checking what your queue's materials cost")
+	check("lock: names the item being read", ns.Lock.frame.item.text, "Reading |T1:16:16:0:0|t Linen Cloth: 1 of 1")
+	check("lock: notice on the window's footer", ns.Lock.frame.box.lastPoint[2] == ns.UI.main.frame
+		and ns.Lock.frame.box.lastPoint[1], "BOTTOM")
+	local marked = ns.Lock.Marked()
+	local cloth = 0
+	for _, row in ipairs(marked) do
+		if row.data.kind == "item" and row.data.itemID == 1 then cloth = cloth + 1 end
+	end
+	-- On the Queue tab and on the Next step bar, nothing else.
+	check("lock: the rows to buy it are outlined", #marked == cloth and cloth, 2)
 	check("depth: header says it's reading", BuyHeader():find("reading listings, 1 to go", 1, true) ~= nil, true)
 
 	-- 2 at 10, plenty at 30, and 4 of your own at 9 that you can't buy.
@@ -3464,7 +3476,12 @@ do
 	RunTimers()
 	check("depth: no time-out after the answer", #sent, 1)
 	check("depth: check finished", ns.Depth.Status(), nil)
-	check("lock: gone the moment the check ends", ns.Lock.Shown(), false)
+	check("lock: stays a moment as the plan is worked out again", ns.Lock.Shown(), true)
+	check("lock: says it's done reading", ns.Lock.frame.item.text,
+		"Done reading. Working out the plan with the new prices...")
+	check("lock: outline gone", #ns.Lock.Marked(), 0)
+	Linger()
+	check("lock: then gone", ns.Lock.Shown(), false)
 	check("depth: cheapest tier stored", ns.db.depth[1][1][1] == 10 and ns.db.depth[1][1][2], 2)
 	check("depth: next tier stored", ns.db.depth[1][2][1] == 30 and ns.db.depth[1][2][2], 100)
 	check("depth: own auctions left out", #ns.db.depth[1], 2)
@@ -3625,17 +3642,26 @@ do
 		check("lock: never longer than the limit", ns.Lock.Shown(), false)
 		ns.Lock.STALL, ns.Lock.MAX = stall, max
 
-		-- The check holds off (a purchase being priced): the screen is yours meanwhile, locked again as it resumes.
+		-- The check holds off for someone else's search: the lock stays, says so, and doesn't count it as stuck.
 		Visit()
 		FireNow("COMMODITY_PRICE_UPDATED")
 		Frames(1)
-		check("lock: gone while the check holds off", ns.Lock.Shown(), false)
+		check("lock: says it's waiting", ns.Lock.frame.item.text, "Waiting for another search to finish. 1 to go.")
+		Frames(ns.Lock.STALL + 2)
+		check("lock: stays while the check holds off", ns.Lock.Shown(), true)
 		Wait(20)
 		before = #sent
 		Step()
 		Step()
 		check("lock: check resumed", #sent, before + 1)
-		check("lock: locked again as it resumes", ns.Lock.Shown(), true)
+		check("lock: still locked as it resumes", ns.Lock.Shown(), true)
+
+		-- The window stays on the tab you have open.
+		ns.UI.Show("restock")
+		Visit()
+		check("lock: up with the Restock tab open", ns.Lock.Shown(), true)
+		check("lock: stays on the Restock tab", ns.db.ui.tab, "restock")
+		ns.UI.Hide()
 
 		-- Refresh reads the queue's listings again though they're fresh; the check on its own doesn't.
 		results[1] = { { unitPrice = 10, quantity = 100 } }
@@ -3660,6 +3686,57 @@ do
 		ns.db.ui.depthCheck = true
 		FireNow("AUCTION_HOUSE_CLOSED")
 		RunTimers()
+
+		-- One lock for the whole check: a round ending and the new plan wanting more read keep the same lock up.
+		local function TimesShown() return tonumber(ns.Lock.Diag():match("^(%d+)")) end
+		Visit()
+		local shown = TimesShown()
+		results[1] = { { unitPrice = 10, quantity = 100 } }
+		FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+		check("lock: round over, lock lingers", ns.Depth.Status() == nil and ns.Lock.Shown(), true)
+		results[3] = { { unitPrice = 5, quantity = 100 } }
+		ns.Depth.Check({ 3 }, true)
+		Step()
+		check("lock: next round sent", sent[#sent].itemID, 3)
+		check("lock: still the same lock", ns.Lock.Shown() and TimesShown(), shown)
+		FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 3)
+		Linger()
+		check("lock: gone once nothing more is read", ns.Lock.Shown(), false)
+
+		-- A queued restock is decided again at what was read: here nothing earns the (huge) minimum, so it's cut.
+		FireNow("AUCTION_HOUSE_CLOSED")
+		RunTimers()
+		ns.Queue.Clear()
+		table.insert(ns.db.queue, { recipeID = 20, qty = 2, char = ns.CharKey(), restock = true })
+		local minProfit = ns.db.restock.minProfitSilver
+		ns.db.restock.minProfitSilver = 1000
+		results[1] = { { unitPrice = 10, quantity = 2 }, { unitPrice = 30, quantity = 100 } }
+		local told = {}
+		local realPrint = ns.Print
+		ns.Print = function(text) table.insert(told, text) end
+		Visit()
+		check("restock trim: cloth searched", sent[#sent].itemID, 1)
+		FireNow("COMMODITY_SEARCH_RESULTS_UPDATED", 1)
+		RunTimers()
+		ns.Print = realPrint
+		check("restock trim: entry cut from the queue", #ns.db.queue, 0)
+		check("restock trim: what was kept remembered", ns.Restock.CutTo(20), 0)
+		check("restock trim: said in chat", (told[#told] or ""):find("Linen Shirt 2 -> none", 1, true) ~= nil, true)
+		ns.db.restock.minProfitSilver = minProfit
+		Linger()
+		ns.db.restock.cuts = nil
+
+		-- The Restock tab on its own doesn't search: with nothing queued, nothing is read.
+		FireNow("AUCTION_HOUSE_CLOSED")
+		RunTimers()
+		ns.db.depth = {}
+		before = #sent
+		FireNow("AUCTION_HOUSE_SHOW")
+		ns.UI.Show("restock")
+		RunTimers()
+		ns.UI.Hide()
+		check("restock: no searches without a queue", #sent, before)
+		check("restock: no lock without a queue", ns.Lock.Shown(), false)
 	end
 
 	-- Turned off: no searches of its own.

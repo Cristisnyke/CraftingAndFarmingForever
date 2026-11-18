@@ -28,7 +28,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - Every recipe any of your characters knows, ranked by profit after the auction house cut.
 - Each material is costed the cheapest way: auction house, vendor, or crafting it yourself.
 - Materials you already hold count as free, so ore in your bank means it smelts bars instead of buying them.
-- **Real buying costs**: a price scan only knows the cheapest listing. At the auction house the add-on reads every listing of what you're about to buy, so 50 ore count at what 50 really cost, not 50 times the cheapest one. The screen is locked for the few seconds that takes (Escape unlocks it).
+- **Real buying costs**: a price scan only knows the cheapest listing. At the auction house the add-on reads every listing of what your queue buys, so 50 ore count at what 50 really cost, not 50 times the cheapest one. The screen is locked for the few seconds that takes, with the material being read named and its rows outlined (Escape unlocks it). Restock picks crafts at the cheapest listings, and a queued restock is decided again once the listings are read: crafts that no longer pay are cut.
 - A tab per profession, a search box, and sorting by name, sell chance or profit.
 - Hide unprofitable recipes with one tick.
 - Bind-on-pickup crafts are listed with their crafting cost, so you can still plan them.
