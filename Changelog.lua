@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.20.0", lines = {
+		"- Profit for the batch you really make. The Profit tab priced every recipe as one craft at the cheapest listings, so a recipe whose cheap materials run out after a craft or two looked better than it is. Now each recipe is priced for as many crafts as its restock goal makes, with materials counted down the listings the add-on has read: the profit shown is the average per craft over that batch. Hover a row to see how many crafts it's priced for, what one craft costs, and which materials' listings haven't been read yet (those still count at their cheapest listing).",
+		"- The gold limit on smart goals counts real costs too. A smart goal never lets one item's stock cost more than a quarter of your gold; that now counts what making that many really costs down the listings, not that many times the cheapest.",
+	} },
 	{ version = "1.19.0", lines = {
 		"- One screen lock, and you can see what it's doing. Pressing Refresh at the auction house could lock and unlock the screen several times in a row, and each time it jumped to the Queue tab. Now the screen locks once for the whole check, the window stays on the tab you had open (Restock included), and a box at the bottom of the window names the material being read (\"Reading Copper Bar: 3 of 12\"). The rows that need it are outlined in gold. When it's done it says it's working out the plan with the new prices, then unlocks. If another add-on's search is running, it says it's waiting instead of unlocking and locking again.",
 		"- Restock is quicker. The Restock tab no longer reads any listings: it picks what to craft at the cheapest prices, so opening it at the auction house doesn't lock the screen. Once you queue the restock, the auction house reads every listing of what your queue buys and decides the restock again: crafts that no longer earn your minimum profit at what the materials really cost are cut or taken off the queue, and chat says which (\"Copper Bracers 10 -> 6\"). For an hour after that, the Restock tab doesn't offer the cut crafts again. Crafts you queued by hand are never cut.",

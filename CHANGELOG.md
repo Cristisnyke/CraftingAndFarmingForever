@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.20.0
 
 - **Profit for the batch you really make.** The Profit tab priced every recipe as one craft at the cheapest listings, so a recipe whose cheap materials run out after a craft or two looked better than it is. Now each recipe is priced for as many crafts as its restock goal makes, with materials counted down the listings the add-on has read: the profit shown is the average per craft over that batch. Hover a row to see how many crafts it's priced for, what one craft costs, and which materials' listings haven't been read yet (those still count at their cheapest listing).
 - **The gold limit on smart goals counts real costs too.** A smart goal never lets one item's stock cost more than a quarter of your gold; that now counts what making that many really costs down the listings, not that many times the cheapest.
