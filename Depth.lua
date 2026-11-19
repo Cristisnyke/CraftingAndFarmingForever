@@ -75,6 +75,8 @@ end
 local function Changed()
 	Depth.version = Depth.version + 1
 	ns.RequestPlan()
+	-- The Profit tab prices batches by listings too (it notices the new version when it redraws).
+	ns.Debounce("depthprofit", 1, function() ns.UI.Refresh("profit") end)
 end
 
 -- tiers = { { price, units }, ... } in any order.

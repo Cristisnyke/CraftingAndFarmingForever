@@ -108,14 +108,131 @@ function Planner.RecipeCost(ctx, recipeID)
 	return total, parts
 end
 
--- Economics of selling the result of a recipe on the auction house.
-function Planner.Profit(ctx, recipeID)
+-- Batches: what `count` units cost when that many are bought or made, not count x the cheapest listing. Auction house
+-- units are costed down the listings (ctx.ahDepth, Planner.DepthCost) where those were read; materials whose listings
+-- were never read count at their cheapest listing and are noted. Held stock is not used: like ItemCost, this is what
+-- things cost at market. Returns total (nil with no price), kind, recipeID, and a note { read = { [itemID] = true },
+-- unread = { [itemID] = true } } of the auction house purchases it took.
+local function Merge(into, from)
+	for itemID in pairs(from.read) do into.read[itemID] = true end
+	for itemID in pairs(from.unread) do into.unread[itemID] = true end
+end
+
+local function BatchMemo(ctx)
+	ctx.batchMemo = ctx.batchMemo or {}
+	return ctx.batchMemo
+end
+
+function Planner.ItemCostFor(ctx, itemID, count)
+	local memo = BatchMemo(ctx)
+	memo[itemID] = memo[itemID] or {}
+	local found = memo[itemID][count]
+	if found then return found.total, found.kind, found.recipeID, found.note end
+
+	local hitsBefore = ctx.cycleHits
+	local ah, vendor = Priced(ctx.ahPrice(itemID)), Priced(ctx.vendorPrice(itemID))
+	local total, kind, recipeID
+	local note = { read = {}, unread = {} }
+	local depth = ah and ctx.ahDepth and ctx.ahDepth(itemID)
+	if ah then
+		if depth then
+			total = Planner.DepthCost(depth, 0, count, vendor, ah)
+			kind = "ah"
+		else
+			total, kind = ah * count, "ah"
+		end
+	end
+	if vendor and (not total or vendor * count < total) then total, kind = vendor * count, "vendor" end
+	if kind == "ah" then
+		if depth then note.read[itemID] = true else note.unread[itemID] = true end
+	end
+
+	for _, candidate in ipairs(ctx.known[itemID] or {}) do
+		if ctx.visiting[candidate] then
+			ctx.cycleHits = ctx.cycleHits + 1
+		else
+			local recipe = ctx.recipes[candidate]
+			if recipe then
+				local craftTotal, _, craftNote = Planner.RecipeCostFor(ctx, candidate, count / AverageYield(recipe))
+				if craftTotal and (not total or craftTotal < total) then
+					total, kind, recipeID, note = craftTotal, "craft", candidate, craftNote
+				end
+			end
+		end
+	end
+
+	if ctx.cycleHits == hitsBefore then
+		memo[itemID][count] = { total = total, kind = kind, recipeID = recipeID, note = note }
+	end
+	return total, kind, recipeID, note
+end
+
+-- Cost of `crafts` crafts of a recipe (see ItemCostFor). Returns total, parts (as RecipeCost's, unit = the average
+-- per unit over the batch, deep = true when listings were read for it), note.
+function Planner.RecipeCostFor(ctx, recipeID, crafts)
+	local recipe = ctx.recipes[recipeID]
+	local note = { read = {}, unread = {} }
+	if not recipe then return nil, {}, note end
+	ctx.visiting[recipeID] = true
+	local total, parts = 0, {}
+	for _, slot in ipairs(recipe.r or {}) do
+		local qty = slot[1] or 1
+		local need = qty * crafts
+		local best, bestKind, bestID, bestRecipe, bestNote
+		for i = 2, #slot do
+			local cost, kind, subRecipe, subNote = Planner.ItemCostFor(ctx, slot[i], need)
+			if cost and (not best or cost < best) then
+				best, bestKind, bestID, bestRecipe, bestNote = cost, kind, slot[i], subRecipe, subNote
+			end
+		end
+		local part = { itemID = bestID or slot[2], qty = qty, kind = bestKind, recipeID = bestRecipe }
+		if best then
+			part.unit = need > 0 and best / need or 0
+			part.deep = next(bestNote.read) ~= nil or nil
+			Merge(note, bestNote)
+			if total then total = total + best end
+		else
+			total = nil
+		end
+		parts[#parts + 1] = part
+	end
+	ctx.visiting[recipeID] = nil
+	if recipe.x then total = nil end
+	return total, parts, note
+end
+
+-- What `units` of an item cost to craft by its cheapest known recipe, in a batch that size (nil with no price).
+function Planner.CraftCostFor(ctx, itemID, units)
+	local best
+	for _, recipeID in ipairs(ctx.known[itemID] or {}) do
+		local recipe = ctx.recipes[recipeID]
+		local total = recipe and Planner.RecipeCostFor(ctx, recipeID, units / AverageYield(recipe))
+		if total and (not best or total < best) then best = total end
+	end
+	return best
+end
+
+-- Economics of selling the result of a recipe on the auction house. With crafts (and ctx.ahDepth) the materials are
+-- priced for that many crafts and cost is the average per craft: result.batch = crafts, result.oneCost = one craft at
+-- the cheapest listings, result.unread = { itemID, ... } materials bought at the auction house whose listings were
+-- never read (counted at their cheapest), result.deep = true when some were read.
+function Planner.Profit(ctx, recipeID, crafts)
 	local recipe = ctx.recipes[recipeID]
 	if not recipe or not recipe.o then return nil end
 	local cost, parts = Planner.RecipeCost(ctx, recipeID)
 	local yield = AverageYield(recipe)
 	local saleUnit = Priced(ctx.ahPrice(recipe.o))
 	local result = { recipeID = recipeID, itemID = recipe.o, yield = yield, cost = cost, parts = parts, saleUnit = saleUnit }
+	if crafts and crafts > 0 and ctx.ahDepth then
+		local total, batchParts, note = Planner.RecipeCostFor(ctx, recipeID, crafts)
+		result.batch, result.oneCost = crafts, cost
+		result.cost, result.parts = total and total / crafts, batchParts
+		result.deep = next(note.read) ~= nil or nil
+		result.unread = {}
+		for itemID in pairs(note.unread) do result.unread[#result.unread + 1] = itemID end
+		table.sort(result.unread)
+		cost = result.cost
+	end
 	-- A lone listing at many times the material cost (7s of materials posted for 20g) would show a huge profit that
 	-- won't sell. Above the cap the sale counts at the normal mark-up instead, and the row is flagged to check.
 	local cap = ctx.priceCap
@@ -320,6 +437,7 @@ end
 --   margin    Planner.SmartMargin (nil = unknown: SMART.MARGIN)
 --   unsettled age of the newest day that still has auctions running: up to it nothing counts as sold out
 --   unitCost  copper to make one, gold = copper held (both optional: without them gold is no limit)
+--   costOf    function(n) -> copper to make n in one go, down the listings (optional: else n x unitCost)
 --   pair      true for things bought two at a time
 --   level     cautious to aggressive (default SMART.LEVEL)
 -- The goal is recomputed from the history each time, oldest day first, starting at the default:
@@ -425,7 +543,21 @@ function Planner.SmartGoal(input)
 		end
 	end
 	if input.unitCost and input.unitCost > 0 and input.gold then
-		local afford = math.max(1, math.floor(input.gold * smart.GOLD_SHARE / (input.unitCost + (input.deposit or 0))))
+		-- What n cost to make: down the listings when costOf knows (buying more costs more per unit), else n x unitCost.
+		local budget, deposit = input.gold * smart.GOLD_SHARE, input.deposit or 0
+		local function Fits(n)
+			local cost = input.costOf and input.costOf(n) or input.unitCost * n
+			return cost + n * deposit <= budget
+		end
+		local afford = goal
+		if not Fits(goal) then
+			local low, high = 1, goal - 1 -- the most that fits is in low..high, or none (then 1)
+			while low < high do
+				local mid = math.floor((low + high + 1) / 2)
+				if Fits(mid) then low = mid else high = mid - 1 end
+			end
+			afford = low
+		end
 		if afford < goal then
 			info.full = input.pair and math.max(2, goal + goal % 2) or goal
 			goal = afford

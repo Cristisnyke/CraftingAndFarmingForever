@@ -337,6 +337,12 @@ local function CraftUnit(itemID)
 end
 Sales.CraftUnit = CraftUnit
 
+-- What making `units` of a crafted item costs in one go, the materials bought down their listings where those were
+-- read (Planner.CraftCostFor). Nil when unknown.
+function Sales.CraftCost(itemID, units)
+	return ns.Planner.CraftCostFor(CraftInfo().ctx, itemID, units)
+end
+
 -- Sold crafted units with no cost on record (made before costs were kept) get the cost to craft one at that
 -- moment, once, and keep it: a profit that moved with every price scan was confusing (the user, 2026-11-14).
 -- day.r counts the units costed this way, so the profit still shows as an estimate. Units stay in day.u while

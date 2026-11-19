@@ -146,6 +146,23 @@ end
 
 -- Every recipe known on any character that makes an item, most profitable first. Results that can't be sold on the
 -- AH (bind on pickup) are flagged bound and have no sale or profit, only a cost; they follow the priced ones.
+-- The Profit tab prices each recipe for the crafts its restock goal makes (the user's choice, 2026-11-19): buying
+-- materials for five crafts can cost more per craft than one, once the cheapest listings run out. The goal without
+-- your gold's limit, at least one craft.
+local function ProfitBatch(recipe)
+	local goal = ns.Restock.FullGoal(recipe.o)
+	if not goal or goal <= 0 then return 1 end
+	return math.max(1, math.ceil(goal / math.max(1, recipe.qmin or 1)))
+end
+
+-- What the Profit tab's numbers were worked out from, besides prices: listings read and restock goals.
+local function ProfitKey()
+	local restock = ns.db.restock
+	local parts = { ns.Depth.version, restock.stackGoal, restock.singleGoal, ns.Restock.SmartLevel(), tostring(ns.Restock.SmartOn()) }
+	for itemID, goal in pairs(restock.goals) do parts[#parts + 1] = itemID .. "=" .. goal end
+	return table.concat(parts, ",")
+end
+
 local function ComputeProfit()
 	local ctx = ns.NewContext()
 	local results = {}
@@ -158,7 +175,7 @@ local function ComputeProfit()
 				-- CanSellOnAH is nil while loading: left out now, added by the refresh when the data arrives.
 				local sellable = recipe and recipe.o and ns.Items.CanSellOnAH(recipe.o)
 				if sellable ~= nil then
-					local result = ns.Planner.Profit(ctx, recipeID)
+					local result = ns.Planner.Profit(ctx, recipeID, sellable and ProfitBatch(recipe) or nil)
 					if result then
 						result.profession = recipe.p
 						if not sellable then
@@ -331,7 +348,11 @@ end
 
 local function BuildProfitList()
 	if ns.db.ui.profitMode == "skill" then return BuildSkillList() end
-	profitCache = profitCache or ComputeProfit()
+	local cacheKey = ProfitKey()
+	if not profitCache or profitCache.key ~= cacheKey then
+		profitCache = ComputeProfit()
+		profitCache.key = cacheKey
+	end
 	local selected = selectedProfession.profit
 	local hideUnprofitable = ns.db.ui.hideUnprofitable
 	local results, order, values = {}, {}, {}
@@ -940,7 +961,8 @@ end
 local function AddPartLines(parts)
 	for _, part in ipairs(parts or {}) do
 		local name = ns.Items.Name(part.itemID) or "Loading..."
-		local value = part.unit and (ns.Money(part.unit * part.qty) .. " (" .. (KIND_LABEL[part.kind] or "?") .. ")") or "no price"
+		local label = (KIND_LABEL[part.kind] or "?") .. (part.deep and " avg" or "")
+		local value = part.unit and (ns.Money(part.unit * part.qty) .. " (" .. label .. ")") or "no price"
 		local age = part.kind == "ah" and ns.Prices.ItemAgeDays(part.itemID)
 		if age and age > 0 then value = value .. Color(COLOR_WARN, (" %dd old"):format(age)) end
 		GameTooltip:AddDoubleLine(part.qty .. " x " .. name, value, 0.85, 0.85, 0.85, 1, 1, 1)
@@ -969,7 +991,22 @@ local function ShowProfitTooltip(row, result)
 	StartItemTooltip(row, result.itemID, result.recipeID)
 	AddPartLines(result.parts)
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddDoubleLine("Cost", result.cost and ns.Money(result.cost) or "no price", 1, 1, 1, 1, 1, 1)
+	local batch = result.batch and result.batch > 1 and result.batch
+	GameTooltip:AddDoubleLine(batch and "Cost per craft" or "Cost", result.cost and ns.Money(result.cost) or "no price",
+		1, 1, 1, 1, 1, 1)
+	if batch then
+		GameTooltip:AddLine(("Priced for %d crafts, what your restock goal makes: materials bought down the listings "
+			.. "cost more once the cheapest run out."):format(batch), 0.6, 0.8, 1, true)
+		if result.oneCost and result.cost and result.oneCost < result.cost - 0.5 then
+			GameTooltip:AddDoubleLine("One craft", ns.Money(result.oneCost), 0.85, 0.85, 0.85, 1, 1, 1)
+		end
+	end
+	if result.unread and #result.unread > 0 and result.cost then
+		local names = {}
+		for _, itemID in ipairs(result.unread) do names[#names + 1] = ns.Items.Name(itemID) or "Loading..." end
+		GameTooltip:AddLine(("Listings not read for %s: counted at the cheapest listing. They're read at the auction "
+			.. "house once your queue buys them."):format(table.concat(names, ", ")), 1, 0.6, 0.2, true)
+	end
 	if result.bound then
 		GameTooltip:AddLine("Bind on pickup: can't be sold on the auction house.", 1, 0.6, 0.2, true)
 	else

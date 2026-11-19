@@ -1265,5 +1265,51 @@ do
 	check("tight bags: hammer stays in the bags", tight.room and tight.room.bank[HAMMER], nil)
 end
 
+-- Profit for a batch: materials priced down the listings for that many crafts (the Profit tab, at the restock goal).
+do
+	local cloth = { [CLOTH] = { { 10, 4 }, { 30, 100 } } }
+	local plain = Planner.Profit(Context({ depth = cloth }), 300)
+	check("batch: no crafts, cheapest as before", plain.cost, 65)
+	check("batch: no crafts, no batch", plain.batch, nil)
+	local two = Planner.Profit(Context({ depth = cloth }), 300, 2)
+	-- 2 shirts = 6 bolts = 12 cloth: 4 at 10 + 8 at 30 = 280, thread 2 x 5.
+	check("batch: average per craft", two.cost, 145)
+	check("batch: one craft at the cheapest", two.oneCost, 65)
+	check("batch: net per craft", two.net, 1000 * 0.95 - 145)
+	check("batch: listings read", two.deep, true)
+	check("batch: nothing unread", #two.unread, 0)
+	check("batch: part unit is the average", two.parts[1].unit, 280 / 6)
+	check("batch: part marked deep", two.parts[1].deep, true)
+	check("batch: thread part not deep", two.parts[2].deep, nil)
+	local one = Planner.Profit(Context({ depth = cloth }), 300, 1)
+	check("batch: one craft still walks the listings", one.cost, 4 * 10 + 2 * 30 + 5)
+	local unread = Planner.Profit(Context({ depth = {} }), 300, 2)
+	check("batch: unread at the cheapest", unread.cost, 65)
+	check("batch: unread noted", unread.unread[1], CLOTH)
+	check("batch: unread not deep", unread.deep, nil)
+	local dear = Planner.Profit(Context({ depth = { [CLOTH] = { { 10, 4 }, { 200, 100 } } } }), 300, 2)
+	check("batch: buying wins once cloth runs dear", dear.cost, (6 * 100 + 2 * 5) / 2)
+	check("batch: bought bolts unread", dear.unread[1], BOLT)
+	check("batch: no depth source, no batch", Planner.Profit(Context(), 300, 5).cost, 65)
+	check("batch: craft cost for 2 shirts", Planner.CraftCostFor(Context({ depth = cloth }), SHIRT, 2), 290)
+	check("batch: craft cost, unknown item", Planner.CraftCostFor(Context(), GEM, 2), nil)
+end
+
+-- The smart goal's gold limit counts what n really cost to make when costOf is given.
+do
+	local function CostOf(n) return n <= 5 and n * 100 or 500 + (n - 5) * 300 end
+	local goal, info = Planner.SmartGoal({ base = 10, unitCost = 100, gold = 4000 })
+	check("gold cap: flat cost fits", goal, 10)
+	check("gold cap: flat not limited", info.limited, nil)
+	goal, info = Planner.SmartGoal({ base = 10, unitCost = 100, gold = 4000, costOf = CostOf })
+	check("gold cap: listings make it 6", goal, 6)
+	check("gold cap: listings limit", info.limited, "gold")
+	check("gold cap: full goal kept", info.full, 10)
+	goal = Planner.SmartGoal({ base = 10, unitCost = 100, gold = 100, costOf = CostOf })
+	check("gold cap: at least one", goal, 1)
+	goal = Planner.SmartGoal({ base = 10, unitCost = 100, gold = 4000, costOf = function() return nil end })
+	check("gold cap: unknown cost, flat", goal, 10)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

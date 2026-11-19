@@ -3887,5 +3887,40 @@ do
 	RunTimers()
 end
 
+-- The Profit tab prices each recipe for the crafts its restock goal makes, down the listings read.
+do
+	local savedGoal, savedDepth, savedSmart = ns.db.restock.goals[2], ns.db.depth, ns.db.ui.smartRestock
+	ns.db.restock.goals[2] = 5
+	local price = ns.Prices.AH(1) or 10
+	ns.db.depth = { [1] = { at = time(), { price, 2 }, { price * 10, 100 } } }
+	ns.UI.Show("profit")
+	ns.InvalidateProfit()
+	local found
+	for _, row in ipairs(ns.UI.windows.profit.rows) do
+		if row.data and row.data.kind == "profit" and row.data.result.recipeID == 10 then found = row end
+	end
+	local result = found and found.data.result
+	check("profit batch: restock goal's crafts", result and result.batch, 5)
+	-- 5 crafts = 10 ore: 2 at the cheapest, 8 ten times dearer.
+	check("profit batch: average down the listings", result and result.cost, (2 * price + 8 * price * 10) / 5)
+	check("profit batch: one craft kept", result and result.oneCost, 2 * price)
+	local tooltip = {}
+	local realAddLine = GameTooltip.AddLine
+	GameTooltip.AddLine = function(_, text) table.insert(tooltip, text) end
+	if found then found.scripts.OnEnter(found) end
+	GameTooltip.AddLine = realAddLine
+	check("profit batch: tooltip says so", table.concat(tooltip, "\n"):find("Priced for 5 crafts", 1, true) ~= nil, true)
+	-- A new goal is noticed on the next redraw, no invalidation needed.
+	ns.db.restock.goals[2] = 1
+	ns.UI.Refresh("profit")
+	found = nil
+	for _, row in ipairs(ns.UI.windows.profit.rows) do
+		if row.data and row.data.kind == "profit" and row.data.result.recipeID == 10 then found = row end
+	end
+	check("profit batch: follows the goal", found and found.data.result.batch, 1)
+	ns.db.restock.goals[2], ns.db.depth, ns.db.ui.smartRestock = savedGoal, savedDepth, savedSmart
+	ns.InvalidateProfit()
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -530,6 +530,7 @@ local function SmartGoal(itemID)
 		margin = ns.Planner.SmartMargin(profit, ns.Sales.Deposit(itemID)), profit = profit,
 		unsettled = ns.Sales.RunningAge(name),
 		unitCost = unitCost, gold = GetMoney(), deposit = Restock.Deposit(itemID),
+		costOf = function(units) return ns.Sales.CraftCost(itemID, units) end,
 		pair = ns.Items.SoldInPairs(itemID),
 		level = Restock.SmartLevel() / 100,
 	})
