@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## 1.20.2
+
+- **Tidier money amounts.** An average loss of less than half a copper showed as "-0c"; it now shows as 0c.
+- Maintenance: a setting left behind by an older version of the Writs tab is cleaned out of your saved data.
+
 ## 1.20.1
 
 - **Farm It data updated** from AllTheThings 5.4.14: a few new item sources added and some outdated ones removed.

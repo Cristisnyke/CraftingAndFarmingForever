@@ -59,7 +59,9 @@ ns.NewContext = NewContext
 -- Plan
 ---------------------------------------------------------------------------
 
-ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0, elsewhere = {} }
+-- Same fields as Planner.BuildPlan's, so nothing reading it before the first build trips over a missing table.
+ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0,
+	elsewhere = {}, paid = {}, deep = {}, thin = {}, compare = {} }
 ns.farmPlan = ns.plan
 ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {}, capped = {} }
 

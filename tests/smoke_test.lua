@@ -1266,6 +1266,8 @@ do
 		if row.data and row.data.kind == "queue" then queueRow = row end
 	end
 	check("queue row shows cost", queueRow.cost.text, ns.Money(cost))
+	check("a loss under half a copper is 0c, not -0c", ns.Money(-0.4), "0c")
+	check("a loss of 1c keeps its sign", ns.Money(-0.6), "-1c")
 	check("bound entry has no profit", queueRow.profit.text:find("can't sell", 1, true) ~= nil, true)
 	ns.Queue.Clear()
 	RunTimers()
@@ -1920,7 +1922,7 @@ RunTimers()
 -- Late saved data: the session's queue is merged into the table the client hands over.
 ns.Queue.Add(10, 1)
 CraftingAndFarmingForeverDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {},
-	ui = { hideLosing = true, manualChat = {}, positions = { main = { x = 1, y = 2 }, next = { x = 3, y = 4 }, farm = { x = 5, y = 6 } } },
+	ui = { hideLosing = true, manualChat = {}, writCraftable = true, positions = { main = { x = 1, y = 2 }, next = { x = 3, y = 4 }, farm = { x = 5, y = 6 } } },
 	auctionLog = { "old" },
 	costs = { [901] = { q = 5, c = 500 } }, costsSeeded = 1,
 	sales = { profitFrom = 1, items = { axe = { name = "Axe", sold = 2, expired = 0, gold = 900, exposure = 0,
@@ -1937,7 +1939,7 @@ check("market-valued costs from 1.7.0 dropped", next(ns.db.costs) == nil and ns.
 check("their sales cost nothing", ns.db.sales.items.axe.days[1].c == 0 and ns.db.sales.items.axe.days[1].u == 2, true)
 check("results from before profit untouched", ns.db.sales.items.axe.days[0].c, 100)
 ns.db.sales.items.axe = nil
-check("old options dropped", ns.db.ui.hideLosing == nil and ns.db.ui.manualChat == nil, true)
+check("old options dropped", ns.db.ui.hideLosing == nil and ns.db.ui.manualChat == nil and ns.db.ui.writCraftable == nil, true)
 check("old window positions dropped", ns.db.ui.positions.farm, nil)
 check("main position kept", ns.db.ui.positions.main.y, 2)
 check("next position kept", ns.db.ui.positions.next.x, 3)

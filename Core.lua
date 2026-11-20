@@ -132,7 +132,7 @@ local function Normalize(db)
 	end
 	-- Left behind by older versions: the auction debug log, the separate windows before the tabbed one, renamed options.
 	db.auctionLog = nil
-	db.ui.hideLosing, db.ui.manualChat = nil, nil
+	db.ui.hideLosing, db.ui.manualChat, db.ui.writCraftable = nil, nil, nil
 	if db.ui.positions then
 		for window in pairs(db.ui.positions) do
 			if window ~= "main" and window ~= "next" then db.ui.positions[window] = nil end
@@ -291,7 +291,8 @@ end
 
 function ns.Money(copper)
 	if not copper then return "?" end
-	local sign = copper < 0 and "-" or ""
+	-- The sign after rounding: an average loss of a fraction of a copper is 0c, not -0c.
+	local sign = copper <= -0.5 and "-" or ""
 	copper = math.floor(math.abs(copper) + 0.5)
 	local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
 	if g > 0 then return ("%s%dg %02ds"):format(sign, g, s) end
