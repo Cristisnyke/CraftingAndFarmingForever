@@ -50,7 +50,7 @@ end
 ---------------------------------------------------------------------------
 -- db.recipes[recipeID] = { n = name, o = outputItemID, qmin, qmax, p = professionID, pn = professionName,
 --                          r = { { qty, itemID, altItemID, ... }, ... }, x = true if it also costs a currency }
--- db.chars[guid]       = { name, realm, class, recipes = { [recipeID] = true }, links = { [professionID] = link },
+-- db.chars[guid]       = { name, realm, class, classFile, syndicatorKey (Syndicator's "Name-Realm" for it), recipes = { [recipeID] = true }, links = { [professionID] = link },
 --                          skillUps = { [recipeID] = { d = colour 0-3, n = points per craft } },
 --                          skill = { [professionID] = { level, max } } } (both as of the profession's last opening)
 -- db.wanted[i]         = { kind = "writ" or "crate", id = its item ID, qty }: writs and crates queued from their tabs
@@ -69,7 +69,8 @@ end
 -- db.deposits          = { [itemID] = copper per unit }, the deposit its last post cost (see Sales.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
---                          adEnabled, nextStep, scanPopup, chatTips, depthCheck (off only when false), adText, quoteText (own wording), ... }
+--                          adEnabled, nextStep, scanPopup, chatTips, depthCheck (off only when false), adText, quoteText (own wording),
+--                          excludedChars = { [GUID or Syndicator "Name-Realm"] = true }: characters left out (ns.CharExcluded), ... }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -240,8 +241,26 @@ function ns.CharRecord()
 	end
 	char.name = UnitName("player")
 	char.realm = GetRealmName()
-	char.class = select(1, UnitClass("player"))
+	char.class, char.classFile = UnitClass("player")
 	return char
+end
+
+-- Characters left out on the Options tab: db.ui.excludedChars[key] = true, the key Syndicator's "Name-Realm" for the
+-- character and the GUID of each record of it here (Stock.SetLeftOut). Their recipes and stock count nowhere. The
+-- character you're playing always counts: its bags are what you craft from.
+function ns.CharExcluded(key)
+	local excluded = ns.db.ui.excludedChars
+	if key == nil or excluded == nil or key == ns.CharKey() then return false end
+	if excluded[key] then return true end
+	-- A record made after the tick (Forever can give a character a new GUID) still matches by its Syndicator name.
+	local char = ns.db.chars[key]
+	return char ~= nil and char.syndicatorKey ~= nil and excluded[char.syndicatorKey] == true
+end
+
+function ns.SetCharExcluded(key, on)
+	local excluded = ns.db.ui.excludedChars or {}
+	excluded[key] = on and true or nil
+	ns.db.ui.excludedChars = next(excluded) and excluded or nil
 end
 
 function ns.CharLabel(key)
