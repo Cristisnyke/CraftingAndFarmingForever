@@ -3652,6 +3652,44 @@ function CreateRestockPane()
 	levelLabel:SetText("Stock level")
 	local level = UI.StockLevelSlider(window.frame, 180)
 	level:SetPoint("LEFT", levelLabel, "RIGHT", 10, 0)
+
+	-- Beside it, how long the restock takes to craft: moves with the slider.
+	local timer = CreateFrame("Frame", nil, window.frame)
+	timer:SetSize(150, 16)
+	timer:SetPoint("BOTTOMRIGHT", -12, Live.LEVEL_BOTTOM - 1)
+	timer.text = timer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	timer.text:SetPoint("RIGHT")
+	timer.text:SetJustifyH("RIGHT")
+	timer.icon = timer:CreateTexture(nil, "OVERLAY")
+	timer.icon:SetSize(14, 14)
+	timer.icon:SetTexture("Interface\\Icons\\INV_Misc_PocketWatch_01")
+	timer.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	timer.icon:SetPoint("RIGHT", timer.text, "LEFT", -4, 0)
+	timer:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Crafting time")
+		GameTooltip:AddLine("About how long this restock takes to craft: the crafts above, new and already on your "
+			.. "queue, plus the sub-crafts their materials need (bars, cloth), at each recipe's cast time and the pause "
+			.. "between casts. Shopping and walking aren't counted.", 1, 1, 1, true)
+		if (self.direct or 0) > 0 then
+			GameTooltip:AddDoubleLine("Restock crafts", tostring(self.direct), 1, 0.82, 0, 1, 1, 1)
+			if self.count > self.direct then
+				GameTooltip:AddDoubleLine("Sub-crafts", tostring(self.count - self.direct), 1, 0.82, 0, 1, 1, 1)
+			end
+		end
+		GameTooltip:AddLine("Cast times are learned as you craft; until then the spell's own time is used.",
+			0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	end)
+	timer:SetScript("OnLeave", GameTooltip_Hide)
+	timer.Update = function(self, rows)
+		local seconds, direct, count = ns.Restock.CraftTime(rows)
+		self.direct, self.count = direct, count
+		self.text:SetText(direct > 0
+			and (Color(COLOR_MUTED, "Crafting time ") .. ns.Planner.FormatDuration(seconds))
+			or Color(COLOR_MUTED, "Nothing to craft"))
+		self.icon:SetDesaturated(direct == 0)
+	end
 	-- A fresh look at the tab doesn't flash: only changes seen while it's open do.
 	window.frame:HookScript("OnHide", function() wipe(Live.seen) end)
 
@@ -3684,9 +3722,11 @@ function CreateRestockPane()
 		minProfit:Sync()
 
 		local needed, toPost, items, queued, trims = 0, 0, 0, 0, 0
+		local shown = {}
 		for _, data in ipairs(self.list) do
 			local row = data.row
 			if row then
+				shown[#shown + 1] = row
 				items = items + 1
 				if row.crafts > 0 or row.trim then needed = needed + 1 end
 				if row.trim then trims = trims + 1 end
@@ -3696,6 +3736,8 @@ function CreateRestockPane()
 				end
 			end
 		end
+
+		timer:Update(shown)
 
 		if not ns.Stock.HasSyndicator() then
 			apply:Disable()

@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Crafting time on the Restock tab.** Beside the Stock level slider a clock shows about how long the restock takes to craft, including the bars, cloth and other sub-crafts its materials need. It changes as you drag the slider.
+
 ## 1.20.2
 
 - **Tidier money amounts.** An average loss of less than half a copper showed as "-0c"; it now shows as 0c.

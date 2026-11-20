@@ -895,6 +895,11 @@ check("bind-on-pickup not restocked", (function()
 	for _, row in ipairs(rows) do if row.itemID == 5 then return true end end
 	return false
 end)(), false)
+do
+	local seconds, direct = ns.Restock.CraftTime({ { recipeID = shirtRow.recipeID, crafts = 2, queued = 1 } })
+	check("restock crafting time counts new and queued crafts", direct, 3)
+	check("restock crafting time in seconds", seconds >= 3 * ns.Queue.CraftSeconds(shirtRow.recipeID), true)
+end
 
 -- Smart goals: sales raise the goal, a goal of your own wins, and the option turns it off.
 -- Days are numbered by the local date, as Sales.lua does: in UTC these checks failed between local and UTC midnight.

@@ -1728,4 +1728,27 @@ function Planner.FormatDuration(seconds)
 	return ("%d:%02d"):format(minutes, secs)
 end
 
+-- How long crafting a restock takes: each row's crafts (row.crafts new + row.queued already on the queue - row.trim
+-- to come off), planned like the queue, so the sub-crafts its materials need (bars smelted, cloth woven) count too,
+-- and materials held already don't. ctx without me plans every character's part. secondsOf(recipeID) = one craft,
+-- as in Planner.TimeLeft. Returns seconds, crafts of the rows, crafts in all (sub-crafts included).
+function Planner.RestockTime(ctx, rows, secondsOf)
+	local entries, direct = {}, 0
+	for _, row in ipairs(rows) do
+		local qty = (row.crafts or 0) + (row.queued or 0) - (row.trim or 0)
+		if qty > 0 then
+			entries[#entries + 1] = { recipeID = row.recipeID, qty = qty }
+			direct = direct + qty
+		end
+	end
+	if #entries == 0 then return 0, 0, 0 end
+	local seconds, count = 0, 0
+	for _, craft in ipairs(Planner.BuildPlan(ctx, entries).crafts) do
+		if craft.count > 0 then
+			seconds, count = seconds + craft.count * secondsOf(craft.recipeID), count + craft.count
+		end
+	end
+	return seconds, direct, count
+end
+
 return Planner

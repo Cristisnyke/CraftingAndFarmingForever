@@ -726,6 +726,26 @@ function Restock.Rows()
 	return rows, FitToGold(all, rows)
 end
 
+-- How long these restock rows take to craft, sub-crafts included (Planner.RestockTime), for every character. Reused
+-- for a while like the gold fit, since the slider asks on every step. Returns seconds, row crafts, all crafts.
+local timeCache
+function Restock.CraftTime(rows)
+	local parts = { "d" .. ns.Depth.version }
+	for _, row in ipairs(rows) do
+		parts[#parts + 1] = row.recipeID .. "x" .. row.crafts .. "q" .. (row.queued or 0) .. "t" .. (row.trim or 0)
+	end
+	local signature = table.concat(parts, ",")
+	local cache = timeCache
+	if cache and cache.signature == signature and GetTime() - cache.at < BUDGET_SECONDS then
+		return cache.seconds, cache.direct, cache.count
+	end
+	local ctx = NewContext()
+	ctx.me = nil
+	local seconds, direct, count = ns.Planner.RestockTime(ctx, rows, Queue.CraftSeconds)
+	timeCache = { signature = signature, at = GetTime(), seconds = seconds, direct = direct, count = count }
+	return seconds, direct, count
+end
+
 -- Brings the queue's restock entries in line with these rows: adds the crafts a row still needs (merged into a
 -- restock entry of the same recipe and character) and takes off what a row says is too many now (row.trim). Nothing
 -- else is removed: a restock already queued may have been shopped for. Hand-queued entries aren't touched.

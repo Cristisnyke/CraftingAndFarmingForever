@@ -853,6 +853,21 @@ do
 	check("duration hours", Planner.FormatDuration(3725), "1:02:05")
 end
 
+-- Restock crafting time: 2 new shirts + 1 queued (9 bolts, 3 held, so 6 woven); a bar row trimmed to nothing.
+do
+	local ctx = Context({ own = { [BOLT] = 3 } })
+	local rows = {
+		{ itemID = SHIRT, recipeID = 300, crafts = 2, queued = 1 },
+		{ itemID = BAR, recipeID = 100, crafts = 0, queued = 2, trim = 2 },
+	}
+	local function secondsOf(id) return id == 300 and 5 or 2 end
+	local seconds, direct, count = Planner.RestockTime(ctx, rows, secondsOf)
+	check("restock time: shirts and the bolts they need", seconds, 3 * 5 + 6 * 2)
+	check("restock time: row crafts", direct, 3)
+	check("restock time: all crafts", count, 9)
+	check("restock time: nothing to craft", Planner.RestockTime(ctx, { rows[2] }, secondsOf), 0)
+end
+
 -- Price cap: shirt materials 65, listed at 1000 (over 400%): counted at 200% = 130, flagged to check.
 do
 	local ctx = Context()
