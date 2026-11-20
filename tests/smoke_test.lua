@@ -3238,6 +3238,43 @@ do
 	check("zone heading shown", window.rows[1].sortHeadings.zone:IsShown() and true, true)
 	ns.UI.SortList("writs", "zone")
 	check("zone sort reverses", select(2, ns.UI.ListSort("writs")), false)
+	-- Zone filter: only the knife writ's zone, the menu counts each zone, All zones brings them back.
+	ns.db.ui.writAll = true
+	ns.UI.Refresh("writs")
+	local everyWrit = #window.list
+	window.zoneButton.scripts.OnClick(window.zoneButton)
+	check("zone menu opens", window.zoneMenu:IsShown() and true, true)
+	local knifeOption, unknownOption
+	for _, option in ipairs(window.zoneMenu.options) do
+		if option.zone == knifeZone then knifeOption = option end
+		if option.zone == ns.Writs.NO_ZONE then unknownOption = option end
+	end
+	check("zone menu lists the knife's zone", knifeOption ~= nil, true)
+	check("zone menu lists unknown zones last", window.zoneMenu.options[#window.zoneMenu.options], unknownOption)
+	knifeOption.scripts.OnClick(knifeOption)
+	check("zone menu closes on a pick", window.zoneMenu:IsShown() and true or false, false)
+	check("zone saved", ns.db.ui.writZone, knifeZone)
+	local onlyZone, knifeShown = true, false
+	for index = 2, #window.list do
+		local writ = window.list[index].row.writ
+		if writ.zone ~= knifeZone then onlyZone = false end
+		if writ.id == KNIFE_WRIT then knifeShown = true end
+	end
+	check("zone filter keeps only that zone", onlyZone, true)
+	check("zone filter keeps the knife writ", knifeShown, true)
+	check("zone filter shows fewer", #window.list < everyWrit, true)
+	check("zone count matches the list", window.zoneCounts[knifeZone], #window.list - 1)
+	check("zone button names it", window.zoneButton:GetText(), "Zone: " .. knifeZone)
+	unknownOption.scripts.OnClick(unknownOption)
+	local allUnknown = #window.list > 1
+	for index = 2, #window.list do
+		if window.list[index].row.writ.zone then allUnknown = false end
+	end
+	check("unknown-zone filter", allUnknown, true)
+	window.zoneButton.scripts.OnClick(window.zoneButton)
+	window.zoneMenu.options[1].scripts.OnClick(window.zoneMenu.options[1])
+	check("all zones again", #window.list, everyWrit)
+	check("zone cleared", ns.db.ui.writZone, nil)
 	ns.db.ui.writSort, ns.db.ui.writSortAsc, ns.db.ui.writAll = nil, nil, nil
 	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil
 	ns.UI.Show("profit")

@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- **Writs sort by zone.** Click the new Zone heading on the Writs tab to group writs by where they're handed in, cheapest reputation first within each zone.
+- **Writs by zone.** The Writs tab has a Zone button: pick a zone to see only the writs handed in there, with how many each zone has. The new Zone heading also sorts the list by where writs are handed in.
 
 ## 1.21.0
 

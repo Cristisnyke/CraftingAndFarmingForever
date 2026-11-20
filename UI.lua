@@ -760,6 +760,20 @@ end
 
 local function BuildWritsList()
 	local rows = ns.Writs.Rows(ns.db.ui.writTier, not ns.db.ui.writAll)
+	-- The zone filter: counts are of the writs the level and the box let through, before it.
+	local counts, zone = {}, ns.db.ui.writZone
+	for _, item in ipairs(rows) do
+		local key = item.writ.zone or ns.Writs.NO_ZONE
+		counts[key] = (counts[key] or 0) + 1
+	end
+	if windows.writs then windows.writs.zoneCounts = counts end
+	if zone then
+		local kept = {}
+		for _, item in ipairs(rows) do
+			if (item.writ.zone or ns.Writs.NO_ZONE) == zone then kept[#kept + 1] = item end
+		end
+		rows = kept
+	end
 	local key, ascending = UI.ListSort("writs")
 	for index, item in ipairs(rows) do item.order = index end
 	table.sort(rows, function(a, b)
@@ -3950,6 +3964,77 @@ function CreateWritsPane()
 		window.tierButtons[index + 1] = button
 	end
 
+	-- Zone filter: a button that opens a list of the zones writs are handed in, with how many each has.
+	local zoneButton = HeaderButton(window.frame, "Zone: all", 170, nil)
+	zoneButton:SetPoint("LEFT", window.tierButtons[#window.tierButtons], "RIGHT", 12, 0)
+	local zoneMenu = CreateFrame("Frame", nil, zoneButton, "BackdropTemplate")
+	zoneMenu:SetFrameStrata("DIALOG")
+	zoneMenu:SetPoint("TOPLEFT", zoneButton, "BOTTOMLEFT", 0, -2)
+	FlatBox(zoneMenu, THEME.header, THEME.border)
+	zoneMenu:Hide()
+	zoneMenu.options = {}
+	window.zoneButton, window.zoneMenu = zoneButton, zoneMenu
+	local ZONE_ROWS, ZONE_WIDTH, ZONE_HEIGHT = 14, 160, 18
+	local function PickZone(zone)
+		ns.db.ui.writZone = zone
+		zoneMenu:Hide()
+		window.offset = 0
+		UI.Refresh("writs")
+	end
+	zoneMenu.Fill = function(self)
+		local counts = window.zoneCounts or {}
+		local zones = {}
+		for _, writ in ipairs(ns.Writs.list) do
+			local key = writ.zone or ns.Writs.NO_ZONE
+			if not zones[key] then zones[key] = true; zones[#zones + 1] = key end
+		end
+		table.sort(zones, function(a, b)
+			if (a == ns.Writs.NO_ZONE) ~= (b == ns.Writs.NO_ZONE) then return b == ns.Writs.NO_ZONE end
+			return a < b
+		end)
+		table.insert(zones, 1, false)
+		for index, zone in ipairs(zones) do
+			local option = self.options[index]
+			if not option then
+				option = FlatButton(self, "-", ZONE_WIDTH, ZONE_HEIGHT)
+				local text = option:GetFontString()
+				if text then
+					text:ClearAllPoints()
+					text:SetPoint("LEFT", 6, 0)
+					text:SetPoint("RIGHT", -4, 0)
+					text:SetJustifyH("LEFT")
+				end
+				local column, line = math.floor((index - 1) / ZONE_ROWS), (index - 1) % ZONE_ROWS
+				option:SetPoint("TOPLEFT", 4 + column * (ZONE_WIDTH + 2), -4 - line * ZONE_HEIGHT)
+				option:SetScript("OnClick", function(button) PickZone(button.zone or nil) end)
+				self.options[index] = option
+			end
+			option.zone = zone
+			local count = zone and (counts[zone] or 0)
+			local label = zone == false and "All zones" or zone == ns.Writs.NO_ZONE and "Zone not known" or zone
+			option:SetText(zone and (count > 0 and (label .. Color(COLOR_MUTED, "  " .. count))
+				or Color(COLOR_MUTED, label .. "  0")) or label)
+			if (ns.db.ui.writZone or false) == zone then option:LockHighlight() else option:UnlockHighlight() end
+			option:Show()
+		end
+		local columns = math.ceil(#zones / ZONE_ROWS)
+		self:SetSize(8 + columns * (ZONE_WIDTH + 2) - 2, 8 + math.min(#zones, ZONE_ROWS) * ZONE_HEIGHT)
+	end
+	zoneButton:SetScript("OnClick", function()
+		if zoneMenu:IsShown() then zoneMenu:Hide() return end
+		zoneMenu:Fill()
+		zoneMenu:Show()
+	end)
+	zoneButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Hand-in zone")
+		GameTooltip:AddLine("Show only the writs handed in where you're going. The number beside each zone is how many "
+			.. "writs it has at the level picked. Zones marked ? in the list are guesses from the other writs.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	zoneButton:SetScript("OnLeave", GameTooltip_Hide)
+	window.frame:HookScript("OnHide", function() zoneMenu:Hide() end)
+
 	-- Off: only writs whose item one of your characters can craft. On: every writ.
 	local everything = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
 	everything:SetSize(24, 24)
@@ -3978,6 +4063,10 @@ function CreateWritsPane()
 			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
 		end
 		everything:SetChecked(ns.db.ui.writAll and true or false)
+		local zone = ns.db.ui.writZone
+		zoneButton:SetText(zone and ("Zone: " .. (zone == ns.Writs.NO_ZONE and "not known" or zone)) or "Zone: all")
+		if zone then zoneButton:LockHighlight() else zoneButton:UnlockHighlight() end
+		if zoneMenu:IsShown() then zoneMenu:Fill() end
 		local priced, shown = 0, 0
 		for _, data in ipairs(window.list) do
 			if data.row then
@@ -3985,7 +4074,9 @@ function CreateWritsPane()
 				if data.row.writPrice then priced = priced + 1 end
 			end
 		end
-		if shown == 0 then
+		if shown == 0 and zone then
+			hint:SetText("No writs here for this zone. Pick another zone or All zones.")
+		elseif shown == 0 then
 			hint:SetText("None of your characters can craft a writ's item here. Tick the box to see every writ.")
 		elseif priced == 0 then
 			hint:SetText(Color(COLOR_WARN, "No writ prices yet: run a full scan at the auction house."))

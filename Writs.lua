@@ -198,6 +198,9 @@ function Writs.Name(writ)
 end
 
 -- Every writ with its costs, for the level (nil = all) and, with craftableOnly, only items a character can make.
+-- The zone filter's key for writs whose hand-in zone isn't known.
+Writs.NO_ZONE = "?"
+
 function Writs.Rows(tier, craftableOnly)
 	local ctx = ns.NewContext()
 	local rows = {}
