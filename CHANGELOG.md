@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Writs sort by zone.** Click the new Zone heading on the Writs tab to group writs by where they're handed in, cheapest reputation first within each zone.
+
 ## 1.21.0
 
 - **Crafting time on the Restock tab.** Beside the Stock level slider a clock shows about how long the restock takes to craft, including the bars, cloth and other sub-crafts its materials need. It changes as you drag the slider.

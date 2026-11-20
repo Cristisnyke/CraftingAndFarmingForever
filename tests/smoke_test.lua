@@ -3214,6 +3214,30 @@ do
 	ns.db.ui.writTier = nil
 	ns.UI.SortList("writs", "name")
 	check("sorted by name", ns.db.ui.writSort, "name")
+	-- By hand-in zone: A to Z, unknown zones last, the knife writ first in its zone (the only one priced).
+	ns.UI.SortList("writs", "zone")
+	local zones, ordered, unknownLast, knifeZone = {}, true, true, nil
+	for index = 2, #window.list do
+		local writ = window.list[index].row.writ
+		if writ.id == KNIFE_WRIT then knifeZone = writ.zone end
+		zones[#zones + 1] = writ.zone and writ.zone:lower() or false
+	end
+	for index = 2, #zones do
+		if zones[index - 1] == false and zones[index] then unknownLast = false end
+		if zones[index - 1] and zones[index] and zones[index - 1] > zones[index] then ordered = false end
+	end
+	check("writs sorted by zone", ordered, true)
+	check("writs with no zone last", unknownLast, true)
+	for index = 2, #window.list do
+		local writ = window.list[index].row.writ
+		if writ.zone == knifeZone then
+			check("priced writ first in its zone", writ.id, KNIFE_WRIT)
+			break
+		end
+	end
+	check("zone heading shown", window.rows[1].sortHeadings.zone:IsShown() and true, true)
+	ns.UI.SortList("writs", "zone")
+	check("zone sort reverses", select(2, ns.UI.ListSort("writs")), false)
 	ns.db.ui.writSort, ns.db.ui.writSortAsc, ns.db.ui.writAll = nil, nil, nil
 	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil
 	ns.UI.Show("profit")

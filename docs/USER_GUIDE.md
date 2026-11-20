@@ -232,6 +232,7 @@ Craftsman's Writs are tradable items that start a daily quest: hand in the writ 
 - **Item**: the wanted item by the cheapest way. Blue means one of your characters crafts it; white is bought.
 - **Net**: the coin pouch less the writ and the item. The pouch is an average players reported (about 12s Journeyman, 36s Expert, 75s Artisan), so the gold is rough.
 - **Per rep**: gold lost per reputation point (75 Journeyman, 125 Expert, 200 Artisan). The list starts with the cheapest reputation; click a heading to sort.
+- **Zone** (heading beside Item wanted): sorts by where the writ is handed in, A to Z, so one zone's writs come together for one trip; within a zone the cheapest reputation comes first. Zones marked ? are guesses; writs with no known zone come last.
 - The list starts with only the writs whose item one of your characters can craft. Tick **Show all writs, not only what I can craft** to see every writ. **All / Journeyman / Expert / Artisan** show one level.
 - **+** puts the writ on your queue. The Queue tab lists it under "Hand in writs, fill crates", and the queue's shopping list gets the writ and the item it wants, less what you hold; when crafting the item yourself is cheaper, its materials are bought and the craft is planned instead. The writ comes off the queue when you hand it in.
 

@@ -221,9 +221,10 @@ local SORTS = {
 		ascending = { name = true, chance = false, profit = false } },
 	skill = { key = "skillSort", asc = "skillSortAsc", default = "profit",
 		ascending = { name = true, chance = false, cost = true, profit = true } },
-	-- Writs: names A to Z, the writ's price lowest first, the gold kept highest first, gold per reputation lowest first.
+	-- Writs: names and hand-in zones A to Z, the writ's price lowest first, the gold kept highest first, gold per
+	-- reputation lowest first.
 	writs = { key = "writSort", asc = "writSortAsc", default = "profit", pane = "writs",
-		ascending = { name = true, chance = true, cost = false, profit = true } },
+		ascending = { name = true, zone = true, chance = true, cost = false, profit = true } },
 	-- Crates: names A to Z, the crate's price lowest first, the most Merchant's Favor first, gold per Favor lowest first.
 	crates = { key = "crateSort", asc = "crateSortAsc", default = "profit", pane = "crates",
 		ascending = { name = true, chance = true, cost = false, profit = true } },
@@ -751,6 +752,7 @@ local function WritSortValue(item, key)
 		if item.writ.item then name = ns.Items.Name(item.writ.item) else name = ns.Writs.Name(item.writ) end
 		return name and name:lower()
 	end
+	if key == "zone" then return item.writ.zone and item.writ.zone:lower() end
 	if key == "chance" then return item.writPrice end
 	if key == "cost" then return item.net end
 	return item.perRep
@@ -766,6 +768,11 @@ local function BuildWritsList()
 			if left == nil or right == nil then return left ~= nil end
 			if ascending then return left < right end
 			return left > right
+		end
+		-- Within a zone, the cheapest reputation first.
+		if key == "zone" and a.perRep ~= b.perRep then
+			if a.perRep == nil or b.perRep == nil then return a.perRep ~= nil end
+			return a.perRep < b.perRep
 		end
 		return a.order < b.order
 	end)
@@ -1132,7 +1139,9 @@ local COLUMN_TIPS = {
 		"Item: the item it wants, by the cheapest way. Blue means one of your characters crafts it.",
 		"Net: the coin pouch (an average) less the writ and the item. Red is gold you lose.",
 		"Per rep: gold lost for each reputation point. The list starts with the cheapest reputation.",
-		"Click Item wanted, Writ, Net or Per rep to sort by it; click again to reverse.",
+		"Zone: where the writ is handed in. Sorted by it, the writs of one zone come together, so one trip does them "
+			.. "all (cheapest first within a zone). A ? is a guess from the other writs; unknown zones come last.",
+		"Click Item wanted, Zone, Writ, Net or Per rep to sort by it; click again to reverse.",
 	},
 	profit = {
 		"Sells: the chance one sells within 24 hours, from your sales history. Grey with ~ is a rough guess from under "
@@ -1811,7 +1820,7 @@ local function CreateRow(parent)
 	-- The Profit headings are buttons, styled like the column headers of the game's own lists: a shaded box that lights
 	-- up under the mouse, and an arrow on every one (bright on the sorted column, faint on the others).
 	row.sortHeadings = {}
-	for _, key in ipairs({ "name", "chance", "cost", "profit" }) do
+	for _, key in ipairs({ "name", "zone", "chance", "cost", "profit" }) do
 		local heading = CreateFrame("Button", nil, row)
 		heading:SetHeight(ROW_HEIGHT - 4)
 		heading.key = key
@@ -1830,7 +1839,7 @@ local function CreateRow(parent)
 		heading.arrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
 		heading.arrow:SetSize(9, 10)
 		heading.label = heading:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-		if key == "name" then
+		if key == "name" or key == "zone" then
 			heading.label:SetPoint("LEFT", 5, 0)
 			heading.arrow:SetPoint("LEFT", heading.label, "RIGHT", 4, 0)
 		else
@@ -2105,6 +2114,14 @@ local function SetRow(row, data)
 			headings.name:ClearAllPoints()
 			headings.name:SetPoint("LEFT", row, "LEFT", 0, 0)
 			headings.name:SetWidth((headings.name.label:GetStringWidth() or 40) + 26)
+			-- Writs also sort by where they're handed in: a heading right after the name's.
+			local zone = mode == "writs"
+			if zone then
+				headings.zone.label:SetText("Zone")
+				headings.zone:ClearAllPoints()
+				headings.zone:SetPoint("LEFT", headings.name, "RIGHT", 4, 0)
+				headings.zone:SetWidth((headings.zone.label:GetStringWidth() or 30) + 26)
+			end
 			for key, column in pairs(columns) do
 				headings[key].label:SetText(column[2])
 				headings[key]:ClearAllPoints()
@@ -2112,7 +2129,7 @@ local function SetRow(row, data)
 				headings[key]:SetPoint("RIGHT", column[1], "RIGHT", 2, 0)
 			end
 			for key, heading in pairs(headings) do
-				if key == "name" or columns[key] then
+				if key == "name" or columns[key] or (key == "zone" and zone) then
 					local sorted = key == sortKey
 					-- Up for ascending. Unsorted columns point the way a first click would sort them.
 					local up
