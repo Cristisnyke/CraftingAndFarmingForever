@@ -3275,6 +3275,7 @@ do
 	window.zoneMenu.options[1].scripts.OnClick(window.zoneMenu.options[1])
 	check("all zones again", #window.list, everyWrit)
 	check("zone cleared", ns.db.ui.writZone, nil)
+	check("zone button unfiltered", window.zoneButton:GetText(), "Filter by zone")
 	ns.db.ui.writSort, ns.db.ui.writSortAsc, ns.db.ui.writAll = nil, nil, nil
 	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil
 	ns.UI.Show("profit")

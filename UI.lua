@@ -3965,7 +3965,7 @@ function CreateWritsPane()
 	end
 
 	-- Zone filter: a button that opens a list of the zones writs are handed in, with how many each has.
-	local zoneButton = HeaderButton(window.frame, "Zone: all", 170, nil)
+	local zoneButton = HeaderButton(window.frame, "Filter by zone", 170, nil)
 	zoneButton:SetPoint("LEFT", window.tierButtons[#window.tierButtons], "RIGHT", 12, 0)
 	local zoneMenu = CreateFrame("Frame", nil, zoneButton, "BackdropTemplate")
 	zoneMenu:SetFrameStrata("DIALOG")
@@ -4064,7 +4064,7 @@ function CreateWritsPane()
 		end
 		everything:SetChecked(ns.db.ui.writAll and true or false)
 		local zone = ns.db.ui.writZone
-		zoneButton:SetText(zone and ("Zone: " .. (zone == ns.Writs.NO_ZONE and "not known" or zone)) or "Zone: all")
+		zoneButton:SetText(zone and ("Zone: " .. (zone == ns.Writs.NO_ZONE and "not known" or zone)) or "Filter by zone")
 		if zone then zoneButton:LockHighlight() else zoneButton:UnlockHighlight() end
 		if zoneMenu:IsShown() then zoneMenu:Fill() end
 		local priced, shown = 0, 0
