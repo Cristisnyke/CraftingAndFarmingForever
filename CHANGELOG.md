@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.21.0
 
 - **Crafting time on the Restock tab.** Beside the Stock level slider a clock shows about how long the restock takes to craft, including the bars, cloth and other sub-crafts its materials need. It changes as you drag the slider.
 

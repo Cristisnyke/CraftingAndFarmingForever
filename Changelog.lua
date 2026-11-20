@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.21.0", lines = {
+		"- Crafting time on the Restock tab. Beside the Stock level slider a clock shows about how long the restock takes to craft, including the bars, cloth and other sub-crafts its materials need. It changes as you drag the slider.",
+	} },
 	{ version = "1.20.2", lines = {
 		"- Tidier money amounts. An average loss of less than half a copper showed as \"-0c\"; it now shows as 0c.",
 		"- Maintenance: a setting left behind by an older version of the Writs tab is cleaned out of your saved data.",
