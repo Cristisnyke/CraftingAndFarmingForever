@@ -3252,8 +3252,9 @@ do
 	check("zone menu lists the knife's zone", knifeOption ~= nil, true)
 	check("zone menu lists unknown zones last", window.zoneMenu.options[#window.zoneMenu.options], unknownOption)
 	knifeOption.scripts.OnClick(knifeOption)
-	check("zone menu closes on a pick", window.zoneMenu:IsShown() and true or false, false)
-	check("zone saved", ns.db.ui.writZone, knifeZone)
+	check("zone menu stays open for more picks", window.zoneMenu:IsShown() and true or false, true)
+	check("zone saved", ns.db.ui.writZones and ns.db.ui.writZones[knifeZone], true)
+	check("picked zone ticked", knifeOption.check:IsShown() and true or false, true)
 	local onlyZone, knifeShown = true, false
 	for index = 2, #window.list do
 		local writ = window.list[index].row.writ
@@ -3265,16 +3266,27 @@ do
 	check("zone filter shows fewer", #window.list < everyWrit, true)
 	check("zone count matches the list", window.zoneCounts[knifeZone], #window.list - 1)
 	check("zone button names it", window.zoneButton:GetText(), "Zone: " .. knifeZone)
+	-- A second zone adds its writs.
+	local oneZone = #window.list - 1
 	unknownOption.scripts.OnClick(unknownOption)
+	local twoOnly = true
+	for index = 2, #window.list do
+		local zone = window.list[index].row.writ.zone
+		if zone and zone ~= knifeZone then twoOnly = false end
+	end
+	check("two zones: both and nothing else", twoOnly, true)
+	check("two zones: more writs", #window.list - 1, oneZone + window.zoneCounts[ns.Writs.NO_ZONE])
+	check("two zones: button counts them", window.zoneButton:GetText(), "Zones: 2 picked")
+	-- Clicking a ticked zone unticks it.
+	knifeOption.scripts.OnClick(knifeOption)
 	local allUnknown = #window.list > 1
 	for index = 2, #window.list do
 		if window.list[index].row.writ.zone then allUnknown = false end
 	end
-	check("unknown-zone filter", allUnknown, true)
-	window.zoneButton.scripts.OnClick(window.zoneButton)
+	check("unticked zone leaves the other", allUnknown, true)
 	window.zoneMenu.options[1].scripts.OnClick(window.zoneMenu.options[1])
 	check("all zones again", #window.list, everyWrit)
-	check("zone cleared", ns.db.ui.writZone, nil)
+	check("zones cleared", ns.db.ui.writZones, nil)
 	check("zone button unfiltered", window.zoneButton:GetText(), "Filter by zone")
 	ns.db.ui.writSort, ns.db.ui.writSortAsc, ns.db.ui.writAll = nil, nil, nil
 	prices[KNIFE_WRIT], prices[KNIFE] = nil, nil

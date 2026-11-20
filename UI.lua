@@ -761,16 +761,16 @@ end
 local function BuildWritsList()
 	local rows = ns.Writs.Rows(ns.db.ui.writTier, not ns.db.ui.writAll)
 	-- The zone filter: counts are of the writs the level and the box let through, before it.
-	local counts, zone = {}, ns.db.ui.writZone
+	local counts, zones = {}, ns.db.ui.writZones
 	for _, item in ipairs(rows) do
 		local key = item.writ.zone or ns.Writs.NO_ZONE
 		counts[key] = (counts[key] or 0) + 1
 	end
 	if windows.writs then windows.writs.zoneCounts = counts end
-	if zone then
+	if zones and next(zones) then
 		local kept = {}
 		for _, item in ipairs(rows) do
-			if (item.writ.zone or ns.Writs.NO_ZONE) == zone then kept[#kept + 1] = item end
+			if zones[item.writ.zone or ns.Writs.NO_ZONE] then kept[#kept + 1] = item end
 		end
 		rows = kept
 	end
@@ -3964,7 +3964,8 @@ function CreateWritsPane()
 		window.tierButtons[index + 1] = button
 	end
 
-	-- Zone filter: a button that opens a list of the zones writs are handed in, with how many each has.
+	-- Zone filter: a button that opens a list of the zones writs are handed in, with how many each has. Clicking zones
+	-- ticks them on and off (any number, kept in db.ui.writZones); All zones clears them.
 	local zoneButton = HeaderButton(window.frame, "Filter by zone", 170, nil)
 	zoneButton:SetPoint("LEFT", window.tierButtons[#window.tierButtons], "RIGHT", 12, 0)
 	local zoneMenu = CreateFrame("Frame", nil, zoneButton, "BackdropTemplate")
@@ -3976,8 +3977,13 @@ function CreateWritsPane()
 	window.zoneButton, window.zoneMenu = zoneButton, zoneMenu
 	local ZONE_ROWS, ZONE_WIDTH, ZONE_HEIGHT = 14, 160, 18
 	local function PickZone(zone)
-		ns.db.ui.writZone = zone
-		zoneMenu:Hide()
+		if zone then
+			local zones = ns.db.ui.writZones or {}
+			zones[zone] = not zones[zone] or nil
+			ns.db.ui.writZones = next(zones) and zones or nil
+		else
+			ns.db.ui.writZones = nil
+		end
 		window.offset = 0
 		UI.Refresh("writs")
 	end
@@ -4007,6 +4013,10 @@ function CreateWritsPane()
 				local column, line = math.floor((index - 1) / ZONE_ROWS), (index - 1) % ZONE_ROWS
 				option:SetPoint("TOPLEFT", 4 + column * (ZONE_WIDTH + 2), -4 - line * ZONE_HEIGHT)
 				option:SetScript("OnClick", function(button) PickZone(button.zone or nil) end)
+				option.check = option:CreateTexture(nil, "OVERLAY")
+				option.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+				option.check:SetSize(16, 16)
+				option.check:SetPoint("RIGHT", -2, 0)
 				self.options[index] = option
 			end
 			option.zone = zone
@@ -4014,7 +4024,11 @@ function CreateWritsPane()
 			local label = zone == false and "All zones" or zone == ns.Writs.NO_ZONE and "Zone not known" or zone
 			option:SetText(zone and (count > 0 and (label .. Color(COLOR_MUTED, "  " .. count))
 				or Color(COLOR_MUTED, label .. "  0")) or label)
-			if (ns.db.ui.writZone or false) == zone then option:LockHighlight() else option:UnlockHighlight() end
+			local picked = ns.db.ui.writZones
+			local on
+			if zone then on = picked and picked[zone] or false else on = not picked end
+			if on then option:LockHighlight() else option:UnlockHighlight() end
+			option.check:SetShown(on and zone and true or false)
 			option:Show()
 		end
 		local columns = math.ceil(#zones / ZONE_ROWS)
@@ -4028,8 +4042,11 @@ function CreateWritsPane()
 	zoneButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText("Hand-in zone")
-		GameTooltip:AddLine("Show only the writs handed in where you're going. The number beside each zone is how many "
-			.. "writs it has at the level picked. Zones marked ? in the list are guesses from the other writs.", 1, 1, 1, true)
+		GameTooltip:AddLine("Show only the writs handed in where you're going: click zones to tick them, as many as you "
+			.. "like, and All zones to clear them. The number beside each zone is how many writs it has at the level "
+			.. "picked. Zones marked ? in the list are guesses from the other writs.", 1, 1, 1, true)
+		local names = ns.Writs.ZoneNames(ns.db.ui.writZones)
+		if #names > 0 then GameTooltip:AddLine("Showing: " .. table.concat(names, ", "), 1, 0.82, 0, true) end
 		GameTooltip:Show()
 	end)
 	zoneButton:SetScript("OnLeave", GameTooltip_Hide)
@@ -4063,8 +4080,10 @@ function CreateWritsPane()
 			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
 		end
 		everything:SetChecked(ns.db.ui.writAll and true or false)
-		local zone = ns.db.ui.writZone
-		zoneButton:SetText(zone and ("Zone: " .. (zone == ns.Writs.NO_ZONE and "not known" or zone)) or "Filter by zone")
+		local names = ns.Writs.ZoneNames(ns.db.ui.writZones)
+		local zone = #names > 0
+		zoneButton:SetText(#names == 1 and ("Zone: " .. names[1]) or zone and ("Zones: " .. #names .. " picked")
+			or "Filter by zone")
 		if zone then zoneButton:LockHighlight() else zoneButton:UnlockHighlight() end
 		if zoneMenu:IsShown() then zoneMenu:Fill() end
 		local priced, shown = 0, 0
@@ -4075,7 +4094,7 @@ function CreateWritsPane()
 			end
 		end
 		if shown == 0 and zone then
-			hint:SetText("No writs here for this zone. Pick another zone or All zones.")
+			hint:SetText("No writs here in the zones picked. Pick other zones or All zones.")
 		elseif shown == 0 then
 			hint:SetText("None of your characters can craft a writ's item here. Tick the box to see every writ.")
 		elseif priced == 0 then

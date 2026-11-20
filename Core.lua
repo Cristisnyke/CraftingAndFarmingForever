@@ -132,7 +132,7 @@ local function Normalize(db)
 	end
 	-- Left behind by older versions: the auction debug log, the separate windows before the tabbed one, renamed options.
 	db.auctionLog = nil
-	db.ui.hideLosing, db.ui.manualChat, db.ui.writCraftable = nil, nil, nil
+	db.ui.hideLosing, db.ui.manualChat, db.ui.writCraftable, db.ui.writZone = nil, nil, nil, nil
 	if db.ui.positions then
 		for window in pairs(db.ui.positions) do
 			if window ~= "main" and window ~= "next" then db.ui.positions[window] = nil end

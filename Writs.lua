@@ -201,6 +201,17 @@ end
 -- The zone filter's key for writs whose hand-in zone isn't known.
 Writs.NO_ZONE = "?"
 
+-- The picked zones (a set, as saved in db.ui.writZones) as names A to Z, the unknown zone last as "zone not known".
+function Writs.ZoneNames(zones)
+	local names, unknown = {}, false
+	for zone in pairs(zones or {}) do
+		if zone == Writs.NO_ZONE then unknown = true else names[#names + 1] = zone end
+	end
+	table.sort(names)
+	if unknown then names[#names + 1] = "zone not known" end
+	return names
+end
+
 function Writs.Rows(tier, craftableOnly)
 	local ctx = ns.NewContext()
 	local rows = {}
