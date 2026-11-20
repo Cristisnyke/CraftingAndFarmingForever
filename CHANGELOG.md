@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.22.0
 
 - **Writs by zone.** The Writs tab has a Filter by zone button: tick one or more zones to see only the writs handed in there, with how many each zone has. The new Zone heading also sorts the list by where writs are handed in.
 

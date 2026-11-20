@@ -70,6 +70,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - The Writs tab lists every Craftsman's Writ with its auction house price, the cost of the item it wants (crafted by your characters when that's cheaper), the average coin pouch and the gold each reputation point costs you, cheapest reputation first.
 - For the daily writ quests of the Azeroth Commerce Authority and Durotar Supply and Logistics.
 - It starts with the writs your characters can craft for; one tick shows them all. Show one level (Journeyman, Expert, Artisan) or sort by any column.
+- Filter by zone: tick one or more hand-in zones to see only their writs, or sort by zone to plan one trip.
 - **+** puts a writ on your queue: the shopping list gets the writ and its item, or the item's materials when crafting it is cheaper. It comes off the queue when you hand it in.
 
 ### Waylaid Crates: the cheapest Merchant's Favor

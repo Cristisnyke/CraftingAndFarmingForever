@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.22.0", lines = {
+		"- Writs by zone. The Writs tab has a Filter by zone button: tick one or more zones to see only the writs handed in there, with how many each zone has. The new Zone heading also sorts the list by where writs are handed in.",
+	} },
 	{ version = "1.21.0", lines = {
 		"- Crafting time on the Restock tab. Beside the Stock level slider a clock shows about how long the restock takes to craft, including the bars, cloth and other sub-crafts its materials need. It changes as you drag the slider.",
 	} },
