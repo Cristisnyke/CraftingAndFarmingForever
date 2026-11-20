@@ -279,7 +279,15 @@ local function SyndicatorAPI()
 		return nil
 	end
 	local ok, ready = pcall(api.IsReady)
-	return ok and ready and api or nil
+	if not (ok and ready) then return nil end
+	-- Syndicator's own name for the character you're playing, kept on its record: the realm part can't be worked out
+	-- reliably from the realm's name on Forever, so a left-out character is matched by this where it's known.
+	local record = ns.CharKey() and ns.db.chars[ns.CharKey()]
+	if record then
+		local named, name = pcall(api.GetCurrentCharacter)
+		if named and type(name) == "string" then record.syndicatorKey = name end
+	end
+	return api
 end
 
 function Stock.HasSyndicator()
@@ -292,6 +300,110 @@ local function SyndicatorKey(char)
 	return realm and realm ~= "" and (char.character .. "-" .. realm) or char.character
 end
 
+-- Syndicator's names of the characters left out on the Options tab, as a set. Never the one you're playing.
+local function LeftOut(me)
+	local keys = {}
+	for key in pairs(ns.db.ui.excludedChars or {}) do
+		local char = ns.db.chars[key]
+		if not char then
+			keys[key] = true
+		elseif char.syndicatorKey and ns.CharExcluded(key) then
+			keys[char.syndicatorKey] = true
+		end
+	end
+	if me then keys[me] = nil end
+	return keys
+end
+
+-- Syndicator's characters: { { full = "Name-Realm", name, realm, classFile = "SHAMAN" or nil }, ... }. On Forever
+-- the name has a surname ("Melody Stormveil") that the game doesn't tell this add-on.
+local function SyndicatorCharacters(api)
+	local ok, names = false, nil
+	if type(api.GetAllCharacters) == "function" then ok, names = pcall(api.GetAllCharacters) end
+	local list = {}
+	if not (ok and type(names) == "table") then return list end
+	for _, full in ipairs(names) do
+		if type(full) == "string" then
+			local details
+			if type(api.GetByCharacterFullName) == "function" then
+				local found, data = pcall(api.GetByCharacterFullName, full)
+				details = found and type(data) == "table" and type(data.details) == "table" and data.details or nil
+			end
+			local name, realm = full:match("^(.*)%-(.-)$")
+			table.insert(list, { full = full, name = details and details.character or name or full,
+				realm = details and details.realm or realm, classFile = details and details.className })
+		end
+	end
+	return list
+end
+
+-- Which of Syndicator's characters a record here is: the name Syndicator gave it while you played it, else the only
+-- one whose first name and class match. Nil when that's none or more than one.
+local function SyndicatorMatch(char, characters)
+	if char.syndicatorKey then return char.syndicatorKey end
+	if not char.name then return nil end
+	local class = char.classFile or (char.class and char.class:upper():gsub("%s", ""))
+	local match
+	for _, other in ipairs(characters) do
+		local first = other.name:match("^(%S+)")
+		if first == char.name and (not class or not other.classFile or other.classFile == class) then
+			if match then return nil end
+			match = other.full
+		end
+	end
+	return match
+end
+
+-- Every character the Options tab can leave out, one row each: Syndicator's characters, with the records here that are
+-- the same character, then records Syndicator doesn't know that have recipes. Old records of a character with nothing
+-- in them aren't listed. { { key, label, guids = { record keys }, me = true for the one you're playing }, ... }
+function Stock.Characters()
+	local myKey = ns.CharKey()
+	local api = SyndicatorAPI() -- first, so the character you're playing has its Syndicator name
+	local characters = api and SyndicatorCharacters(api) or {}
+	local list, byFull, names = {}, {}, {}
+	for _, other in ipairs(characters) do
+		local entry = { key = other.full, label = other.name, realm = other.realm, guids = {} }
+		byFull[other.full] = entry
+		names[other.name] = (names[other.name] or 0) + 1
+		table.insert(list, entry)
+	end
+	-- The same name on two realms: the realm tells them apart.
+	for _, entry in ipairs(list) do
+		if names[entry.label] > 1 and entry.realm then entry.label = entry.label .. " (" .. entry.realm .. ")" end
+	end
+	for key, char in pairs(ns.db.chars) do
+		local full = SyndicatorMatch(char, characters)
+		local entry = full and byFull[full]
+		if entry then
+			table.insert(entry.guids, key)
+			if key == myKey then entry.me = true end
+		elseif key == myKey or next(char.recipes or {}) then
+			table.insert(list, { key = key, label = ns.CharLabel(key), guids = { key }, me = key == myKey or nil })
+		end
+	end
+	table.sort(list, function(a, b) return a.label < b.label end)
+	return list
+end
+
+-- Whether a row of Stock.Characters is ticked, and ticking it: its Syndicator name and every record of it here.
+function Stock.IsLeftOut(entry)
+	local excluded = ns.db.ui.excludedChars
+	if not excluded then return false end
+	if excluded[entry.key] then return true end
+	for _, key in ipairs(entry.guids or {}) do
+		if excluded[key] then return true end
+	end
+	return false
+end
+
+function Stock.SetLeftOut(entry, on)
+	local excluded = ns.db.ui.excludedChars or {}
+	excluded[entry.key] = on or nil
+	for _, key in ipairs(entry.guids or {}) do excluded[key] = on or nil end
+	ns.db.ui.excludedChars = next(excluded) and excluded or nil
+end
+
 -- Bags and bank of other characters on the connected realm and same faction, since those can mail to this one.
 function Stock.Alts(itemID)
 	local api = SyndicatorAPI()
@@ -299,11 +411,12 @@ function Stock.Alts(itemID)
 	local ok, info = pcall(api.GetInventoryInfoByItemID, itemID, true, true)
 	if not ok or type(info) ~= "table" then return {} end
 	local me = api.GetCurrentCharacter()
+	local leftOut = LeftOut(me)
 	local result = {}
 	for _, char in ipairs(info.characters or {}) do
 		local key = SyndicatorKey(char)
 		local count = (char.bags or 0) + (char.bank or 0)
-		if key ~= me and count > 0 then
+		if key ~= me and not leftOut[key] and count > 0 then
 			table.insert(result, { name = char.character or key, count = count })
 		end
 	end
@@ -470,11 +583,15 @@ function Stock.ForRestock(itemID)
 	local ok, info = pcall(api.GetInventoryInfoByItemID, itemID, true, true)
 	if not ok or type(info) ~= "table" then return nil, owned end
 	local me = api.GetCurrentCharacter()
+	local leftOut = LeftOut(me)
 	local onAH = 0
 	for _, char in ipairs(info.characters or {}) do
-		onAH = onAH + (char.auctions or 0)
-		owned = owned + (char.mail or 0)
-		if SyndicatorKey(char) ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
+		local key = SyndicatorKey(char)
+		if not leftOut[key] then
+			onAH = onAH + (char.auctions or 0)
+			owned = owned + (char.mail or 0)
+			if key ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
+		end
 	end
 	return onAH, owned
 end
@@ -765,11 +882,12 @@ ns.On("TRADE_SKILL_LIST_UPDATE", RequestScan)
 ns.On("TRADE_SKILL_DATA_SOURCE_CHANGED", RequestScan)
 ns.On("TRADE_SKILL_SHOW", RequestScan)
 
--- Recipes known by each output item, across every character recorded so far.
+-- Recipes known by each output item, across every character recorded so far except those left out.
+local NONE = {}
 function Recipes.KnownMap()
 	local known, seen = {}, {}
-	for _, char in pairs(ns.db.chars) do
-		for recipeID in pairs(char.recipes) do
+	for key, char in pairs(ns.db.chars) do
+		for recipeID in pairs(ns.CharExcluded(key) and NONE or char.recipes) do
 			local recipe = ns.db.recipes[recipeID]
 			if recipe and recipe.o and not seen[recipeID] then
 				seen[recipeID] = true
@@ -781,11 +899,11 @@ function Recipes.KnownMap()
 	return known
 end
 
--- Every profession known on any character: { { id, name }, ... } by name.
+-- Every profession known on any character not left out: { { id, name }, ... } by name.
 function Recipes.KnownProfessions()
 	local names = {}
-	for _, char in pairs(ns.db.chars) do
-		for recipeID in pairs(char.recipes) do
+	for key, char in pairs(ns.db.chars) do
+		for recipeID in pairs(ns.CharExcluded(key) and NONE or char.recipes) do
 			local recipe = ns.db.recipes[recipeID]
 			if recipe and recipe.p then names[recipe.p] = recipe.pn or tostring(recipe.p) end
 		end
@@ -821,9 +939,10 @@ function Recipes.ProfessionName(professionID)
 	return nil
 end
 
+-- A character left out on the Options tab knows nothing, so it's never picked to craft.
 function Recipes.Knows(charKey, recipeID)
 	local char = charKey and ns.db.chars[charKey]
-	return char ~= nil and char.recipes[recipeID] == true
+	return char ~= nil and char.recipes[recipeID] == true and not ns.CharExcluded(charKey)
 end
 
 -- The logged-in character when it knows the recipe, then the preferred one, then anyone who does.

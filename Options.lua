@@ -154,6 +154,108 @@ local function ExampleProfession()
 	return "[Tailoring]"
 end
 
+-- What the Leave out button says: who's left out, by name when it's one.
+local function LeftOutText()
+	local names = {}
+	for _, entry in ipairs(ns.Stock.Characters()) do
+		if ns.Stock.IsLeftOut(entry) then table.insert(names, entry.label) end
+	end
+	if #names == 0 then return "Every character counts", names end
+	if #names == 1 then return "Left out: " .. names[1], names end
+	return ("Left out: %d characters"):format(#names), names
+end
+
+-- A button that opens a list of your characters: click one to tick it (left out) or untick it; Count every
+-- character clears them all.
+local CHAR_ROWS, CHAR_WIDTH, CHAR_HEIGHT = 14, 190, 18
+local function CharacterPicker(parent, x, y)
+	local button = ns.UI.FlatButton(parent, "", 200, 20)
+	button:SetPoint("TOPLEFT", x, -y)
+	local menu = CreateFrame("Frame", nil, button, "BackdropTemplate")
+	menu:SetFrameStrata("DIALOG")
+	menu:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
+	ns.UI.FlatBox(menu, ns.UI.THEME.header, ns.UI.THEME.border)
+	menu:Hide()
+	menu.options = {}
+	button.menu = menu
+
+	local function Pick(entry)
+		if entry then
+			ns.Stock.SetLeftOut(entry, not ns.Stock.IsLeftOut(entry))
+		else
+			ns.db.ui.excludedChars = nil
+		end
+		Changed(true)
+	end
+	menu.Fill = function(self)
+		local entries = ns.Stock.Characters()
+		table.insert(entries, 1, false)
+		for index, entry in ipairs(entries) do
+			local option = self.options[index]
+			if not option then
+				option = ns.UI.FlatButton(self, "-", CHAR_WIDTH, CHAR_HEIGHT)
+				local text = option:GetFontString()
+				if text then
+					text:ClearAllPoints()
+					text:SetPoint("LEFT", 6, 0)
+					text:SetPoint("RIGHT", -20, 0)
+					text:SetJustifyH("LEFT")
+				end
+				local column, line = math.floor((index - 1) / CHAR_ROWS), (index - 1) % CHAR_ROWS
+				option:SetPoint("TOPLEFT", 4 + column * (CHAR_WIDTH + 2), -4 - line * CHAR_HEIGHT)
+				option:SetScript("OnClick", function(clicked) Pick(clicked.entry or nil) end)
+				option.check = option:CreateTexture(nil, "OVERLAY")
+				-- A cross, not a tick: a marked character is left out.
+				option.check:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+				option.check:SetSize(14, 14)
+				option.check:SetPoint("RIGHT", -2, 0)
+				self.options[index] = option
+			end
+			option.entry = entry
+			local excluded = ns.db.ui.excludedChars
+			local on
+			if entry then
+				on = ns.Stock.IsLeftOut(entry)
+				option:SetText(entry.label .. (entry.me and (MUTED .. "  you|r") or ""))
+			else
+				on = not excluded
+				option:SetText("Count every character")
+			end
+			if on then option:LockHighlight() else option:UnlockHighlight() end
+			option.check:SetShown(on and entry and true or false)
+			option:Show()
+		end
+		for index = #entries + 1, #self.options do self.options[index]:Hide() end
+		local columns = math.ceil(#entries / CHAR_ROWS)
+		self:SetSize(8 + columns * (CHAR_WIDTH + 2) - 2, 8 + math.min(#entries, CHAR_ROWS) * CHAR_HEIGHT)
+	end
+	button:SetScript("OnClick", function()
+		if menu:IsShown() then menu:Hide() return end
+		menu:Fill()
+		menu:Show()
+	end)
+	button:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+		GameTooltip:SetText("Leave characters out")
+		GameTooltip:AddLine("Click characters to cross them out and leave them out of everything: their recipes don't show on the Profit "
+			.. "tab and they're never picked to craft, and what's in their bags, bank, mail and auctions isn't counted "
+			.. "for the queue, the shopping list or restocking. The character you're playing always counts.", 1, 1, 1,
+			true)
+		local _, names = LeftOutText()
+		if #names > 0 then GameTooltip:AddLine("Left out: " .. table.concat(names, ", "), 1, 0.82, 0, true) end
+		GameTooltip:Show()
+	end)
+	button:SetScript("OnLeave", GameTooltip_Hide)
+	parent:HookScript("OnHide", function() menu:Hide() end)
+	button.Sync = function(self)
+		local text = LeftOutText()
+		self:SetText(text)
+		if ns.db.ui.excludedChars then self:LockHighlight() else self:UnlockHighlight() end
+		if menu:IsShown() then menu:Fill() end
+	end
+	return button
+end
+
 -- Builds the controls on `parent`, starting `top` below its top edge. Returns the function that shows the saved
 -- values. Options.Controls(parent) hands the controls to the tests.
 function Options.Build(parent, top)
@@ -167,8 +269,14 @@ function Options.Build(parent, top)
 			write or function(on) ns.SetOption(key, on) end)
 		y = y + 22
 	end
+	-- Beside the first tick box, in the second column: which characters count.
+	local leaveOut = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	leaveOut:SetPoint("TOPLEFT", LEFT + 384, -y - 5)
+	leaveOut:SetText("Characters")
+	controls.characters = CharacterPicker(parent, LEFT + 450, y + 1)
 	AddCheck("autoOpen", "Open with the profession window",
 		"The window opens when you open a profession, and closes with it.")
+	controls.autoOpen:SetHitRectInsets(0, -340, 0, 0)
 	AddCheck("minimap", "Show the minimap button", "The button on the minimap that opens this window.",
 		ns.MinimapButton.Shown, ns.MinimapButton.SetShown)
 	AddCheck("nextStep", "Show the Next step bar",
@@ -424,6 +532,7 @@ function Options.Build(parent, top)
 				button:UnlockHighlight()
 			end
 		end
+		controls.characters:Sync()
 		controls.smartLevel:Sync()
 		controls.keepGold:Sync()
 		controls.priceCap:Sync()
