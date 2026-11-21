@@ -3513,8 +3513,19 @@ do
 	ns.Vendor.Sync()
 	check("vendor step: sold out here", ns.Vendor.Pending(), nil)
 	slots[2].info.numAvailable = -1
-	Fire("MERCHANT_CLOSED")
+	-- Walking away mid-job: what was bought still gets counted, after a moment.
+	ns.RequestPlan()
+	RunTimers()
+	said = {}
+	ns.Print = function(text) table.insert(said, text) end
+	check("vendor step: buys again", (ns.Vendor.Run()), true)
+	FireNow("MERCHANT_CLOSED")
 	check("vendor step: closed", ns.Vendor.IsOpen(), false)
+	check("vendor step: counts after closing, not at once", ns.Vendor.Progress() ~= nil, true)
+	RunTimers()
+	ns.Print = realPrint
+	check("vendor step: counted the last purchase", said[1], "Vendor: bought Coarse Thread x5 for 50c.")
+	check("vendor step: says why it stopped", said[2], "Vendor: stopped (the merchant closed).")
 	ns.Queue.Clear()
 	RunTimers()
 	C_Item.GetItemCount, playerMoney = itemCount, money

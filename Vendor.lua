@@ -116,8 +116,12 @@ function Vendor.AddTooltipLines(tooltip)
 			1, 1, 1, 1, 1, 1)
 		if buy.short > 0 then tooltip:AddLine(("  only part: %d more to find elsewhere"):format(buy.short), 1, 0.6, 0.2) end
 	end
-	for itemID, units in pairs(pending.notHere) do
-		tooltip:AddLine(("%s x%d: not sold here"):format(ns.Items.Name(itemID) or "?", units), 0.6, 0.6, 0.6)
+	local missing = {}
+	for itemID in pairs(pending.notHere) do table.insert(missing, itemID) end
+	table.sort(missing)
+	for _, itemID in ipairs(missing) do
+		tooltip:AddLine(("%s x%d: not sold here"):format(ns.Items.Name(itemID) or "?", pending.notHere[itemID]),
+			0.6, 0.6, 0.6)
 	end
 end
 
@@ -199,8 +203,8 @@ Step = function()
 	if job.settling then return Finish() end
 	if job.stopped then return Settle() end
 	if not open then
-		job.stopped = "the merchant closed"
-		return Finish()
+		job.stopped = job.stopped or "the merchant closed"
+		return Settle()
 	end
 	local buy = job.buys[job.index]
 	while buy and buy.left <= 0 do
@@ -264,10 +268,8 @@ end)
 local function SetOpen(state)
 	if open == state then return end
 	open = state
-	if not open and job then
-		job.stopped = job.stopped or "the merchant closed"
-		Finish()
-	end
+	-- The next step of the job notices, and counts what arrived after a moment, so the last purchase isn't missed.
+	if not open and job then job.stopped = job.stopped or "the merchant closed" end
 	Changed()
 	if ns.UI and ns.UI.Refresh then ns.UI.Refresh("next") end
 end
