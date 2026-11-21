@@ -15,8 +15,10 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `Core.lua` | Events, debounce, saved data (including late loading), character records, money formatting |
 | `Planner.lua` | Pure logic: cheapest-path cost, profit, expanding the queue into a plan. No game APIs. |
 | `Sources.lua` | Generated table of where materials come from, for Farm It. Don't edit by hand. |
+| `RecipeSources.lua` | Generated table of every crafting recipe and where it's learned from, for the Recipes list. Don't edit by hand. |
 | `Farm.lua` | Turns the plan's materials into the Farm It gathering list |
 | `Data.lua` | Every client read: item data, Auctionator prices and scan age, stock, recipe scanning |
+| `RecipeBook.lua` | The Recipes list: every recipe against each character (learned, can learn, needs skill), sources in words, NPC/quest/zone names from the client (NPC names saved in `db.npcNames`) |
 | `Depth.lua` | Listing depth: every listing of a material (from any search that passes by, and its own low-priority searches at the auction house), so the planner can cost buying many |
 | `Lock.lua` | The screen lock while `Depth.lua`'s own check runs: a full-screen sheet that takes clicks and keys, the item being read and its rows outlined, one lock across chained rounds, and every way it comes down |
 | `Vendor.lua` | The vendor step done on a click at a merchant: buys `plan.vendor` as far as that merchant sells it, one purchase at a time, plus the button under the merchant window |
@@ -86,16 +88,21 @@ Copies only the `.toc`, `.lua`, `LICENSE` and `Media/*.tga` files into `AddOns/C
 - Saved data is only written on `/reload` or logout: `WTF/Account/<account>/SavedVariables/CraftingAndFarmingForever.lua`.
 - Lua errors are easiest to read from BugSack's saved data.
 
-## Regenerating Sources.lua
+## Regenerating the AllTheThings tables
 
-Farm It's data comes from the AllTheThings add-on's Camelot data set, the one Forever loads. Regenerate it when AllTheThings gets a meaningful update:
+Farm It's data (`Sources.lua`) and the Recipes list's (`RecipeSources.lua`) come from the AllTheThings add-on's Camelot data set, the one Forever loads. Regenerate both before a release whenever AllTheThings has updated:
 
 ```sh
-lua5.1 tools/gen_sources.lua "<AddOns>/AllTheThings/db/Camelot" > Sources.lua
-tools/check.sh
+tools/refresh_att.sh ["<AddOns>/AllTheThings/db/Camelot"]
 ```
 
-The generated file carries AllTheThings' MIT notice. Keep it.
+It writes both files, prints how many recipes were added or are gone, and runs `tools/check.sh`. A large number gone usually means AllTheThings changed its file format: fix `tools/att_load.lua`, which holds everything that depends on that format (both generators use it). `tools/check.sh` prints a note when the installed AllTheThings is newer than the one the tables came from (`ns.RECIPE_DATA_VERSION`).
+
+- `gen_recipes.lua` keeps recipes of crafting professions (and Mining, Fishing, First Aid, Cooking) and leaves out anything AllTheThings marks never implemented, removed, removed by this game version or added after it (`## Interface` in the toc is the version).
+- A recipe's sources are worked out from where it sits in AllTheThings' tree: under a profession's NPC = trainer (any trainer, unless in a dungeon), Vendors heading = vendor, a quest = quest, World Drops = world drop, an instance = dungeon drop, creatures or Zone Drops = drop, an object = treasure, anything else = other with AllTheThings' note.
+- In game, the profession window's own list (unlearned recipes included) is saved per profession in `db.recipeLists`; AllTheThings' recipes missing from it are left out of the list, and recipes only the game has are added.
+
+The generated files carry AllTheThings' MIT notice. Keep it.
 
 ## Renaming migration
 

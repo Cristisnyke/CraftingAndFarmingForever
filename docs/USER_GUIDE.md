@@ -47,6 +47,20 @@ Every known recipe, ranked by profit per craft:
 - Colours are per character and are read whenever the profession window is open, so they update as you level. For an alt, open its profession on that alt first.
 - **+** queues crafts as on the Profit list, and clicking a row opens the recipe.
 
+### Recipes (what to learn next)
+
+**Recipes**, the third button at the top of the Profit tab, lists every recipe in the game that you haven't learned yet, for the profession tab you pick (on **All**, every profession your character has), sorted by the skill needed to learn it.
+
+- **Colours:** **green** can be learned now, **white** needs more skill (the Skill column turns red), **grey** is learned (shown with **Show learned** ticked), dim means the character doesn't have that profession.
+- **Columns:** **Skill** needed to learn it, **Source** (Trainer, Vendor, Quest, Dungeon, Drop, Treasure, World drop; `+1` means it also comes from one more kind of place, `*` means only during a holiday) and **AH price** of the recipe item when it's traded (**BoP** when it binds on pickup and can't be bought).
+- **Hover a recipe** for where to get it: the vendor, zone, price (gold, tokens, Merchant's Favor) and reputation needed, limited supply; the quest and who gives it; the dungeon and boss; the mobs that drop it. Vendors and quests of the other faction are left out. Below that, every one of your characters with that profession and whether they've learned it, can learn it now, or how much skill they're short.
+- **This character / All characters** (bottom left, where Advertise is in the other modes) switches whose recipes you see. With **All characters**, a recipe is listed while any character with that profession is missing it, and those characters are named in blue on the row.
+- **Show learned** (top) lists learned recipes too, in grey.
+- **Shift-click** a recipe to link it in chat, for asking in Trade. Clicking a learned recipe opens it when its profession window is open.
+- Sorting and search work as on the Profit list. The list starts with the lowest skill needed.
+- Where recipes come from is built from **AllTheThings** data and ships with the add-on; you don't need AllTheThings installed. Recipes new to Forever that AllTheThings doesn't have yet show with source "Unknown" once the profession window has listed them. When you open a profession, the game's own list of its recipes is remembered, and recipes AllTheThings has that this game doesn't are left out (the footer counts them).
+- A character's skill is read when its profession window is open. Until then the tooltip says "skill not read".
+
 ### Cheapest path
 
 For each material, the add-on picks the cheapest of:

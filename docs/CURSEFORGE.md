@@ -39,6 +39,12 @@ It ranks every recipe your characters know by real profit at current auction hou
 - Coloured orange, yellow and green as in the game, with each colour's chance of a point.
 - Uses today's auction house prices, so it's a levelling guide that's never out of date.
 
+### Recipes: what to learn next, and where
+
+- Every recipe in the game you haven't learned yet, by the skill it needs, green when you can learn it now.
+- Hover one for where it comes from: trainer, vendor (with its price, tokens or Merchant's Favor, and reputation), quest, dungeon boss, drop, world drop or holiday, and whether you can buy it on the auction house.
+- See which of your characters have learned it or can learn it, or switch to all characters to see every recipe an alt is still missing.
+
 ### One craft queue for every character
 
 - Queue from the profit list, or with the **Queue** button on any recipe page.
@@ -156,7 +162,7 @@ Please report bugs in the comments or on [GitHub](https://github.com/Cristisnyke
 
 - **[Auctionator](https://www.curseforge.com/wow/addons/auctionator)** by plusmouse and Borjamacare: prices, price history and the shopping list.
 - **[Syndicator](https://www.curseforge.com/wow/addons/syndicator)** by plusmouse: stock across your characters.
-- **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team: Farm It's data on where materials come from, used under the MIT License.
+- **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team: Farm It's data on where materials come from and the Recipes list's data on where recipes come from, used under the MIT License.
 
 ## License
 

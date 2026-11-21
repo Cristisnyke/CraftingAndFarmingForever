@@ -222,6 +222,10 @@ local SORTS = {
 		ascending = { name = true, chance = false, profit = false } },
 	skill = { key = "skillSort", asc = "skillSortAsc", default = "profit",
 		ascending = { name = true, chance = false, cost = true, profit = true } },
+	-- Recipes: by the skill needed, lowest first; names A to Z; source in a fixed order (trainer, vendor, quest, ...);
+	-- the recipe's auction house price, cheapest first.
+	recipes = { key = "recipeSort", asc = "recipeSortAsc", default = "chance",
+		ascending = { name = true, chance = true, cost = true, profit = true } },
 	-- Writs: names and hand-in zones A to Z, the writ's price lowest first, the gold kept highest first, gold per
 	-- reputation lowest first.
 	writs = { key = "writSort", asc = "writSortAsc", default = "profit", pane = "writs",
@@ -348,8 +352,47 @@ local function BuildSkillList()
 	return list
 end
 
+-- Recipes mode: every recipe of the professions looked at, against one character (default) or all of them.
+-- COLORS by status: green can be learned now, white needs more skill, grey learned, dim nobody has the profession.
+local RECIPE = {
+	COLORS = { learn = "ff40bf40", skill = "ffffffff", learned = "ff808080", none = "ff999999" },
+	SKILL_SHORT = "ffff6655", -- the skill needed, when it's more than the character has
+	WHO = "ff99ccff",
+	NAMES_ON_ROW = 2,
+}
+
+function RECIPE.Who()
+	return ns.db.ui.recipeWho == "all" and "all" or "me"
+end
+
+local function BuildRecipeList()
+	local who = RECIPE.Who()
+	local me = ns.CharKey()
+	local rows, info = ns.RecipeBook.Rows({ professionID = selectedProfession.profit, who = who, me = me,
+		showLearned = ns.db.ui.recipeLearned, search = profitSearch })
+	local key, ascending = UI.ListSort("recipes")
+	ns.RecipeBook.Sort(rows, key, ascending)
+	local list = { recipes = true, info = info, who = who }
+	if #rows == 0 then
+		local text
+		if profitSearch ~= "" then
+			text = "No recipes match your search."
+		elseif info.learnedHidden > 0 then
+			text = "Every recipe here is learned. Tick Show learned to list them."
+		else
+			text = "Open a profession on a character to record it, then its recipes show here."
+		end
+		table.insert(list, { kind = "note", text = text })
+		return list
+	end
+	table.insert(list, { kind = "header", text = "Recipe", columns = "recipes" })
+	for _, row in ipairs(rows) do table.insert(list, { kind = "recipe", row = row, who = who }) end
+	return list
+end
+
 local function BuildProfitList()
 	if ns.db.ui.profitMode == "skill" then return BuildSkillList() end
+	if ns.db.ui.profitMode == "recipes" then return BuildRecipeList() end
 	local cacheKey = ProfitKey()
 	if not profitCache or profitCache.key ~= cacheKey then
 		profitCache = ComputeProfit()
@@ -1011,6 +1054,81 @@ local function ShowSkillTooltip(row, item)
 	GameTooltip:Show()
 end
 
+-- Where a recipe comes from, then every character with its profession and whether they know it. Names the client
+-- hasn't loaded yet are asked for; the tooltip is drawn once more a moment later to show them.
+function RECIPE.ShowTooltip(row, item)
+	local Book = ns.RecipeBook
+	local recipeID = item.recipeID
+	local data = Book.Data(recipeID)
+	GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+	if data and data.i then
+		GameTooltip:SetItemByID(data.i)
+	elseif GameTooltip.SetSpellByID then
+		GameTooltip:SetSpellByID(recipeID)
+	else
+		GameTooltip:SetText(item.name or "Recipe")
+	end
+	GameTooltip:AddLine(" ")
+	local professionID = Book.Profession(recipeID)
+	local professionName = professionID and ns.Recipes.ProfessionName(professionID) or "its profession"
+	if item.skill then GameTooltip:AddLine(("Needs %s %d to learn"):format(professionName, item.skill), 1, 0.82, 0) end
+	GameTooltip:AddLine("Where to get it", 1, 0.82, 0)
+	local lines, missing = Book.SourceLines(recipeID, ns.CharKey())
+	for _, line in ipairs(lines) do
+		GameTooltip:AddLine(line.text, 1, 1, 1, true)
+		if line.detail then GameTooltip:AddLine("   " .. line.detail, 0.75, 0.75, 0.75, true) end
+		if line.note then GameTooltip:AddLine("   " .. line.note, 0.6, 0.6, 0.6, true) end
+	end
+	if item.bound then
+		GameTooltip:AddLine("Binds on pickup: it can't be bought on the auction house.", 1, 0.6, 0.2, true)
+	elseif data and data.i then
+		if item.price then
+			GameTooltip:AddDoubleLine("On the auction house", ns.Money(item.price), 1, 1, 1, 1, 1, 1)
+		else
+			GameTooltip:AddLine("Can be traded, but no auction house price seen yet.", 0.6, 0.6, 0.6, true)
+		end
+	end
+
+	-- Everyone with the profession, this character first.
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine(("Your characters with %s"):format(professionName), 1, 0.82, 0)
+	local me, keys = ns.CharKey(), {}
+	for key in pairs(ns.db.chars) do table.insert(keys, key) end
+	table.sort(keys, function(a, b)
+		if (a == me) ~= (b == me) then return a == me end
+		return ns.CharLabel(a) < ns.CharLabel(b)
+	end)
+	local any = false
+	for _, key in ipairs(keys) do
+		local status, need, have = Book.Status(key, recipeID)
+		if status ~= "none" then
+			any = true
+			local text, hex
+			if status == "learned" then
+				text, hex = "learned", COLOR_MUTED
+			elseif status == "skill" then
+				text, hex = ("needs %d, has %d"):format(need, have), COLOR_WARN
+			elseif have then
+				text, hex = ("can learn it now (%d)"):format(have), RECIPE.COLORS.learn
+			else
+				text, hex = ("can learn it (skill not read: open %s on it)"):format(professionName), RECIPE.COLORS.learn
+			end
+			GameTooltip:AddDoubleLine(ns.CharLabel(key) .. (key == me and " (you)" or ""), Color(hex, text),
+				1, 1, 1, 1, 1, 1)
+		end
+	end
+	if not any then GameTooltip:AddLine(("None of your characters has %s."):format(professionName), 0.6, 0.6, 0.6, true) end
+	if data and data.i then GameTooltip:AddLine("Shift-click to link the recipe in chat.", 0.6, 0.6, 0.6, true) end
+	GameTooltip:Show()
+	-- Once per recipe, so a name that never loads doesn't redraw it forever.
+	if missing and row.live.recipeRetry ~= recipeID then
+		row.live.recipeRetry = recipeID
+		C_Timer.After(0.5, function()
+			if row.data and row.data.row == item and GameTooltip:IsOwned(row) then RECIPE.ShowTooltip(row, item) end
+		end)
+	end
+end
+
 local function ShowProfitTooltip(row, result)
 	StartItemTooltip(row, result.itemID, result.recipeID)
 	AddPartLines(result.parts)
@@ -1166,6 +1284,14 @@ local COLUMN_TIPS = {
 		"Profit: for one craft, after the 5% auction house cut, with materials by the cheapest path.",
 		"Click Recipe, Sells or Profit to sort by it; click again to reverse.",
 	},
+	recipes = {
+		"Green: can be learned now. White: needs more skill. Grey: learned. Blue names: the characters still "
+			.. "missing it (All characters).",
+		"Skill: the skill needed to learn it, red when it's more than you have.",
+		"Source: where it comes from, the first of several (+1 means one more kind). * means during a holiday.",
+		"AH price: the recipe on the auction house. BoP binds on pickup, so it can't be bought.",
+		"Hover a recipe for where to find it and who knows it. Click a heading to sort by it; click again to reverse.",
+	},
 	skill = {
 		"Recipes are coloured as in the profession window. Grey ones can't give skill and aren't listed.",
 		"Chance: of a skill point per craft. Orange always; yellow about half the time and green less often "
@@ -1201,6 +1327,8 @@ local function RowOnEnter(row)
 		ShowProfitTooltip(row, data.result)
 	elseif data.kind == "skill" then
 		ShowSkillTooltip(row, data.row)
+	elseif data.kind == "recipe" then
+		RECIPE.ShowTooltip(row, data.row)
 	elseif data.kind == "writ" then
 		ShowWritTooltip(row, data.row)
 	elseif data.kind == "crate" then
@@ -1398,6 +1526,15 @@ local function RowOnClick(row)
 	local data = row.data
 	if data and data.kind == "post" then
 		ns.Posting.Select(data.row.itemID)
+	elseif data and data.kind == "recipe" then
+		local recipeID = data.row.recipeID
+		local recipeData = ns.RecipeBook.Data(recipeID)
+		if IsModifiedClick and IsModifiedClick("CHATLINK") then
+			local link = recipeData and recipeData.i and select(2, C_Item.GetItemInfo(recipeData.i))
+			if link and ChatEdit_InsertLink then ChatEdit_InsertLink(link) end
+		elseif ns.Recipes.Knows(ns.CharKey(), recipeID) and ns.Recipes.OpenRecipes()[recipeID] then
+			C_TradeSkillUI.OpenRecipe(recipeID)
+		end
 	elseif data and (data.kind == "profit" or data.kind == "skill") then
 		local recipeID = data.kind == "profit" and data.result.recipeID or data.row.recipeID
 		if ns.Recipes.Knows(ns.CharKey(), recipeID) and ns.Recipes.OpenRecipes()[recipeID] then
@@ -1526,6 +1663,12 @@ end
 local function ProfitControls(row)
 	row.profit:SetWidth(COLUMN.PROFIT)
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.chance, 6 } }
+end
+
+-- The Recipes columns line up with the other modes' (where they have the + button).
+function RECIPE.Controls(row)
+	row.profit:SetWidth(COLUMN.QUEUE)
+	return { { row.profit, 26 }, { row.cost, 6 }, { row.chance, 6 } }
 end
 
 local function SkillControls(row)
@@ -2115,6 +2258,9 @@ local function SetRow(row, data)
 				columns = { chance = { row.colAH, "Writ" }, cost = { row.cost, "Net" }, profit = { row.profit, "Per rep" } }
 				row.colHave:SetText(Color("ffffd100", "Item"))
 				row.colHave:Show()
+			elseif mode == "recipes" then
+				PlaceRight(row, RECIPE.Controls(row), false)
+				columns = { chance = { row.chance, "Skill" }, cost = { row.cost, "Source" }, profit = { row.profit, "AH price" } }
 			elseif mode == "crates" then
 				PlaceRight(row, WritControls(row), false)
 				columns = { chance = { row.colAH, "Price" }, cost = { row.cost, "Favor" }, profit = { row.profit, "Per Favor" } }
@@ -2202,6 +2348,33 @@ local function SetRow(row, data)
 				.. Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
 		else
 			row.profit:SetText(Color(COLOR_MUTED, "no data"))
+		end
+	elseif data.kind == "recipe" then
+		local item = data.row
+		row.icon:SetTexture(ns.RecipeBook.Icon(item.recipeID))
+		local text = Color(RECIPE.COLORS[item.status] or "ffffffff", item.name or "Loading...")
+		if item.status == "learned" then text = text .. Color(COLOR_MUTED, "  learned") end
+		if data.who == "all" then
+			local names = {}
+			for _, char in ipairs(item.chars) do
+				if char.status == "learn" or char.status == "skill" then table.insert(names, ns.CharLabel(char.key)) end
+			end
+			if #names > RECIPE.NAMES_ON_ROW then
+				local more = #names - RECIPE.NAMES_ON_ROW
+				for i = #names, RECIPE.NAMES_ON_ROW + 1, -1 do names[i] = nil end
+				names[#names + 1] = "+" .. more
+			end
+			if #names > 0 then text = text .. "  " .. Color(RECIPE.WHO, table.concat(names, ", ")) end
+		end
+		row.left:SetText(text)
+		PlaceRight(row, RECIPE.Controls(row), true)
+		row.chance:SetText(item.skill and Color(item.status == "skill" and RECIPE.SKILL_SHORT or "ffffffff",
+			tostring(item.skill)) or Color(COLOR_MUTED, "?"))
+		row.cost:SetText(item.source)
+		if item.bound then
+			row.profit:SetText(Color(COLOR_MUTED, "BoP"))
+		else
+			row.profit:SetText(item.price and ns.Money(item.price) or "")
 		end
 	elseif data.kind == "skill" then
 		local item = data.row
@@ -2703,6 +2876,9 @@ function CreateProfitPane()
 		{ key = "profit", label = "Profit", tip = "Every recipe ranked by what it earns on the auction house." },
 		{ key = "skill", label = "Skill up", tip = "Levelling: the selected profession's recipes that can still give "
 			.. "a skill point, cheapest per point first, coloured as in the profession window." },
+		{ key = "recipes", label = "Recipes", tip = "Every recipe in the game you haven't learned yet, by the skill it "
+			.. "needs: hover one to see where it comes from and which of your characters has it. Bottom left switches "
+			.. "between this character and all of them." },
 	}) do
 		local button = HeaderButton(window.frame, mode.label, 70, function()
 			ns.db.ui.profitMode = mode.key
@@ -2712,7 +2888,7 @@ function CreateProfitPane()
 		if index == 1 then
 			button:SetPoint("TOPLEFT", 10, -PANE_ACTIONS_TOP)
 		else
-			button:SetPoint("LEFT", modes[1], "RIGHT", 0, 0)
+			button:SetPoint("LEFT", modes[index - 1], "RIGHT", 0, 0)
 		end
 		button:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -2728,7 +2904,7 @@ function CreateProfitPane()
 
 	local hideUnprofitable = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
 	hideUnprofitable:SetSize(24, 24)
-	hideUnprofitable:SetPoint("LEFT", modes[2], "RIGHT", 10, 0)
+	hideUnprofitable:SetPoint("LEFT", modes[#modes], "RIGHT", 10, 0)
 	hideUnprofitable:SetHitRectInsets(0, -150, 0, 0) -- the label is clickable too
 	local hideLabel = hideUnprofitable:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	hideLabel:SetPoint("LEFT", hideUnprofitable, "RIGHT", 2, 1)
@@ -2739,6 +2915,39 @@ function CreateProfitPane()
 		UI.Refresh("profit")
 	end)
 	window.hideUnprofitable = hideUnprofitable
+
+	-- Recipes mode: learned recipes are left out unless this is ticked.
+	local showLearned = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	showLearned:SetSize(24, 24)
+	showLearned:SetPoint("LEFT", modes[#modes], "RIGHT", 10, 0)
+	showLearned:SetHitRectInsets(0, -80, 0, 0)
+	local learnedLabel = showLearned:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	learnedLabel:SetPoint("LEFT", showLearned, "RIGHT", 2, 1)
+	learnedLabel:SetText("Show learned")
+	showLearned:SetScript("OnClick", function(self)
+		ns.db.ui.recipeLearned = self:GetChecked() and true or false
+		window.offset = 0
+		UI.Refresh("profit")
+	end)
+	window.showLearned = showLearned
+
+	-- Recipes mode: whose recipes, in the Advertise button's place (advertising has nothing to do with this list).
+	local whoButton = HeaderButton(window.frame, "This character", TAB_WIDTH - 6, function()
+		ns.db.ui.recipeWho = RECIPE.Who() == "all" and "me" or "all"
+		window.offset = 0
+		UI.Refresh("profit")
+	end)
+	whoButton:SetPoint("BOTTOMLEFT", 10, 7)
+	whoButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(RECIPE.Who() == "all" and "All characters" or "This character")
+		GameTooltip:AddLine(("Click to switch between %s's recipes and those of all your characters. All characters "
+			.. "lists a recipe while any character with its profession is missing it, and names who."):format(
+			ns.CharLabel(ns.CharKey())), 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	whoButton:SetScript("OnLeave", GameTooltip_Hide)
+	window.whoButton = whoButton
 
 	local search = SkinBox(CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate"))
 	search:SetSize(200, 20)
@@ -2772,16 +2981,44 @@ function CreateProfitPane()
 	window.status = status
 
 	window.update = function(self)
-		advertise:SetShown(ns.Advertise.Enabled())
+		local mode = ns.db.ui.profitMode
+		if mode ~= "skill" and mode ~= "recipes" then mode = "profit" end
+		local recipeMode = mode == "recipes"
+		advertise:SetShown(ns.Advertise.Enabled() and not recipeMode)
 		advertise:SetEnabled(ns.Advertise.Reason(UI.AdvertisedProfession()) == nil)
-		local skillMode = ns.db.ui.profitMode == "skill"
+		whoButton:SetShown(recipeMode)
+		whoButton:SetText(RECIPE.Who() == "all" and "All characters" or "This character")
 		for _, button in ipairs(modes) do
-			local on = (button.mode.key == "skill") == skillMode
+			local on = button.mode.key == mode
 			button:SetText(on and ("|cffffffff" .. button.mode.label .. "|r") or button.mode.label)
 			if on then button:LockHighlight() else button:UnlockHighlight() end
 		end
-		hideUnprofitable:SetShown(not skillMode)
+		hideUnprofitable:SetShown(mode == "profit")
 		hideUnprofitable:SetChecked(ns.db.ui.hideUnprofitable and true or false)
+		showLearned:SetShown(recipeMode)
+		showLearned:SetChecked(ns.db.ui.recipeLearned and true or false)
+		if self.list.recipes then
+			local info = self.list.info
+			local shown = #self.list > 0 and self.list[1].kind == "header" and #self.list - 1 or 0
+			local whose = self.list.who == "all" and "your characters" or ns.CharLabel(ns.CharKey())
+			local parts = { ("%s %s for %s."):format(ns.Plural(shown, "recipe", "recipes"),
+				ns.db.ui.recipeLearned and "listed" or "to find", whose) }
+			if info.noProfession then
+				parts[1] = Color(COLOR_WARN, ("%s doesn't have %s: click This character (bottom left) for who needs these.")
+					:format(ns.CharLabel(ns.CharKey()), ns.Recipes.ProfessionName(selectedProfession.profit) or "it"))
+			end
+			if info.learnNow > 0 then
+				table.insert(parts, Color(RECIPE.COLORS.learn, ("%d can be learned now."):format(info.learnNow)))
+			end
+			if info.learnedHidden > 0 then
+				table.insert(parts, Color(COLOR_MUTED, ("%d learned hidden."):format(info.learnedHidden)))
+			end
+			if info.notInGame > 0 then
+				table.insert(parts, Color(COLOR_MUTED, ("%d not in this game left out."):format(info.notInGame)))
+			end
+			status:SetText(table.concat(parts, " "))
+			return
+		end
 		if self.list.skill then
 			local professionID = UI.SkillProfession()
 			local char = ns.db.chars[ns.CharKey()]

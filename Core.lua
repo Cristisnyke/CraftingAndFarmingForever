@@ -263,6 +263,7 @@ function ns.CharRecord()
 	char.name = UnitName("player")
 	char.realm = GetRealmName()
 	char.class = select(1, UnitClass("player"))
+	char.faction = UnitFactionGroup and UnitFactionGroup("player") or char.faction -- the Recipes list skips the other side's vendors
 	return char
 end
 

@@ -13,8 +13,10 @@
 Core.lua
 Planner.lua
 Sources.lua
+RecipeSources.lua
 Farm.lua
 Data.lua
+RecipeBook.lua
 Depth.lua
 Queue.lua
 Bank.lua

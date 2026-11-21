@@ -20,6 +20,8 @@ read_globals = {
 	"GetSpellTexture", "GetTime", "HideUIPanel", "InCombatLockdown", "IsControlKeyDown", "IsInGuild", "IsInInstance",
 	"InterfaceOptions_AddCategory", "IsShiftKeyDown", "ItemLocation", "LibStub", "Minimap", "NO", "ProfessionsFrame", "Settings", "SettingsPanel", "StaticPopup_Hide",
 	"StaticPopup_Show", "TRADE", "UIParent", "UnitCastingInfo", "UnitClass", "UnitGUID", "UnitName", "YES",
+	"C_CurrencyInfo", "C_Reputation", "C_TooltipInfo", "ChatEdit_InsertLink", "EJ_GetInstanceInfo", "GetFactionInfoByID",
+	"IsModifiedClick", "UnitFactionGroup",
 	"date", "geterrorhandler", "hooksecurefunc", "issecretvalue", "time", "wipe",
 	-- Tables the add-on adds entries to.
 	SlashCmdList = { other_fields = true, read_only = false },
@@ -29,5 +31,6 @@ read_globals = {
 
 -- Generated data.
 files["Sources.lua"] = { ignore = { "631" } }
+files["RecipeSources.lua"] = { ignore = { "631" } }
 -- The tests stand in for the game, so they define its globals.
 files["tests/"] = { std = "lua51", ignore = { "111", "112", "113", "121", "122", "131", "142", "143", "4.." } }

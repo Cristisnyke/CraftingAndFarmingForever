@@ -680,6 +680,14 @@ local function ScanOpenProfession()
 	-- then, the new profession's recipes looked unlearned and were forgotten (Smelt Bronze and the other smelts
 	-- went missing that way). Mostly recipes of another profession means that: wait for the next list update.
 	if filedElsewhere > filedHere then return end
+	-- The game's own list of the profession, unlearned recipes included: the Recipes list uses it to leave out
+	-- AllTheThings' recipes this game doesn't have, and to add ones AllTheThings doesn't have yet.
+	if next(notLearned) then
+		local set = {}
+		for _, recipeID in ipairs(ids) do set[recipeID] = true end
+		ns.db.recipeLists = ns.db.recipeLists or {}
+		ns.db.recipeLists[baseKey] = { at = time(), ids = set }
+	end
 
 	-- Each recipe's colour for this character right now, for levelling. It changes with every skill point.
 	char.skillUps = char.skillUps or {}

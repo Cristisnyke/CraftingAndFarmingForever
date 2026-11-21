@@ -38,6 +38,16 @@ if ! diff -q <(lua5.1 tools/gen_changelog.lua CHANGELOG.md) Changelog.lua >/dev/
 	echo "Changelog.lua is out of date: lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua"; exit 1
 fi
 
+# The tables built from AllTheThings say which version they came from: warn (don't fail) when the installed one is newer.
+ATT_TOC="/mnt/WD850SN/Games/World of Warcraft/_forever_/Interface/AddOns/AllTheThings/AllTheThings.toc"
+if [ -f "$ATT_TOC" ]; then
+	installed=$(tr -d '\r' < "$ATT_TOC" | sed -n 's/^## Version: *//p')
+	built=$(grep -oE 'RECIPE_DATA_VERSION = "[^"]*"' RecipeSources.lua | cut -d'"' -f2)
+	if [ "$installed" != "$built" ]; then
+		echo "Note: AllTheThings $installed is installed, the data tables are from $built: run tools/refresh_att.sh"
+	fi
+fi
+
 # Linters, where installed (pacman -S luacheck shellcheck). Settings are in .luacheckrc.
 if command -v luacheck >/dev/null; then luacheck . --quiet --no-color; else echo "luacheck not installed: lint skipped"; fi
 if command -v shellcheck >/dev/null; then shellcheck tools/*.sh; else echo "shellcheck not installed: lint skipped"; fi

@@ -5,78 +5,15 @@
 
 local root = assert(arg[1], "usage: gen_sources.lua <AllTheThings/db/Camelot>")
 
+local ATT = dofile((arg[0]:match("^(.*)/") or ".") .. "/att_load.lua")
+
 local PROFESSION_KIND = { [186] = "mine", [182] = "herb", [393] = "skin", [356] = "fish" }
-local KIND_OF_CONSTRUCTOR = {
-	CreateItem = "item", CreateItemSource = "itemsource", CreateNPC = "npc", CreateObject = "object", CreateMap = "map",
-	CreateProfession = "prof", CreateQuest = "quest", CreateInstance = "inst", CreateSpell = "spell",
-	CreateRecipe = "recipe", CreateAchievement = "ach", CreateHeader = "header", CreateCustomHeader = "header",
-}
 
-local function Node(kind)
-	return function(id, a, b)
-		local fields = a
-		if kind == "itemsource" then
-			kind, id, fields = "item", a, b
-		end
-		return { kind = kind, id = id, fields = type(fields) == "table" and fields or {} }
-	end
-end
-
-local app = setmetatable({}, { __index = function(t, key)
-	local value
-	if KIND_OF_CONSTRUCTOR[key] then
-		value = Node(KIND_OF_CONSTRUCTOR[key])
-	elseif type(key) == "string" and key:find("^Create") then
-		value = Node("other")
-	else
-		value = setmetatable({}, { __index = function() return "" end, __call = function() return {} end })
-	end
-	rawset(t, key, value)
-	return value
-end })
-
-local handlers = {}
-app.AddEventHandler = function(_, handler) table.insert(handlers, handler) end
-
-local function ReadFile(path)
-	local file = assert(io.open(path, "rb"))
-	local text = file:read("*a")
-	file:close()
-	return (text:gsub("^\239\187\191", ""))
-end
-
-local function Run(path)
-	assert(loadstring(ReadFile(path), path))("AllTheThings", app)
-end
-
--- Object names sit in one table of the localization file, which needs far more of the add-on to run.
-local objectNames = {}
-do
-	local text = ReadFile(root .. "/LocalizationDB.lua")
-	local body = text:match("ObjectNames%s*=%s*(%b{})")
-	if body then
-		-- A few names are looked up from the client when the add-on loads. Those come out empty here and are left out.
-		local unknown
-		unknown = setmetatable({}, { __index = function() return unknown end, __call = function() return nil end })
-		local chunk = assert(loadstring("return " .. body))
-		setfenv(chunk, setmetatable({}, { __index = function() return unknown end }))
-		objectNames = chunk()
-	end
-end
-
-for _, file in ipairs({ "Craftables", "WorldDrops", "Zones", "Instances" }) do
-	Run(root .. "/Categories/" .. file .. ".lua")
-end
-local categories = {}
-for _, handler in ipairs(handlers) do handler(categories) end
+local data = ATT.Load(root, { "Craftables", "WorldDrops", "Zones", "Instances" })
+local categories, objectNames = data.categories, data.objectNames
+local Children = ATT.Children
 
 local sources = {}
-
-local function Children(node)
-	local fields = node.fields
-	if type(fields.g) == "table" then return fields.g end
-	return fields
-end
 
 local function Merge(itemID, entry)
 	sources[itemID] = sources[itemID] or {}

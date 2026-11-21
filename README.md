@@ -7,6 +7,7 @@ A crafting and gold-making add-on for **World of Warcraft: Forever**. **[Downloa
 > **Needs [Auctionator](https://www.curseforge.com/wow/addons/auctionator) and [Syndicator](https://www.curseforge.com/wow/addons/syndicator).** It won't work properly without both: Auctionator supplies every price and the shopping list, and Syndicator counts what your alts hold and what you have on the auction house. **TradeSkillMaster (TSM) support is coming.**
 
 - **Profit:** every recipe any of your characters knows, ranked by profit at current Auctionator prices (a listing far above its material cost is marked "check price" and counted lower), with a search box, a tab per profession, sorting by name, sell chance or profit, and an option to hide unprofitable recipes.
+- **Recipes:** every recipe you haven't learned yet, by skill, with where each one comes from (trainer, vendor and its price, quest, dungeon, drop) and which of your characters still need it.
 - **Skill up:** a levelling view of the same list: the recipes that can still give a skill point, cheapest per point first, coloured orange, yellow and green as in the game.
 - **Cheapest path:** each material is costed as the cheapest of the auction house, a vendor, or crafting it yourself. Materials you already hold count as free. At the auction house it reads every listing of what you're about to buy, so buying 50 counts at what 50 really cost, not 50 times the cheapest listing.
 - **Queue:** one queue shared by all your characters, planned per character (each one buys and crafts only its own part, then you're told to log in to the next), with total profit, what's still to buy, what to take from the bank, and a **Craft Next** button that doubles as a progress bar with the time left on your crafts.
@@ -25,7 +26,7 @@ A crafting and gold-making add-on for **World of Warcraft: Forever**. **[Downloa
 
 ## Screenshots
 
-**Profit**: every known recipe ranked by profit, with each item's chance of selling. Click a heading to sort, or switch to Skill up for the cheapest way to level.
+**Profit**: every known recipe ranked by profit, with each item's chance of selling. Click a heading to sort, or switch to Skill up for the cheapest way to level, or to Recipes for what to learn next and where.
 
 ![Profit tab](docs/images/profit.png)
 
@@ -98,7 +99,7 @@ Crafting and Farming Forever is built on other people's work. Thank you to:
 
 - **[Auctionator](https://www.curseforge.com/wow/addons/auctionator)** by plusmouse and Borjamacare. All prices, the price history and the shopping list come from Auctionator, and the Restocking tab sits in the auction house through its [LibAHTab](https://github.com/Auctionator/LibAHTab) library. Crafting and Farming Forever calls Auctionator's public API while the game runs. Auctionator is All Rights Reserved, and none of its code is included here.
 - **[Syndicator](https://www.curseforge.com/wow/addons/syndicator)** by plusmouse. What your alts hold in bags and banks, and what you have on the auction house, comes from Syndicator's public API. None of its code is included here.
-- **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team. Farm It's list of where each material comes from (`Sources.lua`) is generated from AllTheThings' data under its MIT License.
+- **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team. Farm It's list of where each material comes from (`Sources.lua`) and the Recipes list's sources (`RecipeSources.lua`) are generated from AllTheThings' data under its MIT License.
 
 See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the licenses.
 
@@ -108,4 +109,4 @@ World of Warcraft and Blizzard Entertainment are trademarks or registered tradem
 
 All Rights Reserved. You may download the add-on, use it in World of Warcraft and read its source code. Copying, modifying or re-uploading it, in whole or in part, needs written permission from the author. See [LICENSE](LICENSE).
 
-The AllTheThings data in `Sources.lua` keeps its own MIT License; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The AllTheThings data in `Sources.lua` and `RecipeSources.lua` keeps its own MIT License; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

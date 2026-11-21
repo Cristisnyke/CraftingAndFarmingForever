@@ -4108,5 +4108,180 @@ do
 	ns.InvalidateProfit()
 end
 
+-- Recipes mode: every recipe of the game against the characters, where each comes from, who still needs it.
+do
+	local Book = ns.RecipeBook
+	check("recipe data loaded", next(ns.RecipeData) ~= nil, true)
+	check("recipe data names its AllTheThings version", type(ns.RECIPE_DATA_VERSION), "string")
+	local realData, realChars, realLists = ns.RecipeData, ns.db.chars, ns.db.recipeLists
+	local me = ns.CharKey()
+	local mine = realChars[me]
+	local savedSkill, savedFaction = mine.skill, mine.faction
+	local myProfession = ns.db.recipes[10].p
+	ns.RecipeData = {
+		[10] = { p = myProfession, s = 1, w = { { k = "t" } } },
+		[900001] = { p = myProfession, s = 50, i = 4001, w = {
+			{ k = "v", n = { 111 }, m = { 1429 }, c = { { "c", 3402, 45 } }, rep = { 2586, 9000 }, fa = 2 },
+			{ k = "v", n = { 222 }, m = { 1411 }, fa = 1, l = 1 } } },
+		[900002] = { p = myProfession, s = 300, i = 4002, b = 1, w = { { k = "i", inst = 239, n = { 333 } } } },
+		[900003] = { p = myProfession, s = 75, w = { { k = "q", q = { 5000 }, n = { 444 }, m = { 1426 }, ev = "Lunar Festival" } } },
+		[900004] = { p = 99999, s = 10, w = { { k = "t" } } },
+	}
+	mine.skill = { [myProfession] = { level = 100, max = 150 } }
+	mine.faction = "Horde"
+	-- The alt also has a profession this character doesn't.
+	ns.db.recipes[900099] = { p = 99999, pn = "Testcraft", n = "Alt Thing" }
+	ns.db.chars["Player-1-ALT"] = { name = "Alty", class = "Priest", recipes = { [900099] = true }, faction = "Horde",
+		skill = { [myProfession] = { level = 310, max = 375 } } }
+	ns.db.recipeLists = nil
+	local npcs = { [222] = "Horde Vendor", [333] = "Big Boss", [444] = "Quest Giver" }
+	C_TooltipInfo = { GetHyperlink = function(link)
+		local id = tonumber(link:match("Creature%-0%-0%-0%-0%-(%d+)"))
+		return npcs[id] and { lines = { { leftText = npcs[id] } } } or nil
+	end }
+	local realQuestLog = C_QuestLog
+	C_QuestLog = { GetTitleForQuestID = function(id) return id == 5000 and "Lantern Run" or nil end }
+	EJ_GetInstanceInfo = function(id) return id == 239 and "Uldaman" or nil end
+	C_Spell = C_Spell or {}
+	local realSpellName = C_Spell.GetSpellName
+	C_Spell.GetSpellName = function(id)
+		return ({ [900001] = "Bolt of Test", [900002] = "Robe of Test", [900003] = "Lantern Cloth", [10] = "Known One" })[id]
+	end
+
+	local profit = ns.UI.windows.profit
+	ns.UI.Show("profit")
+	ns.UI.SelectProfession("profit", myProfession)
+	ns.db.ui.recipeWho, ns.db.ui.recipeLearned = nil, nil
+	profit.modeButtons[3].scripts.OnClick(profit.modeButtons[3])
+	check("recipes mode saved", ns.db.ui.profitMode, "recipes")
+	check("recipes mode lit", profit.modeButtons[3].text, "|cffffffffRecipes|r")
+	check("recipes: who button shown", profit.whoButton:IsShown(), true)
+	check("recipes: advertise hidden", profit.advertiseButton:IsShown(), false)
+	check("recipes: headings", profit.list[1].columns, "recipes")
+	local function Rows()
+		local rows, order = {}, {}
+		for _, data in ipairs(profit.list) do
+			if data.kind == "recipe" then
+				rows[data.row.recipeID] = data.row
+				table.insert(order, data.row.recipeID)
+			end
+		end
+		return rows, order
+	end
+	local rows, order = Rows()
+	check("recipes: learned one left out", rows[10], nil)
+	check("recipes: other profession left out", rows[900004], nil)
+	check("recipes: sorted by skill", table.concat(order, ","), "900001,900003,900002")
+	check("recipes: can learn now", rows[900001].status, "learn")
+	check("recipes: needs more skill", rows[900002].status, "skill")
+	check("recipes: other faction's vendor left out", rows[900001].source, "Vendor")
+	check("recipes: only the Horde source", #rows[900001].sources, 1)
+	check("recipes: holiday marked", rows[900003].source, "Quest*")
+	check("recipes: bind on pickup", rows[900002].bound, true)
+	local knownHere = 0
+	for recipeID in pairs(mine.recipes) do
+		if ns.db.recipes[recipeID] and ns.db.recipes[recipeID].p == myProfession then knownHere = knownHere + 1 end
+	end
+	check("recipes: learned counted", profit.list.info.learnedHidden, knownHere)
+	check("recipes: status line", profit.status.text:find("3 recipes to find for", 1, true) ~= nil, true)
+
+	-- Source lines in words.
+	local lines = Book.SourceLines(900001, me)
+	check("recipes: vendor named", lines[1].text, "Vendor: Horde Vendor in Durotar")
+	check("recipes: limited supply, own faction not said", lines[1].detail, "limited supply")
+	local allianceLines = Book.SourceLines(900001, "nobody")
+	check("recipes: no faction, both vendors", #allianceLines, 2)
+	check("recipes: no faction, sides named", allianceLines[2].detail, "limited supply, Horde only")
+	check("recipes: reputation and cost", allianceLines[1].detail:find("needs Honored with", 1, true) ~= nil
+		and allianceLines[1].detail:find("costs 45", 1, true) ~= nil, true)
+	check("recipes: dungeon drop", Book.SourceLines(900002, me)[1].text, "Dungeon drop: Uldaman, from Big Boss")
+	local quest = Book.SourceLines(900003, me)[1]
+	check("recipes: quest", quest.text, "Quest: Lantern Run from Quest Giver in Dun Morogh")
+	check("recipes: quest during the holiday", quest.detail, "during Lunar Festival")
+	check("recipes: npc name remembered", ns.db.npcNames[222], "Horde Vendor")
+
+	-- Tooltip: where, and every character with the profession.
+	local found
+	for _, row in ipairs(profit.rows) do
+		if row.data and row.data.kind == "recipe" and row.data.row.recipeID == 900002 then found = row end
+	end
+	local tooltip, doubles = {}, {}
+	local realAddLine, realDouble = GameTooltip.AddLine, GameTooltip.AddDoubleLine
+	GameTooltip.AddLine = function(_, text) table.insert(tooltip, text) end
+	GameTooltip.AddDoubleLine = function(_, left, right) table.insert(doubles, left .. " = " .. right) end
+	if found then found.scripts.OnEnter(found) end
+	GameTooltip.AddLine, GameTooltip.AddDoubleLine = realAddLine, realDouble
+	local text, who = table.concat(tooltip, "\n"), table.concat(doubles, "\n")
+	check("recipes tooltip: where", text:find("Dungeon drop: Uldaman", 1, true) ~= nil, true)
+	check("recipes tooltip: bind on pickup", text:find("can't be bought", 1, true) ~= nil, true)
+	check("recipes tooltip: me first, short of skill", who:find("^Snic %(you%) = [^\n]*needs 300, has 100") ~= nil, true)
+	check("recipes tooltip: alt can learn it", who:find("Alty = [^\n]*can learn it now %(310%)") ~= nil, true)
+
+	-- All characters: the alt's name on the row, the best status of the two.
+	profit.whoButton.scripts.OnClick(profit.whoButton)
+	check("recipes: all characters saved", ns.db.ui.recipeWho, "all")
+	check("recipes: who button says so", profit.whoButton.text, "All characters")
+	rows = Rows()
+	check("recipes all: best status", rows[900002].status, "learn")
+	local robeRow
+	for _, row in ipairs(profit.rows) do
+		if row.data and row.data.kind == "recipe" and row.data.row.recipeID == 900002 then robeRow = row end
+	end
+	check("recipes all: alt named on the row", robeRow and robeRow.left.text:find("Alty", 1, true) ~= nil, true)
+	check("recipes all: status line", profit.status.text:find("for your characters", 1, true) ~= nil, true)
+	profit.whoButton.scripts.OnClick(profit.whoButton)
+	check("recipes: back to this character", ns.db.ui.recipeWho, "me")
+
+	-- Show learned.
+	profit.showLearned.checked = true
+	profit.showLearned.GetChecked = function(self) return self.checked end
+	profit.showLearned.scripts.OnClick(profit.showLearned)
+	rows = Rows()
+	check("recipes: learned shown when asked", rows[10] and rows[10].status, "learned")
+	profit.showLearned.checked = false
+	profit.showLearned.scripts.OnClick(profit.showLearned)
+
+	-- The game's own list: AllTheThings' recipes it lacks are left out, ones only the game has are added.
+	ns.db.recipeLists = { [myProfession] = { at = 0, ids = { [10] = true, [900001] = true, [900003] = true, [777777] = true } } }
+	ns.UI.Refresh("profit")
+	rows = Rows()
+	check("recipes: not in the game's list", rows[900002], nil)
+	check("recipes: counted as not in this game", profit.list.info.notInGame, 1)
+	check("recipes: game-only recipe added", rows[777777] ~= nil, true)
+	check("recipes: game-only recipe, source unknown", rows[777777] and rows[777777].source, "Unknown")
+	check("recipes: game-only recipe says why", Book.SourceLines(777777, me)[1].text:find("Not in AllTheThings", 1, true) ~= nil, true)
+	ns.db.recipeLists = nil
+
+	-- Sorting by name, then a search.
+	ns.UI.SortList("recipes", "name")
+	local _, byName = Rows()
+	check("recipes: sorted by name", table.concat(byName, ","), "900001,900003,900002")
+	ns.UI.SortList("recipes", "name")
+	_, byName = Rows()
+	check("recipes: name reversed", table.concat(byName, ","), "900002,900003,900001")
+	ns.db.ui.recipeSort, ns.db.ui.recipeSortAsc = nil, nil
+	profit.searchBox:SetText("lantern")
+	profit.searchBox.scripts.OnTextChanged(profit.searchBox)
+	_, order = Rows()
+	check("recipes: search", table.concat(order, ","), "900003")
+	profit.searchBox:SetText("")
+	profit.searchBox.scripts.OnTextChanged(profit.searchBox)
+
+	-- A profession this character doesn't have.
+	ns.UI.SelectProfession("profit", 99999)
+	rows = Rows()
+	check("recipes: no profession, listed dimmed", rows[900004] and rows[900004].status, "none")
+	check("recipes: no profession, says so", profit.status.text:find("doesn't have Testcraft", 1, true) ~= nil, true)
+
+	ns.RecipeData, ns.db.recipeLists = realData, realLists
+	ns.db.chars["Player-1-ALT"] = nil
+	ns.db.recipes[900099] = nil
+	mine.skill, mine.faction = savedSkill, savedFaction
+	C_Spell.GetSpellName = realSpellName
+	C_TooltipInfo, EJ_GetInstanceInfo, C_QuestLog = nil, nil, realQuestLog
+	ns.db.ui.profitMode = "profit"
+	ns.UI.SelectProfession("profit", nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

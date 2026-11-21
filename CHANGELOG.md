@@ -4,6 +4,8 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- **Recipes to hunt.** The Profit tab has a third mode, **Recipes**: every recipe in the game you haven't learned yet, by the skill it needs. Green ones you can learn now. Hover one to see where it comes from (trainer, vendor with its price and reputation, quest, dungeon boss, drop, world drop, holiday), whether it binds on pickup or can be bought on the auction house, and which of your characters have learned it or can learn it. **This character** (bottom left) switches to **All characters**, which lists a recipe while any of your characters with that profession is missing it and names who. Shift-click a recipe to link it in chat. The data comes from AllTheThings and ships with the add-on.
+
 - **Choose what the add-on writes in chat.** Options has a **Chat messages** menu with a tick box for each kind: reminders, sales, plan news, what buttons did, and warnings. Turn off the ones you don't want. Commands you type, like `/cff diag`, always answer. "Reminders in chat" moved into this menu and keeps your setting.
 
 ## 1.23.0
