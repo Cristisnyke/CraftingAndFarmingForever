@@ -4152,7 +4152,22 @@ do
 	ns.UI.Show("profit")
 	ns.UI.SelectProfession("profit", myProfession)
 	ns.db.ui.recipeWho, ns.db.ui.recipeLearned = nil, nil
+	-- Recipes this character can learn and hasn't looked at light the Profit tab and the Recipes button.
+	local profitTab = ns.UI.main.tabButtons[1]
+	mine.learnableSeen = nil
+	ns.db.ui.profitMode = "profit"
+	ns.UI.Refresh("profit")
+	ns.UI.RefreshTabs()
+	check("recipes glow: profit tab is the first", profitTab.key, "profit")
+	check("recipes glow: new learnable counted", ns.RecipeBook.NewCount(me), 2) -- 900001 (50) and 900003 (75)
+	check("recipes glow: profit tab dot", profitTab.badge.shown, true)
+	check("recipes glow: recipes button green", profit.modeButtons[3].text, "|cff55dd55Recipes|r")
+	check("recipes glow: recipes button dot", profit.modeButtons[3].mode.badge.shown, true)
+	check("recipes glow: other buttons plain", profit.modeButtons[2].text, "Skill up")
 	profit.modeButtons[3].scripts.OnClick(profit.modeButtons[3])
+	check("recipes glow: looking puts it out", ns.RecipeBook.NewCount(me), 0)
+	check("recipes glow: profit tab dot gone", profitTab.badge.shown, false)
+	check("recipes glow: first look marks nothing new", ns.RecipeBook.fresh[900001], nil)
 	check("recipes mode saved", ns.db.ui.profitMode, "recipes")
 	check("recipes mode lit", profit.modeButtons[3].text, "|cffffffffRecipes|r")
 	check("recipes: who button shown", profit.whoButton:IsShown(), true)
@@ -4184,6 +4199,23 @@ do
 	end
 	check("recipes: learned counted", profit.list.info.learnedHidden, knownHere)
 	check("recipes: status line", profit.status.text:find("3 recipes to find for", 1, true) ~= nil, true)
+
+	-- Skill goes up: the recipe that just became learnable lights it again, and says "new" once looked at.
+	mine.skill[myProfession].level = 300
+	ns.db.ui.profitMode = "profit"
+	ns.UI.Refresh("profit")
+	ns.UI.RefreshTabs()
+	check("recipes glow: newly learnable", ns.RecipeBook.NewCount(me), 1)
+	check("recipes glow: lit again", profitTab.badge.shown, true)
+	profit.modeButtons[3].scripts.OnClick(profit.modeButtons[3])
+	check("recipes glow: out again", profitTab.badge.shown, false)
+	local robe
+	for _, row in ipairs(profit.rows) do
+		if row.data and row.data.kind == "recipe" and row.data.row.recipeID == 900002 then robe = row end
+	end
+	check("recipes glow: row says new", robe and robe.left.text:find("new", 1, true) ~= nil, true)
+	mine.skill[myProfession].level = 100
+	ns.UI.Refresh("profit")
 
 	-- Source lines in words.
 	local lines = Book.SourceLines(900001, me)

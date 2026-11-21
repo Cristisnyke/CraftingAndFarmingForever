@@ -167,11 +167,13 @@ end
 
 -- learned | learn (has the skill, or its skill isn't known yet) | skill (needs more) | none (doesn't have the
 -- profession); then the skill needed and the skill the character has (nil when not read yet).
-function Book.Status(charKey, recipeID)
+-- professions (optional): Book.CharProfessions(charKey), when the caller already has it.
+function Book.Status(charKey, recipeID, professions)
 	if ns.Recipes.Knows(charKey, recipeID) then return "learned" end
 	local professionID = Book.Profession(recipeID)
 	local char = ns.db.chars[charKey]
-	if not (char and professionID and Book.CharProfessions(charKey)[professionID]) then return "none" end
+	professions = professions or Book.CharProfessions(charKey)
+	if not (char and professionID and professions[professionID]) then return "none" end
 	local data = ns.RecipeData[recipeID]
 	local need = data and data.s
 	local skill = char.skill and char.skill[professionID]
@@ -290,11 +292,13 @@ function Book.Rows(opts)
 	local ids
 	ids, info.notInGame = Book.RecipeIDs(professions)
 	local faction = Book.CharFaction(opts.me)
+	local has = {}
+	for _, key in ipairs(keys) do has[key] = Book.CharProfessions(key) end
 	local rows = {}
 	for _, recipeID in ipairs(ids) do
 		local chars, best = {}, nil
 		for _, key in ipairs(keys) do
-			local status, need, have = Book.Status(key, recipeID)
+			local status, need, have = Book.Status(key, recipeID, has[key])
 			if status ~= "none" or #keys == 1 then
 				table.insert(chars, { key = key, status = status, need = need, have = have })
 				if not best or STATUS_RANK[status] < STATUS_RANK[best] then best = status end
@@ -346,6 +350,69 @@ function Book.Sort(rows, key, ascending)
 		return a.recipeID < b.recipeID
 	end)
 	return rows
+end
+
+---------------------------------------------------------------------------
+-- New to learn: what lights the Profit tab and the Recipes button
+---------------------------------------------------------------------------
+
+-- Recipes a character can learn right now: its skill in the profession was read and is high enough, not learned.
+-- New ones are those it couldn't the last time Recipes was open on it (char.learnableSeen), like an unread
+-- changelog: always-learnable recipes (a paladin has over a hundred) would otherwise keep it lit for good.
+local newCache = {}
+Book.fresh = {} -- became learnable while you played this session: "new" on their rows
+
+function Book.Learnable(charKey)
+	local set = {}
+	local professions = Book.CharProfessions(charKey)
+	for _, recipeID in ipairs((Book.RecipeIDs(professions))) do
+		local status, _, have = Book.Status(charKey, recipeID, professions)
+		if status == "learn" and have then set[recipeID] = true end
+	end
+	return set
+end
+
+-- What the answer depends on, so it's only worked out again when that changes.
+local function Signature(char)
+	local parts = {}
+	for professionID, skill in pairs(char.skill or {}) do parts[#parts + 1] = professionID .. ":" .. tostring(skill.level) end
+	table.sort(parts)
+	local known, lists = 0, 0
+	for _ in pairs(char.recipes or {}) do known = known + 1 end
+	for _, list in pairs(ns.db.recipeLists or {}) do lists = lists + (list.at or 0) end
+	return table.concat(parts, ",") .. "|" .. known .. "|" .. lists
+end
+
+function Book.NewCount(charKey)
+	local char = charKey and ns.db and ns.db.chars[charKey]
+	if not char then return 0 end
+	local signature = Signature(char)
+	local cached = newCache[charKey]
+	if cached and cached.signature == signature then return cached.count end
+	local seen, count = char.learnableSeen or {}, 0
+	for recipeID in pairs(Book.Learnable(charKey)) do
+		if not seen[recipeID] then count = count + 1 end
+	end
+	newCache[charKey] = { signature = signature, count = count }
+	return count
+end
+
+-- The Recipes list was looked at: what's learnable now is no longer new. The very first look marks nothing "new"
+-- on the rows (all of it would be).
+function Book.MarkSeen(charKey)
+	local char = charKey and ns.db.chars[charKey]
+	if not char or Book.NewCount(charKey) == 0 then return false end
+	local first = char.learnableSeen == nil
+	local seen = char.learnableSeen or {}
+	for recipeID in pairs(Book.Learnable(charKey)) do
+		if not seen[recipeID] then
+			seen[recipeID] = true
+			if not first then Book.fresh[recipeID] = true end
+		end
+	end
+	char.learnableSeen = seen
+	newCache[charKey] = nil
+	return true
 end
 
 ---------------------------------------------------------------------------

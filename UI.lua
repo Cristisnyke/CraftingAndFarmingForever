@@ -365,9 +365,18 @@ function RECIPE.Who()
 	return ns.db.ui.recipeWho == "all" and "all" or "me"
 end
 
+-- Recipes this character has become able to learn since Recipes was last open: the Profit tab and the Recipes button
+-- light up green with a dot, as the Changelog tab does for unread notes.
+function RECIPE.NewCount()
+	if not (ns.db and ns.RecipeBook) then return 0 end
+	return ns.RecipeBook.NewCount(ns.CharKey())
+end
+
 local function BuildRecipeList()
 	local who = RECIPE.Who()
 	local me = ns.CharKey()
+	-- Looking at the list is reading the news: the glow goes out.
+	if ns.RecipeBook.MarkSeen(me) then UpdateTabStrip() end
 	local rows, info = ns.RecipeBook.Rows({ professionID = selectedProfession.profit, who = who, me = me,
 		showLearned = ns.db.ui.recipeLearned, search = profitSearch })
 	local key, ascending = UI.ListSort("recipes")
@@ -2354,6 +2363,7 @@ local function SetRow(row, data)
 		row.icon:SetTexture(ns.RecipeBook.Icon(item.recipeID))
 		local text = Color(RECIPE.COLORS[item.status] or "ffffffff", item.name or "Loading...")
 		if item.status == "learned" then text = text .. Color(COLOR_MUTED, "  learned") end
+		if item.status == "learn" and ns.RecipeBook.fresh[item.recipeID] then text = text .. Color(RECIPE.COLORS.learn, "  new") end
 		if data.who == "all" then
 			local names = {}
 			for _, char in ipairs(item.chars) do
@@ -2681,7 +2691,8 @@ function UpdateTabStrip()
 		local title = tab.title
 		if tab.key == "queue" and ns.Queue.Count() > 0 then title = ("%s (%d)"):format(title, ns.Queue.Count()) end
 		-- Notes for this version not opened yet: the tab is green with a dot, nothing pops up.
-		local unseen = tab.key == "changelog" and ns.WhatsNew and ns.WhatsNew.HasUnseen()
+		local unseen = (tab.key == "changelog" and ns.WhatsNew and ns.WhatsNew.HasUnseen())
+			or (tab.key == "profit" and RECIPE.NewCount() > 0)
 		tab.label:SetText(Color(selected and "ffffffff" or (unseen and "ff55dd55" or "ffb8b8b8"), title))
 		tab.badge:SetShown(unseen and true or false)
 		local shade = selected and THEME.primary or THEME.button
@@ -2894,10 +2905,23 @@ function CreateProfitPane()
 			GameTooltip:SetOwner(self, "ANCHOR_TOP")
 			GameTooltip:SetText(mode.label)
 			GameTooltip:AddLine(mode.tip, 1, 1, 1, true)
+			local new = mode.key == "recipes" and RECIPE.NewCount() or 0
+			if new > 0 then
+				GameTooltip:AddLine(("%s you can learn since you last looked."):format(ns.Plural(new, "new recipe", "new recipes")),
+					0.33, 0.87, 0.33, true)
+			end
 			GameTooltip:Show()
 		end)
 		button:SetScript("OnLeave", GameTooltip_Hide)
 		button.mode = mode
+		-- Kept on the mode, not the button: a field a button doesn't have must read as nil.
+		if mode.key == "recipes" then
+			mode.badge = button:CreateTexture(nil, "OVERLAY")
+			mode.badge:SetColorTexture(0.33, 0.87, 0.33, 1)
+			mode.badge:SetSize(6, 6)
+			mode.badge:SetPoint("TOPRIGHT", -3, -3)
+			mode.badge:Hide()
+		end
 		modes[index] = button
 	end
 	window.modeButtons = modes
@@ -2988,10 +3012,15 @@ function CreateProfitPane()
 		advertise:SetEnabled(ns.Advertise.Reason(UI.AdvertisedProfession()) == nil)
 		whoButton:SetShown(recipeMode)
 		whoButton:SetText(RECIPE.Who() == "all" and "All characters" or "This character")
+		local new = RECIPE.NewCount() > 0
 		for _, button in ipairs(modes) do
 			local on = button.mode.key == mode
-			button:SetText(on and ("|cffffffff" .. button.mode.label .. "|r") or button.mode.label)
+			local badge = button.mode.badge
+			local lit = new and badge ~= nil and not on
+			button:SetText(on and ("|cffffffff" .. button.mode.label .. "|r")
+				or lit and Color("ff55dd55", button.mode.label) or button.mode.label)
 			if on then button:LockHighlight() else button:UnlockHighlight() end
+			if badge then badge:SetShown(lit) end
 		end
 		hideUnprofitable:SetShown(mode == "profit")
 		hideUnprofitable:SetChecked(ns.db.ui.hideUnprofitable and true or false)
