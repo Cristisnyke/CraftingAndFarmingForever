@@ -459,76 +459,74 @@ end
 
 -- One line per source, for the tooltip: { text, detail }. missing is true when a name is still loading, so the
 -- tooltip can be drawn again a moment later.
+-- The main line for each kind of source. npcs and where are already in words (nil / "" when there are none).
+-- Returns the text and whether a name is still loading.
+local SOURCE_TEXT = {
+	t = function(source, npcs, where, professionName)
+		if not npcs then return ("Trainer: any %s trainer"):format(professionName) end
+		local place = source.inst and (" in " .. (Book.InstanceName(source) or "a dungeon")) or where
+		return ("Trainer: %s%s"):format(npcs, place)
+	end,
+	v = function(_, npcs, where) return ("Vendor: %s%s"):format(npcs or "a vendor", where) end,
+	q = function(source, npcs, where)
+		local quests, missing = Names(source.q, Book.QuestName, "a quest")
+		return ("Quest: %s%s%s"):format(quests, npcs and (" from " .. npcs) or "", where), missing
+	end,
+	i = function(source, npcs)
+		local from = npcs and (", from " .. npcs) or source.boss and ", any boss" or ""
+		return ("Dungeon drop: %s%s"):format(Book.InstanceName(source) or "a dungeon", from)
+	end,
+	d = function(source, npcs, where)
+		if not npcs then return ("Drop: mobs%s"):format(where) end
+		return ("%s: %s%s"):format(source.rare and "Rare mob" or "Drop", npcs, where)
+	end,
+	o = function(source, _, where) return ("Found in %s%s"):format(source.o and source.o[1] or "a treasure", where) end,
+	w = function() return "World drop: any mob around the right level, anywhere" end,
+	x = function(source) return source.d or source.h or "Somewhere else" end,
+}
+
+-- The second line: costs, limited supply, reputation, container, faction, holiday. Nil when there's nothing to say.
+local function SourceDetails(source, charKey)
+	local details, missing = {}, false
+	for _, cost in ipairs(source.c or {}) do
+		local costText, costMissing = CostText(cost)
+		missing = missing or costMissing
+		table.insert(details, "costs " .. costText)
+	end
+	if source.l then table.insert(details, "limited supply") end
+	local standing = source.rep and Book.Standing(source.rep[2])
+	if standing then
+		table.insert(details, ("needs %s with %s"):format(standing, Book.FactionName(source.rep[1]) or "a faction"))
+	end
+	if source.ci then
+		local container = ns.Items.Name(source.ci)
+		missing = missing or container == nil
+		table.insert(details, "comes in " .. (container or "a container"))
+	end
+	-- Said only when it isn't the character's own side (all the sources are the other side's, or it's unknown).
+	if source.fa and source.fa ~= Book.CharFaction(charKey) then
+		table.insert(details, Book.FACTION_NAME[source.fa] .. " only")
+	end
+	if source.ev then table.insert(details, "during " .. source.ev) end
+	return #details > 0 and table.concat(details, ", ") or nil, missing
+end
+
 function Book.SourceLines(recipeID, charKey)
 	local lines, missing = {}, false
-	local professionID = Book.Profession(recipeID)
-	local professionName = professionID and ns.Recipes.ProfessionName(professionID) or "profession"
-	local function Note(flag) missing = missing or flag end
-	local data = ns.RecipeData[recipeID]
-	if not data then
+	if not ns.RecipeData[recipeID] then
 		table.insert(lines, { text = "Not in AllTheThings' data yet, so where it comes from isn't known." })
 		return lines, missing
 	end
+	local professionID = Book.Profession(recipeID)
+	local professionName = professionID and ns.Recipes.ProfessionName(professionID) or "profession"
 	for _, source in ipairs(Book.Sources(recipeID, Book.CharFaction(charKey))) do
 		local npcs, npcMissing = Names(source.n, Book.NPCName, nil)
-		Note(npcMissing)
 		local zones = Names(source.m, Book.MapName, nil)
-		local where = zones and (" in " .. zones) or ""
-		local text
-		if source.k == "t" then
-			if npcs then
-				text = ("Trainer: %s%s"):format(npcs, source.inst and (" in " .. (Book.InstanceName(source) or "a dungeon")) or where)
-			else
-				text = ("Trainer: any %s trainer"):format(professionName)
-			end
-		elseif source.k == "v" then
-			text = ("Vendor: %s%s"):format(npcs or "a vendor", where)
-		elseif source.k == "q" then
-			local quests, questMissing = Names(source.q, Book.QuestName, "a quest")
-			Note(questMissing)
-			text = ("Quest: %s%s%s"):format(quests, npcs and (" from " .. npcs) or "", where)
-		elseif source.k == "i" then
-			local place = Book.InstanceName(source) or "a dungeon"
-			text = ("Dungeon drop: %s%s"):format(place, npcs and (", from " .. npcs) or source.boss and ", any boss" or "")
-		elseif source.k == "d" then
-			if npcs then
-				text = ("%s: %s%s"):format(source.rare and "Rare mob" or "Drop", npcs, where)
-			else
-				text = ("Drop: mobs%s"):format(where)
-			end
-		elseif source.k == "o" then
-			text = ("Found in %s%s"):format(source.o and source.o[1] or "a treasure", where)
-		elseif source.k == "w" then
-			text = "World drop: any mob around the right level, anywhere"
-		else
-			text = source.d or source.h or "Somewhere else"
-		end
-		local details = {}
-		for _, cost in ipairs(source.c or {}) do
-			local costText, costMissing = CostText(cost)
-			Note(costMissing)
-			table.insert(details, "costs " .. costText)
-		end
-		if source.l then table.insert(details, "limited supply") end
-		if source.rep then
-			local standing = Book.Standing(source.rep[2])
-			if standing then
-				table.insert(details, ("needs %s with %s"):format(standing, Book.FactionName(source.rep[1]) or "a faction"))
-			end
-		end
-		if source.ci then
-			local container = ns.Items.Name(source.ci)
-			Note(container == nil)
-			table.insert(details, "comes in " .. (container or "a container"))
-		end
-		-- Said only when it isn't the character's own side (all the sources are the other side's, or it's unknown).
-		if source.fa and source.fa ~= Book.CharFaction(charKey) then
-			table.insert(details, Book.FACTION_NAME[source.fa] .. " only")
-		end
-		if source.ev then table.insert(details, "during " .. source.ev) end
-		local detail = #details > 0 and table.concat(details, ", ") or nil
-		local note = source.d and source.k ~= "x" and source.d or nil
-		table.insert(lines, { text = text, detail = detail, note = note })
+		local text, textMissing = (SOURCE_TEXT[source.k] or SOURCE_TEXT.x)(source, npcs, zones and (" in " .. zones) or "",
+			professionName)
+		local detail, detailMissing = SourceDetails(source, charKey)
+		missing = missing or npcMissing or textMissing or detailMissing
+		table.insert(lines, { text = text, detail = detail, note = source.d and source.k ~= "x" and source.d or nil })
 	end
 	return lines, missing
 end

@@ -683,6 +683,18 @@ local function ReadOutputs(ids)
 	end
 end
 
+-- For the Recipes list: the game's own list of the profession, unlearned recipes included, so AllTheThings' recipes
+-- this game doesn't have are left out and ones AllTheThings doesn't have yet are added; and what each makes.
+local function RememberList(professionID, ids, notLearned)
+	if next(notLearned) then
+		local set = {}
+		for _, recipeID in ipairs(ids) do set[recipeID] = true end
+		ns.db.recipeLists = ns.db.recipeLists or {}
+		ns.db.recipeLists[professionID] = { at = time(), ids = set }
+	end
+	ReadOutputs(ids)
+end
+
 local function ScanOpenProfession()
 	-- Reagents can be missing from recipes until the list is ready; the list-update event comes again when it is.
 	if not C_TradeSkillUI.IsTradeSkillReady() then return end
@@ -715,16 +727,7 @@ local function ScanOpenProfession()
 	-- then, the new profession's recipes looked unlearned and were forgotten (Smelt Bronze and the other smelts
 	-- went missing that way). Mostly recipes of another profession means that: wait for the next list update.
 	if filedElsewhere > filedHere then return end
-	-- The game's own list of the profession, unlearned recipes included: the Recipes list uses it to leave out
-	-- AllTheThings' recipes this game doesn't have, and to add ones AllTheThings doesn't have yet.
-	if next(notLearned) then
-		local set = {}
-		for _, recipeID in ipairs(ids) do set[recipeID] = true end
-		ns.db.recipeLists = ns.db.recipeLists or {}
-		ns.db.recipeLists[baseKey] = { at = time(), ids = set }
-	end
-	-- What the unlearned ones make, for the Recipes list's Hide BoP.
-	ReadOutputs(ids)
+	RememberList(baseKey, ids, notLearned)
 
 	-- Each recipe's colour for this character right now, for levelling. It changes with every skill point.
 	char.skillUps = char.skillUps or {}

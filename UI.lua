@@ -1065,6 +1065,39 @@ local function ShowSkillTooltip(row, item)
 	GameTooltip:Show()
 end
 
+-- Tooltip lines: every character with the recipe's profession and where they stand with it, this character first.
+function RECIPE.AddCharacterLines(recipeID, professionName)
+	local Book = ns.RecipeBook
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine(("Your characters with %s"):format(professionName), 1, 0.82, 0)
+	local me, keys = ns.CharKey(), {}
+	for key in pairs(ns.db.chars) do table.insert(keys, key) end
+	table.sort(keys, function(a, b)
+		if (a == me) ~= (b == me) then return a == me end
+		return ns.CharLabel(a) < ns.CharLabel(b)
+	end)
+	local any = false
+	for _, key in ipairs(keys) do
+		local status, need, have = Book.Status(key, recipeID)
+		if status ~= "none" then
+			any = true
+			local text, hex
+			if status == "learned" then
+				text, hex = "learned", COLOR_MUTED
+			elseif status == "skill" then
+				text, hex = ("needs %d, has %d"):format(need, have), COLOR_WARN
+			elseif have then
+				text, hex = ("can learn it now (%d)"):format(have), RECIPE.COLORS.learn
+			else
+				text, hex = ("can learn it (skill not read: open %s on it)"):format(professionName), RECIPE.COLORS.learn
+			end
+			GameTooltip:AddDoubleLine(ns.CharLabel(key) .. (key == me and " (you)" or ""), Color(hex, text),
+				1, 1, 1, 1, 1, 1)
+		end
+	end
+	if not any then GameTooltip:AddLine(("None of your characters has %s."):format(professionName), 0.6, 0.6, 0.6, true) end
+end
+
 -- Where a recipe comes from, then every character with its profession and whether they know it. Names the client
 -- hasn't loaded yet are asked for; the tooltip is drawn once more a moment later to show them.
 function RECIPE.ShowTooltip(row, item)
@@ -1114,35 +1147,7 @@ function RECIPE.ShowTooltip(row, item)
 		end
 	end
 
-	-- Everyone with the profession, this character first.
-	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine(("Your characters with %s"):format(professionName), 1, 0.82, 0)
-	local me, keys = ns.CharKey(), {}
-	for key in pairs(ns.db.chars) do table.insert(keys, key) end
-	table.sort(keys, function(a, b)
-		if (a == me) ~= (b == me) then return a == me end
-		return ns.CharLabel(a) < ns.CharLabel(b)
-	end)
-	local any = false
-	for _, key in ipairs(keys) do
-		local status, need, have = Book.Status(key, recipeID)
-		if status ~= "none" then
-			any = true
-			local text, hex
-			if status == "learned" then
-				text, hex = "learned", COLOR_MUTED
-			elseif status == "skill" then
-				text, hex = ("needs %d, has %d"):format(need, have), COLOR_WARN
-			elseif have then
-				text, hex = ("can learn it now (%d)"):format(have), RECIPE.COLORS.learn
-			else
-				text, hex = ("can learn it (skill not read: open %s on it)"):format(professionName), RECIPE.COLORS.learn
-			end
-			GameTooltip:AddDoubleLine(ns.CharLabel(key) .. (key == me and " (you)" or ""), Color(hex, text),
-				1, 1, 1, 1, 1, 1)
-		end
-	end
-	if not any then GameTooltip:AddLine(("None of your characters has %s."):format(professionName), 0.6, 0.6, 0.6, true) end
+	RECIPE.AddCharacterLines(recipeID, professionName)
 	if data and data.i then GameTooltip:AddLine("Shift-click to link the recipe in chat.", 0.6, 0.6, 0.6, true) end
 	GameTooltip:Show()
 	-- Once per recipe, so a name that never loads doesn't redraw it forever.
