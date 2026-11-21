@@ -4,6 +4,15 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.24.0", lines = {
+		"- Recipes to hunt. The Profit tab has a third mode, Recipes: every recipe in the game you haven't learned yet, by the skill it needs. Green ones you can learn now.",
+		"- Where to get each recipe. Hover a recipe to see where it comes from (trainer, vendor with its price and reputation, quest, dungeon boss, drop, world drop, holiday), whether you can buy it on the auction house, what it makes and what that sells for, and which of your characters have learned it or can learn it. Shift-click a recipe to link it in chat.",
+		"- All your characters at once. This character (bottom left) switches to All characters: a recipe stays listed while any character with that profession is missing it, and the row names who.",
+		"- Hide BoP lists only recipes whose craft you can post on the auction house.",
+		"- New recipes glow. When a skill-up lets you learn new recipes, the Profit tab and the Recipes button glow green with a dot, like the Changelog tab, until you look.",
+		"- The recipe data comes from AllTheThings and ships with the add-on; you don't need AllTheThings installed.",
+		"- Choose what the add-on writes in chat. Options has a Chat messages menu with a tick box for each kind: reminders, sales, plan news, what buttons did, and warnings. Turn off the ones you don't want. Commands you type, like /cff diag, always answer. \"Reminders in chat\" moved into this menu and keeps your setting.",
+	} },
 	{ version = "1.23.0", lines = {
 		"- Buy from vendors in one click. At a vendor that sells something your queue needs (thread, vials, flux and the like), a Buy for your queue button appears under the vendor window and on the Next step bar, with the total price. Click it and it buys exactly what the \"Buy from vendor\" step lists, as far as that vendor sells it. Hover it to see what it buys and what this vendor doesn't have. It stops if you walk away, your bags fill up or your gold runs out.",
 	} },

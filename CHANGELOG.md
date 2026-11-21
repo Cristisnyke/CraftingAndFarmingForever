@@ -2,10 +2,14 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.24.0
 
-- **Recipes to hunt.** The Profit tab has a third mode, **Recipes**: every recipe in the game you haven't learned yet, by the skill it needs. Green ones you can learn now. Hover one to see where it comes from (trainer, vendor with its price and reputation, quest, dungeon boss, drop, world drop, holiday), whether it binds on pickup or can be bought on the auction house, and which of your characters have learned it or can learn it. **This character** (bottom left) switches to **All characters**, which lists a recipe while any of your characters with that profession is missing it and names who. Tick **Hide BoP** to list only recipes whose craft you can post on the auction house; the tooltip says what each recipe makes and what it sells for. Shift-click a recipe to link it in chat. When a skill-up opens new recipes you can learn, the **Profit** tab and the **Recipes** button glow green with a dot, like the Changelog tab, until you look; those recipes say "new" for the rest of the session. The data comes from AllTheThings and ships with the add-on.
-
+- **Recipes to hunt.** The Profit tab has a third mode, **Recipes**: every recipe in the game you haven't learned yet, by the skill it needs. Green ones you can learn now.
+- **Where to get each recipe.** Hover a recipe to see where it comes from (trainer, vendor with its price and reputation, quest, dungeon boss, drop, world drop, holiday), whether you can buy it on the auction house, what it makes and what that sells for, and which of your characters have learned it or can learn it. Shift-click a recipe to link it in chat.
+- **All your characters at once.** **This character** (bottom left) switches to **All characters**: a recipe stays listed while any character with that profession is missing it, and the row names who.
+- **Hide BoP** lists only recipes whose craft you can post on the auction house.
+- **New recipes glow.** When a skill-up lets you learn new recipes, the **Profit** tab and the **Recipes** button glow green with a dot, like the Changelog tab, until you look.
+- The recipe data comes from AllTheThings and ships with the add-on; you don't need AllTheThings installed.
 - **Choose what the add-on writes in chat.** Options has a **Chat messages** menu with a tick box for each kind: reminders, sales, plan news, what buttons did, and warnings. Turn off the ones you don't want. Commands you type, like `/cff diag`, always answer. "Reminders in chat" moved into this menu and keeps your setting.
 
 ## 1.23.0
