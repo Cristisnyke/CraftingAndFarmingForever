@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Choose what the add-on writes in chat.** Options has a **Chat messages** menu with a tick box for each kind: reminders, sales, plan news, what buttons did, and warnings. Turn off the ones you don't want. Commands you type, like `/cff diag`, always answer. "Reminders in chat" moved into this menu and keeps your setting.
+
 ## 1.23.0
 
 - **Buy from vendors in one click.** At a vendor that sells something your queue needs (thread, vials, flux and the like), a **Buy for your queue** button appears under the vendor window and on the Next step bar, with the total price. Click it and it buys exactly what the "Buy from vendor" step lists, as far as that vendor sells it. Hover it to see what it buys and what this vendor doesn't have. It stops if you walk away, your bags fill up or your gold runs out.

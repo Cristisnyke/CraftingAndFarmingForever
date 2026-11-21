@@ -223,6 +223,6 @@ end
 -- Once per session. Syndicator loads before this add-on, so if it isn't loaded by now it's missing or turned off.
 ns.On("PLAYER_LOGIN", function()
 	C_Timer.After(8, function()
-		if not WhatsNew.SyndicatorLoaded() then ns.Print("|cffff6655" .. WhatsNew.NO_SYNDICATOR .. "|r") end
+		if not WhatsNew.SyndicatorLoaded() then ns.Say("chatWarnings", "|cffff6655" .. WhatsNew.NO_SYNDICATOR .. "|r") end
 	end)
 end)

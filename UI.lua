@@ -104,6 +104,7 @@ local function ThemeBackdrop(frame, alpha)
 	frame:SetBackdropColor(THEME.bg[1], THEME.bg[2], THEME.bg[3], alpha or 0.97)
 	frame:SetBackdropBorderColor(THEME.border[1], THEME.border[2], THEME.border[3], 1)
 end
+UI.ThemeBackdrop = ThemeBackdrop
 
 local function Color(hex, text)
 	return "|c" .. hex .. text .. "|r"
@@ -2054,7 +2055,7 @@ function UI.PlanChecked(result)
 		Live.Verdict(windows.next.frame, held, text, true)
 		shown = true
 	end
-	if not shown then ns.Print(text) end
+	if not shown then ns.Say("chatPlan", text) end
 	UI.lastVerdict = text
 	UI.RefreshQueue()
 end
@@ -3482,7 +3483,7 @@ local function CreateNextWindow()
 	bank:SetPoint("BOTTOMRIGHT", -10, 8)
 	bank:SetScript("OnClick", function()
 		local ok, why = ns.Bank.Run()
-		if not ok and why then ns.Print(why) end
+		if not ok and why then ns.Say("chatWarnings", why) end
 	end)
 	bank:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -3524,7 +3525,7 @@ local function CreateNextWindow()
 	vendor:SetPoint("BOTTOMRIGHT", -10, 8)
 	vendor:SetScript("OnClick", function()
 		local ok, why = ns.Vendor.Run()
-		if not ok and why then ns.Print(why) end
+		if not ok and why then ns.Say("chatWarnings", why) end
 	end)
 	vendor:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -3662,15 +3663,15 @@ end
 
 function UI.ToggleNextStep()
 	if not ns.Option("nextStep") then
-		ns.Print("The Next step bar is turned off. Turn it on in the Options tab.")
+		ns.Say("chatWarnings", "The Next step bar is turned off. Turn it on in the Options tab.")
 		return
 	end
 	if ns.Queue.Count() == 0 then
-		ns.Print("The queue is empty, so there's no next step.")
+		ns.Say("chatWarnings", "The queue is empty, so there's no next step.")
 		return
 	end
 	if not NextStepAllowed() then
-		ns.Print("The Next step bar is hidden in combat and in dungeons, raids and battlegrounds.")
+		ns.Say("chatWarnings", "The Next step bar is hidden in combat and in dungeons, raids and battlegrounds.")
 		return
 	end
 	ns.db.ui.nextMinimized = not ns.db.ui.nextMinimized or nil
@@ -3777,7 +3778,7 @@ function CreateRestockPane()
 			if data.row then table.insert(rows, data.row) end
 		end
 		local changed = ns.Restock.Apply(rows)
-		ns.Print(("Restock: %s updated on the queue."):format(ns.Plural(changed, "item", "items")))
+		ns.Say("chatDone", ("Restock: %s updated on the queue."):format(ns.Plural(changed, "item", "items")))
 		UI.Show("queue")
 	end, true)
 	apply:SetHeight(26)
@@ -4580,9 +4581,9 @@ local function HookProfessionWindow()
 		queueButton:SetScript("OnClick", function()
 			local info = SelectedRecipe()
 			if not info or not info.recipeID then
-				ns.Print("Select a recipe first.")
+				ns.Say("chatWarnings", "Select a recipe first.")
 			elseif not info.learned then
-				ns.Print("You have not learned that recipe.")
+				ns.Say("chatWarnings", "You have not learned that recipe.")
 			else
 				ns.Queue.Add(info.recipeID, CraftCountFromInput())
 				-- Already open: stay on the tab being used, and the Queue tab's count shows it worked.
@@ -4615,7 +4616,7 @@ end)
 local function NotifyStale()
 	if scanNotified or not ns.Prices.IsStale() or not ns.Option("chatTips") then return end
 	scanNotified = true
-	ns.Print(ScanAgeText() .. " Scan at the auction house for accurate profit.")
+	ns.Say("chatTips", ScanAgeText() .. " Scan at the auction house for accurate profit.")
 end
 
 -- Once a session: at login, or when a profession opens, whichever comes first.
@@ -4738,12 +4739,12 @@ end
 function Advertise.QuoteInWhisper(recipeID, crafts)
 	local text = ns.Queue.QuoteText(recipeID, crafts)
 	if not text then
-		ns.Print("A material has no price yet, so there's nothing to quote. Scan the auction house first.")
+		ns.Say("chatWarnings", "A material has no price yet, so there's nothing to quote. Scan the auction house first.")
 		return
 	end
 	-- A customer gets this price, so say so every time, not once a session.
 	if ns.Prices.IsStale() then
-		ns.Print(Color(COLOR_WARN, UI.ScanAgeText() .. " This quote may be off: scan the auction house before you send it."))
+		ns.Say("chatWarnings", Color(COLOR_WARN, UI.ScanAgeText() .. " This quote may be off: scan the auction house before you send it."))
 	end
 	local getTarget = (ChatFrameUtil and ChatFrameUtil.GetLastTellTarget) or ChatEdit_GetLastTellTarget
 	local target = getTarget and getTarget()
@@ -4789,15 +4790,15 @@ function Advertise.Send(professionID)
 	local destination = CurrentDestination()
 	local command, why, hasLink = AdCommand(professionID, destination)
 	if not command then
-		ns.Print(why)
+		ns.Say("chatWarnings", why)
 		return
 	end
 	local wait = CooldownLeft(destination)
 	if wait > 0 then
-		ns.Print(("Please wait %d more seconds, so %s doesn't get spammed."):format(wait, destination.label))
+		ns.Say("chatWarnings", ("Please wait %d more seconds, so %s doesn't get spammed."):format(wait, destination.label))
 		return
 	end
-	if not hasLink then ns.Print(NO_LINK_NOTE) end
+	if not hasLink then ns.Say("chatWarnings", NO_LINK_NOTE) end
 	lastAdvertised[destination.key] = time()
 	Advertise.UpdateButtons()
 	OpenChatWith(command)
@@ -4820,7 +4821,7 @@ local function CreateDestinationPicker()
 	adBox:SetScript("OnClick", function()
 		-- The profession buttons are secure, so they can't appear or hide during combat.
 		if InCombatLockdown() then
-			ns.Print("Advertising buttons can't open during combat.")
+			ns.Say("chatWarnings", "Advertising buttons can't open during combat.")
 			return
 		end
 		adOpen = not adOpen
@@ -4884,7 +4885,7 @@ local function AdButton(index)
 		button:SetScript("PostClick", function(self, _, down)
 			-- With both directions registered, the macro only runs on the one matching this setting.
 			if (down and true or false) ~= (GetCVarBool("ActionButtonUseKeyDown") and true or false) then return end
-			if not self.hasLink then ns.Print(NO_LINK_NOTE) end
+			if not self.hasLink then ns.Say("chatWarnings", NO_LINK_NOTE) end
 			lastAdvertised[self.destinationKey] = time()
 			adOpen = false
 			Advertise.UpdateButtons()
@@ -4975,7 +4976,7 @@ StaticPopupDialogs["CFF_RESET_PROFIT"] = {
 	button2 = CANCEL,
 	OnAccept = function()
 		ns.Sales.ResetProfit()
-		ns.Print("Sales profit reset. It counts again from now.")
+		ns.Say("chatDone", "Sales profit reset. It counts again from now.")
 	end,
 	timeout = 0,
 	whileDead = true,
@@ -4988,7 +4989,7 @@ StaticPopupDialogs["CFF_REMOVE_LOSING"] = {
 	button2 = NO,
 	OnAccept = function()
 		local removed = ns.Queue.RemoveLosing()
-		ns.Print(("Removed %s that would lose money."):format(ns.Plural(removed, "entry", "entries")))
+		ns.Say("chatDone", ("Removed %s that would lose money."):format(ns.Plural(removed, "entry", "entries")))
 	end,
 	timeout = 0,
 	whileDead = true,
@@ -5013,7 +5014,7 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 		end
 		-- Once per visit, the way to the list, when there's something on it.
 		if ns.Option("chatTips") and next(ns.plan.buy) and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
-			ns.Print(('Materials to buy: click the Shopping tab at the bottom of the auction house (Auctionator), '
+			ns.Say("chatTips", ('Materials to buy: click the Shopping tab at the bottom of the auction house (Auctionator), '
 				.. 'then the list "%s".'):format(ns.LIST_NAME))
 		end
 		UI.RefreshAll()
@@ -5071,7 +5072,7 @@ local function Diagnostics()
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	local off = {}
-	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "adEnabled", "priceCap", "smartRestock", "bagSpace", "depthCheck" }) do
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "chatSales", "chatPlan", "chatDone", "chatWarnings", "adEnabled", "priceCap", "smartRestock", "bagSpace", "depthCheck" }) do
 		if not ns.Option(key) then table.insert(off, key) end
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
@@ -5102,7 +5103,7 @@ SlashCmdList.CFF = function(input)
 		ns.Queue.Clear()
 	elseif command == "auto" then
 		ns.db.ui.autoOpen = not ns.db.ui.autoOpen
-		ns.Print("Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
+		ns.Say("chatDone", "Open with the profession window: " .. tostring(ns.db.ui.autoOpen))
 		ns.Options.Sync()
 	elseif command == "minimap" then
 		ns.MinimapButton.Toggle()

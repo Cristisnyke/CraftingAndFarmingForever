@@ -261,7 +261,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Show the minimap button | Hides or shows the button on the minimap |
 | Show the Next step bar | Off: no bar; the Queue tab is your list, also when farming |
 | Ask to scan at the auction house when prices are old | The Yes or No box offering a new scan. The orange note in the window stays |
-| Reminders in chat | The chat lines about old prices at login and where the shopping list is |
+| Chat messages | A menu with a tick box for each kind of chat line: Reminders (old prices, where the shopping list is), Sales (sold, money in the mailbox), Plan news (the plan checked again, a restock cut), What buttons did (Bank it, Buy for your queue, restock updated, profit reset) and Warnings (refused posts, old prices on a quote, why a button can't do something). Commands you type, like `/cff diag`, always answer |
 | Read listings at the auction house | On by default. The add-on looks up every listing of what your queue would buy, so buying many counts at the real cost (see [What buying many really costs](#what-buying-many-really-costs)). The screen is locked for the few seconds it reads. Off: only the items you open yourself are read, and the screen is never locked |
 | Plan around bag space | On by default. When the queue's materials won't fit in your bags, says what to bank and splits the queue into runs (see [Bag space](#bag-space)) |
 | Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price**. Off: the listing is used as it is |

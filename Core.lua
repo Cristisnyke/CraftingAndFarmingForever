@@ -45,6 +45,28 @@ function ns.Print(text)
 	print("|cff66ccffCrafting and Farming Forever|r: " .. tostring(text))
 end
 
+-- A chat line of one kind, unless that kind is turned off in Options > Chat messages. ns.Print is left for what you
+-- typed a command for (/cff diag, /cff help), which always answers.
+ns.CHAT_KINDS = {
+	{ key = "chatTips", label = "Reminders",
+		tip = "Old prices at login or when you open a profession, and where the shopping list is at the auction house." },
+	{ key = "chatSales", label = "Sales",
+		tip = "\"Sold: Linen Shirt\" with when the money reaches your mailbox, and money waiting in the mailbox." },
+	{ key = "chatPlan", label = "Plan news",
+		tip = "The plan checked again after new prices (when neither window shows it), a restock cut at what the "
+			.. "materials really cost, and reading listings taking long." },
+	{ key = "chatDone", label = "What buttons did",
+		tip = "Bank it and Buy for your queue (what they moved or bought, and why they stopped), restock updated, "
+			.. "profit reset, entries removed, the minimap button shown or hidden." },
+	{ key = "chatWarnings", label = "Warnings and why something can't be done",
+		tip = "The auction house refusing a post, a quote with old prices, Syndicator missing, Craft Next or a button "
+			.. "that can't do it right now and why. Off, such a click may seem to do nothing." },
+}
+function ns.Say(kind, text)
+	if ns.db and not ns.Option(kind) then return end
+	ns.Print(text)
+end
+
 ---------------------------------------------------------------------------
 -- Saved data
 ---------------------------------------------------------------------------
@@ -69,7 +91,7 @@ end
 -- db.deposits          = { [itemID] = copper per unit }, the deposit its last post cost (see Sales.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
---                          adEnabled, nextStep, scanPopup, chatTips, depthCheck (off only when false), adText, quoteText (own wording), ... }
+--                          adEnabled, nextStep, scanPopup, chatTips/chatSales/chatPlan/chatDone/chatWarnings (ns.CHAT_KINDS), depthCheck (off only when false), adText, quoteText (own wording), ... }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the

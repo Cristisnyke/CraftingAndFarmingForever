@@ -114,14 +114,14 @@ local function Finish(stopped)
 		end
 	end
 	if stopped then
-		ns.Print(("Bank: stopped (%s) after moving %d of %d."):format(stopped, done.moved, done.total))
+		ns.Say("chatDone", ("Bank: stopped (%s) after moving %d of %d."):format(stopped, done.moved, done.total))
 	elseif done.full then
-		ns.Print(("Bank: your %s %s full. Moved %d of %d."):format(done.full, done.full == "bank" and "is" or "are",
+		ns.Say("chatDone", ("Bank: your %s %s full. Moved %d of %d."):format(done.full, done.full == "bank" and "is" or "are",
 			done.moved, done.total))
 	else
-		ns.Print(("Bank: done, moved %d."):format(done.moved))
+		ns.Say("chatDone", ("Bank: done, moved %d."):format(done.moved))
 	end
-	if #missing > 0 then ns.Print("Bank: not found: " .. table.concat(missing, ", ") .. ".") end
+	if #missing > 0 then ns.Say("chatDone", "Bank: not found: " .. table.concat(missing, ", ") .. ".") end
 	ns.RequestPlan()
 	Changed()
 end

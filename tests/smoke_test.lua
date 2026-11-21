@@ -696,6 +696,38 @@ do
 	ns.UI.Show(tabBefore)
 end
 
+-- Options > Chat messages: a menu with a tick box per kind of chat line; a kind turned off stays out of chat, and
+-- commands still answer.
+do
+	local tabBefore = ns.db.ui.tab
+	ns.UI.Show("options")
+	local controls = ns.Options.Controls(ns.UI.windows.options.frame)
+	check("chat: button says all on", controls.chat:GetText(), "Chat messages: all on  >")
+	controls.chat.scripts.OnClick(controls.chat)
+	check("chat: menu opens", controls.chatMenu:IsShown(), true)
+	check("chat: one box per kind", #controls.chatChecks, #ns.CHAT_KINDS)
+	local sales = controls.chatChecks[2]
+	sales.GetChecked = function() return false end
+	sales.scripts.OnClick(sales)
+	check("chat: sales off", ns.Option("chatSales"), false)
+	check("chat: button counts", controls.chat:GetText(), ("Chat messages: %d of %d on  >"):format(#ns.CHAT_KINDS - 1, #ns.CHAT_KINDS))
+	local said = {}
+	local realPrint = print
+	print = function(text) table.insert(said, text) end
+	ns.Say("chatSales", "sold something")
+	ns.Say("chatDone", "did something")
+	ns.Print("diag line")
+	print = realPrint
+	check("chat: muted kind stays out", #said, 2)
+	check("chat: other kinds still written", said[1]:find("did something", 1, true) ~= nil, true)
+	sales.GetChecked = function() return true end
+	sales.scripts.OnClick(sales)
+	check("chat: sales back on", ns.Option("chatSales"), true)
+	controls.chat.scripts.OnClick(controls.chat)
+	check("chat: menu closes", controls.chatMenu:IsShown(), false)
+	ns.UI.Show(tabBefore)
+end
+
 -- The margin box on the Options tab changes the quote and is saved.
 do
 	local tabBefore = ns.db.ui.tab

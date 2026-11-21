@@ -170,7 +170,7 @@ end
 
 function MinimapButton.Toggle()
 	MinimapButton.SetShown(not MinimapButton.Shown())
-	ns.Print(MinimapButton.Shown() and "Minimap button shown."
+	ns.Say("chatDone", MinimapButton.Shown() and "Minimap button shown."
 		or "Minimap button hidden. /cff minimap or the Options tab shows it again.")
 	ns.Options.Sync()
 end

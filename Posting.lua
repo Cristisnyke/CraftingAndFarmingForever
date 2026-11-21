@@ -351,14 +351,14 @@ function Posting.PostSelected(confirmed)
 	local quantity, price = Quantity(), PriceFromBoxes()
 	if posting or not (location and quantity and price) or not C_AuctionHouse.IsThrottledMessageSystemReady() then return end
 	if locked then
-		ns.Print("That item is locked. Auctionator's Selling tab may have it selected, so pick something else there first.")
+		ns.Say("chatWarnings", "That item is locked. Auctionator's Selling tab may have it selected, so pick something else there first.")
 		return
 	end
 	-- With true the game itself says why it can't be sold.
 	if not C_AuctionHouse.IsSellItemValid(location, true) then return end
 	local available = C_AuctionHouse.GetAvailablePostCount(location) or quantity
 	if available < 1 then
-		ns.Print("The auction house says none of this item can be posted right now.")
+		ns.Say("chatWarnings", "The auction house says none of this item can be posted right now.")
 		return
 	end
 	quantity = math.min(quantity, available)
@@ -421,7 +421,7 @@ ns.On("AUCTION_HOUSE_SHOW_ERROR", function(errorCode)
 	local request = lastRequest
 	lastRequest = nil
 	ns.db.lastAuctionRefusal = { kind = request.kind, text = request.text, at = request.at, code = errorCode }
-	ns.Print(("The auction house refused this %s (error %s): %s"):format(request.kind, tostring(errorCode), request.text))
+	ns.Say("chatWarnings", ("The auction house refused this %s (error %s): %s"):format(request.kind, tostring(errorCode), request.text))
 	if request.kind == "post" then
 		posting = false -- Sales forgets the post itself
 		UpdateForm()
@@ -644,7 +644,7 @@ local function CreateTab()
 	if window or not AuctionHouseFrame then return end
 	local lib = _G.LibStub and _G.LibStub("LibAHTab-1-0", true)
 	if not lib then
-		ns.Print("The Restocking tab needs Auctionator's tab library, which isn't loaded.")
+		ns.Say("chatWarnings", "The Restocking tab needs Auctionator's tab library, which isn't loaded.")
 		return
 	end
 

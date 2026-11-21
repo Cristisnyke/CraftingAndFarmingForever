@@ -189,9 +189,53 @@ function Options.Build(parent, top)
 	AddCheck("scanPopup", "Ask to scan at the auction house when prices are old",
 		"The Yes or No box that offers a new scan when your prices are more than a day old. The orange note in this "
 			.. "window stays either way.")
-	AddCheck("chatTips", "Reminders in chat",
-		"The chat lines about old prices at login, and where the shopping list is at the auction house. Warnings on a "
-			.. "quote and sale messages stay either way.")
+	-- Every kind of chat line the add-on writes, in a small menu of its own: the pane has no room for five rows.
+	local chat = ns.UI.FlatButton(parent, "", 220, 22)
+	local menu
+	chat:SetPoint("TOPLEFT", LEFT + 4, -y - 1)
+	Tip(chat, "Chat messages", "Pick which kinds of messages the add-on writes in chat. What you ask for with a "
+		.. "command (/cff diag, /cff alone) always answers.")
+	chat.Sync = function(self)
+		local on = 0
+		for _, kind in ipairs(ns.CHAT_KINDS) do
+			if ns.Option(kind.key) then on = on + 1 end
+		end
+		self:SetText(("Chat messages: %s  >"):format(on == #ns.CHAT_KINDS and "all on" or on == 0 and "all off"
+			or ("%d of %d on"):format(on, #ns.CHAT_KINDS)))
+		if menu and menu:IsShown() then
+			for _, check in ipairs(controls.chatChecks) do check:Sync() end
+		end
+	end
+	chat:SetScript("OnClick", function(self)
+		if not menu then
+			menu = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+			menu:SetFrameStrata("DIALOG")
+			menu:SetSize(330, 40 + 24 * #ns.CHAT_KINDS)
+			menu:SetPoint("TOPLEFT", self, "BOTTOMLEFT", -4, -2)
+			menu:EnableMouse(true)
+			ns.UI.ThemeBackdrop(menu, 0.97)
+			local title = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+			title:SetPoint("TOPLEFT", 12, -10)
+			title:SetText("Write in chat")
+			local close = ns.UI.FlatButton(menu, "x", 20, 18)
+			close:SetPoint("TOPRIGHT", -6, -6)
+			close:SetScript("OnClick", function() menu:Hide() end)
+			controls.chatChecks = {}
+			for index, kind in ipairs(ns.CHAT_KINDS) do
+				local check = Check(menu, kind.label, kind.tip, 8 + 24 * index,
+					function() return ns.Option(kind.key) end, function(on) ns.SetOption(kind.key, on) end)
+				check:SetHitRectInsets(0, -280, 0, 0)
+				controls.chatChecks[index] = check
+			end
+			parent:HookScript("OnHide", function() menu:Hide() end)
+			controls.chatMenu = menu
+			menu:Hide()
+		end
+		menu:SetShown(not menu:IsShown())
+		self:Sync()
+	end)
+	controls.chat = chat
+	y = y + 22
 	-- Beside it, in the second column.
 	controls.depthCheck = Check(parent, "Read listings at the auction house",
 		"A price scan only knows each material's cheapest listing. At the auction house the add-on looks up every "
@@ -205,7 +249,6 @@ function Options.Build(parent, top)
 	controls.depthCheck:ClearAllPoints()
 	controls.depthCheck:SetPoint("TOPLEFT", LEFT + 380, -(y - 22))
 	controls.depthCheck:SetHitRectInsets(0, -230, 0, 0)
-	controls.chatTips:SetHitRectInsets(0, -340, 0, 0)
 
 	y = y + 10
 	Heading(parent, "Profit", y)
@@ -411,7 +454,7 @@ function Options.Build(parent, top)
 			.. "of them. Press Enter to save.")
 
 	local function Update()
-		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chatTips", "bagSpace", "depthCheck", "smartRestock", "adEnabled" }) do
+		for _, key in ipairs({ "autoOpen", "minimap", "nextStep", "scanPopup", "chat", "bagSpace", "depthCheck", "smartRestock", "adEnabled" }) do
 			controls[key]:Sync()
 		end
 		local current = ns.Advertise.DestinationLabel()

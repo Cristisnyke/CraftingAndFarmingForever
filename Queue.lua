@@ -264,7 +264,7 @@ end
 function Queue.Add(recipeID, qty)
 	qty = math.max(1, math.floor(qty or 1))
 	if not EnsureRecipe(recipeID) then
-		ns.Print("That recipe's data is not available yet. Open its profession and try again.")
+		ns.Say("chatWarnings", "That recipe's data is not available yet. Open its profession and try again.")
 		return
 	end
 	local me = ns.CharKey()
@@ -668,7 +668,7 @@ function Restock.TrimToListings()
 		end
 		ns.db.restock.cuts[cut.recipeID] = { kept = kept, at = time() }
 	end
-	ns.Print(("Restock decided again at what the materials really cost on the auction house: %s. The rest wouldn't "
+	ns.Say("chatPlan", ("Restock decided again at what the materials really cost on the auction house: %s. The rest wouldn't "
 		.. "earn your minimum profit."):format(table.concat(texts, ", ")))
 	return true
 end
@@ -886,7 +886,7 @@ local function Blocked(addon)
 	if addon ~= addonName then return end
 	if not ns.db.ui.noCraftAfterOpen then
 		ns.db.ui.noCraftAfterOpen = true
-		ns.Print("The game doesn't let add-ons craft by themselves right after opening a profession, so Craft Next "
+		ns.Say("chatWarnings", "The game doesn't let add-ons craft by themselves right after opening a profession, so Craft Next "
 			.. "now opens it on the first click and crafts on the second.")
 	end
 end
@@ -902,7 +902,7 @@ function Queue.CraftNext()
 		return
 	end
 	if not craft then
-		ns.Print(reason)
+		ns.Say("chatWarnings", reason)
 		return
 	end
 	C_TradeSkillUI.CraftRecipe(craft.recipeID, count)

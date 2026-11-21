@@ -674,7 +674,7 @@ local function AnnounceArrivals()
 		end
 	end
 	if count > 0 then
-		ns.Print(("%s from %s is waiting in the mailbox."):format(total > 0 and ns.Money(total) or "Money",
+		ns.Say("chatSales", ("%s from %s is waiting in the mailbox."):format(total > 0 and ns.Money(total) or "Money",
 			ns.Plural(count, "sale", "sales")))
 	end
 	if nextDue and dueTimerAt ~= nextDue then
@@ -697,7 +697,7 @@ function Sales.NoteSold(name, when)
 		amount = amount, rough = rough or nil,
 	})
 	local _, total = Sales.Incoming()
-	ns.Print(("Sold: %s. %s arrives in the mailbox in an hour%s."):format(name,
+	ns.Say("chatSales", ("Sold: %s. %s arrives in the mailbox in an hour%s."):format(name,
 		amount and ((rough and "About " or "") .. ns.Money(amount)) or "The money",
 		total > (amount or 0) and (" (" .. ns.Money(total) .. " on its way in all)") or ""))
 	AnnounceArrivals()
@@ -945,7 +945,7 @@ function Sales.RepairEmptiedMail()
 		end
 	end
 	if changed then
-		ns.Print("Sales profit was counted wrong until now: taking the gold from a sale's mail counted the sale twice. Sorry for the confusion. Your records are corrected; for a clean start, press Reset profit in the Sales tab.")
+		ns.Say("chatWarnings", "Sales profit was counted wrong until now: taking the gold from a sale's mail counted the sale twice. Sorry for the confusion. Your records are corrected; for a clean start, press Reset profit in the Sales tab.")
 		Sales.ForgetCraftInfo()
 		ns.InvalidateProfit()
 		if ns.UI then ns.UI.Refresh("sales") end

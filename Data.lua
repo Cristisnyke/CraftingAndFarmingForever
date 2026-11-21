@@ -192,7 +192,7 @@ end
 function Prices.StartScan()
 	local state = Auctionator.State
 	if not (AuctionHouseFrame and AuctionHouseFrame:IsShown() and state) then
-		ns.Print("Open the auction house to scan.")
+		ns.Say("chatWarnings", "Open the auction house to scan.")
 		return
 	end
 	local frame
@@ -201,7 +201,7 @@ function Prices.StartScan()
 	else
 		frame = state.IncrementalScanFrameRef
 	end
-	if frame then frame:InitiateScan() else ns.Print("Auctionator's scanner is not ready yet. Try again in a moment.") end
+	if frame then frame:InitiateScan() else ns.Say("chatWarnings", "Auctionator's scanner is not ready yet. Try again in a moment.") end
 end
 
 -- A scan of our whole list, or a full scan, starts a comparison. Searching one item, as happens while buying, doesn't,

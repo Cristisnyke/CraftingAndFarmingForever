@@ -68,7 +68,7 @@ local function Release(slow)
 	released, idleAt = true, nil
 	if slow then
 		stats.slow = stats.slow + 1
-		ns.Print("Reading listings is taking long. The screen is yours again; it goes on in the background.")
+		ns.Say("chatPlan", "Reading listings is taking long. The screen is yours again; it goes on in the background.")
 	else
 		stats.escaped = stats.escaped + 1
 	end

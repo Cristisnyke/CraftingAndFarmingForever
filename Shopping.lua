@@ -104,6 +104,6 @@ function Shopping.Sync()
 	Shopping.status.error = not ok and tostring(err) or nil
 	if not ok and not Shopping.reported then
 		Shopping.reported = true
-		ns.Print("Could not update the Auctionator list: " .. tostring(err))
+		ns.Say("chatWarnings", "Could not update the Auctionator list: " .. tostring(err))
 	end
 end

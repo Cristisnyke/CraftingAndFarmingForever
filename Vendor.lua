@@ -134,7 +134,7 @@ local function SyncMerchantButton()
 		merchantButton:SetPoint("TOPLEFT", MerchantFrame, "BOTTOMLEFT", 0, -4)
 		merchantButton:SetScript("OnClick", function()
 			local ok, why = Vendor.Run()
-			if not ok and why then ns.Print(why) end
+			if not ok and why then ns.Say("chatWarnings", why) end
 		end)
 		merchantButton:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
@@ -173,12 +173,12 @@ local function Finish()
 	end
 	local spent = done.money - GetMoney()
 	if #got > 0 then
-		ns.Print(("Vendor: bought %s for %s."):format(table.concat(got, ", "), ns.Money(math.max(spent, 0))))
+		ns.Say("chatDone", ("Vendor: bought %s for %s."):format(table.concat(got, ", "), ns.Money(math.max(spent, 0))))
 	end
 	if done.stopped then
-		ns.Print(("Vendor: stopped (%s)."):format(done.stopped))
+		ns.Say("chatDone", ("Vendor: stopped (%s)."):format(done.stopped))
 	end
-	if #short > 0 then ns.Print("Vendor: still missing " .. table.concat(short, ", ") .. ".") end
+	if #short > 0 then ns.Say("chatDone", "Vendor: still missing " .. table.concat(short, ", ") .. ".") end
 	ns.RequestPlan()
 	Changed()
 end
