@@ -126,6 +126,8 @@ When it doesn't fit:
 
 On the Next step bar, a **Make room** or **Take from your bank** step has a **Bank it** button. Open your bank and click it: it puts away everything the step lists, then takes out what the queue needs from the bank, one stack at a time, splitting stacks when only part is needed (crafting reagents go to the reagent bag first). It says in chat when it's done, if your bank or bags filled up, or if something wasn't found. It stops when the bank closes or a fight starts, and won't start while you hold something on the cursor.
 
+At a vendor, a **Buy for your queue** button shows the price of what the **Buy from vendor** step needs from that vendor. It's under the vendor window and on the Next step bar (whatever step the bar is on, so you can grab thread on the way to the auction house). Click it to buy exactly that, rounded up to what one purchase gives when a vendor sells in bundles. Hover it for the list, including what this vendor doesn't sell. It only appears when the vendor has something your queue needs, buys nothing you didn't click for, and stops if you close the vendor, your bags fill up or your gold runs out.
+
 The bank's own free space isn't checked before planning; **Bank it** stops and says so when it's full. Turn it all off with **Plan around bag space** on the Options tab. Farm It plans don't use runs: you gather what you come across.
 
 ### Next step bar

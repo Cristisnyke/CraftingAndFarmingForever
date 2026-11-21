@@ -19,6 +19,7 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `Data.lua` | Every client read: item data, Auctionator prices and scan age, stock, recipe scanning |
 | `Depth.lua` | Listing depth: every listing of a material (from any search that passes by, and its own low-priority searches at the auction house), so the planner can cost buying many |
 | `Lock.lua` | The screen lock while `Depth.lua`'s own check runs: a full-screen sheet that takes clicks and keys, the item being read and its rows outlined, one lock across chained rounds, and every way it comes down |
+| `Vendor.lua` | The vendor step done on a click at a merchant: buys `plan.vendor` as far as that merchant sells it, one purchase at a time, plus the button under the merchant window |
 | `Queue.lua` | Queue operations, restock goals, plan rebuilds, Craft Next |
 | `Sales.lua` | Sold and expired records from mail, post tracking, chance to sell |
 | `Crates.lua` | Waylaid Crate data (crate, level, bundles of materials), the cost maths is `Planner.Crate`; + queues one through `Queue.Want` (`db.wanted`) |

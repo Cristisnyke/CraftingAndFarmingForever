@@ -537,7 +537,9 @@ local function BuildQueueList()
 	-- Right after the auction house, which always has a mailbox beside it; not before, as purchases land there one by
 	-- one and collecting halfway through would send you away with things still to buy.
 	Section("Collect from your mailbox", plan.mail)
+	local vendorAt = #list + 1
 	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
+	if list[vendorAt] then list[vendorAt].vendor = true end -- the Next step bar can buy it at a merchant
 	if farming then Section("Smelt with Mining", plan.smelt) end
 	-- Tools you have nowhere: a step of their own before the crafting, gone once one is in your bags. Tools this
 	-- add-on can't look for only get a reminder on the first crafting step, so they never hold up the steps.
@@ -2554,6 +2556,7 @@ function UI.RefreshQueue()
 	UI.Refresh("crates")
 	UpdateTabStrip()
 	UpdateNextStep()
+	ns.Vendor.Sync() -- the button under the merchant window follows the plan
 end
 
 local function SavePosition(key, frame)
@@ -3515,6 +3518,35 @@ local function CreateNextWindow()
 		if window.banking and frame:IsShown() then bank:Sync() end
 	end
 
+	-- On the vendor step, or at any merchant that sells something the plan buys from vendors: buys it for you.
+	local vendor = FlatButton(frame, "", 10, 24, true)
+	vendor:SetPoint("BOTTOMLEFT", 10, 8)
+	vendor:SetPoint("BOTTOMRIGHT", -10, 8)
+	vendor:SetScript("OnClick", function()
+		local ok, why = ns.Vendor.Run()
+		if not ok and why then ns.Print(why) end
+	end)
+	vendor:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Do the vendor step")
+		ns.Vendor.AddTooltipLines(GameTooltip)
+		GameTooltip:Show()
+	end)
+	vendor:SetScript("OnLeave", GameTooltip_Hide)
+	vendor.Sync = function(self)
+		local text, enabled = ns.Vendor.ButtonText()
+		self:SetText(text)
+		self:SetEnabled(enabled)
+	end
+	window.vendorButton = vendor
+	UI.SyncVendorButton = function()
+		if not frame:IsShown() then return end
+		-- A merchant opening or the last purchase landing can add or remove the button: lay the bar out again.
+		local wanted = not window.crafting and (window.vendorStep or ns.Vendor.Pending() ~= nil or ns.Vendor.Busy())
+		if wanted ~= window.vendoring then return UI.Refresh("next") end
+		if window.vendoring then vendor:Sync() end
+	end
+
 	-- The list area's bottom moves up when the Craft Next button is there.
 	local function SetFooter(footer)
 		window.container:SetPoint("BOTTOMRIGHT", -24, footer)
@@ -3527,7 +3559,7 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount, window.blocking, window.open, window.crafting = nil, nil, nil, nil, false
-		window.banking = false
+		window.banking, window.vendoring, window.vendorStep = false, false, false
 		window.maxRows = ns.db.ui.farmMode and NEXT.MAX_ROWS_FARMING or NEXT.MAX_ROWS
 		window.gatherGroups = 0
 		if step and step.gather then
@@ -3550,10 +3582,16 @@ local function CreateNextWindow()
 				if not nextCraft and reason and not open then table.insert(list, { kind = "note", text = reason }) end
 			end
 			window.banking = step.bank or false
+			window.vendorStep = step.vendor or false
 		end
+		-- At a merchant that sells what the plan buys from vendors, its button shows whatever the step.
+		window.vendoring = not folded and not window.crafting
+			and (window.vendorStep or ns.Vendor.Pending() ~= nil or ns.Vendor.Busy())
+		if window.vendoring then window.banking = false end
 		-- On a crafting step the button stays, saying what to finish while it can't craft.
 		local button = window.crafting
-		local footer = button and NEXT.BUTTON_ROOM + 6 or window.banking and NEXT.BANK_BUTTON_ROOM + 6 or 6
+		local footer = button and NEXT.BUTTON_ROOM + 6
+			or (window.banking or window.vendoring) and NEXT.BANK_BUTTON_ROOM + 6 or 6
 		SetFooter(footer)
 		window.container:SetShown(not folded)
 		frame:SetHeight(folded and (MINI_TOP + 2)
@@ -3584,6 +3622,8 @@ local function CreateNextWindow()
 		end
 		bank:SetShown(window.banking and not folded)
 		if window.banking and not folded then bank:Sync() end
+		vendor:SetShown(window.vendoring)
+		if window.vendoring then vendor:Sync() end
 	end
 
 	frame:HookScript("OnShow", function() UI.Refresh("next") end)

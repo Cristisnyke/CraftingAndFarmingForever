@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Buy from vendors in one click.** At a vendor that sells something your queue needs (thread, vials, flux and the like), a **Buy for your queue** button appears under the vendor window and on the Next step bar, with the total price. Click it and it buys exactly what the "Buy from vendor" step lists, as far as that vendor sells it. Hover it to see what it buys and what this vendor doesn't have. It stops if you walk away, your bags fill up or your gold runs out.
+
 ## 1.22.0
 
 - **Writs by zone.** The Writs tab has a Filter by zone button: tick one or more zones to see only the writs handed in there, with how many each zone has. The new Zone heading also sorts the list by where writs are handed in.

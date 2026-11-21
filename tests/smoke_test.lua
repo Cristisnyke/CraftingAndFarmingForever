@@ -3459,6 +3459,68 @@ do
 	GetCursorInfo, ClearCursor = nil, nil
 end
 
+-- The vendor step done at a merchant: the Next step bar's button buys what the plan gets from vendors, rounded up to
+-- what one purchase gives, whatever step the bar is on.
+do
+	local itemCount, money = C_Item.GetItemCount, playerMoney
+	local bought = 0
+	-- Thread in fives for 50c; a currency item and something the queue doesn't need around it.
+	local slots = {
+		{ id = 7, info = { price = 100, stackCount = 1, numAvailable = -1, isPurchasable = true } },
+		{ id = 3, info = { price = 50, stackCount = 5, numAvailable = -1, isPurchasable = true } },
+		{ id = 1, info = { price = 0, stackCount = 1, numAvailable = -1, isPurchasable = true, hasExtendedCost = true } },
+	}
+	local purchases = {}
+	C_MerchantFrame = { GetItemInfo = function(index) return slots[index] and slots[index].info end }
+	GetMerchantNumItems = function() return #slots end
+	GetMerchantItemID = function(index) return slots[index] and slots[index].id end
+	GetMerchantItemMaxStack = function() return 20 end
+	BuyMerchantItem = function(index, amount)
+		table.insert(purchases, { index = index, amount = amount })
+		if slots[index].id == 3 then bought = bought + amount end
+		playerMoney = playerMoney - amount * slots[index].info.price / slots[index].info.stackCount
+	end
+	C_Item.GetItemCount = function(id) return id == 1 and 3 or id == 3 and bought or 0 end
+	playerMoney = 40
+	ns.Queue.Clear()
+	ns.Queue.Add(20, 2)
+	RunTimers()
+	check("vendor step: plan buys thread from a vendor", ns.plan.vendor[3], 2)
+	local bar = ns.UI.windows.next
+	check("vendor step: closed merchant, no button on another step", bar.vendoring, false)
+	check("vendor step: needs a merchant", select(2, ns.Vendor.Run()), "Talk to a vendor first.")
+	Fire("MERCHANT_SHOW")
+	check("vendor step: button at the merchant", bar.vendoring, true)
+	check("vendor step: rounded up to the bundle", bar.vendorButton.text, "Buy for your queue: 50c")
+	check("vendor step: too poor", select(2, ns.Vendor.Run()), "Not enough gold: this costs 50c.")
+	playerMoney = 1000
+	local said = {}
+	local realPrint = ns.Print
+	ns.Print = function(text) table.insert(said, text) end
+	check("vendor step: starts", (ns.Vendor.Run()), true)
+	for _ = 1, 5 do RunTimers() end
+	ns.Print = realPrint
+	check("vendor step: one purchase", #purchases, 1)
+	check("vendor step: the thread's slot", purchases[1] and purchases[1].index, 2)
+	check("vendor step: five units", purchases[1] and purchases[1].amount, 5)
+	check("vendor step: finished", ns.Vendor.Progress(), nil)
+	check("vendor step: says what it bought", said[1], "Vendor: bought Coarse Thread x5 for 50c.")
+	check("vendor step: plan has nothing left to buy here", ns.Vendor.Pending(), nil)
+	check("vendor step: button gone once bought", bar.vendoring, false)
+	-- Limited stock: what's there, and the rest named as short.
+	bought = 0
+	slots[2].info.numAvailable = 0
+	ns.Vendor.Sync()
+	check("vendor step: sold out here", ns.Vendor.Pending(), nil)
+	slots[2].info.numAvailable = -1
+	Fire("MERCHANT_CLOSED")
+	check("vendor step: closed", ns.Vendor.IsOpen(), false)
+	ns.Queue.Clear()
+	RunTimers()
+	C_Item.GetItemCount, playerMoney = itemCount, money
+	C_MerchantFrame, GetMerchantNumItems, GetMerchantItemID, GetMerchantItemMaxStack, BuyMerchantItem = nil, nil, nil, nil, nil
+end
+
 -- Listing depth: at the auction house the add-on reads every listing of what it has to buy, so buying many counts at
 -- what they really cost, not all at the cheapest listing.
 do

@@ -47,6 +47,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - Each character only buys and crafts its own part; then you're told which alt to log in to next.
 - Sub-crafts like bars, bolts and leather are worked out for you, and shrink as your stock grows. They're only made while that's cheaper than buying, down every listing: when the cheap ore runs out, the rest of the bars are bought.
 - **Bag space**: when a big queue's materials won't fit in your bags, it tells you what to put in the bank first and, if that isn't enough, splits the queue into runs that fit, crafting what uses up the most room first. At the bank, **Bank it** on the Next step bar does the moving for you.
+- **Vendor reagents in one click**: at a vendor that sells something your queue needs, **Buy for your queue** (under the vendor window and on the Next step bar) buys exactly what's missing.
 - **Total profit** for the whole queue, and **Still to buy** compared with the gold you're carrying.
 - **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. Fold it to one line; it disappears when the queue is empty.
 - **Craft Next** crafts the next thing this character can make. If it can't, it tells you why (the next craft is on your alt, say), and if the craft needs a different profession it opens that one for you. It's also a progress bar: while you craft it shows how far through the batch you are (8 / 20) and how long until that batch and all your crafts are done.

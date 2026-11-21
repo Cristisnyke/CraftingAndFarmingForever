@@ -9,6 +9,8 @@ ignore = { "212/self", "212/event", "21./_.*" }
 globals = { "CraftingAndFarmingForeverDB", "SLASH_CFF1", "SLASH_CFF2" }
 
 read_globals = {
+	"BuyMerchantItem", "C_MerchantFrame", "ERR_BAG_FULL", "ERR_INV_FULL", "ERR_NOT_ENOUGH_MONEY", "GetMerchantItemID",
+	"GetMerchantItemInfo", "GetMerchantItemLink", "GetMerchantItemMaxStack", "GetMerchantNumItems", "MerchantFrame",
 	"ATTACHMENTS_MAX_RECEIVE", "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT",
 	"AUCTION_SOLD_MAIL_SUBJECT", "AuctionHouseFrame", "Auctionator", "CANCEL", "C_AddOns", "C_AuctionHouse",
 	"C_Container", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
