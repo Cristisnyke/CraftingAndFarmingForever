@@ -378,7 +378,7 @@ local function BuildRecipeList()
 	-- Looking at the list is reading the news: the glow goes out.
 	if ns.RecipeBook.MarkSeen(me) then UpdateTabStrip() end
 	local rows, info = ns.RecipeBook.Rows({ professionID = selectedProfession.profit, who = who, me = me,
-		showLearned = ns.db.ui.recipeLearned, search = profitSearch })
+		showLearned = ns.db.ui.recipeLearned, search = profitSearch, hideBound = ns.db.ui.recipeHideBound })
 	local key, ascending = UI.ListSort("recipes")
 	ns.RecipeBook.Sort(rows, key, ascending)
 	local list = { recipes = true, info = info, who = who }
@@ -386,6 +386,8 @@ local function BuildRecipeList()
 		local text
 		if profitSearch ~= "" then
 			text = "No recipes match your search."
+		elseif info.boundHidden > 0 then
+			text = "Every recipe left here makes something that binds on pickup. Untick Hide BoP to list them."
 		elseif info.learnedHidden > 0 then
 			text = "Every recipe here is learned. Tick Show learned to list them."
 		else
@@ -1069,6 +1071,7 @@ function RECIPE.ShowTooltip(row, item)
 	local Book = ns.RecipeBook
 	local recipeID = item.recipeID
 	local data = Book.Data(recipeID)
+	local missing = false
 	GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 	if data and data.i then
 		GameTooltip:SetItemByID(data.i)
@@ -1081,8 +1084,21 @@ function RECIPE.ShowTooltip(row, item)
 	local professionID = Book.Profession(recipeID)
 	local professionName = professionID and ns.Recipes.ProfessionName(professionID) or "its profession"
 	if item.skill then GameTooltip:AddLine(("Needs %s %d to learn"):format(professionName, item.skill), 1, 0.82, 0) end
+	-- What it makes, and whether that sells.
+	local sellable, output = Book.Sellable(recipeID)
+	if output then
+		local madeName = ns.Items.Name(output)
+		missing = madeName == nil
+		local price = sellable and ns.Prices.AH(output)
+		local right = sellable == false and Color(COLOR_WARN, "binds on pickup")
+			or price and ("sells for " .. ns.Money(price)) or ""
+		GameTooltip:AddDoubleLine("Makes " .. (madeName or "..."), right, 1, 1, 1, 1, 1, 1)
+	elseif output == false then
+		GameTooltip:AddLine("Makes no item, so nothing to sell.", 1, 0.6, 0.2, true)
+	end
 	GameTooltip:AddLine("Where to get it", 1, 0.82, 0)
-	local lines, missing = Book.SourceLines(recipeID, ns.CharKey())
+	local lines, sourceMissing = Book.SourceLines(recipeID, ns.CharKey())
+	missing = missing or sourceMissing
 	for _, line in ipairs(lines) do
 		GameTooltip:AddLine(line.text, 1, 1, 1, true)
 		if line.detail then GameTooltip:AddLine("   " .. line.detail, 0.75, 0.75, 0.75, true) end
@@ -2955,6 +2971,30 @@ function CreateProfitPane()
 	end)
 	window.showLearned = showLearned
 
+	-- Recipes mode: only recipes whose craft can go on the auction house.
+	local hideBound = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	hideBound:SetSize(24, 24)
+	hideBound:SetPoint("LEFT", learnedLabel, "RIGHT", 10, -1)
+	hideBound:SetHitRectInsets(0, -50, 0, 0)
+	local boundLabel = hideBound:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	boundLabel:SetPoint("LEFT", hideBound, "RIGHT", 2, 1)
+	boundLabel:SetText("Hide BoP")
+	hideBound:SetScript("OnClick", function(self)
+		ns.db.ui.recipeHideBound = self:GetChecked() and true or false
+		window.offset = 0
+		UI.Refresh("profit")
+	end)
+	hideBound:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Hide BoP")
+		GameTooltip:AddLine("Lists only recipes whose craft you can post on the auction house: those that make "
+			.. "something binding on pickup, or no item at all (most enchants), are left out. What an unlearned "
+			.. "recipe makes is read when its profession window is open; until then it stays listed.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	hideBound:SetScript("OnLeave", GameTooltip_Hide)
+	window.hideBound = hideBound
+
 	-- Recipes mode: whose recipes, in the Advertise button's place (advertising has nothing to do with this list).
 	local whoButton = HeaderButton(window.frame, "This character", TAB_WIDTH - 6, function()
 		ns.db.ui.recipeWho = RECIPE.Who() == "all" and "me" or "all"
@@ -3026,6 +3066,8 @@ function CreateProfitPane()
 		hideUnprofitable:SetChecked(ns.db.ui.hideUnprofitable and true or false)
 		showLearned:SetShown(recipeMode)
 		showLearned:SetChecked(ns.db.ui.recipeLearned and true or false)
+		hideBound:SetShown(recipeMode)
+		hideBound:SetChecked(ns.db.ui.recipeHideBound and true or false)
 		if self.list.recipes then
 			local info = self.list.info
 			local shown = #self.list > 0 and self.list[1].kind == "header" and #self.list - 1 or 0
@@ -3041,6 +3083,12 @@ function CreateProfitPane()
 			end
 			if info.learnedHidden > 0 then
 				table.insert(parts, Color(COLOR_MUTED, ("%d learned hidden."):format(info.learnedHidden)))
+			end
+			if info.boundHidden > 0 then
+				table.insert(parts, Color(COLOR_MUTED, ("%d bind on pickup hidden."):format(info.boundHidden)))
+			end
+			if info.unchecked > 0 then
+				table.insert(parts, Color(COLOR_MUTED, ("%d not checked yet (open the profession)."):format(info.unchecked)))
 			end
 			if info.notInGame > 0 then
 				table.insert(parts, Color(COLOR_MUTED, ("%d not in this game left out."):format(info.notInGame)))

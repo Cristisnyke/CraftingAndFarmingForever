@@ -148,6 +148,15 @@ function Book.Price(recipeID)
 	return ns.Prices.AH(data.i), false
 end
 
+-- Whether what it makes can go on the auction house: true, false (binds on pickup, or makes no item) or nil (not
+-- known yet, or the item still loading). Then the item, false for no item, nil when not known.
+function Book.Sellable(recipeID)
+	local output = ns.Recipes.Output(recipeID)
+	if output == false then return false, false end
+	if not output then return nil, nil end
+	return ns.Items.CanSellOnAH(output), output
+end
+
 ---------------------------------------------------------------------------
 -- Characters
 ---------------------------------------------------------------------------
@@ -265,10 +274,11 @@ end
 local STATUS_RANK = { learn = 1, skill = 2, learned = 3, none = 4 }
 
 -- opts: professionID (nil for every profession of the characters looked at), who ("me" or "all"), me (charKey),
--- showLearned, search (lowercase text).
+-- showLearned, search (lowercase text), hideBound (leave out recipes whose craft can't go on the auction house).
 -- Each row: recipeID, name, skill, status (the best of the characters looked at), chars = { { key, status, need,
 -- have } } for those with the profession, sources, source (label), sourceOrder, price, bound.
--- info: learnedHidden, notInGame, learnNow, noProfession (the one character looked at lacks the tab's profession).
+-- info: learnedHidden, notInGame, learnNow, noProfession (the one character looked at lacks the tab's profession),
+-- boundHidden and unchecked (what it makes not known yet, so kept) with hideBound.
 function Book.Rows(opts)
 	local keys = {}
 	if opts.who == "all" then
@@ -285,7 +295,7 @@ function Book.Rows(opts)
 			for professionID in pairs(Book.CharProfessions(key)) do professions[professionID] = true end
 		end
 	end
-	local info = { learnedHidden = 0, learnNow = 0 }
+	local info = { learnedHidden = 0, learnNow = 0, boundHidden = 0, unchecked = 0 }
 	if opts.professionID and opts.who ~= "all" and not Book.CharProfessions(opts.me)[opts.professionID] then
 		info.noProfession = true
 	end
@@ -307,9 +317,16 @@ function Book.Rows(opts)
 		local name = Book.Name(recipeID)
 		local matches = not opts.search or opts.search == ""
 			or (name and name:lower():find(opts.search, 1, true) ~= nil)
+		local sellable = true
+		if best and matches and opts.hideBound and not (best == "learned" and not opts.showLearned) then
+			sellable = Book.Sellable(recipeID)
+			if sellable == nil then info.unchecked = info.unchecked + 1 end
+		end
 		if best and matches then
 			if best == "learned" and not opts.showLearned then
 				info.learnedHidden = info.learnedHidden + 1
+			elseif sellable == false then
+				info.boundHidden = info.boundHidden + 1
 			else
 				local data = ns.RecipeData[recipeID]
 				local sources = Book.Sources(recipeID, faction)

@@ -4273,6 +4273,39 @@ do
 	profit.showLearned.checked = false
 	profit.showLearned.scripts.OnClick(profit.showLearned)
 
+	-- Hide BoP: only recipes whose craft can go on the auction house. Item 2 trades, item 5 binds on pickup.
+	check("recipes: profession scan read an unlearned recipe's craft", ns.db.recipeOutputs and ns.db.recipeOutputs[40], 5)
+	local savedOutputs = ns.db.recipeOutputs
+	ns.db.recipeOutputs = { [900001] = 2, [900003] = 5 }
+	profit.hideBound.checked = true
+	profit.hideBound.GetChecked = function(self) return self.checked end
+	profit.hideBound.scripts.OnClick(profit.hideBound)
+	check("hide bop: saved", ns.db.ui.recipeHideBound, true)
+	rows = Rows()
+	check("hide bop: tradeable craft kept", rows[900001] ~= nil, true)
+	check("hide bop: bind on pickup craft hidden", rows[900003], nil)
+	check("hide bop: unknown craft kept", rows[900002] ~= nil, true)
+	check("hide bop: counted", profit.list.info.boundHidden, 1)
+	check("hide bop: unknown counted", profit.list.info.unchecked, 1)
+	check("hide bop: status line", profit.status.text:find("1 bind on pickup hidden", 1, true) ~= nil, true)
+	ns.db.recipeOutputs[900002] = 0 -- makes no item: nothing to post
+	ns.UI.Refresh("profit")
+	rows = Rows()
+	check("hide bop: no item hidden", rows[900002], nil)
+	local tip = {}
+	local realDouble = GameTooltip.AddDoubleLine
+	GameTooltip.AddDoubleLine = function(_, left, right) table.insert(tip, left .. " = " .. right) end
+	for _, row in ipairs(profit.rows) do
+		if row.data and row.data.kind == "recipe" and row.data.row.recipeID == 900001 then row.scripts.OnEnter(row) end
+	end
+	GameTooltip.AddDoubleLine = realDouble
+	check("hide bop: tooltip says what it makes", table.concat(tip, "\n"):find("Makes " .. ns.Items.Name(2), 1, true) ~= nil, true)
+	profit.hideBound.checked = false
+	profit.hideBound.scripts.OnClick(profit.hideBound)
+	rows = Rows()
+	check("hide bop: off lists them again", rows[900003] ~= nil and rows[900002] ~= nil, true)
+	ns.db.recipeOutputs = savedOutputs
+
 	-- The game's own list: AllTheThings' recipes it lacks are left out, ones only the game has are added.
 	ns.db.recipeLists = { [myProfession] = { at = 0, ids = { [10] = true, [900001] = true, [900003] = true, [777777] = true } } }
 	ns.UI.Refresh("profit")

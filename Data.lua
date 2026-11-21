@@ -648,6 +648,41 @@ function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
 	return recipe
 end
 
+-- What a recipe makes, learned or not: an item ID, false when it makes no item (most enchants), nil when not known
+-- yet. Read from the open profession window's list (ScanOpenProfession), else asked of the client; only a list read
+-- with the window ready may say "no item", since a recipe whose data hasn't loaded looks the same.
+-- db.recipeOutputs[recipeID] = item ID, or 0 for no item.
+function Recipes.Output(recipeID)
+	local recipe = ns.db.recipes[recipeID]
+	if recipe then return recipe.o or false end
+	ns.db.recipeOutputs = ns.db.recipeOutputs or {}
+	local saved = ns.db.recipeOutputs[recipeID]
+	if saved then return saved ~= 0 and saved or false end
+	local fn = C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic
+	local ok, schematic = false, nil
+	if fn then ok, schematic = pcall(fn, recipeID, false) end
+	local output = ok and type(schematic) == "table" and schematic.outputItemID
+	if output and output > 0 then
+		ns.db.recipeOutputs[recipeID] = output
+		return output
+	end
+	return nil
+end
+
+local function ReadOutputs(ids)
+	ns.db.recipeOutputs = ns.db.recipeOutputs or {}
+	local outputs = ns.db.recipeOutputs
+	for _, recipeID in ipairs(ids) do
+		if not outputs[recipeID] and not ns.db.recipes[recipeID] then
+			local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
+			if ok and type(schematic) == "table" then
+				local output = schematic.outputItemID
+				outputs[recipeID] = output and output > 0 and output or 0
+			end
+		end
+	end
+end
+
 local function ScanOpenProfession()
 	-- Reagents can be missing from recipes until the list is ready; the list-update event comes again when it is.
 	if not C_TradeSkillUI.IsTradeSkillReady() then return end
@@ -688,6 +723,8 @@ local function ScanOpenProfession()
 		ns.db.recipeLists = ns.db.recipeLists or {}
 		ns.db.recipeLists[baseKey] = { at = time(), ids = set }
 	end
+	-- What the unlearned ones make, for the Recipes list's Hide BoP.
+	ReadOutputs(ids)
 
 	-- Each recipe's colour for this character right now, for levelling. It changes with every skill point.
 	char.skillUps = char.skillUps or {}
