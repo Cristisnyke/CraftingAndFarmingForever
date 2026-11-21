@@ -657,11 +657,14 @@ local function ExpectedPayout(name, char)
 end
 
 local dueTimerAt
+-- Set once chat has said money is waiting; later arrivals stay quiet until the mailbox is opened. A busy hour of
+-- sales would otherwise write one line per sale an hour later.
+local mailboxTold
 
 -- Says once, in chat, when money has reached a mailbox, and keeps the displays counting down.
 local function AnnounceArrivals()
 	local now = time()
-	local count, total, nextDue = 0, 0, nil
+	local count, total, nextDue, later = 0, 0, nil, 0
 	for _, entry in ipairs(ns.db.sales.incoming) do
 		if entry.due <= now then
 			if not entry.told then
@@ -669,13 +672,16 @@ local function AnnounceArrivals()
 				count = count + 1
 				total = total + (entry.amount or 0)
 			end
-		elseif not nextDue or entry.due < nextDue then
-			nextDue = entry.due
+		else
+			later = later + (entry.amount or 0)
+			if not nextDue or entry.due < nextDue then nextDue = entry.due end
 		end
 	end
-	if count > 0 then
-		ns.Say("chatSales", ("%s from %s is waiting in the mailbox."):format(total > 0 and ns.Money(total) or "Money",
-			ns.Plural(count, "sale", "sales")))
+	if count > 0 and not mailboxTold then
+		mailboxTold = true
+		ns.Say("chatSales", ("%s from %s is waiting in the mailbox%s."):format(
+			total > 0 and ns.Money(total) or "Money", ns.Plural(count, "sale", "sales"),
+			later > 0 and (" (" .. ns.Money(later) .. " more on its way)") or ""))
 	end
 	if nextDue and dueTimerAt ~= nextDue then
 		dueTimerAt = nextDue
@@ -732,6 +738,7 @@ end
 
 -- Opening the mailbox collects what has arrived for this character.
 local function ClearCollected()
+	mailboxTold = nil
 	local char, now = ns.CharKey(), time()
 	local incoming = ns.db.sales.incoming
 	for index = #incoming, 1, -1 do

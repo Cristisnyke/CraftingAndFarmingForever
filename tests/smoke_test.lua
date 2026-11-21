@@ -2963,6 +2963,34 @@ do
 	Fire("MAIL_SHOW")
 	check("not yet due: kept", #ns.Sales.Incoming(), 1)
 
+	-- A busy hour of sales: money arriving sale after sale is said once, until the mailbox is opened.
+	ns.db.sales.incoming = {}
+	said = {}
+	local function Announced()
+		local n = 0
+		for _, text in ipairs(said) do if text:find("waiting in the mailbox", 1, true) then n = n + 1 end end
+		return n
+	end
+	local start = base + 4000
+	for step = 0, 2 do
+		time = function() return start + step * 60 end
+		Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 4, "Test Sword", 200 + step)
+	end
+	for step = 0, 2 do
+		time = function() return start + 3600 + step * 60 + 1 end
+		RunTimers()
+	end
+	check("arrivals one after another said once", Announced(), 1)
+	local first
+	for _, text in ipairs(said) do if text:find("waiting in the mailbox", 1, true) then first = text end end
+	check("first arrival names what's still coming", (first or ""):find("more on its way", 1, true) ~= nil, true)
+	Fire("MAIL_SHOW")
+	time = function() return start + 7300 end
+	Fire("AUCTION_HOUSE_SHOW_FORMATTED_NOTIFICATION", 4, "Test Sword", 300)
+	time = function() return start + 7300 + 3601 end
+	RunTimers()
+	check("after a mailbox visit the next arrival is said again", Announced(), 2)
+
 	ns.db.sales.incoming = {}
 	ns.db.sales.lots = {}
 	time, ns.Print = realTime, realPrint

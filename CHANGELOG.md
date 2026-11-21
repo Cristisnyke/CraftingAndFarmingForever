@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Money from sales reaching your mailbox is said in chat once, not once per sale, until you open the mailbox. The first line also says how much more is still on its way.
+
 ## 1.24.0
 
 - **Recipes to hunt.** The Profit tab has a third mode, **Recipes**: every recipe in the game you haven't learned yet, by the skill it needs. Green ones you can learn now.
