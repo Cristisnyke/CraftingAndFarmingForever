@@ -36,12 +36,14 @@ It ranks every recipe your characters know by real profit at current auction hou
 ### Skill up: profession levelling at the lowest cost
 
 - A levelling (leveling) view of the same list: the recipes that can still give a skill point, cheapest per point first.
+- The real cost of a point: materials less what you get back for what you make, from a vendor or (tick **Selling on the AH**) the auction house. Crafts that earn gold while levelling show in green.
 - Coloured orange, yellow and green as in the game, with each colour's chance of a point.
 - Uses today's auction house prices, so it's a levelling guide that's never out of date.
 
 ### Recipes: what to learn next, and where
 
 - Every recipe in the game you haven't learned yet, by the skill it needs, green when you can learn it now.
+- What each one would earn per craft, and how many crafts it takes to pay for the recipe at its auction house price: sort by it before you buy a recipe.
 - Hover one for where it comes from: trainer, vendor (with its price, tokens or Merchant's Favor, and reputation), quest, dungeon boss, drop, world drop or holiday, and whether you can buy it on the auction house.
 - Hide bind-on-pickup crafts to see only recipes whose items you can sell, with what each craft sells for.
 - See which of your characters have learned it or can learn it, or switch to all characters to see every recipe an alt is still missing.

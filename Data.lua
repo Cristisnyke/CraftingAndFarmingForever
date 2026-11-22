@@ -837,10 +837,9 @@ local function ItemIDFromLink(link)
 	return link and tonumber(link:match("item:(%d+)")) or nil
 end
 
--- Compact copy of a recipe, so costs work for professions and characters not currently open.
-function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
-	local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
-	if type(schematic) ~= "table" then return nil end
+-- The materials and result of a schematic: { o, qmin, qmax, r, x } (see Recipes.Read), or nil when a required slot
+-- is still empty (its data hasn't loaded).
+local function Compact(recipeID, schematic)
 	local slots = {}
 	local usesCurrency = false
 	local basic = BasicReagentType()
@@ -865,19 +864,49 @@ function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
 	if not output or output <= 0 then
 		output = ItemIDFromLink(C_TradeSkillUI.GetRecipeItemLink(recipeID))
 	end
-	local recipe = {
-		n = recipeInfo and recipeInfo.name or schematic.name,
+	return {
 		o = output,
 		qmin = schematic.quantityMin or 1,
 		qmax = schematic.quantityMax or schematic.quantityMin or 1,
-		p = professionID,
-		pn = professionName,
 		r = slots,
-		t = Recipes.Tools(recipeID),
-		f = Recipes.Stations(recipeID),
 		x = usesCurrency or nil,
 	}
+end
+
+-- Compact copy of a recipe, so costs work for professions and characters not currently open.
+function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
+	local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
+	if type(schematic) ~= "table" then return nil end
+	local recipe = Compact(recipeID, schematic)
+	if not recipe then return nil end
+	recipe.n = recipeInfo and recipeInfo.name or schematic.name
+	recipe.p = professionID
+	recipe.pn = professionName
+	recipe.t = Recipes.Tools(recipeID)
+	recipe.f = Recipes.Stations(recipeID)
 	ns.db.recipes[recipeID] = recipe
+	return recipe
+end
+
+-- A recipe nobody knows yet, for what it would earn (Recipes mode): its materials and result, read from the game
+-- (which describes unlearned recipes too) and kept in db.recipePreview. A known recipe is its own record. Asked of
+-- the client at most every PREVIEW_RETRY seconds while its data hasn't loaded.
+Recipes.PREVIEW_RETRY = 30
+local previewAsked = {}
+function Recipes.Preview(recipeID)
+	local known = ns.db.recipes[recipeID]
+	if known then return known end
+	ns.db.recipePreview = ns.db.recipePreview or {}
+	local saved = ns.db.recipePreview[recipeID]
+	if saved then return saved end
+	local now = GetTime()
+	if previewAsked[recipeID] and now - previewAsked[recipeID] < Recipes.PREVIEW_RETRY then return nil end
+	previewAsked[recipeID] = now
+	local fn = C_TradeSkillUI and C_TradeSkillUI.GetRecipeSchematic
+	if not fn then return nil end
+	local ok, schematic = pcall(fn, recipeID, false)
+	local recipe = ok and type(schematic) == "table" and Compact(recipeID, schematic) or nil
+	if recipe then ns.db.recipePreview[recipeID] = recipe end
 	return recipe
 end
 
@@ -904,13 +933,15 @@ end
 
 local function ReadOutputs(ids)
 	ns.db.recipeOutputs = ns.db.recipeOutputs or {}
-	local outputs = ns.db.recipeOutputs
+	ns.db.recipePreview = ns.db.recipePreview or {}
+	local outputs, previews = ns.db.recipeOutputs, ns.db.recipePreview
 	for _, recipeID in ipairs(ids) do
-		if not outputs[recipeID] and not ns.db.recipes[recipeID] then
+		if not (outputs[recipeID] and previews[recipeID]) and not ns.db.recipes[recipeID] then
 			local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
 			if ok and type(schematic) == "table" then
 				local output = schematic.outputItemID
 				outputs[recipeID] = output and output > 0 and output or 0
+				previews[recipeID] = previews[recipeID] or Compact(recipeID, schematic)
 			end
 		end
 	end

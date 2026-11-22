@@ -225,9 +225,9 @@ local SORTS = {
 	skill = { key = "skillSort", asc = "skillSortAsc", default = "profit",
 		ascending = { name = true, chance = false, cost = true, profit = true } },
 	-- Recipes: by the skill needed, lowest first; names A to Z; source in a fixed order (trainer, vendor, quest, ...);
-	-- the recipe's auction house price, cheapest first.
+	-- the recipe's auction house price, cheapest first; profit per craft, highest first; fewest crafts to pay back first.
 	recipes = { key = "recipeSort", asc = "recipeSortAsc", default = "chance",
-		ascending = { name = true, chance = true, cost = true, profit = true } },
+		ascending = { name = true, chance = true, cost = true, profit = true, net = false, back = true } },
 	-- Writs: names and hand-in zones A to Z, the writ's price lowest first, the gold kept highest first, gold per
 	-- reputation lowest first.
 	writs = { key = "writSort", asc = "writSortAsc", default = "profit", pane = "writs",
@@ -280,6 +280,12 @@ local SKILL = {
 }
 
 -- Tooltip line: how hard a craft is for the character making it (the profession window's colour).
+-- A levelling cost: white, or green with + when selling what the craft makes earns more than it costs.
+function SKILL.CostText(copper)
+	if copper < 0 then return Color(COLOR_PROFIT, "+" .. ns.Money(-copper)) end
+	return ns.Money(copper)
+end
+
 function SKILL.AddLine(recipeID, charKey)
 	local difficulty, points = ns.Recipes.Difficulty(charKey, recipeID)
 	if not SKILL.NAMES[difficulty] then
@@ -318,7 +324,9 @@ local function BuildSkillList()
 			end
 		end
 	end
-	local rows = ns.Planner.SkillUpRows(ns.NewContext(), entries)
+	-- What selling the results gets back: the vendor's price always, the auction house's when ticked.
+	local rows = ns.Planner.SkillUpRows(ns.NewContext(), entries, { sellPrice = ns.Items.SellPrice,
+		ahSellable = ns.db.ui.skillSellAH and ns.Items.CanSellOnAH or nil })
 	-- The planner's order (cheapest per skill point) is the default and the tie-break.
 	local key, ascending = UI.ListSort("skill")
 	if key ~= "profit" or not ascending then
@@ -328,7 +336,7 @@ local function BuildSkillList()
 			order[row] = index
 			values[row] = key == "name" and recipe and recipe.n and recipe.n:lower()
 				or key == "chance" and row.chance
-				or key == "cost" and row.cost
+				or key == "cost" and row.net
 				or key == "profit" and row.perPoint
 				or nil
 		end
@@ -363,6 +371,21 @@ local RECIPE = {
 	NAMES_ON_ROW = 2,
 }
 
+-- The Profit column: one craft's profit; BoP when what it makes binds; - for no item; ? while not known.
+function RECIPE.ProfitText(item)
+	if item.madeBound then return Color(COLOR_MUTED, "BoP") end
+	if item.made == false then return Color(COLOR_MUTED, "-") end
+	if not item.net then return Color(COLOR_MUTED, "?") end
+	return Color(item.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(item.net))
+end
+
+-- The Pays back column: crafts until the recipe's auction house price is earned back.
+function RECIPE.PaybackText(item)
+	if item.payback == false then return Color(COLOR_LOSS, "never") end
+	if not item.payback then return "" end
+	return ns.Plural(item.payback, "craft", "crafts")
+end
+
 function RECIPE.Who()
 	return ns.db.ui.recipeWho == "all" and "all" or "me"
 end
@@ -381,6 +404,7 @@ local function BuildRecipeList()
 	if ns.RecipeBook.MarkSeen(me) then UpdateTabStrip() end
 	local rows, info = ns.RecipeBook.Rows({ professionID = selectedProfession.profit, who = who, me = me,
 		showLearned = ns.db.ui.recipeLearned, search = profitSearch, hideBound = ns.db.ui.recipeHideBound })
+	ns.RecipeBook.AddProfit(rows, ns.NewContext())
 	local key, ascending = UI.ListSort("recipes")
 	ns.RecipeBook.Sort(rows, key, ascending)
 	local list = { recipes = true, info = info, who = who }
@@ -1125,13 +1149,59 @@ local function ShowSkillTooltip(row, item)
 	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL.CHANCE_TEXT[item.difficulty]), 1, 1, 1, 1, 1, 1)
 	if item.points > 1 then GameTooltip:AddDoubleLine("Skill points per craft", tostring(item.points), 1, 1, 1, 1, 1, 1) end
 	GameTooltip:AddDoubleLine("Materials per craft", item.cost and ns.Money(item.cost) or "no price", 1, 1, 1, 1, 1, 1)
-	GameTooltip:AddDoubleLine("Expected cost per skill point", item.perPoint and ns.Money(item.perPoint) or "no price",
-		1, 1, 1, 1, 1, 1)
+	if item.back and item.back > 0 then
+		GameTooltip:AddDoubleLine(item.backKind == "ah" and "Sells on the AH for (after the cut)" or "A vendor pays",
+			"- " .. ns.Money(item.back), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine(item.net and item.net < 0 and "Earned per craft" or "Cost per craft",
+			item.net and SKILL.CostText(item.net) or "no price", 1, 1, 1, 1, 1, 1)
+	end
+	GameTooltip:AddDoubleLine(item.perPoint and item.perPoint < 0 and "Expected gold per skill point"
+		or "Expected cost per skill point", item.perPoint and SKILL.CostText(item.perPoint) or "no price", 1, 1, 1, 1, 1, 1)
+	if not ns.db.ui.skillSellAH then
+		GameTooltip:AddLine("Counts what a vendor pays for what it makes. Tick Selling on the AH to count the auction "
+			.. "house price instead when it's more.", 0.6, 0.6, 0.6, true)
+	elseif item.backKind == "ah" then
+		GameTooltip:AddLine("Counts the auction house price: levelling makes many of one thing, and the auction house "
+			.. "may not take them all at that price.", 0.6, 0.6, 0.6, true)
+	end
 	GameTooltip:AddLine("Orange always gives a skill point. Yellow and green are estimates: yellow about half the time, "
 		.. "green less often, and both get less likely as your skill rises.", 0.6, 0.6, 0.6, true)
 	GameTooltip:AddLine("Click to open the recipe. + queues one, Shift + queues ten, right-click + to type an amount.",
 		0.6, 0.6, 0.6, true)
 	GameTooltip:Show()
+end
+
+-- Tooltip lines: materials, what it sells for, profit, and when the recipe pays for itself.
+function RECIPE.AddProfitLines(item)
+	local result = item.result
+	if item.madeBound or item.made == false or not result then
+		if item.made and not item.madeBound and not result then
+			GameTooltip:AddLine("Profit not known yet: what it makes is still loading.", 0.6, 0.6, 0.6, true)
+		elseif item.made == nil then
+			GameTooltip:AddLine("Profit not known yet: open this profession once on any character to read its materials.",
+				0.6, 0.6, 0.6, true)
+		end
+		return
+	end
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine("If you learn it", 1, 0.82, 0)
+	AddPartLines(result.parts)
+	GameTooltip:AddDoubleLine("Materials per craft", result.cost and ns.Money(result.cost) or "no price", 1, 1, 1, 1, 1, 1)
+	if result.saleUnit then
+		GameTooltip:AddDoubleLine("Sells for (after the 5% cut)", ns.Money(result.saleUnit * result.yield * (1 - ns.AH_CUT)),
+			1, 1, 1, 1, 1, 1)
+	else
+		GameTooltip:AddLine("What it makes has no auction house price yet.", 0.6, 0.6, 0.6, true)
+	end
+	if item.net then
+		GameTooltip:AddDoubleLine("Profit per craft", Color(item.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(item.net)),
+			1, 1, 1, 1, 1, 1)
+	end
+	if item.payback then
+		GameTooltip:AddDoubleLine("Pays for the recipe after", ns.Plural(item.payback, "craft", "crafts"), 1, 1, 1, 1, 1, 1)
+	elseif item.payback == false then
+		GameTooltip:AddLine("A craft makes no profit, so the recipe never pays for itself.", 1, 0.4, 0.3, true)
+	end
 end
 
 -- Tooltip lines: every character with the recipe's profession and where they stand with it, this character first.
@@ -1200,6 +1270,7 @@ function RECIPE.ShowTooltip(row, item)
 	elseif output == false then
 		GameTooltip:AddLine("Makes no item, so nothing to sell.", 1, 0.6, 0.2, true)
 	end
+	RECIPE.AddProfitLines(item)
 	GameTooltip:AddLine("Where to get it", 1, 0.82, 0)
 	local lines, sourceMissing = Book.SourceLines(recipeID, ns.CharKey())
 	missing = missing or sourceMissing
@@ -1409,14 +1480,21 @@ local COLUMN_TIPS = {
 		"Skill: the skill needed to learn it, red when it's more than you have.",
 		"Source: where it comes from, the first of several (+1 means one more kind). * means during a holiday.",
 		"AH price: the recipe on the auction house. BoP binds on pickup, so it can't be bought.",
+		"Profit: what one craft earns after the 5% auction house cut, as on the Profit tab. BoP: what it makes binds "
+			.. "on pickup. ? : its materials aren't known yet (open the profession once on any character).",
+		"Pays back: how many crafts' profit pays for the recipe at its auction house price. Never: a craft makes no "
+			.. "profit. Blank for learned recipes and recipes with no auction house price.",
 		"Hover a recipe for where to find it and who knows it. Click a heading to sort by it; click again to reverse.",
 	},
 	skill = {
 		"Recipes are coloured as in the profession window. Grey ones can't give skill and aren't listed.",
 		"Chance: of a skill point per craft. Orange always; yellow about half the time and green less often "
 			.. "(estimates).",
-		"Craft: materials for one craft at market prices, by the cheapest path.",
-		"Per point: what a skill point is expected to cost with that recipe. The list starts cheapest first.",
+		"Craft: materials for one craft at market prices, by the cheapest path, less what selling what it makes gets "
+			.. "back: a vendor's price, or the auction house's (after its cut) with Selling on the AH ticked. Green + "
+			.. "means the craft earns gold.",
+		"Per point: what a skill point is expected to cost with that recipe, green + when it earns. The list starts "
+			.. "cheapest first.",
 		"Click Recipe, Chance, Craft or Per point to sort by it; click again to reverse.",
 	},
 	restock = {
@@ -1686,6 +1764,8 @@ local COLUMN = {
 	CHANCE = 44,
 	RESTOCK = 38,
 	WRIT = 76,
+	RECIPE_MONEY = 72, -- Recipes mode: AH price and Profit
+	PAYBACK = 62,
 }
 
 -- Tooltips for + and -, by the kind of row they're on: title, then the help line.
@@ -1795,10 +1875,14 @@ local function ProfitControls(row)
 	return { { row.plus, 2 }, { row.profit, 6 }, { row.chance, 6 } }
 end
 
--- The Recipes columns line up with the other modes' (where they have the + button).
+-- The Recipes columns, right to left: Pays back, Profit, AH price, Source, Skill. The rightmost lines up with the
+-- other modes' (where they have the + button).
 function RECIPE.Controls(row)
-	row.profit:SetWidth(COLUMN.QUEUE)
-	return { { row.profit, 26 }, { row.cost, 6 }, { row.chance, 6 } }
+	row.profit:SetWidth(COLUMN.PAYBACK)
+	row.colAH:SetWidth(COLUMN.RECIPE_MONEY)
+	row.colHave:SetWidth(COLUMN.RECIPE_MONEY)
+	row.cost:SetWidth(COLUMN.QUEUE)
+	return { { row.profit, 26 }, { row.colAH, 6 }, { row.colHave, 6 }, { row.cost, 6 }, { row.chance, 6 } }
 end
 
 local function SkillControls(row)
@@ -2110,7 +2194,7 @@ local function CreateRow(parent)
 	-- The Profit headings are buttons, styled like the column headers of the game's own lists: a shaded box that lights
 	-- up under the mouse, and an arrow on every one (bright on the sorted column, faint on the others).
 	row.sortHeadings = {}
-	for _, key in ipairs({ "name", "zone", "chance", "cost", "profit" }) do
+	for _, key in ipairs({ "name", "zone", "chance", "cost", "profit", "net", "back" }) do
 		local heading = CreateFrame("Button", nil, row)
 		heading:SetHeight(ROW_HEIGHT - 4)
 		heading.key = key
@@ -2390,7 +2474,8 @@ local function SetRow(row, data)
 				row.colHave:Show()
 			elseif mode == "recipes" then
 				PlaceRight(row, RECIPE.Controls(row), false)
-				columns = { chance = { row.chance, "Skill" }, cost = { row.cost, "Source" }, profit = { row.profit, "AH price" } }
+				columns = { chance = { row.chance, "Skill" }, cost = { row.cost, "Source" }, profit = { row.colHave, "AH price" },
+					net = { row.colAH, "Profit" }, back = { row.profit, "Pays back" } }
 			elseif mode == "crates" then
 				PlaceRight(row, WritControls(row), false)
 				columns = { chance = { row.colAH, "Price" }, cost = { row.cost, "Favor" }, profit = { row.profit, "Per Favor" } }
@@ -2505,10 +2590,12 @@ local function SetRow(row, data)
 			tostring(item.skill)) or Color(COLOR_MUTED, "?"))
 		row.cost:SetText(item.source)
 		if item.bound then
-			row.profit:SetText(Color(COLOR_MUTED, "BoP"))
+			row.colHave:SetText(Color(COLOR_MUTED, "BoP"))
 		else
-			row.profit:SetText(item.price and ns.Money(item.price) or "")
+			row.colHave:SetText(item.price and ns.Money(item.price) or "")
 		end
+		row.colAH:SetText(RECIPE.ProfitText(item))
+		row.profit:SetText(RECIPE.PaybackText(item))
 	elseif data.kind == "skill" then
 		local item = data.row
 		local recipe = ns.db.recipes[item.recipeID]
@@ -2520,8 +2607,8 @@ local function SetRow(row, data)
 			.. (item.points > 1 and Color(COLOR_MUTED, (" +%d per craft"):format(item.points)) or ""))
 		PlaceRight(row, SkillControls(row), true)
 		row.chance:SetText(Color(hex, SKILL.CHANCE_TEXT[item.difficulty]))
-		row.cost:SetText(item.cost and ns.Money(item.cost) or Color(COLOR_MUTED, "no price"))
-		row.profit:SetText(item.perPoint and ns.Money(item.perPoint) or Color(COLOR_MUTED, "?"))
+		row.cost:SetText(item.net and SKILL.CostText(item.net) or Color(COLOR_MUTED, "no price"))
+		row.profit:SetText(item.perPoint and SKILL.CostText(item.perPoint) or Color(COLOR_MUTED, "?"))
 	elseif data.kind == "queue" then
 		local entry = data.entry
 		local recipe = ns.db.recipes[entry.recipeID]
@@ -3066,6 +3153,32 @@ function CreateProfitPane()
 	end)
 	window.hideUnprofitable = hideUnprofitable
 
+	-- Skill up mode: what the crafts sell for counts at the auction house price, not only the vendor's.
+	local sellAH = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
+	sellAH:SetSize(24, 24)
+	sellAH:SetPoint("LEFT", modes[#modes], "RIGHT", 10, 0)
+	sellAH:SetHitRectInsets(0, -100, 0, 0)
+	local sellLabel = sellAH:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	sellLabel:SetPoint("LEFT", sellAH, "RIGHT", 2, 1)
+	sellLabel:SetText("Selling on the AH")
+	sellAH:SetScript("OnClick", function(self)
+		ns.db.ui.skillSellAH = self:GetChecked() and true or false
+		window.offset = 0
+		UI.Refresh("profit")
+	end)
+	sellAH:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Selling on the AH")
+		GameTooltip:AddLine("What you level with costs its materials less what selling the results gets back. "
+			.. "Unticked, that's what a vendor pays. Ticked, the auction house price after its 5% cut counts too, "
+			.. "when it's more.", 1, 1, 1, true)
+		GameTooltip:AddLine("Levelling makes many of one thing: the auction house may not take them all at that price.",
+			0.6, 0.6, 0.6, true)
+		GameTooltip:Show()
+	end)
+	sellAH:SetScript("OnLeave", GameTooltip_Hide)
+	window.sellAH = sellAH
+
 	-- Recipes mode: learned recipes are left out unless this is ticked.
 	local showLearned = CreateFrame("CheckButton", nil, window.frame, "UICheckButtonTemplate")
 	showLearned:SetSize(24, 24)
@@ -3174,6 +3287,8 @@ function CreateProfitPane()
 		end
 		hideUnprofitable:SetShown(mode == "profit")
 		hideUnprofitable:SetChecked(ns.db.ui.hideUnprofitable and true or false)
+		sellAH:SetShown(mode == "skill")
+		sellAH:SetChecked(ns.db.ui.skillSellAH and true or false)
 		showLearned:SetShown(recipeMode)
 		showLearned:SetChecked(ns.db.ui.recipeLearned and true or false)
 		hideBound:SetShown(recipeMode)

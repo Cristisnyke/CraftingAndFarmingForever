@@ -1871,6 +1871,25 @@ do
 	check("profit sort untouched", (ns.UI.ListSort("profit")), "profit")
 	check("status shows the skill level", profit.status.text:find("Tailoring 50/75", 1, true) ~= nil, true)
 	check("unprofitable box hidden in skill mode", profit.hideUnprofitable.shown, false)
+	check("selling on the AH box shown in skill mode", profit.sellAH.shown, true)
+	-- Item 2 (recipe 10) sells to a vendor for 1c and on the AH for 100: ticked, the AH price counts.
+	check("skill: vendor price taken off", rows[10].back, 1)
+	check("skill: vendor only unticked", rows[10].backKind, "vendor")
+	profit.sellAH.GetChecked = function(self) return self.checked end
+	profit.sellAH.checked = true
+	profit.sellAH.scripts.OnClick(profit.sellAH)
+	check("skill: selling on the AH saved", ns.db.ui.skillSellAH, true)
+	local ahRows = {}
+	for _, data in ipairs(profit.list) do
+		if data.kind == "skill" then ahRows[data.row.recipeID] = data.row end
+	end
+	check("skill: AH price counted", ahRows[10].backKind, "ah")
+	local sale = ns.Planner.Profit(ns.NewContext(), 10).saleUnit * (1 - ns.AH_CUT)
+	check("skill: AH price after the cut", ahRows[10].back, sale)
+	check("skill: net per craft", ahRows[10].net, ahRows[10].cost - sale)
+	profit.sellAH.checked = false
+	profit.sellAH.scripts.OnClick(profit.sellAH)
+	check("skill: selling on the AH off again", ns.db.ui.skillSellAH, false)
 	local first
 	for _, row in ipairs(profit.rows) do
 		if row.data and row.data.kind == "skill" then first = first or row end
@@ -4225,6 +4244,23 @@ do
 		return ({ [900001] = "Bolt of Test", [900002] = "Robe of Test", [900003] = "Lantern Cloth", [10] = "Known One" })[id]
 	end
 
+	-- What the unlearned recipes would make: 900001 sells (2 x item 1 at 10 -> item 4 at 1000), 900002 binds.
+	local realSchematic = C_TradeSkillUI.GetRecipeSchematic
+	C_TradeSkillUI.GetRecipeSchematic = function(id)
+		if id == 900001 then
+			return { outputItemID = 4, quantityMin = 1, quantityMax = 1,
+				reagentSlotSchematics = { { reagentType = 0, quantityRequired = 2, reagents = { { itemID = 1 } } } } }
+		elseif id == 900002 then
+			return { outputItemID = 5, quantityMin = 1, quantityMax = 1,
+				reagentSlotSchematics = { { reagentType = 0, quantityRequired = 1, reagents = { { itemID = 1 } } } } }
+		end
+		return realSchematic(id)
+	end
+	prices[4001] = 2000
+	ns.db.recipePreview = nil
+	local realCap = ns.db.ui.priceCap
+	ns.db.ui.priceCap = false
+
 	local profit = ns.UI.windows.profit
 	ns.UI.Show("profit")
 	ns.UI.SelectProfession("profit", myProfession)
@@ -4270,6 +4306,36 @@ do
 	check("recipes: only the Horde source", #rows[900001].sources, 1)
 	check("recipes: holiday marked", rows[900003].source, "Quest*")
 	check("recipes: bind on pickup", rows[900002].bound, true)
+	-- Profit and when the recipe pays for itself.
+	check("recipes: materials read for an unlearned recipe", ns.db.recipePreview[900001] and ns.db.recipePreview[900001].o, 4)
+	local expectNet = ns.Prices.AH(4) * (1 - ns.AH_CUT) - 2 * ns.Planner.ItemCost(ns.NewContext(), 1)
+	check("recipes: profit per craft", rows[900001].net, expectNet)
+	check("recipes: pays back", rows[900001].payback, math.ceil(2000 / expectNet))
+	check("recipes: what it makes binds", rows[900002].madeBound, true)
+	check("recipes: no profit for a bound result", rows[900002].net, nil)
+	check("recipes: no recipe price, no payback", rows[900003].payback, nil)
+	do
+		local shown
+		for _, row in ipairs(profit.rows) do
+			if row.data and row.data.kind == "recipe" and row.data.row.recipeID == 900001 then shown = row end
+		end
+		check("recipes: profit column", shown and shown.colAH.text:find(ns.Money(expectNet), 1, true) ~= nil, true)
+		check("recipes: pays back column", shown and shown.profit.text, ns.Plural(math.ceil(2000 / expectNet), "craft", "crafts"))
+		check("recipes: AH price column", shown and shown.colHave.text, ns.Money(2000))
+		local headings = profit.rows[1].sortHeadings
+		check("recipes: profit heading", headings.net.shown and headings.net.label.text, "Profit")
+		check("recipes: pays back heading", headings.back.shown and headings.back.label.text, "Pays back")
+		ns.UI.SortList("recipes", "net")
+		local _, byProfit = Rows()
+		check("recipes: sorted by profit", byProfit[1], 900001)
+		ns.UI.SortList("recipes", "back")
+		local _, byBack = Rows()
+		check("recipes: sorted by pays back", byBack[1], 900001)
+		ns.db.ui.recipeSort, ns.db.ui.recipeSortAsc = nil, nil
+		ns.db.ui.priceCap = realCap
+		C_TradeSkillUI.GetRecipeSchematic = realSchematic
+		ns.UI.Refresh("profit")
+	end
 	local knownHere = 0
 	for recipeID in pairs(mine.recipes) do
 		if ns.db.recipes[recipeID] and ns.db.recipes[recipeID].p == myProfession then knownHere = knownHere + 1 end
@@ -4420,6 +4486,7 @@ do
 	ns.db.recipes[900099] = nil
 	mine.skill, mine.faction = savedSkill, savedFaction
 	C_Spell.GetSpellName = realSpellName
+	prices[4001] = nil
 	C_TooltipInfo, EJ_GetInstanceInfo, C_QuestLog = nil, nil, realQuestLog
 	ns.db.ui.profitMode = "profit"
 	ns.UI.SelectProfession("profit", nil)

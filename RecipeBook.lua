@@ -344,13 +344,51 @@ function Book.Rows(opts)
 	return rows, info
 end
 
--- Sorting: key name | chance (skill needed) | cost (source) | profit (recipe's AH price). Missing values go last;
--- ties by skill, then name.
+-- What each listed recipe would earn and when it pays for itself, at the same prices as the Profit tab (one craft,
+-- materials by the cheapest path; sub-crafts only by recipes someone already knows). Unlearned recipes' materials
+-- come from Recipes.Preview. Adds to each row:
+--   made    = the item it makes, false for none, nil when not known yet
+--   madeBound = true when that item can't go on the auction house
+--   result  = Planner.Profit's result (cost, parts, saleUnit, net, ...) when it sells
+--   net     = profit per craft
+--   payback = crafts until the profit has paid the recipe's auction house price back; false when it never does,
+--             nil when the recipe has no price (learned, bind on pickup, not seen on the AH, trainer, drop)
+function Book.AddProfit(rows, ctx)
+	local known = ctx.recipes
+	ctx.recipes = setmetatable({}, { __index = function(_, recipeID)
+		return known[recipeID] or ns.Recipes.Preview(recipeID)
+	end })
+	for _, row in ipairs(rows) do
+		local recipe = ns.Recipes.Preview(row.recipeID)
+		if recipe then
+			row.made = recipe.o or false
+			local sellable = recipe.o and ns.Items.CanSellOnAH(recipe.o)
+			if sellable == false then
+				row.madeBound = true
+			elseif sellable then
+				row.result = ns.Planner.Profit(ctx, row.recipeID)
+				row.net = row.result and row.result.net
+			end
+		end
+		if row.status ~= "learned" then row.payback = ns.Planner.Payback(row.price, row.net) end
+	end
+	ctx.recipes = known
+	return rows
+end
+
+-- Sorting: key name | chance (skill needed) | cost (source) | profit (recipe's AH price) | net (profit per craft) |
+-- back (crafts to pay the recipe back; never-paying ones after those that do). Missing values go last; ties by skill,
+-- then name.
 function Book.Sort(rows, key, ascending)
 	local function Value(row)
 		if key == "name" then return row.name and row.name:lower() end
 		if key == "cost" then return row.sourceOrder end
 		if key == "profit" then return row.price end
+		if key == "net" then return row.net end
+		if key == "back" then
+			if row.payback == false then return ascending and math.huge or -math.huge end
+			return row.payback
+		end
 		return row.skill
 	end
 	local values = {}

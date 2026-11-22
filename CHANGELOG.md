@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Recipes shows what a recipe would earn.** Two new columns in Recipes: **Profit** per craft if you learned it (same prices as the Profit tab), and **Pays back**, how many crafts' profit pays for the recipe at its auction house price. Sort by either to find the recipes worth buying. Hover a recipe for its materials and what it sells for. Open each profession once so the add-on can read the materials of recipes you don't know yet. Thanks to the player on CurseForge who asked for it.
+- **Skill up counts what your crafts sell for.** The cost of a skill point is now the materials less what you get back for what you make: a vendor's price, or with the new **Selling on the AH** tick, the auction house price after its cut when that's more. A craft that sells for more than it costs shows in green with a + (you earn gold while levelling) and goes to the top. Thanks to the player on CurseForge who pointed this out.
+
 ## 1.26.0
 
 - **Leave characters out.** A **Characters** button on the Options tab lists your characters: cross one out and the add-on ignores it completely. Its recipes don't show on the Profit tab or in Recipes, it's never picked to craft, and what's in its bags, bank, mail and auctions isn't counted for the queue, the shopping list or restocking. Handy for a bank alt whose materials you keep for something else. The character you're playing always counts. Thanks to Larasify, who wrote this one.

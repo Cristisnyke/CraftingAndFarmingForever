@@ -806,6 +806,47 @@ do
 	})
 	check("no price goes last", unpriced[2].perPoint, nil)
 end
+
+-- Levelling less what the results sell for: the vendor always, the auction house (after its cut) when ticked and more.
+do
+	local vendorSell = function(id) return ({ [BAR] = 4, [SHIRT] = 30 })[id] end
+	local vendorOnly = Planner.SkillUpRows(Context(), {
+		{ recipeID = 100, difficulty = 1, skillUps = 2 }, -- bar: 20 - 4 = 16, yellow, 2 points = 16 per point
+		{ recipeID = 300, difficulty = 0 }, -- shirt: 65 - 30 = 35 per point
+	}, { sellPrice = vendorSell })
+	check("vendor resale: bar first", vendorOnly[1].recipeID, 100)
+	check("vendor resale: back", vendorOnly[1].back, 4)
+	check("vendor resale: kind", vendorOnly[1].backKind, "vendor")
+	check("vendor resale: net", vendorOnly[1].net, 16)
+	check("vendor resale: materials kept", vendorOnly[1].cost, 20)
+	check("vendor resale: per point", vendorOnly[1].perPoint, 16)
+	check("vendor resale: shirt", vendorOnly[2].perPoint, 35)
+	local sellable = function(id) return id ~= BAR end
+	local ah = Planner.SkillUpRows(Context(), {
+		{ recipeID = 100, difficulty = 1, skillUps = 2 },
+		{ recipeID = 300, difficulty = 0 }, -- shirt: 65 - 1000 x 0.95 = -885, earns
+	}, { sellPrice = vendorSell, ahSellable = sellable })
+	check("AH resale: earning craft first", ah[1].recipeID, 300)
+	check("AH resale: back after cut", ah[1].back, 950)
+	check("AH resale: kind", ah[1].backKind, "ah")
+	check("AH resale: earns", ah[1].perPoint, -885)
+	check("AH resale: unsellable result only vendors", ah[2].backKind, "vendor")
+	local cheapAH = Planner.SkillUpRows(Context({ ah = { [ORE] = 10, [BAR] = 2 } }), {
+		{ recipeID = 100, difficulty = 0 },
+	}, { sellPrice = vendorSell, ahSellable = function() return true end })
+	check("vendor beats a lower AH price", cheapAH[1].backKind, "vendor")
+	local none = Planner.SkillUpRows(Context(), { { recipeID = 200, difficulty = 0 } }, { sellPrice = vendorSell })
+	check("nothing to sell back", none[1].back, 0)
+	check("nothing to sell back: per point is the cost", none[1].perPoint, 20)
+end
+
+-- A recipe pays for itself after enough crafts' profit.
+check("payback rounds up", Planner.Payback(1000, 300), 4)
+check("payback exact", Planner.Payback(900, 300), 3)
+check("no profit never pays back", Planner.Payback(1000, 0), false)
+check("loss never pays back", Planner.Payback(1000, -5), false)
+check("no recipe price", Planner.Payback(nil, 300), nil)
+check("no profit known", Planner.Payback(1000, nil), nil)
 do
 	local price, wasRaised = Planner.PostPrice({ lowest = 300, breakEven = 391, wholeSilver = true })
 	check("whole silver break-even rounds up", price, 400)
