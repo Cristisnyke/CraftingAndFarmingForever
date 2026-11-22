@@ -80,7 +80,7 @@ function Seller.Postage(recipeID, itemID)
 	if not Seller.Enabled() then return nil end
 	local crafter = ns.Recipes.Crafter(recipeID)
 	local char = crafter and ns.db.chars[crafter]
-	if char and Seller.IsName(char.name) then return nil end
+	if char and Seller.IsName(ns.CharName(crafter)) then return nil end
 	return ns.Planner.PostagePerUnit(ns.Items.StackSize(itemID))
 end
 

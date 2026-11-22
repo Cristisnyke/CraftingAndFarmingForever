@@ -658,6 +658,10 @@ check("quote isn't sent", #sentChat, chatBefore)
 ChatEdit_GetLastTellTarget = function() return nil end
 QueueRow().quote.scripts.OnClick(QueueRow().quote)
 check("quote with no known sender uses reply", chatBoxText, "/r link x2: 1s 54c")
+-- WoW Forever names have two parts: /w would take only "Felo" as the name and send "Bank ..." to that player.
+ChatEdit_GetLastTellTarget = function() return "Felo Bank" end
+QueueRow().quote.scripts.OnClick(QueueRow().quote)
+check("quote to a two-part name uses reply", chatBoxText, "/r link x2: 1s 54c")
 ChatEdit_GetLastTellTarget = nil
 
 -- Price cap from the Options tab: the shirt's 70c of materials sell for 3s, over 400%, so with the cap on profit
@@ -4727,6 +4731,14 @@ do
 		end,
 	} }
 	check("leave out: alt's recipe known before", ns.Recipes.KnownMap()[9011] ~= nil, true)
+	-- The alt's record was saved with its first name only (before surnames were read): its full name comes from
+	-- Syndicator, everywhere names are shown or matched.
+	check("full name: from Syndicator", ns.CharName(alt), "Alt Surname")
+	check("full name: shown", ns.CharLabel(alt), "Alt Surname")
+	check("full name: matches Syndicator's alt stock", ns.NewContext().charName(alt), "Alt Surname")
+	ns.db.chars[alt].name = "Alt Surname"
+	check("full name: saved one used as it is", ns.CharName(alt), "Alt Surname")
+	ns.db.chars[alt].name = "Alt"
 	check("leave out: alt's stock counted before", #ns.Stock.Alts(2), 1)
 	local entries = ns.Stock.Characters()
 	local altEntry, meEntry

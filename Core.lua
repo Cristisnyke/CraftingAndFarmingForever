@@ -316,15 +316,18 @@ function ns.SetCharExcluded(key, on)
 	ns.db.ui.excludedChars = next(excluded) and excluded or nil
 end
 
+-- A character's name for showing: its full name (ns.CharName, Data.lua), with its class when another record has the
+-- same name (an old record of a character Forever gave a new GUID).
 function ns.CharLabel(key)
 	local char = key and ns.db.chars[key]
 	if not char then return "Unknown" end
-	for otherKey, other in pairs(ns.db.chars) do
-		if otherKey ~= key and other.name == char.name then
-			return ("%s (%s)"):format(char.name or "?", char.class or char.realm or "?")
+	local name = ns.CharName and ns.CharName(key) or char.name
+	for otherKey in pairs(ns.db.chars) do
+		if otherKey ~= key and (ns.CharName and ns.CharName(otherKey) or ns.db.chars[otherKey].name) == name then
+			return ("%s (%s)"):format(name or "?", char.class or char.realm or "?")
 		end
 	end
-	return char.name or "?"
+	return name or "?"
 end
 
 ---------------------------------------------------------------------------

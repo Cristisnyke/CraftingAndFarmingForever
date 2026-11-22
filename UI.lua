@@ -5328,7 +5328,9 @@ function Advertise.QuoteInWhisper(recipeID, crafts)
 	end
 	local getTarget = (ChatFrameUtil and ChatFrameUtil.GetLastTellTarget) or ChatEdit_GetLastTellTarget
 	local target = getTarget and getTarget()
-	if target and target ~= "" then
+	-- /w takes one word as the name: a two-part Forever name ("Felo Bank") would whisper "Felo" with "Bank ..." as the
+	-- text. /r goes to the same person.
+	if target and target ~= "" and not target:find(" ", 1, true) then
 		OpenChatWith("/w " .. target .. " " .. text)
 	else
 		OpenChatWith("/r " .. text)

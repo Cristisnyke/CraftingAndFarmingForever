@@ -368,7 +368,7 @@ local function LeftOut(me)
 end
 
 -- Syndicator's characters: { { full = "Name-Realm", name, realm, classFile = "SHAMAN" or nil }, ... }. On Forever
--- the name has a surname ("Melody Stormveil") that the game doesn't tell this add-on.
+-- the name has a surname ("Melody Stormveil"); ns.PlayerName reads it for the character you're playing.
 local function SyndicatorCharacters(api)
 	local ok, names = false, nil
 	if type(api.GetAllCharacters) == "function" then ok, names = pcall(api.GetAllCharacters) end
@@ -407,6 +407,29 @@ local function SyndicatorMatch(char, characters)
 	end
 	return match
 end
+
+-- A character's full name ("Snic Pal" on WoW Forever, where the first name is the account's). Records saved before
+-- surnames were read hold only the first name until that character logs in again: their full name comes from
+-- Syndicator (its name for the character while it was played, else the one character of that first name and class).
+-- Nil for an unknown key. What Syndicator says is kept for the session.
+local fullNames = {}
+local function WithoutRealm(syndicatorKey)
+	return syndicatorKey:match("^(.*)%-[^%-]*$") or syndicatorKey
+end
+
+function Stock.CharName(key)
+	local char = key and ns.db.chars[key]
+	if not char then return nil end
+	if char.name and char.name:find(" ", 1, true) then return char.name end
+	if char.syndicatorKey then return WithoutRealm(char.syndicatorKey) end
+	if fullNames[key] ~= nil then return fullNames[key] or char.name end
+	local api = SyndicatorAPI()
+	if not api then return char.name end -- asked again once Syndicator is ready
+	local match = SyndicatorMatch(char, SyndicatorCharacters(api))
+	fullNames[key] = match and WithoutRealm(match) or false -- no match is remembered too: lists ask this a lot
+	return fullNames[key] or char.name
+end
+ns.CharName = Stock.CharName
 
 -- Every character the Options tab can leave out, one row each: Syndicator's characters, with the records here that are
 -- the same character, then records Syndicator doesn't know that have recipes. Old records of a character with nothing

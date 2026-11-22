@@ -51,7 +51,7 @@ local function NewContext()
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
 		me = ns.CharKey(),
 		knows = Recipes.Knows,
-		charName = function(key) return ns.db.chars[key] and ns.db.chars[key].name end,
+		charName = ns.CharName, -- full names, as Syndicator's alt stock names them
 		ahCut = ns.AH_CUT,
 		priceCap = Queue.PriceCap(),
 		normalPrice = ns.Prices.Normal,
