@@ -9,6 +9,8 @@
 --   ahCut              = 0.05
 --   priceCap           = { max = 4, normal = 2 } (optional): a result listed above max x its material cost is
 --                        counted at normal x that cost and flagged capped, as one odd listing can't be trusted
+--   normalPrice(itemID)-> copper (optional): the item's usual price (Planner.NormalPrice). A result listed above it
+--                        counts at it, so a short price spike can't make a craft look good that will sell for less
 -- and, for planning:
 --   ownStock(itemID)   -> count on the current character (bags + bank)
 --   bankStock(itemID)  -> the part of ownStock that's in the bank (optional), so the plan can say to fetch it
@@ -245,11 +247,44 @@ function Planner.Profit(ctx, recipeID, crafts)
 			result.saleUnit = saleUnit
 		end
 	end
+	-- During a spike the materials and the result may both be dear: the materials are paid now, the result sells
+	-- later, likely at its usual price. So the sale counts at no more than that.
+	local normal = ctx.normalPrice and Priced(ctx.normalPrice(recipe.o))
+	if normal and result.saleUnit then
+		local listed = result.listedUnit or result.saleUnit
+		result.normalUnit = normal
+		result.ofNormal = listed / normal
+		result.spiked = result.ofNormal >= Planner.NORMAL.HIGH or nil
+		if saleUnit > normal then
+			result.listedUnit = listed
+			result.atNormal = true
+			saleUnit = normal
+			result.saleUnit = saleUnit
+		end
+	end
 	if cost and saleUnit then
 		result.net = saleUnit * yield * (1 - ctx.ahCut) - cost
 		result.margin = cost > 0 and result.net / cost or nil
 	end
 	return result
+end
+
+-- Usual prices: the lowest price seen each day (days = { [day number] = copper }), and the median of the last DAYS
+-- days is what the item normally sells for. Fewer than MIN_DAYS days say nothing. HIGH = a price this many times
+-- the usual one is a spike, LOW (its inverse) unusually cheap.
+Planner.NORMAL = { DAYS = 14, MIN_DAYS = 3, HIGH = 1.3 }
+Planner.NORMAL.LOW = 1 / Planner.NORMAL.HIGH
+
+function Planner.NormalPrice(days, today)
+	if not days then return nil end
+	local values = {}
+	for day, copper in pairs(days) do
+		if day > today - Planner.NORMAL.DAYS and day <= today and copper > 0 then values[#values + 1] = copper end
+	end
+	if #values < Planner.NORMAL.MIN_DAYS then return nil end
+	table.sort(values)
+	local middle = (#values + 1) / 2
+	return (values[math.floor(middle)] + values[math.ceil(middle)]) / 2
 end
 
 -- Craftsman's Writs: a tradable writ starts a daily quest that wants a crafted item and pays reputation and a coin
@@ -354,7 +389,7 @@ end
 -- material cost is reported, apart from the profit. Entries without a usable price are counted, not guessed.
 function Planner.QueueTotals(ctx, queue, isSellable)
 	local totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {},
-		capped = {} }
+		capped = {}, spiked = {} }
 	for index, queued in ipairs(queue) do
 		local qty = queued.qty or 0
 		local result = Planner.Profit(ctx, queued.recipeID)
@@ -369,6 +404,7 @@ function Planner.QueueTotals(ctx, queue, isSellable)
 			totals.counted = totals.counted + 1
 			totals.entries[index] = result.net * qty
 			if result.capped then totals.capped[index] = true end
+			if result.spiked and not result.capped then totals.spiked[index] = result.ofNormal end
 		elseif qty > 0 then
 			totals.excluded = totals.excluded + 1
 		end

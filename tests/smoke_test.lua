@@ -4425,5 +4425,22 @@ do
 	ns.UI.SelectProfession("profit", nil)
 end
 
+-- Usual prices: reading a price records today's low; three days make a usual price; a spike counts at it.
+do
+	local today = ns.DayNumber(time())
+	ns.db.priceDays[4] = nil
+	ns.Prices.NewRound()
+	ns.Prices.AH(4)
+	check("usual: today's low recorded", ns.db.priceDays[4] and ns.db.priceDays[4][today], prices[4])
+	check("usual: not known with one day", ns.Prices.Normal(4), nil)
+	ns.db.priceDays[4] = { [today - 3] = 400, [today - 2] = 500, [today - 1] = 450, [today] = 1000 }
+	check("usual: median of the days", ns.Prices.Normal(4), 475)
+	check("usual: share of usual", ns.Prices.OfNormal(4), prices[4] / 475)
+	ns.SetOption("normalPrice", false)
+	check("usual: option off", ns.Prices.Normal(4), nil)
+	ns.SetOption("normalPrice", true)
+	ns.db.priceDays[4] = nil
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

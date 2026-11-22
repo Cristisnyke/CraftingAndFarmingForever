@@ -261,6 +261,20 @@ function Options.Build(parent, top)
 		ns.SetOption("priceCap", self:GetChecked() and true or false)
 		Changed(true)
 	end)
+	controls.priceCap:SetHitRectInsets(0, -330, 0, 0)
+	controls.normalPrice = Check(parent, "Count price spikes at the usual price",
+		"The add-on notes each item's lowest price every day you scan. After 3 days, the middle of the last 14 days "
+			.. "is its usual price. A crafted item listed above it counts at the usual price, so a short spike can't "
+			.. "make you craft something that sells for less once the spike ends. Items at 130% or more say so on "
+			.. "their row.", y,
+		function() return ns.Option("normalPrice") end, function(on) ns.SetOption("normalPrice", on) end)
+	controls.normalPrice:SetScript("OnClick", function(self)
+		ns.SetOption("normalPrice", self:GetChecked() and true or false)
+		Changed(true)
+	end)
+	controls.normalPrice:ClearAllPoints()
+	controls.normalPrice:SetPoint("TOPLEFT", LEFT + 380, -y)
+	controls.normalPrice:SetHitRectInsets(0, -230, 0, 0)
 	y = y + 26
 	-- "Above [400]% of material cost, count it as [200]%", on one line.
 	local function PercentBox(anchor, label, read, write, title, tip)
@@ -470,6 +484,7 @@ function Options.Build(parent, top)
 		controls.smartLevel:Sync()
 		controls.keepGold:Sync()
 		controls.priceCap:Sync()
+		controls.normalPrice:Sync()
 		controls.capMax:Sync()
 		controls.capNormal:Sync()
 		controls.adText:Sync()

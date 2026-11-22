@@ -133,12 +133,58 @@ local VENDOR_SEED = {
 	[4289] = 50, [4470] = 38,
 }
 
+-- Usual prices: the lowest price seen each day goes in db.priceDays. A price that changed was seen today; one read
+-- unchanged is placed on the day Auctionator last saw it (asked once per item per scan, as reads are frequent).
+local priceDay = { at = 0 }
+local placed = {}
+
+local function Today()
+	local now = time()
+	if now ~= priceDay.at then priceDay.at, priceDay.day = now, ns.DayNumber(now) end
+	return priceDay.day
+end
+
+local function NoteDay(itemID, day, price)
+	local days = ns.db.priceDays[itemID]
+	if not days then
+		days = {}
+		ns.db.priceDays[itemID] = days
+	end
+	if not days[day] or price < days[day] then days[day] = price end
+end
+
+local function RecordDay(itemID, price, changed)
+	local today = Today()
+	if changed then
+		placed[itemID] = today
+		NoteDay(itemID, today, price)
+	elseif placed[itemID] ~= today then
+		placed[itemID] = today
+		local age = Auctionator.API.v1.GetAuctionAgeByItemID(ADDON, itemID)
+		if age and age >= 0 and age < ns.Planner.NORMAL.DAYS then NoteDay(itemID, today - age, price) end
+	end
+end
+
+-- The item's usual price (median of its daily lows), nil until enough days are seen or with the option off.
+function Prices.Normal(itemID)
+	if not ns.Option("normalPrice") then return nil end
+	return ns.Planner.NormalPrice(ns.db.priceDays[itemID], Today())
+end
+
+-- The current price as a share of the usual one (1.5 = 150%), nil when either is unknown.
+function Prices.OfNormal(itemID)
+	local normal = Prices.Normal(itemID)
+	local price = normal and Auctionator.API.v1.GetAuctionPriceByItemID(ADDON, itemID)
+	return price and normal > 0 and price / normal or nil
+end
+
 -- Auctionator's price, noting any change since we last looked. Everything that costs or sells goes through here, so
 -- this sees every item that matters, whichever scan updated it.
 function Prices.AH(itemID)
 	local price = Auctionator.API.v1.GetAuctionPriceByItemID(ADDON, itemID)
 	if not price then return nil end
 	local record = ns.db.prices[itemID]
+	RecordDay(itemID, price, record and record.cur ~= price)
 	if not record then
 		ns.db.prices[itemID] = { cur = price }
 	elseif record.cur ~= price then
@@ -162,6 +208,8 @@ end
 -- Starts a new comparison: colours from the previous scan clear, and this scan's changes get coloured.
 function Prices.NewRound()
 	ns.db.priceRound = ns.db.priceRound + 1
+	-- A new scan may see unchanged prices again today.
+	wipe(placed)
 	if ns.UI then ns.UI.RefreshAll() end
 end
 

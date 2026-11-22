@@ -163,6 +163,16 @@ Each material and sale price shows what it was before the latest scan: **was X, 
 
 A new comparison starts when you scan the whole shopping list or run a full scan. Searching a single item updates its price but keeps the comparison.
 
+### Usual prices and spikes
+
+Prices jump for a day or two now and then: materials and the item you'd make both get dearer, the add-on shows a fine profit, you craft, and by the time you post the price is back to normal and you sell at a loss. To catch that, the add-on notes each item's lowest price every day you scan, for the last 14 days. Once it has 3 days, the middle of them (the median) is the item's **usual price**.
+
+- A crafted item listed above its usual price counts at the usual price in Profit, Queue and Restock. Below it, today's price counts.
+- At 130% of usual or more, its row says so in orange, for example **167% of usual**, with **!** before the profit. The tooltip shows the listed price, the usual price and how far apart they are.
+- Material lines in tooltips add **% of usual** when a material is unusually dear (orange) or cheap (green). Materials always count at what they cost now, since that's what you pay.
+- It needs a few days of scans before it shows anything. Days you don't scan simply aren't counted.
+- Switch it off with **Count price spikes at the usual price** in Options.
+
 ### The shopping list
 
 The add-on keeps one Auctionator shopping list, **Crafting and Farming Forever Queue**, and edits it in place as the queue and your stock change. It holds every material you still need to buy, after your bags, bank, mailbox and (with Syndicator) your alts' bags and banks. What you're going to craft isn't on it.
@@ -282,6 +292,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Read listings at the auction house | On by default. The add-on looks up every listing of what your queue would buy, so buying many counts at the real cost (see [What buying many really costs](#what-buying-many-really-costs)). The screen is locked for the few seconds it reads. Off: only the items you open yourself are read, and the screen is never locked |
 | Plan around bag space | On by default. When the queue's materials won't fit in your bags, says what to bank and splits the queue into runs (see [Bag space](#bag-space)) |
 | Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price**. Off: the listing is used as it is |
+| Count price spikes at the usual price | On by default. A crafted item listed above its usual price (the middle of its last 14 days) counts at the usual price, and items at 130% or more say so (see [Usual prices and spikes](#usual-prices-and-spikes)). Off: today's listing is used as it is |
 | Smart restock goals | On by default. Restock goals follow your sales (see Restock). Off: every item without its own goal uses the default goals |
 | Stock level | How eagerly smart goals stock up, from cautious to aggressive: 10% to 200%, default 50% (a goal can rise to what sold between two of your restocks; 100% allows twice that) |
 | Advertise my professions | Off removes the Ad box beside the chat and the Advertise button on the Profit tab |

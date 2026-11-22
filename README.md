@@ -22,7 +22,7 @@ A crafting and gold-making add-on for **World of Warcraft: Forever**. **[Downloa
 - **Changelog:** a tab listing what changed in each version. It lights up after an update; nothing pops up.
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set. Both messages can be worded your way.
 - **Minimap button:** left-click opens the window, right-click the options; it shows the money on its way and works with button collectors and broker bars.
-- **Options:** switch the advertising, smart restock goals, the suspicious-price limit, the minimap button, the Next step bar and each kind of chat message on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
+- **Options:** switch the advertising, smart restock goals, the suspicious-price limit, counting price spikes at the usual price, the minimap button, the Next step bar and each kind of chat message on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
 
 ## Screenshots
 

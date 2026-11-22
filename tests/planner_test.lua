@@ -1412,5 +1412,51 @@ do
 	check("camp: order untouched without stations", order2[1].recipeID, 901)
 end
 
+-- Usual prices: median of the daily lows of the last 14 days, needs 3 days.
+do
+	check("normal: no days", Planner.NormalPrice(nil, 100), nil)
+	check("normal: two days say nothing", Planner.NormalPrice({ [99] = 50, [100] = 60 }, 100), nil)
+	check("normal: odd count median", Planner.NormalPrice({ [98] = 50, [99] = 200, [100] = 60 }, 100), 60)
+	check("normal: even count median", Planner.NormalPrice({ [97] = 40, [98] = 50, [99] = 200, [100] = 60 }, 100), 55)
+	check("normal: older than 14 days left out", Planner.NormalPrice({ [86] = 999, [98] = 50, [99] = 60 }, 100), nil)
+	check("normal: day 87 still counts", Planner.NormalPrice({ [87] = 70, [98] = 50, [99] = 60 }, 100), 60)
+	-- The player's case: crafted for 1g, listed at 1g40 during a spike, usually 60s. Profit counts 60s: a loss.
+	local ctx = Context()
+	ctx.normalPrice = function(id) return ({ [SHIRT] = 600 })[id] end
+	local result = Planner.Profit(ctx, 300)
+	check("spike: flagged", result.spiked, true)
+	check("spike: listed kept", result.listedUnit, 1000)
+	check("spike: counted at normal", result.saleUnit, 600)
+	check("spike: ratio", math.floor(result.ofNormal * 100 + 0.5), 167)
+	check("spike: net at normal", result.net, 600 * 0.95 - 65)
+	-- 10% above normal: counted at normal, not flagged.
+	local mild = Context()
+	mild.normalPrice = function(id) return ({ [SHIRT] = 910 })[id] end
+	result = Planner.Profit(mild, 300)
+	check("mild: not flagged", result.spiked, nil)
+	check("mild: counted at normal", result.saleUnit, 910)
+	-- Below normal: the current price counts.
+	local cheap = Context()
+	cheap.normalPrice = function(id) return ({ [SHIRT] = 2000 })[id] end
+	result = Planner.Profit(cheap, 300)
+	check("below normal: current price", result.saleUnit, 1000)
+	check("below normal: no flag", result.atNormal, nil)
+	-- No usual price yet: unchanged.
+	local none = Context()
+	none.normalPrice = function() return nil end
+	check("no normal: unchanged", Planner.Profit(none, 300).saleUnit, 1000)
+	-- With the cap too: whichever is lower counts; a capped row isn't also marked as a spike in the queue.
+	local both = Context()
+	both.priceCap = { max = 4, normal = 2 }
+	both.normalPrice = function(id) return ({ [SHIRT] = 500 })[id] end
+	result = Planner.Profit(both, 300)
+	check("cap + normal: lower counts", result.saleUnit, 130)
+	check("cap + normal: listed is the AH price", result.listedUnit, 1000)
+	check("cap + normal: ratio from the listing", result.ofNormal, 2)
+	local totals = Planner.QueueTotals(ctx, { { recipeID = 300, qty = 1 } }, function() return true end)
+	check("queue totals: spike ratio", totals.spiked[1] ~= nil, true)
+	check("queue totals: capped not spiked", Planner.QueueTotals(both, { { recipeID = 300, qty = 1 } }, function() return true end).spiked[1], nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

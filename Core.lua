@@ -7,6 +7,12 @@ ns.LIST_NAME = "Crafting and Farming Forever Queue"
 ns.AH_CUT = 0.05
 ns.STALE_SECONDS = 24 * 60 * 60
 
+-- A number for the local calendar day. Noon keeps it stable across daylight saving changes.
+function ns.DayNumber(when)
+	local d = date("*t", when)
+	return math.floor(time({ year = d.year, month = d.month, day = d.day, hour = 12 }) / ns.STALE_SECONDS)
+end
+
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
@@ -78,6 +84,7 @@ end
 -- db.wanted[i]         = { kind = "writ" or "crate", id = its item ID, qty }: writs and crates queued from their tabs
 -- db.queue[i]          = { recipeID, qty, char = guid, restock = true if added by the Restock button }
 -- db.prices[itemID]    = { cur = last seen copper, old = copper before it changed, round = scan of that change }
+-- db.priceDays[itemID] = { [day number] = lowest copper seen that day }, the last 14 days, for usual prices
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
 -- db.depth[itemID]     = { at = time read, more = true when there are more, { price, units }, ... }: the listings a
 --                        search of that item showed, cheapest first, without your own (Depth.lua)
@@ -107,6 +114,14 @@ local function Normalize(db)
 	db.ui.quoteMargin = db.ui.quoteMargin or 10
 	db.prices = db.prices or {}
 	db.priceRound = db.priceRound or 1
+	db.priceDays = db.priceDays or {}
+	local oldest = ns.DayNumber(time()) - (ns.Planner and ns.Planner.NORMAL.DAYS or 14)
+	for itemID, days in pairs(db.priceDays) do
+		for day in pairs(days) do
+			if day <= oldest then days[day] = nil end
+		end
+		if next(days) == nil then db.priceDays[itemID] = nil end
+	end
 	db.depth = db.depth or {}
 	for itemID, record in pairs(db.depth) do
 		if type(record) ~= "table" or time() - (record.at or 0) > ns.STALE_SECONDS then db.depth[itemID] = nil end

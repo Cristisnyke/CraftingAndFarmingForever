@@ -1074,6 +1074,13 @@ end
 
 -- Materials with their cost. An auction house price that's a day or more old says so, in orange: a recent scan can
 -- still have missed an item that had no listings at the time.
+-- "167% of usual" for a price far from its usual one: orange when dear, green when cheap; nil otherwise.
+local function UsualText(ratio)
+	local NORMAL = ns.Planner.NORMAL
+	if not ratio or (ratio < NORMAL.HIGH and ratio > NORMAL.LOW) then return nil end
+	return Color(ratio >= NORMAL.HIGH and COLOR_WARN or COLOR_PROFIT, ("%d%% of usual"):format(math.floor(ratio * 100 + 0.5)))
+end
+
 local function AddPartLines(parts)
 	for _, part in ipairs(parts or {}) do
 		local name = ns.Items.Name(part.itemID) or "Loading..."
@@ -1081,6 +1088,8 @@ local function AddPartLines(parts)
 		local value = part.unit and (ns.Money(part.unit * part.qty) .. " (" .. label .. ")") or "no price"
 		local age = part.kind == "ah" and ns.Prices.ItemAgeDays(part.itemID)
 		if age and age > 0 then value = value .. Color(COLOR_WARN, (" %dd old"):format(age)) end
+		local usual = part.kind == "ah" and UsualText(ns.Prices.OfNormal(part.itemID))
+		if usual then value = value .. " " .. usual end
 		GameTooltip:AddDoubleLine(part.qty .. " x " .. name, value, 0.85, 0.85, 0.85, 1, 1, 1)
 	end
 end
@@ -1221,10 +1230,23 @@ local function ShowProfitTooltip(row, result)
 		GameTooltip:AddLine("Bind on pickup: can't be sold on the auction house.", 1, 0.6, 0.2, true)
 	else
 		local sale = result.saleUnit and (ns.Money(result.saleUnit * result.yield)) or "no price"
-		GameTooltip:AddDoubleLine(result.capped and "Counted as selling for" or "Sells for", sale, 1, 1, 1, 1, 1, 1)
+		local lowered = result.capped or result.atNormal
+		GameTooltip:AddDoubleLine(lowered and "Counted as selling for" or "Sells for", sale, 1, 1, 1, 1, 1, 1)
+		if lowered then
+			GameTooltip:AddDoubleLine("Listed on the AH for", ns.Money(result.listedUnit * result.yield), 1, 0.6, 0.2, 1, 0.6, 0.2)
+		end
+		if result.normalUnit then
+			GameTooltip:AddDoubleLine("Usual price (last 14 days)", ns.Money(result.normalUnit * result.yield)
+				.. (" (now %d%%)"):format(math.floor(result.ofNormal * 100 + 0.5)), 1, 1, 1, 1, 1, 1)
+		end
+		if result.spiked and not result.capped then
+			GameTooltip:AddLine("Price spike: profit counts the usual price, since the spike may be over before yours "
+				.. "sell. Materials count at what they cost now.", 1, 0.6, 0.2, true)
+		elseif result.atNormal and not result.capped then
+			GameTooltip:AddLine("Listed a little above its usual price: profit counts the usual price.", 0.6, 0.6, 0.6, true)
+		end
 		if result.capped then
 			local max, normal = ns.Queue.PriceCapPercents()
-			GameTooltip:AddDoubleLine("Listed on the AH for", ns.Money(result.listedUnit * result.yield), 1, 0.6, 0.2, 1, 0.6, 0.2)
 			GameTooltip:AddLine(("Check this price: it's more than %d%% of the material cost, so profit counts it at "
 				.. "%d%% instead. Often one odd listing that won't sell. Search the item at the auction house before "
 				.. "crafting it. Change the limits in Options."):format(max, normal), 1, 0.6, 0.2, true)
@@ -1559,6 +1581,10 @@ local function RowOnEnter(row)
 				local max, normal = ns.Queue.PriceCapPercents()
 				GameTooltip:AddLine(("Check the price: it's listed at more than %d%% of the material cost, so the "
 					.. "profit counts it at %d%%. Search it at the auction house before crafting."):format(max, normal),
+					1, 0.6, 0.2, true)
+			elseif ns.totals.spiked and ns.totals.spiked[data.index] then
+				GameTooltip:AddLine(("Price spike: listed at %d%% of its usual price, so the profit counts the usual "
+					.. "price. The spike may be over before these sell."):format(math.floor(ns.totals.spiked[data.index] * 100 + 0.5)),
 					1, 0.6, 0.2, true)
 			end
 			AddSalesLines(ns.Items.Name(queuedRecipe.o))
@@ -2413,13 +2439,15 @@ local function SetRow(row, data)
 	elseif data.kind == "profit" then
 		local result = data.result
 		row.icon:SetTexture(ns.Items.Icon(result.itemID))
-		row.left:SetText(ItemLabel(result.itemID) .. (result.capped and Color(COLOR_WARN, "  check price") or ""))
+		local spike = not result.capped and result.spiked and UsualText(result.ofNormal)
+		row.left:SetText(ItemLabel(result.itemID) .. (result.capped and Color(COLOR_WARN, "  check price") or "")
+			.. (spike and ("  " .. spike) or ""))
 		PlaceRight(row, ProfitControls(row), true)
 		if result.bound then
 			row.profit:SetText(result.cost and (Color(COLOR_MUTED, "cost ") .. ns.Money(result.cost)) or Color(COLOR_MUTED, "no price"))
 		elseif result.net then
 			row.chance:SetText(ChanceText(ns.Items.Name(result.itemID)))
-			row.profit:SetText((result.capped and Color(COLOR_WARN, "! ") or "")
+			row.profit:SetText(((result.capped or spike) and Color(COLOR_WARN, "! ") or "")
 				.. Color(result.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(result.net)))
 		else
 			row.profit:SetText(Color(COLOR_MUTED, "no data"))
@@ -2471,6 +2499,7 @@ local function SetRow(row, data)
 		row.icon:SetTexture(recipe and recipe.o and ns.Items.Icon(recipe.o) or 134400)
 		local net = ns.totals.entries[data.index]
 		local capped = ns.totals.capped and ns.totals.capped[data.index]
+		local spike = ns.totals.spiked and UsualText(ns.totals.spiked[data.index])
 		local boundCost = ns.totals.boundEntries[data.index]
 		local change = not boundCost and recipe and recipe.o and PriceChangeText(recipe.o, false)
 		-- Who crafts it, when that isn't the character you're on.
@@ -2480,6 +2509,7 @@ local function SetRow(row, data)
 			.. (entry.restock and Color(COLOR_MUTED, " restock") or "")
 			.. (data.run and data.run > 0 and data.run < entry.qty and Color("ff99ccff", ("  this run: %d"):format(data.run)) or "")
 			.. (capped and Color(COLOR_WARN, "  check price") or "")
+			.. (spike and ("  " .. spike) or "")
 			.. (change and ("   " .. Color(COLOR_MUTED, "sells ") .. change) or ""))
 		PlaceRight(row, QueueControls(row), true)
 		ShowAmount(row, data, entry.qty)
@@ -2488,7 +2518,7 @@ local function SetRow(row, data)
 		row.cost:SetText(cost and ns.Money(cost) or Color(COLOR_MUTED, "?"))
 		row.tint:SetShown(net ~= nil and net < 0 and not boundCost)
 		row.profit:SetText(boundCost and Color(COLOR_MUTED, "can't sell")
-			or net and ((capped and Color(COLOR_WARN, "! ") or "") .. Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
+			or net and (((capped or spike) and Color(COLOR_WARN, "! ") or "") .. Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
 			or Color(COLOR_MUTED, "no price"))
 	elseif data.kind == "want" then
 		local want = data.entry

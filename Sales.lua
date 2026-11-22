@@ -72,11 +72,7 @@ end
 -- Calendar
 ---------------------------------------------------------------------------
 
--- A number for the local calendar day. Noon keeps it stable across daylight saving changes.
-local function DayNumber(when)
-	local d = date("*t", when)
-	return math.floor(time({ year = d.year, month = d.month, day = d.day, hour = 12 }) / DAY)
-end
+local DayNumber = ns.DayNumber
 
 ---------------------------------------------------------------------------
 -- Recording

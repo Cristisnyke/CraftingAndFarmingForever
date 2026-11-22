@@ -53,6 +53,7 @@ local function NewContext()
 		charName = function(key) return ns.db.chars[key] and ns.db.chars[key].name end,
 		ahCut = ns.AH_CUT,
 		priceCap = Queue.PriceCap(),
+		normalPrice = ns.Prices.Normal,
 	})
 end
 ns.NewContext = NewContext
@@ -65,7 +66,7 @@ ns.NewContext = NewContext
 ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0,
 	elsewhere = {}, paid = {}, deep = {}, thin = {}, compare = {}, camp = {}, campItems = {} }
 ns.farmPlan = ns.plan
-ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {}, capped = {} }
+ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {}, capped = {}, spiked = {} }
 
 -- recipeID -> crafts finished since the plan was last built. The rebuild waits a moment, and a batch's next cast
 -- often starts before it, so craft progress takes these off the plan's count.

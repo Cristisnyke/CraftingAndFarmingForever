@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Price spikes don't fool you any more.** The add-on now notes each item's lowest auction house price every day you scan. After 3 days, the middle of the last 14 is its usual price. A crafted item listed above that counts at its usual price in Profit, Queue and Restock, since a spike may be over before yours sell. Items at 130% of usual or more say so in orange ("167% of usual"), and material tooltips show materials that are unusually dear (orange) or cheap (green). Switch it off in Options.
+
 ## 1.25.0
 
 - **Camp stations.** Crafts that need a camp station (a Fermenter for alchemy oils, a Spinning Wheel, a Loom and the like) put one on your to-do list with a campfire kit to place it at, marked "(camp)": from your bags, bank or mailbox if you have one, else bought or crafted, whichever is cheaper, and the cost counts in the queue's total. Under the crafting step the list says what to place and which crafts go beside it, and those crafts come one after another, since camp features share a 1 hour cooldown. Open your professions once so the add-on learns which recipes need a station.
