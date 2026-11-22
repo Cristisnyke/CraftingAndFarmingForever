@@ -130,3 +130,7 @@ Before making the repository public:
 - keep `THIRD-PARTY-NOTICES.md` and the README credits current when a dependency or data source changes.
 
 AllTheThings licensing was checked on 2026-11-08: its GitHub repository carries only the MIT `LICENSE`. The packaged add-on also has a `LICENSE.txt` reading "All Rights Reserved unless otherwise explicitly stated", and the MIT `LICENSE` is that explicit statement. The author, Crieve, added the MIT `LICENSE` on 2026-02-16 and deleted the old All Rights Reserved file a minute later (commits `0f35cf3` and `90067a4`). AllTheThings' CurseForge page may still show All Rights Reserved; the repository is the current statement. The vendor seed prices in `Data.lua` were replaced on 2026-11-08 with prices seen at the game's merchants, because CraftProfit, their earlier source, changed from MIT to All Rights Reserved.
+
+## Feedback inbox
+
+`tools/inbox.sh [--since ISO8601] [--mark]` lists GitHub issues, pull requests and comments by others since the last inbox (read-only; `--mark` remembers the time in `~/.config/cff/inbox-last`). Issue forms and the pull request template are in `.github/`. Every request, including ones from CurseForge comments, gets a GitHub issue with a stage label: `needs-info`, `planned`, `in-game-test`, `next-release`, `declined`.

@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in the add-on doesn't work or shows the wrong numbers.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! The two things below let me find most bugs without asking you again.
+  - type: input
+    id: version
+    attributes:
+      label: Add-on version
+      description: Shown on the Changelog tab, or in the game's AddOns list.
+      placeholder: "1.27.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Which tab or button, and what you saw. A screenshot helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Open the Queue tab
+        2. Click Craft Next
+        3. ...
+  - type: textarea
+    id: diag
+    attributes:
+      label: Output of /cff diag
+      description: Type `/cff diag` in game and paste what it prints in chat.
+      render: text
+  - type: textarea
+    id: errors
+    attributes:
+      label: Lua errors (if any)
+      description: From BugSack or the game's error popup.
+      render: text
