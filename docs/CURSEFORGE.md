@@ -162,7 +162,7 @@ TradeSkillMaster (TSM) support is coming in a future update.
 
 ## Bugs and suggestions
 
-Please report bugs in the comments or on [GitHub](https://github.com/Cristisnyke/CraftingAndFarmingForever/issues), with the output of `/cff diag` and any Lua error text. The add-on is actively developed, and suggestions are welcome.
+The best place for bugs and ideas is [GitHub issues](https://github.com/Cristisnyke/CraftingAndFarmingForever/issues/new/choose): the form asks for everything needed (your add-on version, the output of `/cff diag` and any Lua error text from BugSack), and you can follow each report until it's fixed. Comments here are read too. The add-on is actively developed, and suggestions are welcome.
 
 ## Credits
 
