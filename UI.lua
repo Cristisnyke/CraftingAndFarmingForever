@@ -65,6 +65,7 @@ local function FlatBox(frame, fill, edge, left, right)
 	inside:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", -1, 1)
 	inside:SetColorTexture(fill[1], fill[2], fill[3], 1)
 end
+UI.FlatBox = FlatBox
 
 -- The add-on's own button: flat, lights up under the mouse (and while LockHighlight marks it selected), dims when
 -- disabled. primary is the brighter blue of a pane's main action.
@@ -168,8 +169,9 @@ local function ComputeProfit()
 	local ctx = ns.NewContext()
 	local results = {}
 	local seen = {}
-	for _, char in pairs(ns.db.chars) do
-		for recipeID in pairs(char.recipes) do
+	for key, char in pairs(ns.db.chars) do
+		-- Characters left out on the Options tab add no recipes.
+		for recipeID in pairs(ns.CharExcluded(key) and {} or char.recipes) do
 			if not seen[recipeID] then
 				seen[recipeID] = true
 				local recipe = ns.db.recipes[recipeID]
