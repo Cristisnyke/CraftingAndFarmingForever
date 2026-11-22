@@ -1326,5 +1326,91 @@ do
 	check("gold cap: unknown cost, flat", goal, 10)
 end
 
+-- Camp stations: a craft needing a Fermenter gets one (held, bought or crafted) plus a campfire kit, counted in the
+-- cost, and the crafts needing a station come one after another.
+do
+	local OIL, POTION, FERMENTER, KIT, WOOD, VIAL, WHEEL, THREAD2 = 60, 61, 70, 71, 72, 73, 74, 75
+	local function CampContext(over)
+		return Planner.NewContext({
+			recipes = {
+				[900] = { o = OIL, qmin = 1, qmax = 1, r = { { 1, VIAL } }, f = { "Fermenter" } },
+				[901] = { o = POTION, qmin = 1, qmax = 1, r = { { 1, VIAL } } },
+				[902] = { o = SHIRT, qmin = 1, qmax = 1, r = { { 1, OIL } } },
+				[903] = { o = THREAD2, qmin = 1, qmax = 1, r = { { 1, VIAL } }, f = { "Spinning Wheel" } },
+				[910] = { o = FERMENTER, qmin = 1, qmax = 1, r = { { 4, VIAL } } },
+				[911] = { o = KIT, qmin = 1, qmax = 1, r = { { 1, WOOD } }, t = { "Flint and Tinder" } },
+			},
+			known = over.known or {},
+			ahPrice = function(id) return (over.ah or { [VIAL] = 10, [FERMENTER] = 500, [KIT] = 30, [WHEEL] = 900 })[id] end,
+			vendorPrice = function(id) return ({ [WOOD] = 5 })[id] end,
+			ownStock = function(id) return (over.own or {})[id] or 0 end,
+			bankStock = function(id) return (over.bank or {})[id] or 0 end,
+			mailStock = function() return 0 end,
+			altStock = function() return {} end,
+			toolItems = function() return {} end,
+			stationItems = function(name)
+				if name == "Fermenter" then return { FERMENTER } end
+				if name == "Spinning Wheel" then return { WHEEL } end
+				return {}
+			end,
+			campfireItems = function() return { KIT } end,
+			crafter = function(_, char) return char or "me" end,
+			me = "me",
+		})
+	end
+	local queue = { { recipeID = 900, qty = 5, char = "me" } }
+
+	local bought = Planner.BuildPlan(CampContext({}), queue)
+	check("camp: one station", #bought.camp, 1)
+	check("camp: its name", bought.camp[1].name, "Fermenter")
+	check("camp: fermenter bought", bought.buy[FERMENTER], 1)
+	check("camp: kit bought", bought.buy[KIT], 1)
+	check("camp: cost counted", bought.cost, 5 * 10 + 500 + 30)
+	check("camp: marked", bought.campItems[FERMENTER], "Fermenter")
+	check("camp: kit marked", bought.campItems[KIT], "Campfire")
+	check("camp: kept out of the bank", bought.keep[FERMENTER], true)
+	check("camp: the crafts", bought.camp[1].crafts[1].recipeID, 900)
+
+	local held = Planner.BuildPlan(CampContext({ own = { [FERMENTER] = 2, [KIT] = 1 } }), queue)
+	check("camp: held fermenter, nothing to buy", held.buy[FERMENTER], nil)
+	check("camp: held kit, nothing to buy", held.buy[KIT], nil)
+	check("camp: held, no cost", held.cost, 50)
+
+	local banked = Planner.BuildPlan(CampContext({ own = { [FERMENTER] = 1 }, bank = { [FERMENTER] = 1 } }), queue)
+	check("camp: banked fermenter taken out", banked.bank[FERMENTER], 1)
+
+	local crafted = Planner.BuildPlan(CampContext({ known = { [FERMENTER] = { 910 }, [KIT] = { 911 } } }), queue)
+	check("camp: cheaper to craft the fermenter", crafted.buy[FERMENTER], nil)
+	check("camp: kit crafted from wood", crafted.vendor[WOOD], 1)
+	check("camp: cost of crafting", crafted.cost, 5 * 10 + 4 * 10 + 5)
+
+	local none = Planner.BuildPlan(CampContext({ ah = { [VIAL] = 10 } }), queue)
+	check("camp: no way to get one", none.camp[1].itemID, nil)
+	check("camp: no kit for nothing", none.camp[1].fire, nil)
+
+	local mixed = Planner.BuildPlan(CampContext({}), {
+		{ recipeID = 900, qty = 1, char = "me" }, { recipeID = 901, qty = 1, char = "me" },
+		{ recipeID = 903, qty = 1, char = "me" }, { recipeID = 900, qty = 2, char = "me" },
+	})
+	local order = {}
+	for _, craft in ipairs(mixed.crafts) do table.insert(order, craft.recipeID) end
+	check("camp: no station first, then each station's crafts together", table.concat(order, ","), "901,900,903")
+	check("camp: two stations", #mixed.camp, 2)
+
+	local chain = Planner.BuildPlan(CampContext({ known = { [OIL] = { 900 } } }), {
+		{ recipeID = 902, qty = 2, char = "me" }, { recipeID = 901, qty = 1, char = "me" },
+	})
+	order = {}
+	for _, craft in ipairs(chain.crafts) do table.insert(order, craft.recipeID) end
+	check("camp: the oil still before what needs it", table.concat(order, ","), "901,900,902")
+
+	local plain = Planner.BuildPlan(CampContext({}), { { recipeID = 901, qty = 1, char = "me" } })
+	check("camp: none needed", #plain.camp, 0)
+	check("camp: no kit", plain.buy[KIT], nil)
+	check("camp: alt's craft, nothing here", #Planner.BuildPlan(CampContext({}), { { recipeID = 900, qty = 1, char = "alt" } }).camp, 0)
+	local order2 = Planner.GroupByStation(CampContext({}), { { recipeID = 901 }, { recipeID = 902 } })
+	check("camp: order untouched without stations", order2[1].recipeID, 901)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

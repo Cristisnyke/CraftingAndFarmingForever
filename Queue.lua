@@ -44,6 +44,8 @@ local function NewContext()
 		mailStock = ns.Stock.Mail,
 		altStock = ns.Stock.Alts,
 		toolItems = Recipes.ToolItems,
+		stationItems = Recipes.StationItems,
+		campfireItems = Recipes.CampfireItems,
 		crafter = Recipes.Crafter,
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
 		me = ns.CharKey(),
@@ -61,7 +63,7 @@ ns.NewContext = NewContext
 
 -- Same fields as Planner.BuildPlan's, so nothing reading it before the first build trips over a missing table.
 ns.plan = { crafts = {}, buy = {}, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {}, smelt = {}, cost = 0,
-	elsewhere = {}, paid = {}, deep = {}, thin = {}, compare = {} }
+	elsewhere = {}, paid = {}, deep = {}, thin = {}, compare = {}, camp = {}, campItems = {} }
 ns.farmPlan = ns.plan
 ns.totals = { revenue = 0, cost = 0, net = 0, counted = 0, excluded = 0, entries = {}, bound = 0, boundCost = 0, boundEntries = {}, capped = {} }
 

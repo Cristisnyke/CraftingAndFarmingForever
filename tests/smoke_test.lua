@@ -3976,6 +3976,55 @@ do
 	C_AuctionHouse.HasFullCommoditySearchResults, C_AuctionHouse.HasSearchResults = nil, nil
 end
 
+-- Camp stations: read from the recipe's requirements (place kind, a camp station's name); the queue says where to
+-- place it, under the first crafting step, and marks the station on the step that gets it.
+do
+	local realReq = C_TradeSkillUI.GetRecipeRequirements
+	C_TradeSkillUI.GetRecipeRequirements = function()
+		return { { name = "Anvil", met = false, type = 0 }, { name = "Fermenter", met = false, type = 0 },
+			{ name = "Blacksmith Hammer", met = false, type = 1 } }
+	end
+	Enum.RecipeRequirementType = { SpellFocus = 0, Totem = 1, Area = 2 }
+	local stations = ns.Recipes.Stations(10)
+	check("stations: the camp one, not the anvil or the tool", stations and table.concat(stations, ","), "Fermenter")
+	Enum.RecipeRequirementType = nil
+	stations = ns.Recipes.Stations(10)
+	check("stations: no kind given, camp names", stations and table.concat(stations, ","), "Fermenter")
+	C_TradeSkillUI.GetRecipeRequirements = function() return { { name = "Anvil", met = true } } end
+	check("stations: none", ns.Recipes.Stations(10), nil)
+	C_TradeSkillUI.GetRecipeRequirements = realReq
+	check("station items by name", ns.Recipes.StationItems("Fermenter")[1], 279970)
+	check("no camp anvil", #ns.Recipes.StationItems("Anvil"), 0)
+	check("campfire kits", ns.Recipes.CampfireItems()[1], 279981)
+
+	table.insert(ns.db.queue, { recipeID = 10, qty = 3, char = ns.CharKey() })
+	local realPlan = ns.plan
+	local craft = { recipeID = 10, count = 3, subCount = 0, char = ns.CharKey() }
+	ns.plan = { crafts = { craft }, buy = { [279970] = 1 }, vendor = {}, fetch = {}, bank = {}, mail = {}, farm = {},
+		smelt = {}, cost = 0, elsewhere = {}, paid = {}, deep = {}, thin = {}, tools = {}, noTool = {},
+		camp = { { name = "Fermenter", itemID = 279970, fire = 279981, crafts = { craft } },
+			{ name = "Loom", crafts = { craft } } },
+		campItems = { [279970] = "Fermenter" } }
+	local list = ns.UI.windows.queue.build()
+	local titles, campRow, rows = {}, nil, {}
+	for at, data in ipairs(list) do
+		if data.kind == "header" then table.insert(titles, (data.text:gsub(":.*", ""))) end
+		if data.kind == "item" and data.itemID == 279970 then campRow = data end
+		if data.kind == "tip" or data.kind == "warn" then rows[#rows + 1] = at .. ":" .. data.text end
+	end
+	check("camp: steps", titles[#titles], "2. Craft your queue")
+	check("camp: station marked on the buy row", campRow and campRow.camp, "Fermenter")
+	local joined = table.concat(rows, "|")
+	check("camp: place it", joined:find("Camp: place a", 1, true) ~= nil and joined:find("then a Fermenter, and craft Recipe10 x3", 1, true) ~= nil, true)
+	check("camp: none to be had", joined:find("Recipe10 x3 needs a Loom and you have none", 1, true) ~= nil, true)
+	check("camp: cooldown note", joined:find("1 hour cooldown", 1, true) ~= nil, true)
+	ns.UI.RefreshQueue()
+	ns.UI.Refresh("queue")
+	ns.UI.Refresh("next")
+	ns.plan = realPlan
+	ns.Queue.Clear()
+	RunTimers()
+end
 -- Tools: read from the recipe's requirements; a tool on the bank step is marked, one you have nowhere gets its own
 -- step, and one the add-on can't look for is a reminder on the crafting step.
 do

@@ -572,13 +572,20 @@ function Recipes.ToolItems(name)
 	return items
 end
 
--- Names of the tools a recipe needs, nil for none. Requirements of the tool kind count; when the client doesn't say
--- the kind, a name this add-on knows as a tool does. Places (an anvil, a forge) aren't tools.
-function Recipes.Tools(recipeID)
+-- The requirements the client lists for a recipe (tools, places), nil when it can't say.
+local function Requirements(recipeID)
 	local fn = C_TradeSkillUI.GetRecipeRequirements
 	if not fn then return nil end
 	local ok, requirements = pcall(fn, recipeID)
 	if not ok or type(requirements) ~= "table" then return nil end
+	return requirements
+end
+
+-- Names of the tools a recipe needs, nil for none. Requirements of the tool kind count; when the client doesn't say
+-- the kind, a name this add-on knows as a tool does. Places (an anvil, a forge) aren't tools.
+function Recipes.Tools(recipeID)
+	local requirements = Requirements(recipeID)
+	if not requirements then return nil end
 	local totem = Enum.RecipeRequirementType and Enum.RecipeRequirementType.Totem
 	local tools
 	for _, requirement in ipairs(requirements) do
@@ -595,6 +602,59 @@ function Recipes.Tools(recipeID)
 		end
 	end
 	return tools
+end
+
+-- Camp stations (Forever's camping): a Fermenter, a Loom and the like are items you place at a campfire, used up when
+-- placed, and some recipes can only be crafted beside one. Only those found nowhere in the world are listed: the
+-- camp Anvil isn't, as every town has an anvil. Item IDs from Wowhead Forever (2026-11-22). Placing one needs the
+-- profession at the item's skill and a campfire nearby; every camp feature shares a 1 hour cooldown.
+ns.CAMP = {
+	stations = {
+		[279970] = "Fermenter", [279990] = "Alchemy Laboratory", [279943] = "Spinning Wheel", [279959] = "Loom",
+		[279941] = "Tanning Rack", [279945] = "Sewing Machine", [279985] = "Arcane Salvager",
+		[279987] = "Arcane Forge", [279955] = "Master Forge", [279952] = "Molten Foundry", [279964] = "Greenhouse",
+		[279965] = "Fishing Rack", [279940] = "Toxin Study", [279969] = "Field Guide", [279949] = "Repair Bot",
+		[279957] = "Cookie's Feast",
+	},
+	-- Basic, Journeyman and Expert Campfire Kit: any of them takes a station.
+	fires = { 279981, 279961, 279974 },
+	COOLDOWN_HOURS = 1,
+}
+
+-- The items that place a station, by the station's name (client name where loaded, else English). Empty for a place
+-- that isn't a camp station (an anvil, a forge).
+function Recipes.StationItems(name)
+	local items = {}
+	for itemID, english in pairs(ns.CAMP.stations) do
+		if name == english or name == Items.Name(itemID) then table.insert(items, itemID) end
+	end
+	table.sort(items)
+	return items
+end
+
+function Recipes.CampfireItems()
+	local items = {}
+	for _, itemID in ipairs(ns.CAMP.fires) do table.insert(items, itemID) end
+	return items
+end
+
+-- Names of the camp stations a recipe needs, nil for none: place requirements (the client's spell focus kind, or any
+-- when it doesn't say the kind) that name a camp station.
+function Recipes.Stations(recipeID)
+	local requirements = Requirements(recipeID)
+	if not requirements then return nil end
+	local kinds = Enum.RecipeRequirementType
+	local focus = kinds and kinds.SpellFocus
+	local stations
+	for _, requirement in ipairs(requirements) do
+		local name = requirement.name
+		local isPlace = requirement.type == nil or focus == nil or requirement.type == focus
+		if name and isPlace and #Recipes.StationItems(name) > 0 then
+			stations = stations or {}
+			table.insert(stations, name)
+		end
+	end
+	return stations
 end
 
 local function BasicReagentType()
@@ -642,6 +702,7 @@ function Recipes.Read(recipeID, recipeInfo, professionID, professionName)
 		pn = professionName,
 		r = slots,
 		t = Recipes.Tools(recipeID),
+		f = Recipes.Stations(recipeID),
 		x = usesCurrency or nil,
 	}
 	ns.db.recipes[recipeID] = recipe

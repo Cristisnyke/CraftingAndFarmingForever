@@ -934,6 +934,75 @@ function Planner.DepthCost(depth, taken, count, ceiling, fallback)
 	return cost + left * unit, count, 0, left
 end
 
+-- Camp stations a recipe needs as one key ("Fermenter", "Loom+Spinning Wheel"), nil for none.
+function Planner.StationKey(recipe)
+	if not recipe or not recipe.f or #recipe.f == 0 then return nil end
+	local names = {}
+	for _, name in ipairs(recipe.f) do table.insert(names, name) end
+	table.sort(names)
+	return table.concat(names, "+")
+end
+
+-- The crafts in an order that keeps every station's crafts one after another, as a station placed at a campfire
+-- stands only for a while and the next can't be placed for an hour. Materials are still made before what needs
+-- them (a craft can only wait for crafts listed before it, the plan's own order); crafts needing no station come
+-- first, so a station's group isn't split by a material made halfway through.
+function Planner.GroupByStation(ctx, crafts)
+	local keys, any = {}, false
+	for i, craft in ipairs(crafts) do
+		keys[i] = Planner.StationKey(ctx.recipes[craft.recipeID])
+		any = any or keys[i] ~= nil
+	end
+	if not any then return crafts end
+	local makers = {}
+	for i, craft in ipairs(crafts) do
+		local recipe = ctx.recipes[craft.recipeID]
+		if recipe and recipe.o then
+			makers[recipe.o] = makers[recipe.o] or {}
+			table.insert(makers[recipe.o], i)
+		end
+	end
+	local needs = {}
+	for i, craft in ipairs(crafts) do
+		needs[i] = {}
+		local recipe = ctx.recipes[craft.recipeID]
+		for _, slot in ipairs(recipe and recipe.r or {}) do
+			for s = 2, #slot do
+				for _, j in ipairs(makers[slot[s]] or {}) do
+					if j < i then needs[i][j] = true end
+				end
+			end
+		end
+	end
+	local done, order, last = {}, {}, nil
+	for _ = 1, #crafts do
+		local same, plain, other
+		for i = 1, #crafts do
+			if not done[i] then
+				local ready = true
+				for j in pairs(needs[i]) do
+					if not done[j] then
+						ready = false
+						break
+					end
+				end
+				if ready then
+					if last and keys[i] == last then
+						same = i
+						break
+					end
+					if keys[i] == nil then plain = plain or i else other = other or i end
+				end
+			end
+		end
+		local pick = same or plain or other
+		done[pick] = true
+		table.insert(order, crafts[pick])
+		last = keys[pick]
+	end
+	return order
+end
+
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups. With farming
 -- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
 -- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.
@@ -1387,6 +1456,60 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		end
 		table.insert(plan.noTool, { name = name, recipeID = recipeID })
 	end
+	-- Camp stations: a craft that needs a Fermenter (or a Loom...) is made beside one placed at a campfire, and placing
+	-- it uses the item up. One of each station your own crafts need, plus a campfire kit for it, comes from stock
+	-- first, else is bought or crafted, whichever spends less, and counts in plan.cost. Before the tools, so the
+	-- campfire kit's own tool (Flint and Tinder) is on the list when the kit is crafted.
+	-- plan.camp = { { name, itemID (nil: no way to get one), fire = kit itemID or nil, crafts = { plan craft, ... } } }
+	-- in the order the crafts come; plan.campItems[itemID] = station name, or "Campfire" for a kit.
+	plan.camp, plan.campItems = {}, {}
+	if ctx.stationItems then
+		local byName = {}
+		for _, craft in ipairs(plan.crafts) do
+			local recipe = ctx.recipes[craft.recipeID]
+			if recipe and (not ctx.me or craft.char == ctx.me) then
+				for _, name in ipairs(recipe.f or {}) do
+					if not byName[name] then
+						byName[name] = { name = name, crafts = {} }
+						table.insert(plan.camp, byName[name])
+					end
+					table.insert(byName[name].crafts, craft)
+				end
+			end
+		end
+		-- One of these items, from stock, else the cheapest to buy or craft; nil when there's no way to get one.
+		local function GetOne(items, label)
+			for _, itemID in ipairs(items) do plan.keep[itemID] = true end
+			for _, itemID in ipairs(items) do
+				if Available(itemID) > 0 then
+					TakeFromStock(itemID, 1)
+					plan.campItems[itemID] = label
+					return itemID
+				end
+			end
+			local best, bestCost
+			for _, itemID in ipairs(items) do
+				local cost = Spend(itemID, 1, ctx.me, {}, 0)
+				if cost and (not bestCost or cost < bestCost) then best, bestCost = itemID, cost end
+			end
+			if not best then
+				-- No price to weigh it by, but a recipe makes it: farming its materials still gets one.
+				for _, itemID in ipairs(items) do
+					for _, recipeID in ipairs(ctx.known[itemID] or {}) do
+						if not best and Usable(recipeID, ctx.me) then best = itemID end
+					end
+				end
+			end
+			if not best then return nil end
+			Acquire(best, 1, ctx.me)
+			plan.campItems[best] = label
+			return best
+		end
+		for _, station in ipairs(plan.camp) do
+			station.itemID = GetOne(ctx.stationItems(station.name), station.name)
+			if station.itemID and ctx.campfireItems then station.fire = GetOne(ctx.campfireItems(), "Campfire") end
+		end
+	end
 	local needed = {}
 	for _, craft in ipairs(plan.crafts) do
 		local recipe = ctx.recipes[craft.recipeID]
@@ -1399,6 +1522,7 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 			end
 		end
 	end
+	if #plan.camp > 0 then plan.crafts = Planner.GroupByStation(ctx, plan.crafts) end
 	return plan
 end
 

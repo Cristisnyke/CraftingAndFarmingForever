@@ -550,6 +550,7 @@ local function BuildQueueList()
 		for i = at + 1, #list do
 			local row = list[i]
 			if row.kind == "item" and plan.tools and plan.tools[row.itemID] then row.tool = plan.tools[row.itemID] end
+			if row.kind == "item" and plan.campItems and plan.campItems[row.itemID] then row.camp = plan.campItems[row.itemID] end
 		end
 	end
 
@@ -615,6 +616,36 @@ local function BuildQueueList()
 		for _, row in ipairs(missingTools) do table.insert(list, row) end
 	end
 	local toolsAt = #list + 1
+	-- Camp stations: placed at a campfire right before the crafts that need them, so the steps say it under the first
+	-- crafting step; getting the station and the kit is on the buying and crafting steps like any material.
+	local campRows = {}
+	for _, station in ipairs(plan.camp or {}) do
+		local craftNames, counted = {}, {}
+		for _, craft in ipairs(station.crafts) do
+			local recipe = ns.db.recipes[craft.recipeID]
+			local name = recipe and recipe.n or "a craft"
+			if not counted[name] then
+				counted[name] = craft.count
+				table.insert(craftNames, name)
+			else
+				counted[name] = counted[name] + craft.count
+			end
+		end
+		for at, name in ipairs(craftNames) do craftNames[at] = name .. " x" .. counted[name] end
+		local crafts = table.concat(craftNames, ", ")
+		if station.itemID then
+			table.insert(campRows, { kind = "tip", campStation = station, text = ("Camp: place %s, then %s, and craft %s beside it."):format(
+				station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
+				WithArticle(station.name), crafts) })
+		else
+			table.insert(campRows, { kind = "warn", campStation = station, text = ("%s needs %s and you have none: none listed at the "
+				.. "auction house and no character of yours makes one."):format(crafts, WithArticle(station.name)) })
+		end
+	end
+	if #(plan.camp or {}) > 1 then
+		table.insert(campRows, { kind = "tip", text = ("Camp features share a %d hour cooldown: one station per hour, its "
+			.. "crafts are listed together."):format(ns.CAMP.COOLDOWN_HOURS) })
+	end
 	local autoHeader = false
 	for _, craft in ipairs(plan.crafts) do
 		if (craft.subCount or 0) > 0 then
@@ -651,7 +682,8 @@ local function BuildQueueList()
 		-- Bags short of room: your crafts in the plan's order (those freeing the most room first), and with a run, its
 		-- share of each entry; the rest waits for the next run.
 		local later = {}
-		if room and #mine > 1 then
+		-- Crafts needing a camp station follow the plan's order too, which keeps each station's crafts together.
+		if (room or #(plan.camp or {}) > 0) and #mine > 1 then
 			local position = {}
 			for at, craft in ipairs(plan.crafts) do
 				local key = ns.Planner.RunKey(craft.recipeID, craft.char)
@@ -720,7 +752,13 @@ local function BuildQueueList()
 	end
 	for at = toolsAt, #list do
 		if list[at].crafting then
-			for offset, row in ipairs(toolReminders) do table.insert(list, at + offset, row) end
+			local offset = 0
+			for _, rows in ipairs({ campRows, toolReminders }) do
+				for _, row in ipairs(rows) do
+					offset = offset + 1
+					table.insert(list, at + offset, row)
+				end
+			end
 			break
 		end
 	end
@@ -1374,6 +1412,13 @@ local function RowOnEnter(row)
 	elseif data.kind == "item" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.itemID)
+		if data.camp then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(data.camp == "Campfire" and "For your camp: a camp station is placed beside a campfire."
+				or ("A camp station: some of your crafts need %s placed nearby. Placing it uses it up; it needs a "
+				.. "campfire nearby, and every camp feature shares a %d hour cooldown."):format(
+				WithArticle(data.camp), ns.CAMP.COOLDOWN_HOURS), 1, 1, 1, true)
+		end
 		if data.tool then
 			local recipe = ns.db.recipes[data.tool.recipeID]
 			GameTooltip:AddLine(" ")
@@ -2601,7 +2646,8 @@ local function SetRow(row, data)
 		row.left:SetText(Color("ff66ccff", data.text))
 	elseif data.kind == "item" then
 		row.icon:SetTexture(ns.Items.Icon(data.itemID))
-		row.left:SetText(ItemLabel(data.itemID) .. (data.tool and Color(COLOR_MUTED, " (tool)") or ""))
+		row.left:SetText(ItemLabel(data.itemID) .. (data.tool and Color(COLOR_MUTED, " (tool)") or "")
+			.. (data.camp and Color(COLOR_MUTED, " (camp)") or ""))
 		if data.priceLabel then
 			-- Bought down the listings: what they average, as the cheapest one doesn't cover them all.
 			local average = data.deep and data.total and (not data.price or data.total > data.price * data.count)
