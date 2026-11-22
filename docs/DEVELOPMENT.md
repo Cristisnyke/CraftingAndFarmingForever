@@ -133,4 +133,4 @@ AllTheThings licensing was checked on 2026-11-08: its GitHub repository carries 
 
 ## Feedback inbox
 
-`tools/inbox.sh [--since ISO8601] [--mark]` lists GitHub issues, pull requests and comments by others since the last inbox (read-only; `--mark` remembers the time in `~/.config/cff/inbox-last`). Issue forms and the pull request template are in `.github/`. Every request, including ones from CurseForge comments, gets a GitHub issue with a stage label: `needs-info`, `planned`, `in-game-test`, `next-release`, `declined`.
+`tools/inbox.sh [--since ISO8601] [--mark]` lists GitHub issues, pull requests and comments by others, and CurseForge comment threads (from the website's JSON endpoint), since the last inbox (read-only; `--mark` remembers the time in `~/.config/cff/inbox-last`). Issue forms and the pull request template are in `.github/`. Every request, including ones from CurseForge comments, gets a GitHub issue with a stage label: `needs-info`, `planned`, `in-game-test`, `next-release`, `declined`.
