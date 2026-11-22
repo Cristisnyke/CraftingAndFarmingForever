@@ -4517,7 +4517,38 @@ do
 	check("bank alt: cursor empty", cursor, nil)
 	RunTimers()
 	check("bank alt: nothing left to send", ns.plan.send, nil)
+	-- A refused mail stops the job, and nothing in it counts as on its way.
+	slots[0][1] = { itemID = 4, stackCount = 2 }
+	ns.RequestPlan()
+	RunTimers()
+	local sendMail, realTime = SendMail, GetTime
+	SendMail = function() end
+	GetTime = function() return 5000 end -- the stub's clock ticks per call: the server's answer must not time out
+	check("bank alt: second batch started", (ns.Seller.Run(false)), true)
+	RunTimers()
+	check("bank alt: second mail waiting for the server", ns.Seller.Busy(), true)
+	FireNow("MAIL_FAILED")
+	check("bank alt: refused mail stops", ns.Seller.Busy(), false)
+	check("bank alt: refused mail not on its way", ns.Seller.InTransit(4), 3)
+	check("bank alt: refused mail's attachments cleared", next(attached), nil)
+	SendMail, GetTime = sendMail, realTime
 	Fire("MAIL_CLOSED")
+	-- The name cleared in Options redraws before the plan does: the old plan's mail step must not break it.
+	slots[0][1] = { itemID = 4, stackCount = 2 } -- the refused mail's attachments are back in the bags
+	ns.RequestPlan()
+	RunTimers()
+	check("bank alt: crafts back to send", ns.plan.send ~= nil, true)
+	ns.db.ui.bankAltName = nil
+	check("bank alt: name cleared, redraw before the plan", pcall(ns.UI.RefreshQueue), true)
+	ns.db.ui.bankAltName = "Banky"
+	-- Farm It has no mail step, so crafts to mail alone don't keep an empty Next step bar up.
+	ns.db.ui.farmMode = true
+	ns.UI.RefreshQueue()
+	check("bank alt: Farm It, no empty bar", bar.frame:IsShown(), false)
+	ns.db.ui.farmMode = nil
+	slots[0][1] = false
+	ns.RequestPlan()
+	RunTimers()
 	-- On the bank alt itself: nothing to mail, and its mailbox shows what was on its way.
 	ns.db.ui.bankAltName = "Snic"
 	Fire("MAIL_SHOW")

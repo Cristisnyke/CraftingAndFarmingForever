@@ -618,34 +618,38 @@ local function BuildQueueList()
 	local toolsAt = #list + 1
 	-- Camp stations: placed at a campfire right before the crafts that need them, so the steps say it under the first
 	-- crafting step; getting the station and the kit is on the buying and crafting steps like any material.
-	local campRows = {}
-	for _, station in ipairs(plan.camp or {}) do
-		local craftNames, counted = {}, {}
-		for _, craft in ipairs(station.crafts) do
-			local recipe = ns.db.recipes[craft.recipeID]
-			local name = recipe and recipe.n or "a craft"
-			if not counted[name] then
-				counted[name] = craft.count
-				table.insert(craftNames, name)
+	local function CampRows()
+		local campRows = {}
+		for _, station in ipairs(plan.camp or {}) do
+			local craftNames, counted = {}, {}
+			for _, craft in ipairs(station.crafts) do
+				local recipe = ns.db.recipes[craft.recipeID]
+				local name = recipe and recipe.n or "a craft"
+				if not counted[name] then
+					counted[name] = craft.count
+					table.insert(craftNames, name)
+				else
+					counted[name] = counted[name] + craft.count
+				end
+			end
+			for at, name in ipairs(craftNames) do craftNames[at] = name .. " x" .. counted[name] end
+			local crafts = table.concat(craftNames, ", ")
+			if station.itemID then
+				table.insert(campRows, { kind = "tip", text = ("Camp: place %s, then %s, and craft %s beside it."):format(
+					station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
+					WithArticle(station.name), crafts) })
 			else
-				counted[name] = counted[name] + craft.count
+				table.insert(campRows, { kind = "warn", text = ("%s needs %s and you have none: none listed at the "
+					.. "auction house and no character of yours makes one."):format(crafts, WithArticle(station.name)) })
 			end
 		end
-		for at, name in ipairs(craftNames) do craftNames[at] = name .. " x" .. counted[name] end
-		local crafts = table.concat(craftNames, ", ")
-		if station.itemID then
-			table.insert(campRows, { kind = "tip", campStation = station, text = ("Camp: place %s, then %s, and craft %s beside it."):format(
-				station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
-				WithArticle(station.name), crafts) })
-		else
-			table.insert(campRows, { kind = "warn", campStation = station, text = ("%s needs %s and you have none: none listed at the "
-				.. "auction house and no character of yours makes one."):format(crafts, WithArticle(station.name)) })
+		if #(plan.camp or {}) > 1 then
+			table.insert(campRows, { kind = "tip", text = ("Camp features share a %d hour cooldown: one station per hour, its "
+				.. "crafts are listed together."):format(ns.CAMP.COOLDOWN_HOURS) })
 		end
+		return campRows
 	end
-	if #(plan.camp or {}) > 1 then
-		table.insert(campRows, { kind = "tip", text = ("Camp features share a %d hour cooldown: one station per hour, its "
-			.. "crafts are listed together."):format(ns.CAMP.COOLDOWN_HOURS) })
-	end
+	local campRows = CampRows()
 	local autoHeader = false
 	for _, craft in ipairs(plan.crafts) do
 		if (craft.subCount or 0) > 0 then
@@ -751,20 +755,21 @@ local function BuildQueueList()
 		end
 	end
 	-- Bank alt mode, last: what you made goes to the bank alt, which sells it. Crafts in the bank come out first.
-	local send = not farming and ns.plan.send
-	if send then
-		local seller = ns.Seller.Name()
-		local at = #list + 1
-		Section("Take your crafts out of the bank (for " .. seller .. ")", send.bank)
-		if list[at] then list[at].bank = true end
+	-- Checked live too: Options redraws before the plan catches up with the mode or the name being cleared.
+	local function MailSteps()
+		local seller = ns.Seller.Active() and ns.Seller.Name()
+		local send = not farming and seller and ns.plan.send
+		if not send then return end
+		BankSection("Take your crafts out of the bank (for " .. seller .. ")", send.bank)
 		local all = {}
 		for _, side in ipairs({ send.bags, send.bank }) do
 			for itemID, units in pairs(side) do all[itemID] = (all[itemID] or 0) + units end
 		end
-		at = #list + 1
+		local at = #list + 1
 		Section("Mail your crafts to " .. seller .. " (it sells them)", all)
 		if list[at] then list[at].mail = true end
 	end
+	MailSteps()
 	for at = toolsAt, #list do
 		if list[at].crafting then
 			local offset = 0
@@ -1087,8 +1092,6 @@ local function StartItemTooltip(owner, itemID, recipeID)
 	end
 end
 
--- Materials with their cost. An auction house price that's a day or more old says so, in orange: a recent scan can
--- still have missed an item that had no listings at the time.
 -- "167% of usual" for a price far from its usual one: orange when dear, green when cheap; nil otherwise.
 local function UsualText(ratio)
 	local NORMAL = ns.Planner.NORMAL
@@ -1096,6 +1099,8 @@ local function UsualText(ratio)
 	return Color(ratio >= NORMAL.HIGH and COLOR_WARN or COLOR_PROFIT, ("%d%% of usual"):format(math.floor(ratio * 100 + 0.5)))
 end
 
+-- Materials with their cost. An auction house price that's a day or more old says so, in orange: a recent scan can
+-- still have missed an item that had no listings at the time. One far from its usual price says that too.
 local function AddPartLines(parts)
 	for _, part in ipairs(parts or {}) do
 		local name = ns.Items.Name(part.itemID) or "Loading..."
@@ -4084,8 +4089,9 @@ local function NextStepAllowed()
 end
 
 function UpdateNextStep()
-	-- Bank alt mode keeps it up while there are crafts to mail.
-	if not ns.db or (ns.Queue.Count() == 0 and not ns.plan.send) or not NextStepAllowed() or not ns.Option("nextStep") then
+	-- Bank alt mode keeps it up while there are crafts to mail (a step Farm It doesn't have).
+	local mailing = ns.db and ns.plan.send and not ns.db.ui.farmMode
+	if not ns.db or (ns.Queue.Count() == 0 and not mailing) or not NextStepAllowed() or not ns.Option("nextStep") then
 		if windows.next then windows.next.frame:Hide() end
 		return
 	end
