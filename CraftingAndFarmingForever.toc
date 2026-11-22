@@ -21,6 +21,7 @@ Depth.lua
 Queue.lua
 Bank.lua
 Vendor.lua
+Seller.lua
 Sales.lua
 Shopping.lua
 Writs.lua

@@ -750,6 +750,21 @@ local function BuildQueueList()
 			for _, row in ipairs(rows) do table.insert(list, row) end
 		end
 	end
+	-- Bank alt mode, last: what you made goes to the bank alt, which sells it. Crafts in the bank come out first.
+	local send = not farming and ns.plan.send
+	if send then
+		local seller = ns.Seller.Name()
+		local at = #list + 1
+		Section("Take your crafts out of the bank (for " .. seller .. ")", send.bank)
+		if list[at] then list[at].bank = true end
+		local all = {}
+		for _, side in ipairs({ send.bags, send.bank }) do
+			for itemID, units in pairs(side) do all[itemID] = (all[itemID] or 0) + units end
+		end
+		at = #list + 1
+		Section("Mail your crafts to " .. seller .. " (it sells them)", all)
+		if list[at] then list[at].mail = true end
+	end
 	for at = toolsAt, #list do
 		if list[at].crafting then
 			local offset = 0
@@ -1251,8 +1266,13 @@ local function ShowProfitTooltip(row, result)
 				.. "%d%% instead. Often one odd listing that won't sell. Search the item at the auction house before "
 				.. "crafting it. Change the limits in Options."):format(max, normal), 1, 0.6, 0.2, true)
 		end
+		if result.postage then
+			GameTooltip:AddDoubleLine("Postage to " .. (ns.Seller.Name() or "your bank alt"), ns.Money(result.postage),
+				1, 1, 1, 1, 1, 1)
+		end
 		if result.net then
-			GameTooltip:AddDoubleLine("Profit after 5% AH cut", ns.Money(result.net), 1, 1, 1, 1, 1, 1)
+			GameTooltip:AddDoubleLine(result.postage and "Profit after AH cut and postage" or "Profit after 5% AH cut",
+				ns.Money(result.net), 1, 1, 1, 1, 1, 1)
 		end
 		local age = ns.Prices.ItemAgeDays(result.itemID)
 		if age and age > 0 then GameTooltip:AddLine(("Last seen on the AH %s ago."):format(ns.Plural(age, "day", "days")), 1, 0.6, 0.2) end
@@ -3935,6 +3955,31 @@ local function CreateNextWindow()
 		self:SetEnabled(enabled)
 	end
 	window.vendorButton = vendor
+
+	-- Bank alt mode's mail step: at a mailbox, sends the crafts to the bank alt.
+	local mail = FlatButton(frame, "", 10, 24, true)
+	mail:SetPoint("BOTTOMLEFT", 10, 8)
+	mail:SetPoint("BOTTOMRIGHT", -10, 8)
+	mail:SetScript("OnClick", function()
+		local ok, why = ns.Seller.Run(false)
+		if not ok and why then ns.Say("chatWarnings", why) end
+	end)
+	mail:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Do the mail step")
+		ns.Seller.AddTooltipLines(GameTooltip)
+		GameTooltip:Show()
+	end)
+	mail:SetScript("OnLeave", GameTooltip_Hide)
+	mail.Sync = function(self)
+		local text, enabled = ns.Seller.ButtonText()
+		self:SetText(text)
+		self:SetEnabled(enabled)
+	end
+	window.mailButton = mail
+	UI.SyncMailButton = function()
+		if window.mailing and frame:IsShown() then mail:Sync() end
+	end
 	UI.SyncVendorButton = function()
 		if not frame:IsShown() then return end
 		-- A merchant opening or the last purchase landing can add or remove the button: lay the bar out again.
@@ -3955,7 +4000,7 @@ local function CreateNextWindow()
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount, window.blocking, window.open, window.crafting = nil, nil, nil, nil, false
-		window.banking, window.vendoring, window.vendorStep = false, false, false
+		window.banking, window.vendoring, window.vendorStep, window.mailing = false, false, false, false
 		window.maxRows = ns.db.ui.farmMode and NEXT.MAX_ROWS_FARMING or NEXT.MAX_ROWS
 		window.gatherGroups = 0
 		if step and step.gather then
@@ -3979,15 +4024,16 @@ local function CreateNextWindow()
 			end
 			window.banking = step.bank or false
 			window.vendorStep = step.vendor or false
+			window.mailing = step.mail or false
 		end
 		-- At a merchant that sells what the plan buys from vendors, its button shows whatever the step.
 		window.vendoring = not folded and not window.crafting
 			and (window.vendorStep or ns.Vendor.Pending() ~= nil or ns.Vendor.Busy())
-		if window.vendoring then window.banking = false end
+		if window.vendoring then window.banking, window.mailing = false, false end
 		-- On a crafting step the button stays, saying what to finish while it can't craft.
 		local button = window.crafting
 		local footer = button and NEXT.BUTTON_ROOM + 6
-			or (window.banking or window.vendoring) and NEXT.BANK_BUTTON_ROOM + 6 or 6
+			or (window.banking or window.vendoring or window.mailing) and NEXT.BANK_BUTTON_ROOM + 6 or 6
 		SetFooter(footer)
 		window.container:SetShown(not folded)
 		frame:SetHeight(folded and (MINI_TOP + 2)
@@ -4020,6 +4066,8 @@ local function CreateNextWindow()
 		if window.banking and not folded then bank:Sync() end
 		vendor:SetShown(window.vendoring)
 		if window.vendoring then vendor:Sync() end
+		mail:SetShown(window.mailing and not folded)
+		if window.mailing and not folded then mail:Sync() end
 	end
 
 	frame:HookScript("OnShow", function() UI.Refresh("next") end)
@@ -4036,7 +4084,8 @@ local function NextStepAllowed()
 end
 
 function UpdateNextStep()
-	if not ns.db or ns.Queue.Count() == 0 or not NextStepAllowed() or not ns.Option("nextStep") then
+	-- Bank alt mode keeps it up while there are crafts to mail.
+	if not ns.db or (ns.Queue.Count() == 0 and not ns.plan.send) or not NextStepAllowed() or not ns.Option("nextStep") then
 		if windows.next then windows.next.frame:Hide() end
 		return
 	end
@@ -5447,6 +5496,11 @@ local function Diagnostics()
 	Add("scan age: " .. (ns.Prices.ScanAge() and (ns.Prices.ScanAge() .. "s") or "never"))
 	Add("Syndicator active: " .. tostring(ns.Stock.HasSyndicator()))
 	Add("queue entries: " .. #ns.db.queue .. ", crafts planned: " .. #ns.plan.crafts)
+	local send = ns.plan.send
+	Add(("bank alt: %s, name %s, this one %s, to send %d, sends %s"):format(
+		ns.db.ui.bankAltMode and "on" or "off", ns.Seller.Name() or "none",
+		ns.Seller.IsMe() and "is the bank alt" or "crafts", send and send.units or 0,
+		ns.db.ui.noAutoMail and "on a click" or "by itself"))
 	Add("to buy: " .. CountKeys(ns.plan.buy) .. ", vendor: " .. CountKeys(ns.plan.vendor))
 	Add("listings: " .. ns.Depth.Diag())
 	if ns.Lock then Add("screen lock: " .. ns.Lock.Diag()) end -- a new file: not there after a /reload alone

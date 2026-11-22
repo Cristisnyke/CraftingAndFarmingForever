@@ -212,6 +212,18 @@ Keeps a number of each item you craft listed on the auction house.
 
 Syndicator only refreshes your auctions while you're at the auction house, so an item that sold since your last visit still counts as listed until you go back.
 
+### Bank alt mode
+
+One character sells everything, the others craft for it. Tick **Bank alt mode** in Options and type the bank alt's name beside **Bank alt** (as you'd write it on a mail; add `-Realm` for another realm). On every other character:
+
+- **Your crafts get mailed.** Everything a recipe of yours makes that can be sold goes to the bank alt, last on your to-do list: **Take your crafts out of the bank** (the bank step's **Bank it** button takes them out too), then **Mail your crafts to ...**.
+- **At a mailbox it sends them by itself**: whole stacks, 12 to a mail, the subject naming what's inside. If the game won't let an add-on send mail on its own, the add-on says so once and from then on waits for the **Send crafts** button, under the mailbox window or on the Next step bar. Ticking Bank alt mode again gives sending by itself another try.
+- **What stays:** what your queue still needs (materials of crafts not done yet, a queued writ's or crate's item), tools and camp stations, and soulbound items. Materials your character crafts with itself (bars, bolts, leather) only go as far as the auction house is short of them, by your Restock goals; the rest stays for crafting.
+- **Postage**, 30 copper per stack, comes off the profit of crafts made by any character but the bank alt (Profit, Queue and Restock; the tooltip shows it), and joins what the item cost you on the Sales tab once it's sent.
+- **Restocking:** a crafter's Restocking tab stops suggesting posts (you can still post by hand). The bank alt's tab suggests everything your goals want listed.
+- **Kept apart:** the bank alt's bags and bank aren't used for the crafters' materials, and its gold isn't theirs: send gold over when a crafter needs it.
+- **On its way:** crafts you sent count as held for restocking until the bank alt opens its mailbox, so they aren't crafted again in the meantime.
+
 ## Restocking (at the auction house)
 
 A **Restocking** tab beside Auctionator's tabs at the bottom of the auction house. It lists items in your bags that one of your recipes makes, with the amount your goals want on the auction house first.
@@ -294,6 +306,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price**. Off: the listing is used as it is |
 | Count price spikes at the usual price | On by default. A crafted item listed above its usual price (the middle of its last 14 days) counts at the usual price, and items at 130% or more say so (see [Usual prices and spikes](#usual-prices-and-spikes)). Off: today's listing is used as it is |
 | Smart restock goals | On by default. Restock goals follow your sales (see Restock). Off: every item without its own goal uses the default goals |
+| Bank alt mode | Off by default. With a name in the **Bank alt** box beside it, that character sells everything and your others mail it their crafts (see [Bank alt mode](#bank-alt-mode)) |
 | Stock level | How eagerly smart goals stock up, from cautious to aggressive: 10% to 200%, default 50% (a goal can rise to what sold between two of your restocks; 100% allows twice that) |
 | Advertise my professions | Off removes the Ad box beside the chat and the Advertise button on the Profit tab |
 | Post to | Trade, Guild, Say or Yell, the same choice as the Ad box's picker |

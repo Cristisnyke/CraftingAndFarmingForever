@@ -490,6 +490,13 @@ function Sales.AddCost(itemID, qty, copper)
 	entry.c = entry.c + math.max(0, copper or 0)
 end
 
+-- Bank alt mode's postage for mailing an item: added to what the units already in its pool cost, so their sale's
+-- profit carries it. Units with no pool have no cost on record to add it to.
+function Sales.AddPostage(itemID, copper)
+	local entry = itemID and ns.db.costs[itemID]
+	if entry and entry.q > 0 and copper and copper > 0 then entry.c = entry.c + copper end
+end
+
 -- Takes units out of an item's pool at its average cost. Returns the copper they cost and how many of them the
 -- pool covered; the rest have no cost on record.
 function Sales.TakeCost(itemID, qty)

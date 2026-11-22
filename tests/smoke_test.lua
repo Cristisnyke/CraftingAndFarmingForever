@@ -4442,5 +4442,96 @@ do
 	ns.db.priceDays[4] = nil
 end
 
+-- Bank alt mode: crafts in the bags are mailed to the bank alt by themselves at a mailbox, whole stacks, postage
+-- counted; soulbound ones and a crafter's own materials beyond what the auction house lacks stay.
+do
+	local container, itemCount = C_Container, C_Item.GetItemCount
+	local slots = { [0] = { { itemID = 4, stackCount = 3 }, { itemID = 2, stackCount = 4 }, { itemID = 5, stackCount = 1, isBound = true } } }
+	local cursor
+	local attached, sent = {}, {}
+	C_Container = {
+		GetContainerNumSlots = function(bag) return slots[bag] and #slots[bag] or 0 end,
+		GetContainerItemInfo = function(bag, slot) return slots[bag] and slots[bag][slot] or nil end,
+		PickupContainerItem = function(bag, slot) cursor = { bag = bag, slot = slot, count = slots[bag][slot].stackCount } end,
+		SplitContainerItem = function(bag, slot, count) cursor = { bag = bag, slot = slot, count = count } end,
+	}
+	GetCursorInfo = function() return cursor and "item" or nil end
+	ClearCursor = function() cursor = nil end
+	ClickSendMailItemButton = function(index)
+		local from = slots[cursor.bag][cursor.slot]
+		attached[index] = { itemID = from.itemID, count = cursor.count }
+		from.stackCount = from.stackCount - cursor.count
+		if from.stackCount <= 0 then slots[cursor.bag][cursor.slot] = false end
+		cursor = nil
+	end
+	GetSendMailItem = function(index)
+		local item = attached[index]
+		if item then return names[item.itemID], item.itemID, 1, item.count end
+	end
+	GetSendMailPrice = function()
+		local count = 0
+		for _ in pairs(attached) do count = count + 1 end
+		return count * 30
+	end
+	ClearSendMail = function() attached = {} end
+	SendMail = function(to, subject)
+		table.insert(sent, { to = to, subject = subject, items = attached })
+		attached = {}
+		FireNow("MAIL_SEND_SUCCESS")
+	end
+	C_Item.GetItemCount = function(id)
+		local count = 0
+		for _, item in ipairs(slots[0]) do
+			if item and item.itemID == id then count = count + item.stackCount end
+		end
+		return count
+	end
+	ns.Queue.Clear()
+	ns.db.ui.bankAltMode, ns.db.ui.bankAltName = true, "Banky"
+	ns.db.restock.goals[2] = 1
+	ns.InvalidateProfit()
+	ns.RequestPlan()
+	RunTimers()
+	local send = ns.plan.send
+	check("bank alt: shirts to send", send and send.bags[4], 3)
+	check("bank alt: soulbound robe stays", send and send.bags[5], nil)
+	check("bank alt: own material only as far as the AH lacks it", send and send.bags[2], 1)
+	check("bank alt: postage off the shirt's profit", ns.Planner.Profit(ns.NewContext(), 20).postage ~= nil, true)
+	check("bank alt: bank alt's alts left out", ns.Seller.IsName("banky-Realm"), true)
+	local bar = ns.UI.windows.next
+	check("bank alt: Next step bar up with an empty queue", bar and bar.frame:IsShown(), true)
+	check("bank alt: bar on the mail step", bar and bar.mailing, true)
+	check("bank alt: crafter posts nothing itself", ns.Posting.Rows()[1].toPost, 0)
+	Fire("MAIL_CLOSED")
+	check("bank alt: needs a mailbox", (ns.Seller.Run(false)), false)
+	Fire("MAIL_SHOW")
+	for _ = 1, 3 do RunTimers() end
+	check("bank alt: one mail sent by itself", #sent, 1)
+	check("bank alt: to the bank alt", sent[1] and sent[1].to, "Banky")
+	local units = 0
+	for _, item in pairs(sent[1] and sent[1].items or {}) do units = units + item.count end
+	check("bank alt: shirts and one bolt", units, 4)
+	check("bank alt: one bolt split off", slots[0][2] and slots[0][2].stackCount, 3)
+	check("bank alt: on its way counted", ns.Seller.InTransit(4), 3)
+	check("bank alt: job finished", ns.Seller.Busy(), false)
+	check("bank alt: cursor empty", cursor, nil)
+	RunTimers()
+	check("bank alt: nothing left to send", ns.plan.send, nil)
+	Fire("MAIL_CLOSED")
+	-- On the bank alt itself: nothing to mail, and its mailbox shows what was on its way.
+	ns.db.ui.bankAltName = "Snic"
+	Fire("MAIL_SHOW")
+	check("bank alt: seen on arrival", ns.Seller.InTransit(4), 0)
+	Fire("MAIL_CLOSED")
+	check("bank alt: the bank alt pays no postage", ns.Planner.Profit(ns.NewContext(), 20).postage, nil)
+	ns.db.ui.bankAltMode, ns.db.ui.bankAltName, ns.db.restock.goals[2] = nil, nil, nil
+	ns.InvalidateProfit()
+	ns.RequestPlan()
+	RunTimers()
+	C_Container, C_Item.GetItemCount = container, itemCount
+	GetCursorInfo, ClearCursor, ClickSendMailItemButton, GetSendMailItem, GetSendMailPrice, ClearSendMail, SendMail =
+		nil, nil, nil, nil, nil, nil, nil
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

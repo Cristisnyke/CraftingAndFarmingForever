@@ -96,9 +96,11 @@ end
 -- db.purchases         = { [charKey] = { { itemID, count, at }, ... } }, AH purchases since then, waiting in the mail
 -- db.costs             = { [itemID] = { q, c } }, what the items you hold cost you (see Sales.lua)
 -- db.deposits          = { [itemID] = copper per unit }, the deposit its last post cost (see Sales.lua)
+-- db.sellerTransit     = { [itemID] = { units, at } }, crafts mailed to the bank alt it hasn't seen yet (Seller.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
---                          adEnabled, nextStep, scanPopup, chatTips/chatSales/chatPlan/chatDone/chatWarnings (ns.CHAT_KINDS), depthCheck (off only when false), adText, quoteText (own wording), ... }
+--                          adEnabled, nextStep, scanPopup, chatTips/chatSales/chatPlan/chatDone/chatWarnings (ns.CHAT_KINDS), depthCheck (off only when false), adText, quoteText (own wording),
+--                          bankAltMode (on only when true), bankAltName, noAutoMail (mail only on a click), ... }
 --
 -- On the Forever client the saved table can reach the global after ADDON_LOADED. Creating the global early can
 -- make the client skip the file, so the session works on a provisional table until the real one arrives, and the
@@ -148,6 +150,7 @@ local function Normalize(db)
 	db.costs = db.costs or {}
 	db.deposits = db.deposits or {}
 	db.wanted = db.wanted or {}
+	db.sellerTransit = db.sellerTransit or {} -- [itemID] = { units, at }: crafts mailed to the bank alt, not yet seen there
 	db.writs, db.crates = nil, nil -- picks from before writs and crates went on the queue
 	-- 1.7.0 valued the materials held when costs began at market prices, which made sales of things crafted from
 	-- them look like losses. Those pools, and everything crafted from them, start again at nothing.

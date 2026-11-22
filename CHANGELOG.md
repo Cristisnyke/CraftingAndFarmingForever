@@ -4,6 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
+- **Bank alt mode.** Let one character sell everything: tick **Bank alt mode** in Options and type your bank alt's name. Your other characters craft and mail what they make to it: open a mailbox and your crafts are attached and sent by themselves, whole stacks, 12 to a mail (if the game won't let an add-on send mail on its own, press **Send crafts** under the mailbox, or on the Next step bar). Crafts in your bank come out on the bank step to go along. What your queue still needs and your tools stay, and materials a crafter uses itself only go as far as the auction house is short of them. Postage, 30 copper per stack, comes off the profit everywhere. Crafters' Restocking tab stops suggesting posts; the bank alt posts it all. The bank alt's materials and gold stay out of your crafters' shopping: send gold over yourself.
 - **Price spikes don't fool you any more.** The add-on now notes each item's lowest auction house price every day you scan. After 3 days, the middle of the last 14 is its usual price. A crafted item listed above that counts at its usual price in Profit, Queue and Restock, since a spike may be over before yours sell. Items at 130% of usual or more say so in orange ("167% of usual"), and material tooltips show materials that are unusually dear (orange) or cheap (green). Switch it off in Options.
 
 ## 1.25.0

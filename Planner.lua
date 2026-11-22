@@ -11,6 +11,7 @@
 --                        counted at normal x that cost and flagged capped, as one odd listing can't be trusted
 --   normalPrice(itemID)-> copper (optional): the item's usual price (Planner.NormalPrice). A result listed above it
 --                        counts at it, so a short price spike can't make a craft look good that will sell for less
+--   postage(recipeID, itemID) -> copper per unit made (optional): bank alt mode's postage, off the profit
 -- and, for planning:
 --   ownStock(itemID)   -> count on the current character (bags + bank)
 --   bankStock(itemID)  -> the part of ownStock that's in the bank (optional), so the plan can say to fetch it
@@ -262,11 +263,57 @@ function Planner.Profit(ctx, recipeID, crafts)
 			result.saleUnit = saleUnit
 		end
 	end
+	-- Bank alt mode: what mailing one craft's results to the bank alt costs, taken off the profit.
+	local postage = ctx.postage and ctx.postage(recipeID, recipe.o)
+	if postage and postage > 0 then result.postage = postage * yield end
 	if cost and saleUnit then
-		result.net = saleUnit * yield * (1 - ctx.ahCut) - cost
+		result.net = saleUnit * yield * (1 - ctx.ahCut) - cost - (result.postage or 0)
 		result.margin = cost > 0 and result.net / cost or nil
 	end
 	return result
+end
+
+-- Bank alt mode: crafts are mailed to the character who sells them. The game charges POSTAGE copper for each
+-- attachment slot of a mail, MAIL_SLOTS slots a mail. Mailed in full stacks, one unit costs POSTAGE / stack size.
+Planner.POSTAGE = 30
+Planner.MAIL_SLOTS = 12
+
+function Planner.PostagePerUnit(stackSize)
+	return Planner.POSTAGE / math.max(1, stackSize or 1)
+end
+
+-- What to mail to the bank alt. opts:
+--   items[itemID]  = { bags = units in the bags, bank = units in the bank } of everything a known recipe makes that
+--                    can be mailed
+--   reserved[itemID] -> units the queue, a queued writ or crate, or a tool still needs (kept, in the bags first)
+--   limit(itemID)  -> nil to send all of it, else the most to send: for this character's own crafting materials,
+--                     only what the auction house still lacks, so the materials it crafts with stay home
+-- Returns { bags = { [itemID] = units }, bank = { [itemID] = units }, units } or nil when there's nothing to send.
+-- The bags go first, so a trip to the bank is only for what's left.
+function Planner.SellerSend(opts)
+	local send = { bags = {}, bank = {}, units = 0 }
+	for itemID, held in pairs(opts.items) do
+		local keep = opts.reserved[itemID] or 0
+		local bags = math.max(0, (held.bags or 0) - keep)
+		local bank = math.max(0, (held.bank or 0) - math.max(0, keep - (held.bags or 0)))
+		local limit = opts.limit and opts.limit(itemID)
+		if limit then
+			limit = math.max(0, math.floor(limit))
+			bags = math.min(bags, limit)
+			bank = math.min(bank, limit - bags)
+		end
+		if bags > 0 then send.bags[itemID] = bags end
+		if bank > 0 then send.bank[itemID] = bank end
+		send.units = send.units + bags + bank
+	end
+	if send.units == 0 then return nil end
+	return send
+end
+
+-- The mails it takes to send `slots` attachments (one per stack), MAIL_SLOTS each, and the postage for them.
+function Planner.MailCost(slots)
+	local mails = math.ceil(slots / Planner.MAIL_SLOTS)
+	return mails, slots * Planner.POSTAGE
 end
 
 -- Usual prices: the lowest price seen each day (days = { [day number] = copper }), and the median of the last DAYS

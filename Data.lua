@@ -351,7 +351,9 @@ function Stock.Alts(itemID)
 	for _, char in ipairs(info.characters or {}) do
 		local key = SyndicatorKey(char)
 		local count = (char.bags or 0) + (char.bank or 0)
-		if key ~= me and count > 0 then
+		-- Bank alt mode: the bank alt's things are for selling, kept apart from the crafters' materials.
+		local seller = ns.Seller and ns.Seller.Enabled() and ns.Seller.IsName(char.character or key)
+		if key ~= me and count > 0 and not seller then
 			table.insert(result, { name = char.character or key, count = count })
 		end
 	end
@@ -512,7 +514,8 @@ ns.On("AUCTION_HOUSE_CLOSED", function() wipe(listings) end)
 -- For restocking: units on the AH across characters (nil if they can't be seen), and units held anywhere else:
 -- bags and banks of all characters, plus mail, since expired auctions come back that way.
 function Stock.ForRestock(itemID)
-	local owned = Stock.Own(itemID)
+	-- Crafts mailed to the bank alt that it hasn't seen in its mailbox yet count as held too.
+	local owned = Stock.Own(itemID) + (ns.Seller and ns.Seller.InTransit(itemID) or 0)
 	local api = SyndicatorAPI()
 	if not api then return nil, owned end
 	local ok, info = pcall(api.GetInventoryInfoByItemID, itemID, true, true)

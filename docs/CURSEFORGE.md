@@ -97,6 +97,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - A restock stops where it stops paying: when the cheap materials on the auction house run out, an item is cut to the crafts that still earn your minimum profit.
 - Clear columns for what's listed, what you hold and what to craft. Goals you set yourself stand out from the defaults, and one click puts them back.
 - One button queues whatever is missing.
+- **Bank alt mode:** name a bank alt in Options and your other characters mail it what they craft, by themselves at a mailbox (whole stacks, 12 to a mail; crafts in the bank come out on the bank step). Postage counts in the profit. The bank alt posts everything; its materials and gold stay out of your crafters' shopping.
 - A **Restocking** tab inside the auction house lists what you can post from your bags. It checks the live price, suggests the lowest listing's price (no undercutting), never below break-even, and posts with one click.
 - It warns you before you post below what a vendor would pay.
 

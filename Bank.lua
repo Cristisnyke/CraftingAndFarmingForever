@@ -200,6 +200,14 @@ function Bank.Pending()
 	local plan = ns.ActivePlan()
 	local deposit = plan.room and plan.room.bank or {}
 	local take = plan.bank or {}
+	-- Bank alt mode: crafts in the bank come out too, to be mailed to the bank alt.
+	local send = ns.plan.send and ns.plan.send.bank
+	if send and next(send) then
+		local merged = {}
+		for itemID, units in pairs(take) do merged[itemID] = units end
+		for itemID, units in pairs(send) do merged[itemID] = (merged[itemID] or 0) + units end
+		take = merged
+	end
 	if next(deposit) == nil and next(take) == nil then return nil end
 	return { deposit = deposit, take = take }
 end

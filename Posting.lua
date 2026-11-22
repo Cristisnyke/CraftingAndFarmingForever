@@ -61,6 +61,8 @@ function Posting.Rows()
 	local ctx = ns.NewContext()
 	local counts = BagContents()
 	local reserved = ns.Planner.ReservedMaterials(ctx, ns.plan)
+	-- Bank alt mode: the bank alt posts everything, so a crafter is only offered posting by hand.
+	local crafter = ns.Seller.Active()
 	local rows = {}
 	for itemID, inBags in pairs(counts) do
 		local goal = ctx.known[itemID] and ns.Items.CanSellOnAH(itemID) and ns.Restock.FullGoal(itemID)
@@ -73,7 +75,7 @@ function Posting.Rows()
 				onAH = onAH and (onAH + posted) or nil,
 				goal = goal,
 				reserved = reserved[itemID] or 0,
-				toPost = ns.Planner.PostQuantity(goal, (onAH or 0) + posted, inBags, reserved[itemID] or 0),
+				toPost = crafter and 0 or ns.Planner.PostQuantity(goal, (onAH or 0) + posted, inBags, reserved[itemID] or 0),
 				unitCost = ns.Planner.CraftUnitCost(ctx, itemID),
 				name = ns.Items.Name(itemID) or "",
 			})
@@ -293,6 +295,10 @@ local function BuildList()
 	end
 	if #list == 0 then
 		table.insert(list, { kind = "note", text = "Nothing to post: no items in your bags that your recipes make." })
+	end
+	if ns.Seller.Active() then
+		table.insert(list, 1, { kind = "note", text = ("Bank alt mode: %s posts your crafts. Mail them at a mailbox."):format(
+			ns.Seller.Name()) })
 	end
 	return list
 end

@@ -1458,5 +1458,34 @@ do
 	check("queue totals: capped not spiked", Planner.QueueTotals(both, { { recipeID = 300, qty = 1 } }, function() return true end).spiked[1], nil)
 end
 
+-- Bank alt mode: postage comes off the profit; what's mailed keeps what the queue needs and a crafter's own materials.
+do
+	local ctx = Context()
+	ctx.postage = function(recipeID) return recipeID == 300 and Planner.PostagePerUnit(1) or nil end
+	local result = Planner.Profit(ctx, 300)
+	check("postage: per craft", result.postage, 30)
+	check("postage: off the profit", result.net, 885 - 30)
+	check("postage: stack of 20", Planner.PostagePerUnit(20), 1.5)
+	check("postage: none without bank alt", Planner.Profit(Context(), 300).postage, nil)
+	local mails, cost = Planner.MailCost(13)
+	check("mail cost: 13 stacks = 2 mails", mails, 2)
+	check("mail cost: postage", cost, 390)
+
+	local send = Planner.SellerSend({
+		items = { [SHIRT] = { bags = 5, bank = 2 }, [BOLT] = { bags = 4, bank = 10 }, [BAR] = { bags = 3, bank = 0 } },
+		reserved = { [BOLT] = 6, [BAR] = math.huge },
+		limit = function(id) return id == BOLT and 5 or nil end,
+	})
+	check("send: all shirts from the bags", send.bags[SHIRT], 5)
+	check("send: shirts from the bank", send.bank[SHIRT], 2)
+	check("send: queue's bolts kept, bags first", send.bags[BOLT], nil)
+	check("send: own material only as far as the AH lacks", send.bank[BOLT], 5)
+	check("send: tool kept", send.bags[BAR], nil)
+	check("send: units", send.units, 12)
+	check("send: nothing", Planner.SellerSend({ items = { [SHIRT] = { bags = 1 } }, reserved = { [SHIRT] = 1 } }), nil)
+	check("send: limit below zero", Planner.SellerSend({ items = { [BOLT] = { bags = 3 } }, reserved = {},
+		limit = function() return -4 end }), nil)
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

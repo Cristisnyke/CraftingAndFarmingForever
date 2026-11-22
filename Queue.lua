@@ -54,6 +54,7 @@ local function NewContext()
 		ahCut = ns.AH_CUT,
 		priceCap = Queue.PriceCap(),
 		normalPrice = ns.Prices.Normal,
+		postage = ns.Seller.Postage,
 	})
 end
 ns.NewContext = NewContext
@@ -190,12 +191,15 @@ local function RebuildPlan()
 	local me = ctx.me or "?"
 	local space = ns.Option("bagSpace") and ns.Stock.BagSpace() or nil
 	ns.plan, ns.db.bagRuns[me] = ns.Planner.SpacePlan(ctx, ns.db.queue, wanted, space, ns.db.bagRuns[me])
+	-- Bank alt mode: the crafts to mail to the bank alt, from the bags and the bank.
+	ns.plan.send = ns.Seller.Plan(ctx, ns.plan, wanted)
 	ctx.smelting = ns.Farm.Smelting
 	ns.farmPlan = ns.Planner.BuildPlan(ctx, ns.db.queue, true, wanted)
 	ns.totals = ns.Planner.QueueTotals(ctx, ns.db.queue, ns.Items.CanSellOnAH)
 	if ns.Shopping then ns.Shopping.Sync() end
 	ns.Depth.CheckWanted()
 	if ns.UI then ns.UI.RefreshQueue() end
+	ns.Seller.Changed()
 	PlanCheck.AfterBuild()
 end
 
@@ -886,7 +890,8 @@ ns.On("TRADE_SKILL_SHOW", CraftAfterOpenSoon)
 ns.On("TRADE_SKILL_LIST_UPDATE", CraftAfterOpenSoon)
 
 local function Blocked(addon)
-	if addon ~= addonName then return end
+	-- Mail being sent for bank alt mode was blocked, not a craft (Seller.lua handles that).
+	if addon ~= addonName or ns.Seller.Busy() then return end
 	if not ns.db.ui.noCraftAfterOpen then
 		ns.db.ui.noCraftAfterOpen = true
 		ns.Say("chatWarnings", "The game doesn't let add-ons craft by themselves right after opening a profession, so Craft Next "

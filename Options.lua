@@ -342,7 +342,58 @@ function Options.Build(parent, top)
 			ns.UI.Refresh("restock")
 			ns.UI.Refresh("posting")
 		end)
+	-- Beside it, in the second column: bank alt mode, a tick and the bank alt's name under it.
+	local bankAltTip = "One character sells everything: your bank alt. Your other characters craft and mail what they "
+		.. "make to it: at a mailbox they attach and send it by themselves (or with the Send crafts button if the game "
+		.. "doesn't allow that), whole stacks, 12 to a mail, and crafts in their bank come out on the bank step. What "
+		.. "the queue still needs and tools stay; materials a crafter uses itself are only sent as far as the auction "
+		.. "house lacks them. Crafters' Restocking tab stops suggesting posts; the bank alt's posts it all. Postage, "
+		.. ("%dc per stack, comes off the profit. The bank alt's materials and gold stay out of the crafters' shopping: "
+		.. "send gold over yourself."):format(ns.Planner.POSTAGE)
+	controls.bankAltMode = Check(parent, "Bank alt mode", bankAltTip, y - 22,
+		function() return ns.db.ui.bankAltMode == true end, function(on)
+			ns.db.ui.bankAltMode = on or nil
+			if on then ns.db.ui.noAutoMail = nil end -- sending by itself gets another try
+		end)
+	controls.bankAltMode:SetScript("OnClick", function(self)
+		ns.db.ui.bankAltMode = self:GetChecked() and true or nil
+		if ns.db.ui.bankAltMode then ns.db.ui.noAutoMail = nil end
+		Changed(true)
+	end)
+	controls.bankAltMode:ClearAllPoints()
+	controls.bankAltMode:SetPoint("TOPLEFT", LEFT + 380, -(y - 22))
+	controls.bankAltMode:SetHitRectInsets(0, -230, 0, 0)
 	y = y + 4
+	local altLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	altLabel:SetPoint("TOPLEFT", LEFT + 384, -y - 5)
+	altLabel:SetText("Bank alt")
+	local altName = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
+	altName:SetSize(130, 20)
+	altName:SetPoint("TOPLEFT", LEFT + 440, -y)
+	altName:SetAutoFocus(false)
+	altName:SetMaxLetters(48)
+	local function SaveAlt(self)
+		local text = (self:GetText() or ""):match("^%s*(.-)%s*$")
+		if text ~= (ns.db.ui.bankAltName or "") then
+			ns.db.ui.bankAltName = text ~= "" and text or nil
+			Changed(true)
+		end
+	end
+	altName:SetScript("OnEnterPressed", function(self)
+		SaveAlt(self)
+		self:ClearFocus()
+	end)
+	altName:SetScript("OnEscapePressed", function(self)
+		self:SetText(ns.db.ui.bankAltName or "")
+		self:ClearFocus()
+	end)
+	altName:SetScript("OnEditFocusLost", SaveAlt)
+	altName.Sync = function(self)
+		if not self:HasFocus() then self:SetText(ns.db.ui.bankAltName or "") end
+	end
+	Tip(altName, "Bank alt", "The name of the character that sells everything, as you'd write it on a mail (add "
+		.. "-Realm for another realm). Press Enter to save.")
+	controls.bankAltName = altName
 	-- How much of a day's sales to stock: a slider from careful to plenty.
 	Label(parent, "Stock level", y)
 	local level = ns.UI.StockLevelSlider(parent, 220)
@@ -483,6 +534,8 @@ function Options.Build(parent, top)
 		end
 		controls.smartLevel:Sync()
 		controls.keepGold:Sync()
+		controls.bankAltMode:Sync()
+		controls.bankAltName:Sync()
 		controls.priceCap:Sync()
 		controls.normalPrice:Sync()
 		controls.capMax:Sync()
