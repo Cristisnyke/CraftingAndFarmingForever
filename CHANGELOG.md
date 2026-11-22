@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## 1.28.0
+
+- **Fix: bank alt mode mailed campfire kits to the bank alt.** A recipe you know makes them, so they counted as crafts to sell. Campfire kits and camp stations now stay with the character who has them. Thanks to felo747474 for the report.
+- **Skill up tooltips show both resale prices.** Hover a recipe to see what a vendor pays and what it sells for on the auction house after the cut. The one that isn't counted is grey and says "(not counted)": tick **Selling on the AH** to count the auction house price when it's more. Thanks to the player on CurseForge who asked.
+
 ## 1.27.0
 
 - **Fix: placing a campfire asked for another one.** Placing a campfire kit or a camp station uses it up, so the plan wanted a new one (from your bank, or bought). The add-on now notes what you placed: for an hour, while you stay in the same zone, the steps say "your campfire is lit" or "your Fermenter is placed" and ask for nothing more. One campfire now serves every station. Thanks to felo747474 for the report.

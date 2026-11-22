@@ -831,6 +831,12 @@ do
 	check("AH resale: kind", ah[1].backKind, "ah")
 	check("AH resale: earns", ah[1].perPoint, -885)
 	check("AH resale: unsellable result only vendors", ah[2].backKind, "vendor")
+	local shown = Planner.SkillUpRows(Context(), { { recipeID = 300, difficulty = 0 } },
+		{ sellPrice = vendorSell, ahShown = sellable })
+	check("AH shown, not ticked: vendor counted", shown[1].backKind, "vendor")
+	check("AH shown, not ticked: back is the vendor's", shown[1].back, 30)
+	check("AH shown, not ticked: AH amount for the tooltip", shown[1].ahBack, 950)
+	check("AH shown, not ticked: vendor amount", shown[1].vendorBack, 30)
 	local cheapAH = Planner.SkillUpRows(Context({ ah = { [ORE] = 10, [BAR] = 2 } }), {
 		{ recipeID = 100, difficulty = 0 },
 	}, { sellPrice = vendorSell, ahSellable = function() return true end })

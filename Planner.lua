@@ -407,23 +407,29 @@ Planner.SKILL_CHANCE = { [0] = 1, [1] = 0.5, [2] = 0.25 }
 
 -- What selling one craft's results gets back, for levelling: the vendor always buys (opts.sellPrice = what a vendor
 -- pays for one), and with opts.ahSellable (the player sells on the auction house) the auction house price after its cut
--- and any postage counts when it's more. Results that bind on pickup or can't be auctioned only vendor. Returns
--- copper (0 with neither price) and "vendor" | "ah" | nil.
+-- and any postage counts when it's more. Results that bind on pickup or can't be auctioned only vendor. With
+-- opts.ahShown instead (same test), the auction house price is worked out for showing but not counted. Returns
+-- copper (0 with neither price), "vendor" | "ah" | nil, then the vendor's and the auction house's amounts (nil when
+-- unknown).
 function Planner.Resale(ctx, recipeID, opts)
 	local recipe = ctx.recipes[recipeID]
 	if not (recipe and recipe.o) then return 0, nil end
+	opts = opts or {}
 	local yield = AverageYield(recipe)
 	local back, kind = 0, nil
-	local sell = opts and opts.sellPrice and Priced(opts.sellPrice(recipe.o))
-	if sell then back, kind = sell * yield, "vendor" end
-	if opts and opts.ahSellable and opts.ahSellable(recipe.o) then
+	local sell = opts.sellPrice and Priced(opts.sellPrice(recipe.o))
+	local vendor = sell and sell * yield
+	if vendor then back, kind = vendor, "vendor" end
+	local sellable = opts.ahSellable or opts.ahShown
+	local ah
+	if sellable and sellable(recipe.o) then
 		local result = Planner.Profit(ctx, recipeID)
 		if result and result.saleUnit then
-			local ah = result.saleUnit * yield * (1 - ctx.ahCut) - (result.postage or 0)
-			if ah > back then back, kind = ah, "ah" end
+			ah = result.saleUnit * yield * (1 - ctx.ahCut) - (result.postage or 0)
+			if opts.ahSellable and ah > back then back, kind = ah, "ah" end
 		end
 	end
-	return back, kind
+	return back, kind, vendor, ah
 end
 
 -- Learning a recipe: how many crafts its profit takes to pay back what the recipe cost. Nil when it costs nothing
@@ -438,7 +444,7 @@ end
 -- still give skill, cheapest expected cost per skill point first: materials at market prices, less what selling the
 -- results gets back (Planner.Resale with opts). A craft that sells for more than its materials earns while levelling:
 -- net and perPoint below zero, first in the list. A recipe with a material that has no price goes last.
--- Row: cost (materials), back, backKind, net (cost - back), perPoint.
+-- Row: cost (materials), back, backKind, vendorBack, ahBack (Planner.Resale), net (cost - back), perPoint.
 function Planner.SkillUpRows(ctx, entries, opts)
 	local rows = {}
 	for _, entry in ipairs(entries) do
@@ -447,12 +453,12 @@ function Planner.SkillUpRows(ctx, entries, opts)
 		if chance and recipe then
 			local cost, parts = Planner.RecipeCost(ctx, entry.recipeID)
 			local points = math.max(1, entry.skillUps or 1)
-			local back, backKind = Planner.Resale(ctx, entry.recipeID, opts)
+			local back, backKind, vendorBack, ahBack = Planner.Resale(ctx, entry.recipeID, opts)
 			local net = cost and cost - back
 			rows[#rows + 1] = {
 				recipeID = entry.recipeID, itemID = recipe.o, difficulty = entry.difficulty, chance = chance,
 				points = points, cost = cost, parts = parts, back = back, backKind = backKind, net = net,
-				perPoint = net and net / (chance * points),
+				perPoint = net and net / (chance * points), vendorBack = vendorBack, ahBack = ahBack,
 			}
 		end
 	end

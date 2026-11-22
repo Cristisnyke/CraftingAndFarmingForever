@@ -829,6 +829,15 @@ function Recipes.StationItems(name)
 	return items
 end
 
+-- Campfire kits and camp stations: used up where they're placed, never sold or mailed to the bank alt.
+function Recipes.IsCampItem(itemID)
+	if ns.CAMP.stations[itemID] then return true end
+	for _, fire in ipairs(ns.CAMP.fires) do
+		if fire == itemID then return true end
+	end
+	return false
+end
+
 function Recipes.CampfireItems()
 	local items = {}
 	for _, itemID in ipairs(ns.CAMP.fires) do table.insert(items, itemID) end

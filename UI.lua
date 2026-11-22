@@ -326,7 +326,7 @@ local function BuildSkillList()
 	end
 	-- What selling the results gets back: the vendor's price always, the auction house's when ticked.
 	local rows = ns.Planner.SkillUpRows(ns.NewContext(), entries, { sellPrice = ns.Items.SellPrice,
-		ahSellable = ns.db.ui.skillSellAH and ns.Items.CanSellOnAH or nil })
+		ahSellable = ns.db.ui.skillSellAH and ns.Items.CanSellOnAH or nil, ahShown = ns.Items.CanSellOnAH })
 	-- The planner's order (cheapest per skill point) is the default and the tie-break.
 	local key, ascending = UI.ListSort("skill")
 	if key ~= "profit" or not ascending then
@@ -1160,9 +1160,18 @@ local function ShowSkillTooltip(row, item)
 	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL.CHANCE_TEXT[item.difficulty]), 1, 1, 1, 1, 1, 1)
 	if item.points > 1 then GameTooltip:AddDoubleLine("Skill points per craft", tostring(item.points), 1, 1, 1, 1, 1, 1) end
 	GameTooltip:AddDoubleLine("Materials per craft", item.cost and ns.Money(item.cost) or "no price", 1, 1, 1, 1, 1, 1)
+	-- Both resale prices, the one counted in white, the other grey with "not counted".
+	local function ResaleLine(label, amount, counted)
+		if not (amount and amount > 0) then return end
+		if counted then
+			GameTooltip:AddDoubleLine(label, "- " .. ns.Money(amount), 1, 1, 1, 1, 1, 1)
+		else
+			GameTooltip:AddDoubleLine(label .. " (not counted)", ns.Money(amount), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+		end
+	end
+	ResaleLine("A vendor pays", item.vendorBack, item.backKind == "vendor")
+	ResaleLine("Sells on the AH for (after the cut)", item.ahBack, item.backKind == "ah")
 	if item.back and item.back > 0 then
-		GameTooltip:AddDoubleLine(item.backKind == "ah" and "Sells on the AH for (after the cut)" or "A vendor pays",
-			"- " .. ns.Money(item.back), 1, 1, 1, 1, 1, 1)
 		GameTooltip:AddDoubleLine(item.net and item.net < 0 and "Earned per craft" or "Cost per craft",
 			item.net and SKILL.CostText(item.net) or "no price", 1, 1, 1, 1, 1, 1)
 	end

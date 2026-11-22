@@ -144,7 +144,7 @@ function Seller.Plan(ctx, plan, wanted)
 	local bags = BagCounts()
 	local items = {}
 	for itemID in pairs(ctx.known) do
-		if ns.Items.CanSellOnAH(itemID) then
+		if ns.Items.CanSellOnAH(itemID) and not ns.Recipes.IsCampItem(itemID) then
 			local inBags, inBank = bags[itemID] or 0, ns.Stock.Bank(itemID)
 			if inBags + inBank > 0 then items[itemID] = { bags = inBags, bank = inBank } end
 		end

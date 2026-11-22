@@ -4611,6 +4611,17 @@ do
 	local send = ns.plan.send
 	check("bank alt: shirts to send", send and send.bags[4], 3)
 	check("bank alt: soulbound robe stays", send and send.bags[5], nil)
+	check("bank alt: campfire kit is a camp item", ns.Recipes.IsCampItem(279981), true)
+	check("bank alt: shirt isn't a camp item", ns.Recipes.IsCampItem(4), false)
+	local isCamp = ns.Recipes.IsCampItem
+	ns.Recipes.IsCampItem = function(id) return id == 4 end -- pretend the shirt places a camp
+	ns.RequestPlan()
+	RunTimers()
+	check("bank alt: camp items never mailed", ns.plan.send and ns.plan.send.bags[4], nil)
+	ns.Recipes.IsCampItem = isCamp
+	ns.RequestPlan()
+	RunTimers()
+	check("bank alt: shirts back on the list", ns.plan.send and ns.plan.send.bags[4], 3)
 	check("bank alt: own material only as far as the AH lacks it", send and send.bags[2], 1)
 	check("bank alt: postage off the shirt's profit", ns.Planner.Profit(ns.NewContext(), 20).postage ~= nil, true)
 	check("bank alt: bank alt's alts left out", ns.Seller.IsName("banky-Realm"), true)

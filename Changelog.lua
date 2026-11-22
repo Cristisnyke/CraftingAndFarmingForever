@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.28.0", lines = {
+		"- Fix: bank alt mode mailed campfire kits to the bank alt. A recipe you know makes them, so they counted as crafts to sell. Campfire kits and camp stations now stay with the character who has them. Thanks to felo747474 for the report.",
+		"- Skill up tooltips show both resale prices. Hover a recipe to see what a vendor pays and what it sells for on the auction house after the cut. The one that isn't counted is grey and says \"(not counted)\": tick Selling on the AH to count the auction house price when it's more. Thanks to the player on CurseForge who asked.",
+	} },
 	{ version = "1.27.0", lines = {
 		"- Fix: placing a campfire asked for another one. Placing a campfire kit or a camp station uses it up, so the plan wanted a new one (from your bank, or bought). The add-on now notes what you placed: for an hour, while you stay in the same zone, the steps say \"your campfire is lit\" or \"your Fermenter is placed\" and ask for nothing more. One campfire now serves every station. Thanks to felo747474 for the report.",
 		"- Fix: on the bank alt, it still asked to mail everything to the bank alt. The add-on read only a character's first name, which WoW Forever gives every character on your account, so a bank alt typed with both names never matched itself. It now reads both names: type the bank alt's full name in Options, such as Snic Bank. Your characters' full names also show in tooltips and lists now (taken from Syndicator for characters you haven't logged in to since), an alt's materials set aside for its own queued crafts are matched to it properly, and Quote replies to a customer with a two-part name instead of whispering the first name alone. Accented names typed in another case (élise for Élise) match too. Thanks to felo747474 for the report.",
