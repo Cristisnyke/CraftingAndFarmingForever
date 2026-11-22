@@ -1577,7 +1577,8 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 	-- it uses the item up. One of each station your own crafts need, plus a campfire kit for it, comes from stock
 	-- first, else is bought or crafted, whichever spends less, and counts in plan.cost. Before the tools, so the
 	-- campfire kit's own tool (Flint and Tinder) is on the list when the kit is crafted.
-	-- plan.camp = { { name, itemID (nil: no way to get one), fire = kit itemID or nil, crafts = { plan craft, ... } } }
+	-- plan.camp = { { name, itemID (nil: no way to get one), fire = kit itemID or nil, crafts = { plan craft, ... },
+	--   placed / firePlaced = true when already placed (ctx.campPlaced) } }; one campfire for all the stations.
 	-- in the order the crafts come; plan.campItems[itemID] = station name, or "Campfire" for a kit.
 	plan.camp, plan.campItems = {}, {}
 	if ctx.stationItems then
@@ -1594,9 +1595,12 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 				end
 			end
 		end
-		-- One of these items, from stock, else the cheapest to buy or craft; nil when there's no way to get one.
+		-- One of these items: one already placed (ctx.campPlaced) costs nothing and says so; else from stock, else the
+		-- cheapest to buy or craft; nil when there's no way to get one. Returns the item, and true when it's placed.
 		local function GetOne(items, label)
 			for _, itemID in ipairs(items) do plan.keep[itemID] = true end
+			local placed = ctx.campPlaced and ctx.campPlaced(items)
+			if placed then return placed, true end
 			for _, itemID in ipairs(items) do
 				if Available(itemID) > 0 then
 					TakeFromStock(itemID, 1)
@@ -1622,9 +1626,14 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 			plan.campItems[best] = label
 			return best
 		end
+		-- One campfire takes every station placed beside it.
+		local fire, firePlaced
 		for _, station in ipairs(plan.camp) do
-			station.itemID = GetOne(ctx.stationItems(station.name), station.name)
-			if station.itemID and ctx.campfireItems then station.fire = GetOne(ctx.campfireItems(), "Campfire") end
+			station.itemID, station.placed = GetOne(ctx.stationItems(station.name), station.name)
+			if station.itemID and ctx.campfireItems then
+				if fire == nil then fire, firePlaced = GetOne(ctx.campfireItems(), "Campfire") end
+				station.fire, station.firePlaced = fire, firePlaced
+			end
 		end
 	end
 	local needed = {}

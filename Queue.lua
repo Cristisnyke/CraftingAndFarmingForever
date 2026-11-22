@@ -46,6 +46,7 @@ local function NewContext()
 		toolItems = Recipes.ToolItems,
 		stationItems = Recipes.StationItems,
 		campfireItems = Recipes.CampfireItems,
+		campPlaced = Recipes.CampPlaced,
 		crafter = Recipes.Crafter,
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
 		me = ns.CharKey(),

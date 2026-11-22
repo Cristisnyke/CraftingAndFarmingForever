@@ -4037,6 +4037,15 @@ do
 	check("camp: place it", joined:find("Camp: place a", 1, true) ~= nil and joined:find("then a Fermenter, and craft Recipe10 x3", 1, true) ~= nil, true)
 	check("camp: none to be had", joined:find("Recipe10 x3 needs a Loom and you have none", 1, true) ~= nil, true)
 	check("camp: cooldown note", joined:find("1 hour cooldown", 1, true) ~= nil, true)
+	ns.plan.camp[1].firePlaced = true
+	local function CampText()
+		for _, data in ipairs(ns.UI.windows.queue.build()) do
+			if data.kind == "tip" and data.text:find("^Camp: ") then return data.text end
+		end
+	end
+	check("camp: fire lit", CampText(), "Camp: your campfire is lit: place a Fermenter beside it and craft Recipe10 x3.")
+	ns.plan.camp[1].placed = true
+	check("camp: station placed", CampText(), "Camp: your Fermenter is placed: craft Recipe10 x3 beside it.")
 	ns.UI.RefreshQueue()
 	ns.UI.Refresh("queue")
 	ns.UI.Refresh("next")
@@ -4044,6 +4053,35 @@ do
 	ns.Queue.Clear()
 	RunTimers()
 end
+-- Placing a campfire kit or a station uses it up: the add-on notes it as placed, so the plan doesn't ask for another.
+do
+	local realSpell, realCount = C_Item.GetItemSpell, C_Item.GetItemCount
+	local counts = { [279961] = 2 }
+	C_Item.GetItemSpell = function(id) if id == 279981 then return "Basic Campfire", 5001 end end
+	C_Item.GetItemCount = function(id) return counts[id] or 0 end
+	ns.db.campPlaced = nil
+	check("placed: nothing yet", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), nil)
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 5001)
+	check("placed: by its use spell", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), 279981)
+	check("placed: plan context asks", ns.NewContext().campPlaced({ 279981 }), 279981)
+	ns.db.campPlaced = nil
+	-- Its spell not known: one fewer in the bags after a cast.
+	Fire("UNIT_SPELLCAST_SENT", "player")
+	counts[279961] = 1
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 4242)
+	check("placed: by the count", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), 279961)
+	-- Another cast that uses no camp item changes nothing.
+	Fire("UNIT_SPELLCAST_SENT", "player")
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 4243)
+	check("placed: other casts don't count", ns.db.campPlaced[279970], nil)
+	ns.db.campPlaced[279961].at = time() - ns.CAMP.PLACED_MINUTES * 60 - 1
+	check("placed: gone after an hour", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), nil)
+	ns.db.campPlaced[279961] = { at = time(), map = -1 }
+	check("placed: left behind on another map", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), nil)
+	ns.db.campPlaced = nil
+	C_Item.GetItemSpell, C_Item.GetItemCount = realSpell, realCount
+end
+
 -- Tools: read from the recipe's requirements; a tool on the bank step is marked, one you have nowhere gets its own
 -- step, and one the add-on can't look for is a reminder on the crafting step.
 do
@@ -4617,6 +4655,17 @@ do
 	ns.RequestPlan()
 	RunTimers()
 	-- On the bank alt itself: nothing to mail, and its mailbox shows what was on its way.
+	ns.db.ui.bankAltName = "Snic"
+	check("bank alt: on itself, it isn't a crafter", ns.Seller.Active(), false)
+	-- A player's report: on the bank alt it still asked to mail everything to the bank alt. Names typed with an accent
+	-- in another case, or a space before the realm, must still match.
+	ns.db.ui.bankAltName = " snic - Some Realm "
+	check("bank alt: realm with spaces", ns.Seller.IsMe(), true)
+	ns.db.ui.bankAltName = "élise"
+	check("bank alt: accented capital", ns.Seller.IsName("Élise"), true)
+	check("bank alt: accented, another name", ns.Seller.IsName("Elise"), false)
+	ns.db.ui.bankAltName = "ярослав"
+	check("bank alt: Cyrillic capital", ns.Seller.IsName("Ярослав-Realm"), true)
 	ns.db.ui.bankAltName = "Snic"
 	Fire("MAIL_SHOW")
 	check("bank alt: seen on arrival", ns.Seller.InTransit(4), 0)

@@ -38,13 +38,32 @@ function Seller.Enabled()
 end
 
 local function BaseName(name)
-	return (name or ""):match("^([^%-]+)") or ""
+	return Trim((name or ""):match("^([^%-]+)") or "")
 end
 
--- Whether a character name is the bank alt's. Realm parts are left out of the comparison.
+-- Lower case for names, accented ones too: Lua's lower() only knows A to Z, so "Élise" and "élise" wouldn't match
+-- (the mail still arrives, as the server isn't fussy). Latin-1 capitals (UTF-8 C3 80-9E, not the x sign) and Cyrillic
+-- ones (D0 80-AF) are folded as well.
+local function Fold(name)
+	name = name:lower()
+	name = name:gsub("\195([\128-\158])", function(byte)
+		if byte == "\151" then return nil end
+		return "\195" .. string.char(byte:byte() + 32)
+	end)
+	name = name:gsub("\208([\128-\175])", function(byte)
+		local code = byte:byte()
+		if code < 144 then return "\209" .. string.char(code + 16) end -- Ѐ-Џ -> ѐ-џ
+		if code < 160 then return "\208" .. string.char(code + 32) end -- А-П -> а-п
+		return "\209" .. string.char(code - 32) -- Р-Я -> р-я
+	end)
+	return name
+end
+Seller.Fold = Fold
+
+-- Whether a character name is the bank alt's. Realm parts and case are left out of the comparison.
 function Seller.IsName(name)
 	local seller = Seller.Name()
-	return seller ~= nil and name ~= nil and BaseName(name):lower() == BaseName(seller):lower()
+	return seller ~= nil and name ~= nil and Fold(BaseName(name)) == Fold(BaseName(seller))
 end
 
 function Seller.IsMe()

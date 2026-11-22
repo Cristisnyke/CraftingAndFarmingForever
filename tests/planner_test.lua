@@ -1395,6 +1395,11 @@ do
 				return {}
 			end,
 			campfireItems = function() return { KIT } end,
+			campPlaced = function(items)
+				for _, itemID in ipairs(items) do
+					if (over.placed or {})[itemID] then return itemID end
+				end
+			end,
 			crafter = function(_, char) return char or "me" end,
 			me = "me",
 		})
@@ -1449,6 +1454,23 @@ do
 	check("camp: none needed", #plain.camp, 0)
 	check("camp: no kit", plain.buy[KIT], nil)
 	check("camp: alt's craft, nothing here", #Planner.BuildPlan(CampContext({}), { { recipeID = 900, qty = 1, char = "alt" } }).camp, 0)
+	-- The player's report: placing the kit used it up, and the plan asked for another one from the bank.
+	local lit = Planner.BuildPlan(CampContext({ placed = { [KIT] = true }, bank = { [KIT] = 1 } }), queue)
+	check("camp: placed fire, nothing from the bank", lit.bank[KIT], nil)
+	check("camp: placed fire, nothing bought", lit.buy[KIT], nil)
+	check("camp: placed fire said", lit.camp[1].firePlaced, true)
+	check("camp: placed fire costs nothing", lit.cost, 5 * 10 + 500)
+	check("camp: station still wanted", lit.buy[FERMENTER], 1)
+	local standing = Planner.BuildPlan(CampContext({ placed = { [KIT] = true, [FERMENTER] = true } }), queue)
+	check("camp: placed station, nothing bought", standing.buy[FERMENTER], nil)
+	check("camp: placed station said", standing.camp[1].placed, true)
+	check("camp: placed, only the crafts cost", standing.cost, 5 * 10)
+	-- One campfire for every station.
+	local twoStations = Planner.BuildPlan(CampContext({}), {
+		{ recipeID = 900, qty = 1, char = "me" }, { recipeID = 903, qty = 1, char = "me" },
+	})
+	check("camp: one kit for two stations", twoStations.buy[KIT], 1)
+	check("camp: both stations at that fire", twoStations.camp[2].fire, KIT)
 	local order2 = Planner.GroupByStation(CampContext({}), { { recipeID = 901 }, { recipeID = 902 } })
 	check("camp: order untouched without stations", order2[1].recipeID, 901)
 end

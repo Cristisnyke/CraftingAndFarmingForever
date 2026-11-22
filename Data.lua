@@ -810,6 +810,80 @@ function Recipes.CampfireItems()
 	return items
 end
 
+-- Placed camp items: using a campfire kit or a station uses it up, so the plan would ask for another one. A placed
+-- one counts as there while PLACED_MINUTES haven't passed and you're still on the same map.
+-- db.campPlaced[itemID] = { at = time(), map = C_Map.GetBestMapForUnit("player") }.
+ns.CAMP.PLACED_MINUTES = 60
+
+local function CurrentMap()
+	return C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
+end
+
+-- The first of the items placed and still standing, else nil.
+function Recipes.CampPlaced(items)
+	local records = ns.db and ns.db.campPlaced
+	if not records then return nil end
+	local now, map = time(), CurrentMap()
+	for _, itemID in ipairs(items) do
+		local record = records[itemID]
+		if record and now - record.at < ns.CAMP.PLACED_MINUTES * 60 and record.map == map then return itemID end
+	end
+	return nil
+end
+
+local function CampItems()
+	local items = {}
+	for itemID in pairs(ns.CAMP.stations) do table.insert(items, itemID) end
+	for _, itemID in ipairs(ns.CAMP.fires) do table.insert(items, itemID) end
+	return items
+end
+
+local function NotePlaced(itemID)
+	ns.db.campPlaced = ns.db.campPlaced or {}
+	ns.db.campPlaced[itemID] = { at = time(), map = CurrentMap() }
+	ns.RequestPlan()
+end
+
+-- Seen two ways: the item's own use spell (C_Item.GetItemSpell), or, when that isn't known, one fewer of it in the
+-- bags right after a cast than when the cast was sent.
+local campSpells, campCounts = {}, nil
+local function CampItemBySpell(spellID)
+	for _, itemID in ipairs(CampItems()) do
+		if not campSpells[itemID] and C_Item.GetItemSpell then
+			local _, itemSpell = C_Item.GetItemSpell(itemID)
+			campSpells[itemID] = itemSpell
+		end
+		if campSpells[itemID] == spellID then return itemID end
+	end
+	return nil
+end
+
+ns.On("UNIT_SPELLCAST_SENT", function(unit)
+	if unit ~= "player" or not ns.db then return end
+	campCounts = {}
+	for _, itemID in ipairs(CampItems()) do campCounts[itemID] = C_Item.GetItemCount(itemID) end
+end)
+
+ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+	if unit ~= "player" or not ns.db then return end
+	if type(spellID) == "number" and not (issecretvalue and issecretvalue(spellID)) then
+		local itemID = CampItemBySpell(spellID)
+		if itemID then
+			campCounts = nil
+			NotePlaced(itemID)
+			return
+		end
+	end
+	local before = campCounts
+	campCounts = nil
+	if not before then return end
+	C_Timer.After(0.5, function()
+		for itemID, count in pairs(before) do
+			if count > 0 and C_Item.GetItemCount(itemID) == count - 1 then NotePlaced(itemID) end
+		end
+	end)
+end)
+
 -- Names of the camp stations a recipe needs, nil for none: place requirements (the client's spell focus kind, or any
 -- when it doesn't say the kind) that name a camp station.
 function Recipes.Stations(recipeID)

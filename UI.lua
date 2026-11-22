@@ -660,7 +660,13 @@ local function BuildQueueList()
 			end
 			for at, name in ipairs(craftNames) do craftNames[at] = name .. " x" .. counted[name] end
 			local crafts = table.concat(craftNames, ", ")
-			if station.itemID then
+			if station.itemID and station.placed then
+				table.insert(campRows, { kind = "tip", text = ("Camp: your %s is placed: craft %s beside it."):format(
+					station.name, crafts) })
+			elseif station.itemID and station.firePlaced then
+				table.insert(campRows, { kind = "tip", text = ("Camp: your campfire is lit: place %s beside it and craft %s."):format(
+					WithArticle(station.name), crafts) })
+			elseif station.itemID then
 				table.insert(campRows, { kind = "tip", text = ("Camp: place %s, then %s, and craft %s beside it."):format(
 					station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
 					WithArticle(station.name), crafts) })
