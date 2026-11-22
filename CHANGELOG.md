@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.26.0
 
 - **Leave characters out.** A **Characters** button on the Options tab lists your characters: cross one out and the add-on ignores it completely. Its recipes don't show on the Profit tab or in Recipes, it's never picked to craft, and what's in its bags, bank, mail and auctions isn't counted for the queue, the shopping list or restocking. Handy for a bank alt whose materials you keep for something else. The character you're playing always counts. Thanks to Larasify, who wrote this one.
 - **Bank alt mode.** Let one character sell everything: tick **Bank alt mode** in Options and type your bank alt's name. Your other characters craft and mail what they make to it: open a mailbox and your crafts are attached and sent by themselves, whole stacks, 12 to a mail (if the game won't let an add-on send mail on its own, press **Send crafts** under the mailbox, or on the Next step bar). Crafts in your bank come out on the bank step to go along. What your queue still needs and your tools stay, and materials a crafter uses itself only go as far as the auction house is short of them. Postage, 30 copper per stack, comes off the profit everywhere. Crafters' Restocking tab stops suggesting posts; the bank alt posts it all. The bank alt's materials and gold stay out of your crafters' shopping: send gold over yourself.
