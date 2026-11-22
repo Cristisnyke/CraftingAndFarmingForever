@@ -1140,7 +1140,9 @@ function RECIPE.AddCharacterLines(recipeID, professionName)
 	GameTooltip:AddLine(" ")
 	GameTooltip:AddLine(("Your characters with %s"):format(professionName), 1, 0.82, 0)
 	local me, keys = ns.CharKey(), {}
-	for key in pairs(ns.db.chars) do table.insert(keys, key) end
+	for key in pairs(ns.db.chars) do
+		if not ns.CharExcluded(key) then table.insert(keys, key) end -- left out on the Options tab
+	end
 	table.sort(keys, function(a, b)
 		if (a == me) ~= (b == me) then return a == me end
 		return ns.CharLabel(a) < ns.CharLabel(b)

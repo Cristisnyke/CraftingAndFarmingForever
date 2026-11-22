@@ -128,7 +128,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 ### Minimap button, options and changelog
 
 - A minimap button opens the window (left-click) or the options (right-click) and shows the money on its way. It works with minimap button collectors and broker bars.
-- One Options tab to switch things on or off: the suspicious-price limit, smart restock goals, the minimap button, the Next step bar, the scan question, each kind of chat message and advertising. It's also in the game's Options under AddOns.
+- One Options tab to leave characters out of everything (their recipes and stock) and to switch things on or off: the suspicious-price limit, smart restock goals, the minimap button, the Next step bar, the scan question, each kind of chat message and advertising. It's also in the game's Options under AddOns.
 - A Changelog tab lists what changed in each version. It lights up after an update; nothing pops up.
 
 ## Requirements

@@ -297,6 +297,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Option | What it does |
 | --- | --- |
 | Open with the profession window | The window opens and closes with your profession window |
+| Characters | A list of your characters (from Syndicator, plus any you've opened a profession on). Click one to cross it out: the add-on then ignores it completely. Its recipes don't show on Profit or in Recipes, it's never picked to craft, and its bags, bank, mail and auctions count for nothing (queue, shopping list, restocking). **Count every character** clears them all. The character you're playing always counts |
 | Show the minimap button | Hides or shows the button on the minimap |
 | Show the Next step bar | Off: no bar; the Queue tab is your list, also when farming |
 | Ask to scan at the auction house when prices are old | The Yes or No box offering a new scan. The orange note in the window stays |

@@ -330,10 +330,14 @@ local function SyndicatorAPI()
 	if not (ok and ready) then return nil end
 	-- Syndicator's own name for the character you're playing, kept on its record: the realm part can't be worked out
 	-- reliably from the realm's name on Forever, so a left-out character is matched by this where it's known.
-	local record = ns.CharKey() and ns.db.chars[ns.CharKey()]
+	-- Asked once a session: this runs on every stock lookup.
+	local record = not Stock.syndicatorNamed and ns.CharKey() and ns.db.chars[ns.CharKey()]
 	if record then
 		local named, name = pcall(api.GetCurrentCharacter)
-		if named and type(name) == "string" then record.syndicatorKey = name end
+		if named and type(name) == "string" then
+			record.syndicatorKey = name
+			Stock.syndicatorNamed = true
+		end
 	end
 	return api
 end

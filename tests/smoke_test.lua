@@ -4564,5 +4564,63 @@ do
 		nil, nil, nil, nil, nil, nil, nil
 end
 
+-- Characters left out on the Options tab (pull request #2): their recipes, bags, bank, mail and auctions count
+-- nowhere; the character you're playing always counts.
+do
+	local alt = "Player-1-BBB"
+	ns.db.recipes[901] = { n = "Alt Thing", o = 9011, qmin = 1, qmax = 1, p = 197, pn = "Tailoring", r = { { 1, 1 } } }
+	ns.db.chars[alt] = { name = "Alt", realm = "Realm", class = "Mage", classFile = "MAGE", recipes = { [901] = true } }
+	Syndicator = { API = {
+		IsReady = function() return true end,
+		GetCurrentCharacter = function() return "Snic-Realm" end,
+		GetAllCharacters = function() return { "Snic-Realm", "Alt Surname-Realm" } end,
+		GetByCharacterFullName = function(full)
+			local name = full:match("^(.-)%-")
+			return { details = { character = name, realm = "Realm", className = name == "Snic" and "PALADIN" or "MAGE" } }
+		end,
+		GetInventoryInfoByItemID = function(id)
+			if id ~= 2 then return { characters = {} } end
+			return { characters = {
+				{ character = "Snic", realmNormalized = "Realm", bags = 50, bank = 50, mail = 1, auctions = 2 },
+				{ character = "Alt Surname", realmNormalized = "Realm", bags = 3, bank = 1, mail = 2, auctions = 1 },
+			} }
+		end,
+	} }
+	check("leave out: alt's recipe known before", ns.Recipes.KnownMap()[9011] ~= nil, true)
+	check("leave out: alt's stock counted before", #ns.Stock.Alts(2), 1)
+	local entries = ns.Stock.Characters()
+	local altEntry, meEntry
+	for _, entry in ipairs(entries) do
+		if entry.key == "Alt Surname-Realm" then altEntry = entry end
+		if entry.me then meEntry = entry end
+	end
+	check("leave out: Syndicator's alt matched to its record", altEntry and altEntry.guids[1], alt)
+	check("leave out: the one you're playing marked", meEntry ~= nil, true)
+	ns.Stock.SetLeftOut(altEntry, true)
+	check("leave out: ticked", ns.Stock.IsLeftOut(altEntry), true)
+	check("leave out: record excluded", ns.CharExcluded(alt), true)
+	check("leave out: recipe gone", ns.Recipes.KnownMap()[9011], nil)
+	check("leave out: never knows it", ns.Recipes.Knows(alt, 901), false)
+	check("leave out: alt's bags and bank not offered", #ns.Stock.Alts(2), 0)
+	local onAH, owned = ns.Stock.ForRestock(2)
+	check("leave out: alt's auctions not counted", onAH, 2)
+	check("leave out: alt's mail, bags, bank not counted", owned, 1)
+	local rows = ns.RecipeBook.Rows({ who = "all", me = ns.CharKey(), professionID = 197, showLearned = true })
+	local listed = false
+	for _, row in ipairs(rows) do
+		for _, char in ipairs(row.chars or {}) do
+			if char.key == alt then listed = true end
+		end
+	end
+	check("leave out: not in Recipes for all characters", listed, false)
+	ns.SetCharExcluded(ns.CharKey(), true)
+	check("leave out: the one you're playing always counts", ns.CharExcluded(ns.CharKey()), false)
+	ns.Stock.SetLeftOut(altEntry, false)
+	ns.SetCharExcluded(ns.CharKey(), false)
+	check("leave out: all cleared", ns.db.ui.excludedChars, nil)
+	check("leave out: recipe back", ns.Recipes.KnownMap()[9011] ~= nil, true)
+	ns.db.chars[alt], ns.db.recipes[901], Syndicator = nil, nil, nil
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -23,7 +23,7 @@ A crafting and gold-making add-on for **World of Warcraft: Forever**. **[Downloa
 - **Advertise and quote:** post a profession link to Trade, Guild, Say or Yell in one click, and reply to a whisper with a price for the whole order, at a margin you set. Both messages can be worded your way.
 - **Minimap button:** left-click opens the window, right-click the options; it shows the money on its way and works with button collectors and broker bars.
 - **Bank alt mode:** one character sells everything; your others mail it their crafts at a mailbox by themselves, postage counted in the profit.
-- **Options:** switch the advertising, smart restock goals, the suspicious-price limit, counting price spikes at the usual price, the minimap button, the Next step bar and each kind of chat message on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
+- **Options:** leave characters out of everything, switch the advertising, smart restock goals, the suspicious-price limit, counting price spikes at the usual price, the minimap button, the Next step bar and each kind of chat message on or off, from the Options tab, a right-click on the minimap button or the game's AddOns options.
 
 ## Screenshots
 
@@ -103,6 +103,8 @@ Crafting and Farming Forever is built on other people's work. Thank you to:
 - **[AllTheThings](https://github.com/ATTWoWAddon/AllTheThings)** by Crieve and the AllTheThings team. Farm It's list of where each material comes from (`Sources.lua`) and the Recipes list's sources (`RecipeSources.lua`) are generated from AllTheThings' data under its MIT License.
 
 See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the licenses.
+
+Thanks also to **[Larasify](https://github.com/Larasify)** for leaving characters out (pull request #2).
 
 World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. This project isn't affiliated with or endorsed by Blizzard Entertainment.
 

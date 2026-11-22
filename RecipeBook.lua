@@ -282,7 +282,10 @@ local STATUS_RANK = { learn = 1, skill = 2, learned = 3, none = 4 }
 function Book.Rows(opts)
 	local keys = {}
 	if opts.who == "all" then
-		for key in pairs(ns.db.chars) do table.insert(keys, key) end
+		-- Characters left out on the Options tab aren't looked at.
+		for key in pairs(ns.db.chars) do
+			if not ns.CharExcluded(key) then table.insert(keys, key) end
+		end
 		table.sort(keys)
 	else
 		keys[1] = opts.me
