@@ -122,7 +122,7 @@ The script needs the CurseForge API token in `~/.config/cff/curseforge-token` (r
 
 `tools/package.sh [ref]` builds the zip on its own: `dist/CraftingAndFarmingForever-<version>.zip`, one `CraftingAndFarmingForever` folder with the toc, the `.lua` files, `LICENSE` and `Media`. GitHub's "Download ZIP" is rejected by CurseForge, because its folder is named `CraftingAndFarmingForever-main` and holds the whole repository.
 
-The add-on is All Rights Reserved (`LICENSE`, chosen 2026-11-08). The license goes into the game folder and the release zip with the code. Contributions from others need their written agreement that their changes fall under these terms.
+The add-on is All Rights Reserved (`LICENSE`, chosen 2026-11-08). The license goes into the game folder and the release zip with the code. Pull requests from others are merged without a separate written agreement (the user's choice, 2026-11-22); credit the contributor in the changelog and the README's Credits.
 
 Before making the repository public:
 
