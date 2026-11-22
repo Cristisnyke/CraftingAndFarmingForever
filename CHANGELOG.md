@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.25.0
 
 - **Camp stations.** Crafts that need a camp station (a Fermenter for alchemy oils, a Spinning Wheel, a Loom and the like) put one on your to-do list with a campfire kit to place it at, marked "(camp)": from your bags, bank or mailbox if you have one, else bought or crafted, whichever is cheaper, and the cost counts in the queue's total. Under the crafting step the list says what to place and which crafts go beside it, and those crafts come one after another, since camp features share a 1 hour cooldown. Open your professions once so the add-on learns which recipes need a station.
 - Money from sales reaching your mailbox is said in chat once, not once per sale, until you open the mailbox. The first line also says how much more is still on its way.
