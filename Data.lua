@@ -390,7 +390,8 @@ local function SyndicatorCharacters(api)
 end
 
 -- Which of Syndicator's characters a record here is: the name Syndicator gave it while you played it, else the only
--- one whose first name and class match. Nil when that's none or more than one.
+-- one whose full name (or, for records saved before surnames were read, first name) and class match. Nil when that's
+-- none or more than one.
 local function SyndicatorMatch(char, characters)
 	if char.syndicatorKey then return char.syndicatorKey end
 	if not char.name then return nil end
@@ -398,7 +399,8 @@ local function SyndicatorMatch(char, characters)
 	local match
 	for _, other in ipairs(characters) do
 		local first = other.name:match("^(%S+)")
-		if first == char.name and (not class or not other.classFile or other.classFile == class) then
+		if (other.name == char.name or first == char.name)
+			and (not class or not other.classFile or other.classFile == class) then
 			if match then return nil end
 			match = other.full
 		end

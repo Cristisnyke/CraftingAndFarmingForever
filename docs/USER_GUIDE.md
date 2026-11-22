@@ -216,7 +216,7 @@ Syndicator only refreshes your auctions while you're at the auction house, so an
 
 ### Bank alt mode
 
-One character sells everything, the others craft for it. Tick **Bank alt mode** in Options and type the bank alt's name beside **Bank alt** (as you'd write it on a mail; add `-Realm` for another realm). On every other character:
+One character sells everything, the others craft for it. Tick **Bank alt mode** in Options and type the bank alt's full name beside **Bank alt**, both names as you'd write them on a mail (such as `Snic Bank`: the first name alone is shared by all your characters). On every other character:
 
 - **Your crafts get mailed.** Everything a recipe of yours makes that can be sold goes to the bank alt, last on your to-do list: **Take your crafts out of the bank** (the bank step's **Bank it** button takes them out too), then **Mail your crafts to ...**.
 - **At a mailbox it sends them by itself**: whole stacks, 12 to a mail, the subject naming what's inside. If the game won't let an add-on send mail on its own, the add-on says so once and from then on waits for the **Send crafts** button, under the mailbox window or on the Next step bar. Ticking Bank alt mode again gives sending by itself another try.

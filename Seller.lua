@@ -67,7 +67,7 @@ function Seller.IsName(name)
 end
 
 function Seller.IsMe()
-	return Seller.IsName(UnitName("player"))
+	return Seller.IsName(ns.PlayerName())
 end
 
 -- This character crafts for the bank alt: what it makes gets mailed there, and it posts nothing itself.

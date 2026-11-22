@@ -499,8 +499,8 @@ function Options.Build(parent, top)
 	altName.Sync = function(self)
 		if not self:HasFocus() then self:SetText(ns.db.ui.bankAltName or "") end
 	end
-	Tip(altName, "Bank alt", "The name of the character that sells everything, as you'd write it on a mail (add "
-		.. "-Realm for another realm). Press Enter to save.")
+	Tip(altName, "Bank alt", "The full name of the character that sells everything, as you'd write it on a mail: "
+		.. "both names, such as Snic Bank (the first name alone is every one of your characters). Press Enter to save.")
 	controls.bankAltName = altName
 	-- How much of a day's sales to stock: a slider from careful to plenty.
 	Label(parent, "Stock level", y)

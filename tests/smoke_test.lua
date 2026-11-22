@@ -4037,6 +4037,13 @@ do
 	check("camp: place it", joined:find("Camp: place a", 1, true) ~= nil and joined:find("then a Fermenter, and craft Recipe10 x3", 1, true) ~= nil, true)
 	check("camp: none to be had", joined:find("Recipe10 x3 needs a Loom and you have none", 1, true) ~= nil, true)
 	check("camp: cooldown note", joined:find("1 hour cooldown", 1, true) ~= nil, true)
+	ns.plan.camp[2].itemID = 279959
+	local twoLines = {}
+	for _, data in ipairs(ns.UI.windows.queue.build()) do
+		if data.kind == "tip" and data.text:find("^Camp: ") then table.insert(twoLines, data.text) end
+	end
+	check("camp: second station at the same fire", twoLines[2], "Camp: then place a Loom at the same campfire and craft Recipe10 x3.")
+	ns.plan.camp[2].itemID = nil
 	ns.plan.camp[1].firePlaced = true
 	local function CampText()
 		for _, data in ipairs(ns.UI.windows.queue.build()) do
@@ -4666,6 +4673,23 @@ do
 	check("bank alt: accented, another name", ns.Seller.IsName("Elise"), false)
 	ns.db.ui.bankAltName = "ярослав"
 	check("bank alt: Cyrillic capital", ns.Seller.IsName("Ярослав-Realm"), true)
+	-- WoW Forever: every character has the account's first name plus its own surname, and no realm. UnitName gives
+	-- both; the first name alone would make every character the bank alt (or none of them).
+	local realUnitName = UnitName
+	UnitName = function() return "Snic", "Bank" end
+	RegionalUniqueNamesEnabled = function() return true end
+	check("forever names: full name", ns.PlayerName(), "Snic Bank")
+	ns.db.ui.bankAltName = "Snic Bank"
+	check("forever names: on the bank alt", ns.Seller.IsMe(), true)
+	check("forever names: not a crafter there", ns.Seller.Active(), false)
+	ns.db.ui.bankAltName = "Snic Pal"
+	check("forever names: another character crafts", ns.Seller.Active(), true)
+	ns.db.ui.bankAltName = "snic bank"
+	check("forever names: any case", ns.Seller.IsMe(), true)
+	check("forever names: saved on the record", ns.CharRecord().name, "Snic Bank")
+	UnitName, RegionalUniqueNamesEnabled = realUnitName, nil
+	check("forever names: plain names elsewhere", ns.PlayerName(), "Snic")
+	ns.CharRecord()
 	ns.db.ui.bankAltName = "Snic"
 	Fire("MAIL_SHOW")
 	check("bank alt: seen on arrival", ns.Seller.InTransit(4), 0)

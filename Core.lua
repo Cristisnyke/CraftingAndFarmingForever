@@ -271,6 +271,18 @@ function ns.CharKey()
 	return UnitGUID("player")
 end
 
+-- The character's name as mail and Syndicator know it. WoW Forever gives every character a surname: the first name
+-- is the account's (all your characters share it), so UnitName's first value alone doesn't tell them apart. With
+-- RegionalUniqueNamesEnabled, UnitName's second value is that surname, not a realm: "Snic Pal".
+function ns.PlayerName()
+	local name, surname = UnitName("player")
+	if name and surname and surname ~= "" and RegionalUniqueNamesEnabled and RegionalUniqueNamesEnabled() then
+		local consts = Constants and Constants.CharacterNameSeparatorConsts
+		return name .. (consts and consts.CHARACTERNAME_SURNAME_SEPARATOR or " ") .. surname
+	end
+	return name
+end
+
 function ns.CharRecord()
 	local key = ns.CharKey()
 	if not key then return nil end
@@ -279,7 +291,7 @@ function ns.CharRecord()
 		char = { recipes = {} }
 		ns.db.chars[key] = char
 	end
-	char.name = UnitName("player")
+	char.name = ns.PlayerName()
 	char.realm = GetRealmName()
 	char.class, char.classFile = UnitClass("player")
 	char.faction = UnitFactionGroup and UnitFactionGroup("player") or char.faction -- the Recipes list skips the other side's vendors

@@ -645,7 +645,7 @@ local function BuildQueueList()
 	-- Camp stations: placed at a campfire right before the crafts that need them, so the steps say it under the first
 	-- crafting step; getting the station and the kit is on the buying and crafting steps like any material.
 	local function CampRows()
-		local campRows = {}
+		local campRows, fireSaid = {}, false
 		for _, station in ipairs(plan.camp or {}) do
 			local craftNames, counted = {}, {}
 			for _, craft in ipairs(station.crafts) do
@@ -666,7 +666,12 @@ local function BuildQueueList()
 			elseif station.itemID and station.firePlaced then
 				table.insert(campRows, { kind = "tip", text = ("Camp: your campfire is lit: place %s beside it and craft %s."):format(
 					WithArticle(station.name), crafts) })
+			elseif station.itemID and fireSaid then
+				-- One campfire takes every station: the first line says to light it.
+				table.insert(campRows, { kind = "tip", text = ("Camp: then place %s at the same campfire and craft %s."):format(
+					WithArticle(station.name), crafts) })
 			elseif station.itemID then
+				fireSaid = true
 				table.insert(campRows, { kind = "tip", text = ("Camp: place %s, then %s, and craft %s beside it."):format(
 					station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
 					WithArticle(station.name), crafts) })
