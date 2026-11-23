@@ -936,6 +936,37 @@ do
 	check("restock crafting time counts new and queued crafts", direct, 3)
 	check("restock crafting time in seconds", seconds >= 3 * ns.Queue.CraftSeconds(shirtRow.recipeID), true)
 end
+-- Camp stations on the Restock tab: one an hour, so a row needing one it can't have gets no crafts, and says why.
+do
+	local recipe = ns.db.recipes[shirtRow.recipeID]
+	recipe.f = { "Fermenter" }
+	ns.db.campCooldown = { [ns.CharKey()] = time() - 10 * 60 }
+	local campRows, _, camp = ns.Restock.Rows()
+	local row
+	for _, each in ipairs(campRows) do if each.itemID == 4 then row = each end end
+	check("restock camp: cooldown leaves it out", row and row.crafts, 0)
+	check("restock camp: why", row and row.camp and row.camp.cut, "cooldown")
+	check("restock camp: tab note", camp and ns.UI.RestockCampNote(camp), "Camp stations are on cooldown for 50 more "
+		.. "minutes: 1 item needing one left out.")
+	check("restock camp: tooltip line", row and ns.UI.RestockCampText(row.camp, camp),
+		"Needs a Fermenter: camp stations are on cooldown for 50 more minutes.")
+	ns.UI.Show("restock")
+	ns.UI.Refresh("restock")
+	check("restock camp: tab keeps it", ns.UI.restockCamp ~= nil, true)
+	-- Off cooldown, no Fermenter to be had anywhere.
+	ns.db.campCooldown = nil
+	campRows, _, camp = ns.Restock.Rows()
+	for _, each in ipairs(campRows) do if each.itemID == 4 then row = each end end
+	check("restock camp: none to be had", row.camp and row.camp.cut, "none")
+	check("restock camp: no station used", camp and camp.station, nil)
+	check("restock camp: window text", ns.UI.RestockCampText({ station = "Fermenter", fit = 12, wanted = 20, window = 900 }),
+		"Needs a Fermenter, which stands 15 minutes once placed: 12 of 20 crafts fit.")
+	check("restock camp: other text", ns.UI.RestockCampText({ station = "Fermenter", cut = "other", wanted = 3 },
+		{ station = "Master Forge" }), "Needs a Fermenter: only one camp station an hour (they share a 60 minute "
+		.. "cooldown), and a Master Forge pays more.")
+	recipe.f = nil
+	ns.UI.Show("queue")
+end
 
 -- Smart goals: sales raise the goal, a goal of your own wins, and the option turns it off.
 -- Days are numbered by the local date, as Sales.lua does: in UTC these checks failed between local and UTC midnight.
@@ -4029,25 +4060,64 @@ do
 			{ name = "Loom", crafts = { craft } } },
 		campItems = { [279970] = "Fermenter" } }
 	local list = ns.UI.windows.queue.build()
-	local titles, campRow, rows = {}, nil, {}
+	local titles, campRow, rows, queueUnder = {}, nil, {}, nil
 	for at, data in ipairs(list) do
 		if data.kind == "header" then table.insert(titles, (data.text:gsub(":.*", ""))) end
 		if data.kind == "item" and data.itemID == 279970 then campRow = data end
 		if data.kind == "tip" or data.kind == "warn" then rows[#rows + 1] = at .. ":" .. data.text end
+		if data.kind == "queue" and not queueUnder then queueUnder = titles[#titles] end
 	end
-	check("camp: steps", titles[#titles], "2. Craft your queue")
+	check("camp: steps", table.concat(titles, ","), "1. Buy at auction house,2. Camp,3. Camp")
+	check("camp: the station's craft on its own step", queueUnder, "2. Camp")
 	check("camp: station marked on the buy row", campRow and campRow.camp, "Fermenter")
 	local joined = table.concat(rows, "|")
 	check("camp: place it", joined:find("Camp: place a", 1, true) ~= nil and joined:find("then a Fermenter, and craft Recipe10 x3", 1, true) ~= nil, true)
 	check("camp: none to be had", joined:find("Recipe10 x3 needs a Loom and you have none", 1, true) ~= nil, true)
-	check("camp: cooldown note", joined:find("1 hour cooldown", 1, true) ~= nil, true)
+	check("camp: one station an hour", joined:find("Only one camp station an hour: they share a 60 minute cooldown, "
+		.. "and your queue needs a Fermenter and a Loom.", 1, true) ~= nil, true)
 	ns.plan.camp[2].itemID = 279959
 	local twoLines = {}
 	for _, data in ipairs(ns.UI.windows.queue.build()) do
 		if data.kind == "tip" and data.text:find("^Camp: ") then table.insert(twoLines, data.text) end
 	end
-	check("camp: second station at the same fire", twoLines[2], "Camp: then place a Loom at the same campfire and craft Recipe10 x3.")
-	ns.plan.camp[2].itemID = nil
+	check("camp: second station after the cooldown", twoLines[2],
+		"Camp: after the cooldown, place a Loom (and a campfire if yours is out) and craft Recipe10 x3.")
+	-- The user's ask: everything not needing the station first, then the station and its crafts only; the window
+	-- says how many fit.
+	ns.plan.camp[2] = nil
+	table.insert(ns.db.queue, 1, { recipeID = 20, qty = 1, char = ns.CharKey() })
+	local plainCraft = { recipeID = 20, count = 1, subCount = 0, char = ns.CharKey() }
+	table.insert(ns.plan.crafts, 1, plainCraft)
+	ns.plan.camp[1].window = { seconds = 900, why = "free", fits = 2, total = 3, need = 1350 }
+	local function Steps()
+		local found, under = {}, nil
+		for _, data in ipairs(ns.UI.windows.queue.build()) do
+			if data.kind == "header" then under = data.text end
+			if data.kind == "queue" then found[#found + 1] = data.entry.recipeID .. "@" .. under end
+			if data.kind == "warn" then found[#found + 1] = data.text end
+		end
+		return table.concat(found, "|")
+	end
+	check("camp: plain craft first, then the station's", Steps(), "20@2. Craft your queue (before the camp)|"
+		.. "Only 2 of 3 crafts fit in the 15 minutes a Fermenter stands (about 7:30 each): the rest wait for the 60 "
+		.. "minute cooldown.|10@3. Camp: place a Fermenter and craft beside it (it stands 15 minutes)")
+	local savedBuy = ns.plan.buy
+	ns.plan.buy = {}
+	ns.UI.RefreshQueue()
+	local barStep
+	for _, data in ipairs(ns.UI.windows.next.list) do
+		if data.kind == "header" and not barStep then barStep = data.text end
+	end
+	check("camp: Next step bar starts with the plain crafts", barStep, "Craft your queue")
+	ns.plan.buy = savedBuy
+	ns.plan.camp[1].window = { seconds = 0, why = "cooldown", fits = 0, total = 3, need = 1350 }
+	ns.plan.campState = { cooldown = 1500, window = 900 }
+	check("camp: cooldown says wait", Steps(), "20@2. Craft your queue (before the camp)|Camp stations are on cooldown "
+		.. "for 25 more minutes: these crafts wait. Do everything else first.|10@3. Camp: Fermenter, after the station "
+		.. "cooldown")
+	ns.plan.camp[1].window, ns.plan.campState = nil, nil
+	table.remove(ns.db.queue, 1)
+	table.remove(ns.plan.crafts, 1)
 	ns.plan.camp[1].firePlaced = true
 	local function CampText()
 		for _, data in ipairs(ns.UI.windows.queue.build()) do
@@ -4085,11 +4155,34 @@ do
 	Fire("UNIT_SPELLCAST_SENT", "player")
 	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 4243)
 	check("placed: other casts don't count", ns.db.campPlaced[279970], nil)
-	ns.db.campPlaced[279961].at = time() - ns.CAMP.PLACED_MINUTES * 60 - 1
+	check("placed: a campfire starts no station cooldown", ns.Recipes.CampState().cooldown, 0)
+	ns.db.campPlaced[279961].at = time() - ns.CAMP.STATION_MINUTES * 60 - 1
+	check("placed: a campfire outlasts a station's 15 minutes", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), 279961)
+	ns.db.campPlaced[279961].at = time() - ns.CAMP.FIRE_MINUTES * 60 - 1
 	check("placed: gone after an hour", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), nil)
 	ns.db.campPlaced[279961] = { at = time(), map = -1 }
 	check("placed: left behind on another map", ns.Recipes.CampPlaced(ns.Recipes.CampfireItems()), nil)
 	ns.db.campPlaced = nil
+	-- A station: stands 15 minutes, and starts the hour every station shares.
+	ns.db.campCooldown = nil
+	counts[279970] = 1
+	Fire("UNIT_SPELLCAST_SENT", "player")
+	counts[279970] = 0
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 4244)
+	local state = ns.Recipes.CampState()
+	check("station: placed", state.itemID, 279970)
+	check("station: stands 15 minutes", state.left, 15 * 60)
+	check("station: cooldown an hour", state.cooldown, 60 * 60)
+	check("station: a new one stands 15 minutes", state.window, 15 * 60)
+	check("station: plan context", ns.NewContext().campState().itemID, 279970)
+	ns.db.campPlaced[279970].at = time() - 15 * 60 - 1
+	ns.db.campCooldown[ns.CharKey()] = time() - 15 * 60 - 1
+	state = ns.Recipes.CampState()
+	check("station: gone after 15 minutes", state.itemID, nil)
+	check("station: cooldown still running", state.cooldown, 45 * 60 - 1)
+	ns.db.campCooldown[ns.CharKey()] = time() - 60 * 60
+	check("station: cooldown over after an hour", ns.Recipes.CampState().cooldown, 0)
+	ns.db.campPlaced, ns.db.campCooldown = nil, nil
 	C_Item.GetItemSpell, C_Item.GetItemCount = realSpell, realCount
 end
 

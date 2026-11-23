@@ -1126,6 +1126,161 @@ function Planner.GroupByStation(ctx, crafts)
 	return order
 end
 
+-- Camp stations stand only a while once placed (state.window seconds), and placing one starts a cooldown every
+-- station shares (state.cooldown = seconds until another can go down). ctx.campState() -> { window, cooldown,
+-- itemID = the station placed and still standing, left = seconds it still stands } (nil: no limits known).
+-- How long the station `name` gives you now: seconds, and why ("placed": yours stands that long still, "cooldown":
+-- none can be placed yet, "free": a new one stands that long). nil without a known state.
+function Planner.CampWindow(ctx, state, name)
+	if not state then return nil end
+	if state.itemID and ctx.stationItems then
+		for _, itemID in ipairs(ctx.stationItems(name)) do
+			if itemID == state.itemID then return math.max(0, state.left or 0), "placed" end
+		end
+	end
+	if (state.cooldown or 0) > 0 then return 0, "cooldown" end
+	return state.window or 0, "free"
+end
+
+-- What one of these camp items costs you: nothing when one is placed or held anywhere (bags, bank, mail, alts),
+-- else the cheapest to buy or craft; nil when none can be had.
+local function CampItemCost(ctx, items)
+	if ctx.campPlaced and ctx.campPlaced(items) then return 0 end
+	local best
+	for _, itemID in ipairs(items) do
+		local held = (ctx.ownStock(itemID) or 0) + (ctx.mailStock and ctx.mailStock(itemID) or 0)
+		for _, alt in ipairs(ctx.altStock and ctx.altStock(itemID) or {}) do held = held + alt.count end
+		if held > 0 then return 0 end
+		local cost = Planner.ItemCost(ctx, itemID)
+		if cost and (not best or cost < best) then best = cost end
+	end
+	return best
+end
+
+-- One camp station an hour: they share the cooldown, and one placed stands only state.window seconds. So a restock
+-- uses one station at most: the one whose crafts earn the most once the station itself (and a campfire kit) is paid
+-- for, with its crafts cut to what fits its window; rows needing any other station get no crafts. queue = the queue's
+-- entries: station crafts already on it use the window first, and a station they need is the one used (it gets
+-- placed anyway, so it costs nothing more). A station placed and standing is the only one, for the time it has
+-- left; on cooldown with none standing, no station crafts at all.
+-- Each row it changes gets row.camp = { station = key, wanted = crafts before, and either cut = "other" (another
+-- station, info.station, pays more), "queued" (the queue already uses info.queued), "cooldown", "two" (needs two
+-- stations), "loss" (the station costs more than its crafts earn), "none" (no station to be had), or fit = crafts
+-- kept with window = seconds, placed = true when standing }. Returns nil when no row needs a station, else info =
+-- { station = key kept or nil, value = profit of its crafts, cost = station + kit, window, cooldown, placed, queued,
+-- cut = rows cut }.
+function Planner.RestockStations(ctx, rows, queue)
+	local state = ctx.campState and ctx.campState()
+	if not state then return nil end
+	local secondsOf = ctx.craftSeconds or function() return 3 end
+	local groups, order = {}, {}
+	for _, row in ipairs(rows) do
+		local key = row.crafts > 0 and Planner.StationKey(ctx.recipes[row.recipeID])
+		if key then
+			if not groups[key] then
+				groups[key] = {}
+				order[#order + 1] = key
+			end
+			table.insert(groups[key], row)
+		end
+	end
+	if #order == 0 then return nil end
+	-- Station crafts already queued: the time they take, and the stations the queue is set on.
+	local used, committed = {}, nil
+	for _, entry in ipairs(queue or {}) do
+		local key = Planner.StationKey(ctx.recipes[entry.recipeID])
+		if key and (entry.qty or 0) > 0 then
+			used[key] = (used[key] or 0) + entry.qty * secondsOf(entry.recipeID)
+			committed = committed or {}
+			committed[key] = true
+		end
+	end
+	for _, row in ipairs(rows) do
+		local key = (row.trim or 0) > 0 and Planner.StationKey(ctx.recipes[row.recipeID])
+		if key and used[key] then used[key] = math.max(0, used[key] - row.trim * secondsOf(row.recipeID)) end
+	end
+	local info = { cooldown = state and state.cooldown or 0, cut = 0 }
+	if committed then
+		for key in pairs(committed) do
+			if not info.queued or key < info.queued then info.queued = key end
+		end
+	end
+	local fireCost
+	local function FireCost()
+		if fireCost == nil then
+			fireCost = ctx.campfireItems and CampItemCost(ctx, ctx.campfireItems()) or 0
+			fireCost = fireCost or 0
+		end
+		return fireCost
+	end
+	-- Each station's crafts that fit its window, most profit per second first, and what using it earns.
+	local fits, best, bestScore = {}, nil, nil
+	for _, key in ipairs(order) do
+		local seconds, why = Planner.CampWindow(ctx, state, key)
+		if key:find("+", 1, true) then why = "two" end
+		local cost = 0
+		if why == "free" and not (committed and committed[key]) then
+			cost = CampItemCost(ctx, ctx.stationItems and ctx.stationItems(key) or {})
+			if cost then cost = cost + FireCost() else why = "none" end
+		end
+		if committed and not committed[key] and why == "free" then why = "other" end
+		local candidate = why == "free" or why == "placed"
+		if candidate then
+			local room = (seconds or math.huge) - (used[key] or 0)
+			local list = {}
+			for _, row in ipairs(groups[key]) do list[#list + 1] = row end
+			table.sort(list, function(a, b)
+				local left, right = a.net / secondsOf(a.recipeID), b.net / secondsOf(b.recipeID)
+				if left ~= right then return left > right end
+				return a.itemID < b.itemID
+			end)
+			local value, kept = 0, {}
+			for _, row in ipairs(list) do
+				local each = secondsOf(row.recipeID)
+				local fit = math.max(0, math.min(row.crafts, math.floor(room / each)))
+				room = room - fit * each
+				kept[row] = fit
+				value = value + fit * row.net
+			end
+			local score = value - cost
+			fits[key] = { kept = kept, value = value, cost = cost, seconds = seconds, placed = why == "placed" }
+			-- One that's standing or queued already is used even when nothing more fits: its rows say so.
+			local set = why == "placed" or (committed and committed[key])
+			if (score > 0 or set) and (not bestScore or score > bestScore) then best, bestScore = key, score end
+		end
+		groups[key].why = why
+	end
+	info.station = best
+	if best then
+		local chosen = fits[best]
+		info.value, info.cost, info.window, info.placed = chosen.value, chosen.cost, chosen.seconds, chosen.placed
+	end
+	for _, key in ipairs(order) do
+		for _, row in ipairs(groups[key]) do
+			local camp = { station = key, wanted = row.crafts }
+			if key == best then
+				local fit = fits[key].kept[row]
+				if fit < row.crafts then
+					camp.fit, camp.window, camp.placed = fit, fits[key].seconds, fits[key].placed
+					row.camp, row.crafts = camp, fit
+				end
+			else
+				local why = groups[key].why
+				if why == "free" or why == "placed" then
+					camp.cut = best and "other" or "loss"
+				elseif why == "other" then
+					camp.cut = "queued"
+				else
+					camp.cut = why
+				end
+				row.camp, row.crafts = camp, 0
+				info.cut = info.cut + 1
+			end
+		end
+	end
+	return info
+end
+
 -- Turns the queue into crafts (materials before the items that need them), purchases and alt pickups. With farming
 -- set nothing comes from the AH: anything that can be made gets made, what a vendor sells is bought there as it can't
 -- be farmed anyway, and the rest goes on plan.farm. Bars with no known recipe go on plan.smelt.
@@ -1654,7 +1809,26 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 			end
 		end
 	end
-	if #plan.camp > 0 then plan.crafts = Planner.GroupByStation(ctx, plan.crafts) end
+	if #plan.camp > 0 then
+		plan.crafts = Planner.GroupByStation(ctx, plan.crafts)
+		-- How long each station gives you (Planner.CampWindow) and how many of its crafts fit, in plan order:
+		-- station.window = { seconds, why, fits = crafts that fit, total = crafts, need = seconds they all take }.
+		local state = ctx.campState and ctx.campState()
+		plan.campState = state
+		for _, station in ipairs(state and ctx.craftSeconds and plan.camp or {}) do
+			local seconds, why = Planner.CampWindow(ctx, state, station.name)
+			local window = { seconds = seconds, why = why, fits = 0, total = 0, need = 0 }
+			local room = seconds
+			for _, craft in ipairs(station.crafts) do
+				local each = ctx.craftSeconds(craft.recipeID)
+				local fit = math.max(0, math.min(craft.count, math.floor(room / each)))
+				room = room - fit * each
+				window.fits, window.total = window.fits + fit, window.total + craft.count
+				window.need = window.need + craft.count * each
+			end
+			station.window = window
+		end
+	end
 	return plan
 end
 

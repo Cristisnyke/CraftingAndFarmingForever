@@ -47,6 +47,8 @@ local function NewContext()
 		stationItems = Recipes.StationItems,
 		campfireItems = Recipes.CampfireItems,
 		campPlaced = Recipes.CampPlaced,
+		campState = Recipes.CampState,
+		craftSeconds = function(recipeID) return Queue.CraftSeconds(recipeID) end,
 		crafter = Recipes.Crafter,
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
 		me = ns.CharKey(),
@@ -713,7 +715,8 @@ local function FitToGold(all, rows)
 	return info
 end
 
--- The rows, and how the restock fits your gold (see Planner.RestockBudget; nil when that's off or nothing is needed).
+-- The rows, how the restock fits your gold (see Planner.RestockBudget; nil when that's off or nothing is needed) and
+-- the camp station it uses (Planner.RestockStations; nil when no row needs one).
 function Restock.Rows()
 	local queued, units, crafts = QueuedUnits()
 	local ctx = NewContext()
@@ -731,7 +734,10 @@ function Restock.Rows()
 	for key, value in pairs(ctx) do all[key] = value end
 	all.me = nil
 	HoldToCuts(rows)
-	return rows, FitToGold(all, rows)
+	-- One camp station an hour, standing 15 minutes: only the best one's crafts, as many as fit.
+	local camp = ns.Planner.RestockStations(all, rows, ns.db.queue)
+	if camp then ns.Planner.SortRestock(rows) end
+	return rows, FitToGold(all, rows), camp
 end
 
 -- How long these restock rows take to craft, sub-crafts included (Planner.RestockTime), for every character. Reused

@@ -815,7 +815,6 @@ ns.CAMP = {
 	},
 	-- Basic, Journeyman and Expert Campfire Kit: any of them takes a station.
 	fires = { 279981, 279961, 279974 },
-	COOLDOWN_HOURS = 1,
 }
 
 -- The items that place a station, by the station's name (client name where loaded, else English). Empty for a place
@@ -845,24 +844,56 @@ function Recipes.CampfireItems()
 end
 
 -- Placed camp items: using a campfire kit or a station uses it up, so the plan would ask for another one. A placed
--- one counts as there while PLACED_MINUTES haven't passed and you're still on the same map.
--- db.campPlaced[itemID] = { at = time(), map = C_Map.GetBestMapForUnit("player") }.
-ns.CAMP.PLACED_MINUTES = 60
+-- one counts as there while its minutes haven't passed and you're still on the same map: a station stands
+-- STATION_MINUTES (15, the player's word), a campfire FIRE_MINUTES (a guess: not known on Forever). Placing a station
+-- starts COOLDOWN_MINUTES that every station shares (using a Master Forge puts the Fermenter on cooldown too); the
+-- campfire kit isn't counted in it.
+-- db.campPlaced[itemID] = { at = time(), map = C_Map.GetBestMapForUnit("player"), char = character key };
+-- db.campCooldown[character key] = time() the last station was placed.
+ns.CAMP.STATION_MINUTES = 15
+ns.CAMP.FIRE_MINUTES = 60
+ns.CAMP.COOLDOWN_MINUTES = 60
 
 local function CurrentMap()
 	return C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
 end
 
+local function Lifetime(itemID)
+	return (ns.CAMP.stations[itemID] and ns.CAMP.STATION_MINUTES or ns.CAMP.FIRE_MINUTES) * 60
+end
+
+-- Seconds a placed item still stands, nil when it doesn't (or was never placed).
+local function StandsFor(itemID, now, map)
+	local records = ns.db and ns.db.campPlaced
+	local record = records and records[itemID]
+	if not record or record.map ~= map then return nil end
+	local left = record.at + Lifetime(itemID) - now
+	return left > 0 and left or nil
+end
+
 -- The first of the items placed and still standing, else nil.
 function Recipes.CampPlaced(items)
-	local records = ns.db and ns.db.campPlaced
-	if not records then return nil end
 	local now, map = time(), CurrentMap()
 	for _, itemID in ipairs(items) do
-		local record = records[itemID]
-		if record and now - record.at < ns.CAMP.PLACED_MINUTES * 60 and record.map == map then return itemID end
+		if StandsFor(itemID, now, map) then return itemID end
 	end
 	return nil
+end
+
+-- For the planner (Planner.CampWindow): { window = seconds a new station stands, cooldown = seconds before this
+-- character can place another station (0: now), itemID / name / left = the station placed and still standing }.
+function Recipes.CampState()
+	local now, map = time(), CurrentMap()
+	local at = ns.db and ns.db.campCooldown and ns.db.campCooldown[ns.CharKey()]
+	local state = { window = ns.CAMP.STATION_MINUTES * 60,
+		cooldown = at and math.max(0, at + ns.CAMP.COOLDOWN_MINUTES * 60 - now) or 0 }
+	for itemID, english in pairs(ns.CAMP.stations) do
+		local left = StandsFor(itemID, now, map)
+		if left and (not state.left or left > state.left) then
+			state.itemID, state.name, state.left = itemID, Items.Name(itemID) or english, left
+		end
+	end
+	return state
 end
 
 local function CampItems()
@@ -874,7 +905,11 @@ end
 
 local function NotePlaced(itemID)
 	ns.db.campPlaced = ns.db.campPlaced or {}
-	ns.db.campPlaced[itemID] = { at = time(), map = CurrentMap() }
+	ns.db.campPlaced[itemID] = { at = time(), map = CurrentMap(), char = ns.CharKey() }
+	if ns.CAMP.stations[itemID] then
+		ns.db.campCooldown = ns.db.campCooldown or {}
+		ns.db.campCooldown[ns.CharKey()] = time()
+	end
 	ns.RequestPlan()
 end
 

@@ -1386,6 +1386,9 @@ do
 				[903] = { o = THREAD2, qmin = 1, qmax = 1, r = { { 1, VIAL } }, f = { "Spinning Wheel" } },
 				[910] = { o = FERMENTER, qmin = 1, qmax = 1, r = { { 4, VIAL } } },
 				[911] = { o = KIT, qmin = 1, qmax = 1, r = { { 1, WOOD } }, t = { "Flint and Tinder" } },
+				[904] = { o = 76, qmin = 1, qmax = 1, r = { { 1, VIAL } }, f = { "Fermenter", "Spinning Wheel" } },
+				[905] = { o = 77, qmin = 1, qmax = 1, r = { { 1, VIAL } }, f = { "Spinning Wheel" } },
+				[906] = { o = VIAL, qmin = 1, qmax = 1, r = { { 1, WOOD } } },
 			},
 			known = over.known or {},
 			ahPrice = function(id) return (over.ah or { [VIAL] = 10, [FERMENTER] = 500, [KIT] = 30, [WHEEL] = 900 })[id] end,
@@ -1408,6 +1411,8 @@ do
 			end,
 			crafter = function(_, char) return char or "me" end,
 			me = "me",
+			campState = over.state and function() return over.state end or nil,
+			craftSeconds = over.seconds and function(recipeID) return over.seconds[recipeID] or 60 end or nil,
 		})
 	end
 	local queue = { { recipeID = 900, qty = 5, char = "me" } }
@@ -1479,6 +1484,125 @@ do
 	check("camp: both stations at that fire", twoStations.camp[2].fire, KIT)
 	local order2 = Planner.GroupByStation(CampContext({}), { { recipeID = 901 }, { recipeID = 902 } })
 	check("camp: order untouched without stations", order2[1].recipeID, 901)
+
+	-- The user's order: every craft not needing the station first, sub-crafts for the station's crafts included,
+	-- then the station's crafts back to back.
+	local subs = Planner.BuildPlan(CampContext({ ah = { [VIAL] = 100, [FERMENTER] = 500, [KIT] = 30 },
+		known = { [VIAL] = { 906 } } }), { { recipeID = 900, qty = 2, char = "me" }, { recipeID = 901, qty = 1, char = "me" } })
+	order = {}
+	for _, craft in ipairs(subs.crafts) do table.insert(order, craft.recipeID) end
+	check("camp: sub-crafts and plain crafts before the station's", table.concat(order, ","), "906,901,900")
+
+	-- A station stands 15 minutes: how many of its crafts fit.
+	local timed = Planner.BuildPlan(CampContext({ state = { window = 900, cooldown = 0 }, seconds = {} }),
+		{ { recipeID = 900, qty = 20, char = "me" } })
+	check("window: why", timed.camp[1].window.why, "free")
+	check("window: 15 of 20 fit", timed.camp[1].window.fits, 15)
+	check("window: of", timed.camp[1].window.total, 20)
+	check("window: all would take", timed.camp[1].window.need, 1200)
+	local cooling = Planner.BuildPlan(CampContext({ state = { window = 900, cooldown = 1200 }, seconds = {} }),
+		{ { recipeID = 900, qty = 20, char = "me" } })
+	check("window: cooldown, none fit", cooling.camp[1].window.fits, 0)
+	check("window: cooldown said", cooling.camp[1].window.why, "cooldown")
+	check("window: still planned", cooling.crafts[1].recipeID, 900)
+	local standing2 = Planner.BuildPlan(CampContext({ placed = { [FERMENTER] = true }, seconds = {},
+		state = { window = 900, cooldown = 3000, itemID = FERMENTER, left = 300 } }), { { recipeID = 900, qty = 20, char = "me" } })
+	check("window: placed, what's left of it", standing2.camp[1].window.fits, 5)
+	check("window: placed said", standing2.camp[1].window.why, "placed")
+	check("window: no state, no window", Planner.BuildPlan(CampContext({}), queue).camp[1].window, nil)
+	check("CampWindow: other station on cooldown while one stands", Planner.CampWindow(CampContext({}),
+		{ window = 900, cooldown = 3000, itemID = FERMENTER, left = 300 }, "Spinning Wheel"), 0)
+
+	-- Restock: one station an hour, the one paying most after its own cost, cut to its window.
+	local FREE = { window = 900, cooldown = 0 }
+	local function Rows(list)
+		local rows = {}
+		for _, spec in ipairs(list) do
+			rows[#rows + 1] = { itemID = spec[1], recipeID = spec[1], net = spec[2], crafts = spec[3], queued = spec[4] }
+		end
+		return rows
+	end
+	local function ByRecipe(rows)
+		local by = {}
+		for _, row in ipairs(rows) do by[row.recipeID] = row end
+		return by
+	end
+	local rows = Rows({ { 900, 100, 10 }, { 903, 150, 10 }, { 901, 50, 5 } })
+	local info = Planner.RestockStations(CampContext({ state = FREE, seconds = {} }), rows, {})
+	local by = ByRecipe(rows)
+	check("restock camp: wheel pays more after its cost", info.station, "Spinning Wheel")
+	check("restock camp: its cost, kit included", info.cost, 930)
+	check("restock camp: its profit", info.value, 1500)
+	check("restock camp: fermenter rows cut", by[900].crafts, 0)
+	check("restock camp: cut why", by[900].camp.cut, "other")
+	check("restock camp: cut from", by[900].camp.wanted, 10)
+	check("restock camp: wheel rows kept", by[903].crafts, 10)
+	check("restock camp: kept untouched", by[903].camp, nil)
+	check("restock camp: no station, untouched", by[901].crafts, 5)
+	check("restock camp: no station, no mark", by[901].camp, nil)
+	check("restock camp: one row cut", info.cut, 1)
+
+	rows = Rows({ { 900, 100, 10 }, { 903, 150, 20 }, { 905, 100, 10 } })
+	info = Planner.RestockStations(CampContext({ state = FREE, seconds = { [905] = 30 } }), rows, {})
+	by = ByRecipe(rows)
+	check("restock camp: window, the wheel", info.station, "Spinning Wheel")
+	check("restock camp: window, most per second first", by[905].crafts, 10)
+	check("restock camp: window, the rest of 15 minutes", by[903].crafts, 10)
+	check("restock camp: window says it", by[903].camp.fit, 10)
+	check("restock camp: window of", by[903].camp.wanted, 20)
+	check("restock camp: window length", by[903].camp.window, 900)
+
+	rows = Rows({ { 900, 10, 10 } })
+	info = Planner.RestockStations(CampContext({ state = FREE, seconds = {} }), rows, {})
+	check("restock camp: not worth a station", info.station, nil)
+	check("restock camp: loss", rows[1].camp.cut, "loss")
+	check("restock camp: loss, no crafts", rows[1].crafts, 0)
+
+	rows = Rows({ { 900, 10, 10 } })
+	info = Planner.RestockStations(CampContext({ state = FREE, seconds = {}, own = { [FERMENTER] = 1, [KIT] = 1 } }), rows, {})
+	check("restock camp: held station is free", info.station, "Fermenter")
+	check("restock camp: held, no cost", info.cost, 0)
+
+	rows = Rows({ { 900, 100, 10 }, { 903, 150, 10 } })
+	info = Planner.RestockStations(CampContext({ state = { window = 900, cooldown = 1200 }, seconds = {} }), rows, {})
+	by = ByRecipe(rows)
+	check("restock camp: cooldown, nothing", info.station, nil)
+	check("restock camp: cooldown why", by[900].camp.cut, "cooldown")
+	check("restock camp: cooldown, wheel too", by[903].crafts, 0)
+	check("restock camp: cooldown left", info.cooldown, 1200)
+
+	rows = Rows({ { 900, 100, 10 }, { 903, 150, 10 } })
+	info = Planner.RestockStations(CampContext({ placed = { [FERMENTER] = true }, seconds = {},
+		state = { window = 900, cooldown = 3000, itemID = FERMENTER, left = 300 } }), rows, {})
+	by = ByRecipe(rows)
+	check("restock camp: the placed one", info.station, "Fermenter")
+	check("restock camp: placed costs nothing", info.cost, 0)
+	check("restock camp: placed, what fits its time left", by[900].crafts, 5)
+	check("restock camp: placed said", by[900].camp.placed, true)
+	check("restock camp: others wait", by[903].camp.cut, "cooldown")
+
+	rows = Rows({ { 900, 100, 14 }, { 903, 150, 10 } })
+	info = Planner.RestockStations(CampContext({ state = FREE, seconds = {} }), rows,
+		{ { recipeID = 900, qty = 3, char = "me" } })
+	by = ByRecipe(rows)
+	check("restock camp: the queue's station", info.station, "Fermenter")
+	check("restock camp: queue named", info.queued, "Fermenter")
+	check("restock camp: queued elsewhere", by[903].camp.cut, "queued")
+	check("restock camp: queued crafts use the window first", by[900].crafts, 12)
+	check("restock camp: queued station costs nothing more", info.cost, 0)
+
+	rows = Rows({ { 904, 500, 10 } })
+	Planner.RestockStations(CampContext({ state = FREE, seconds = {} }), rows, {})
+	check("restock camp: two stations at once", rows[1].camp.cut, "two")
+
+	rows = Rows({ { 900, 500, 10 } })
+	Planner.RestockStations(CampContext({ state = FREE, seconds = {}, ah = { [VIAL] = 10, [KIT] = 30 } }), rows, {})
+	check("restock camp: none to be had", rows[1].camp.cut, "none")
+
+	rows = Rows({ { 900, 100, 10 } })
+	check("restock camp: no state, nothing", Planner.RestockStations(CampContext({}), rows, {}), nil)
+	check("restock camp: no state, untouched", rows[1].crafts, 10)
+	check("restock camp: no station rows", Planner.RestockStations(CampContext({ state = FREE }), Rows({ { 901, 5, 1 } }), {}), nil)
 end
 
 -- Usual prices: median of the daily lows of the last 14 days, needs 3 days.

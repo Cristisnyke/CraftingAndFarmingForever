@@ -548,6 +548,53 @@ local function WithArticle(name)
 	return (name:match("^[AEIOUaeiou]") and "an " or "a ") .. name
 end
 
+-- Restock rows a camp station limits (row.camp, Planner.RestockStations; info = what it decided): why, in words.
+function UI.RestockCampText(camp, info)
+	local function Minutes(seconds) return math.max(1, math.ceil((seconds or 0) / 60)) end
+	local station = WithArticle((camp.station:gsub("%+", " and ")))
+	if camp.fit then
+		if camp.placed then
+			return ("Your %s stands %d more minutes: %d of %d crafts fit."):format(camp.station, Minutes(camp.window),
+				camp.fit, camp.wanted)
+		end
+		return ("Needs %s, which stands %d minutes once placed: %d of %d crafts fit."):format(station,
+			Minutes(camp.window), camp.fit, camp.wanted)
+	end
+	local cooldown = ns.CAMP.COOLDOWN_MINUTES
+	if camp.cut == "other" then
+		return ("Needs %s: only one camp station an hour (they share a %d minute cooldown), and %s pays more."):format(
+			station, cooldown, WithArticle(info and info.station or "other station"))
+	elseif camp.cut == "queued" then
+		return ("Needs %s: your queue already uses %s, and only one camp station can be placed an hour."):format(
+			station, WithArticle(info and info.queued or "another station"))
+	elseif camp.cut == "cooldown" then
+		return ("Needs %s: camp stations are on cooldown for %d more minutes."):format(station,
+			Minutes(info and info.cooldown))
+	elseif camp.cut == "two" then
+		return ("Needs %s: only one camp station can be placed an hour."):format(station)
+	elseif camp.cut == "none" then
+		return ("Needs %s and you have none: none listed at the auction house and no character of yours makes one.")
+			:format(station)
+	end
+	return ("Needs %s: placing one costs more than these crafts earn."):format(station)
+end
+
+-- The Restock tab's line about the camp station: which one the restock uses, and what it left out.
+function UI.RestockCampNote(info)
+	local left = info.cut > 0 and ns.Plural(info.cut, "item", "items") .. " needing another station left out" or nil
+	if info.station then
+		return ("Camp: one station an hour, so this restock uses %s%s%s."):format(
+			info.placed and ("your " .. info.station) or WithArticle(info.station),
+			info.placed and "" or (" (" .. ns.CAMP.STATION_MINUTES .. " minutes of crafting)"),
+			left and ("; " .. left) or "")
+	end
+	if (info.cooldown or 0) > 0 then
+		return ("Camp stations are on cooldown for %d more minutes: %s needing one left out."):format(
+			math.max(1, math.ceil(info.cooldown / 60)), ns.Plural(info.cut, "item", "items"))
+	end
+	return ("No camp station pays for itself here: %s needing one left out."):format(ns.Plural(info.cut, "item", "items"))
+end
+
 -- Where to buy, under the auction house step and in chat when the auction house opens.
 UI.SHOPPING_HOW = {
 	"At the auction house, open the Shopping tab",
@@ -642,11 +689,35 @@ local function BuildQueueList()
 		for _, row in ipairs(missingTools) do table.insert(list, row) end
 	end
 	local toolsAt = #list + 1
-	-- Camp stations: placed at a campfire right before the crafts that need them, so the steps say it under the first
-	-- crafting step; getting the station and the kit is on the buying and crafting steps like any material.
-	local function CampRows()
-		local campRows, fireSaid = {}, false
-		for _, station in ipairs(plan.camp or {}) do
+	-- Camp stations: one stands only a while once placed and the next can't go down for an hour, so everything else
+	-- is crafted first (sub-crafts for the station's crafts too), then a step of its own places it and lists only
+	-- the crafts made beside it. Getting the station and the kit is on the buying and crafting steps like any
+	-- material. campOf[recipeID] = the station (index in plan.camp) an own craft needs; campFrom = where the first
+	-- one comes in the plan, so crafts that have to wait for a station's (rare) are listed after it.
+	local camp = plan.camp or {}
+	local campOf, campFrom, campRows, afterCamp = {}, nil, {}, {}
+	for s, station in ipairs(camp) do
+		campRows[s] = {}
+		for _, craft in ipairs(station.crafts) do campOf[craft.recipeID] = campOf[craft.recipeID] or s end
+	end
+	local position = {}
+	for at, craft in ipairs(plan.crafts) do
+		local key = ns.Planner.RunKey(craft.recipeID, craft.char)
+		position[key] = position[key] or at
+		if campOf[craft.recipeID] and not campFrom then campFrom = at end
+	end
+	-- Where a craft's row goes: its station's step, after the stations, or nil for where it is.
+	local function CampPlace(recipeID, at)
+		local s = campOf[recipeID]
+		if s then return campRows[s] end
+		if campFrom and at and at > campFrom then return afterCamp end
+	end
+	local campDone = false
+	local function CampSteps()
+		if campDone then return end
+		campDone = true
+		local fireSaid = false
+		for s, station in ipairs(camp) do
 			local craftNames, counted = {}, {}
 			for _, craft in ipairs(station.crafts) do
 				local recipe = ns.db.recipes[craft.recipeID]
@@ -660,42 +731,89 @@ local function BuildQueueList()
 			end
 			for at, name in ipairs(craftNames) do craftNames[at] = name .. " x" .. counted[name] end
 			local crafts = table.concat(craftNames, ", ")
-			if station.itemID and station.placed then
-				table.insert(campRows, { kind = "tip", text = ("Camp: your %s is placed: craft %s beside it."):format(
+			local window = station.window
+			local why = window and window.why
+			local function Minutes(seconds) return math.max(1, math.ceil((seconds or 0) / 60)) end
+			-- A second station waits for the cooldown the first one starts.
+			local later = s > 1 and why ~= "placed"
+			local title
+			if not station.itemID then
+				title = ("Camp: %s (you have none)"):format(station.name)
+			elseif station.placed then
+				title = ("Camp: craft beside your %s (it stands %d more minutes)"):format(station.name,
+					Minutes(window and window.seconds))
+			elseif why == "cooldown" or later then
+				title = ("Camp: %s, after the station cooldown"):format(station.name)
+			else
+				title = ("Camp: place %s and craft beside it"):format(WithArticle(station.name))
+					.. (window and (" (it stands %d minutes)"):format(Minutes(window.seconds)) or "")
+			end
+			local columns
+			for _, row in ipairs(campRows[s]) do
+				if row.kind == "queue" then columns = "queue" end
+			end
+			table.insert(list, { kind = "header", crafting = true, columns = columns, text = Step() .. title })
+			if not station.itemID then
+				table.insert(list, { kind = "warn", text = ("%s needs %s and you have none: none listed at the "
+					.. "auction house and no character of yours makes one."):format(crafts, WithArticle(station.name)) })
+			elseif station.placed then
+				table.insert(list, { kind = "tip", text = ("Camp: your %s is placed: craft %s beside it."):format(
 					station.name, crafts) })
-			elseif station.itemID and station.firePlaced then
-				table.insert(campRows, { kind = "tip", text = ("Camp: your campfire is lit: place %s beside it and craft %s."):format(
+			elseif later then
+				table.insert(list, { kind = "tip", text = ("Camp: after the cooldown, place %s (and a campfire if yours "
+					.. "is out) and craft %s."):format(WithArticle(station.name), crafts) })
+			elseif station.firePlaced then
+				table.insert(list, { kind = "tip", text = ("Camp: your campfire is lit: place %s beside it and craft %s."):format(
 					WithArticle(station.name), crafts) })
-			elseif station.itemID and fireSaid then
-				-- One campfire takes every station: the first line says to light it.
-				table.insert(campRows, { kind = "tip", text = ("Camp: then place %s at the same campfire and craft %s."):format(
-					WithArticle(station.name), crafts) })
-			elseif station.itemID then
-				fireSaid = true
-				table.insert(campRows, { kind = "tip", text = ("Camp: place %s, then %s, and craft %s beside it."):format(
-					station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
+			elseif fireSaid then
+				table.insert(list, { kind = "tip", text = ("Camp: then place %s at the same campfire and craft %s."):format(
 					WithArticle(station.name), crafts) })
 			else
-				table.insert(campRows, { kind = "warn", text = ("%s needs %s and you have none: none listed at the "
-					.. "auction house and no character of yours makes one."):format(crafts, WithArticle(station.name)) })
+				fireSaid = true
+				table.insert(list, { kind = "tip", text = ("Camp: place %s, then %s, and craft %s beside it."):format(
+					station.fire and WithArticle(ns.Items.Name(station.fire) or "Campfire Kit") or "a campfire",
+					WithArticle(station.name), crafts) })
 			end
+			if s == 1 and #camp > 1 then
+				local needed = {}
+				for _, other in ipairs(camp) do needed[#needed + 1] = WithArticle(other.name) end
+				table.insert(list, { kind = "warn", text = ("Only one camp station an hour: they share a %d minute "
+					.. "cooldown, and your queue needs %s. Craft one station's crafts now, the next after the "
+					.. "cooldown."):format(ns.CAMP.COOLDOWN_MINUTES, table.concat(needed, " and ")) })
+			end
+			if station.itemID and why == "cooldown" and not later then
+				local cooldown = plan.campState and plan.campState.cooldown or 0
+				table.insert(list, { kind = "warn", text = ("Camp stations are on cooldown for %d more minutes: "
+					.. "these crafts wait. Do everything else first."):format(Minutes(cooldown)) })
+			elseif station.itemID and window and window.fits < window.total then
+				table.insert(list, { kind = "warn", text = ("Only %d of %d crafts fit in the %d minutes %s stands "
+					.. "(about %s each): the rest wait for the %d minute cooldown."):format(window.fits, window.total,
+					Minutes(window.seconds), station.placed and ("your " .. station.name) or WithArticle(station.name),
+					ns.Planner.FormatDuration(window.need / math.max(1, window.total)), ns.CAMP.COOLDOWN_MINUTES) })
+			end
+			for _, row in ipairs(campRows[s]) do table.insert(list, row) end
 		end
-		if #(plan.camp or {}) > 1 then
-			table.insert(campRows, { kind = "tip", text = ("Camp features share a %d hour cooldown: one station per hour, its "
-				.. "crafts are listed together."):format(ns.CAMP.COOLDOWN_HOURS) })
+		if #afterCamp > 0 then
+			table.insert(list, { kind = "header", crafting = true, text = Step() .. "Then craft (needs what the "
+				.. "station made)" })
+			for _, row in ipairs(afterCamp) do table.insert(list, row) end
 		end
-		return campRows
 	end
-	local campRows = CampRows()
 	local autoHeader = false
-	for _, craft in ipairs(plan.crafts) do
+	for at, craft in ipairs(plan.crafts) do
 		if (craft.subCount or 0) > 0 then
-			if not autoHeader then
-				autoHeader = true
-				table.insert(list, { kind = "header", crafting = true,
-					text = Step() .. (farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)") })
+			local row = { kind = "auto", craft = craft }
+			local place = CampPlace(craft.recipeID, at)
+			if place then
+				table.insert(place, row)
+			else
+				if not autoHeader then
+					autoHeader = true
+					table.insert(list, { kind = "header", crafting = true,
+						text = Step() .. (farming and "Sub-crafts (make these yourself)" or "Sub-crafts (cheaper than buying)") })
+				end
+				table.insert(list, row)
 			end
-			table.insert(list, { kind = "auto", craft = craft })
 		end
 	end
 	-- Your own queued crafts, then one step per other character: log in there, where their list continues with
@@ -724,12 +842,7 @@ local function BuildQueueList()
 		-- share of each entry; the rest waits for the next run.
 		local later = {}
 		-- Crafts needing a camp station follow the plan's order too, which keeps each station's crafts together.
-		if (room or #(plan.camp or {}) > 0) and #mine > 1 then
-			local position = {}
-			for at, craft in ipairs(plan.crafts) do
-				local key = ns.Planner.RunKey(craft.recipeID, craft.char)
-				position[key] = position[key] or at
-			end
+		if (room or #camp > 0) and #mine > 1 then
 			for at, row in ipairs(mine) do row.at = at end
 			table.sort(mine, function(a, b)
 				local left = position[ns.Planner.RunKey(a.entry.recipeID, me)] or math.huge
@@ -749,12 +862,23 @@ local function BuildQueueList()
 			end
 			mine = kept
 		end
+		-- Station crafts go to their station's step, crafts waiting for them after it.
+		if #camp > 0 then
+			local before = {}
+			for _, row in ipairs(mine) do
+				local place = CampPlace(row.entry.recipeID, position[ns.Planner.RunKey(row.entry.recipeID, me)])
+				table.insert(place or before, row)
+			end
+			mine = before
+		end
 		if #mine > 0 then
 			local title = plan.run and ("Craft this run: %s (as many as your bags hold)"):format(
 				ns.Plural(plan.run.crafts, "craft", "crafts")) or "Craft your queue"
+			if #camp > 0 then title = title .. " (before the camp)" end
 			table.insert(list, { kind = "header", text = NumberedStep() .. title, columns = "queue", crafting = true })
 			for _, row in ipairs(mine) do table.insert(list, row) end
 		end
+		CampSteps()
 		if #later > 0 then
 			table.insert(list, { kind = "header", columns = "queue", text = Step() .. ("Next run: %s left (craft this "
 				.. "run first, then the list starts over with room in your bags)"):format(
@@ -768,6 +892,7 @@ local function BuildQueueList()
 			for _, row in ipairs(others[crafter]) do table.insert(list, row) end
 		end
 	end
+	CampSteps() -- with nothing queued by hand: a writ's or crate's crafts can need a station too
 	-- Queued writs and crates come last: by then you hold the writ or crate and what it needs.
 	if #ns.db.wanted > 0 then
 		local ctx = ns.NewContext()
@@ -809,13 +934,7 @@ local function BuildQueueList()
 	MailSteps()
 	for at = toolsAt, #list do
 		if list[at].crafting then
-			local offset = 0
-			for _, rows in ipairs({ campRows, toolReminders }) do
-				for _, row in ipairs(rows) do
-					offset = offset + 1
-					table.insert(list, at + offset, row)
-				end
-			end
+			for offset, row in ipairs(toolReminders) do table.insert(list, at + offset, row) end
 			break
 		end
 	end
@@ -885,8 +1004,8 @@ end
 local function BuildRestockList()
 	local selected = selectedProfession.restock
 	local list = {}
-	local rows, budget = ns.Restock.Rows()
-	UI.restockBudget = budget
+	local rows, budget, camp = ns.Restock.Rows()
+	UI.restockBudget, UI.restockCamp = budget, camp
 	for _, row in ipairs(rows) do
 		local recipe = ns.db.recipes[row.recipeID]
 		if not selected or (recipe and recipe.p == selected) then
@@ -1565,8 +1684,8 @@ local function RowOnEnter(row)
 			GameTooltip:AddLine(" ")
 			GameTooltip:AddLine(data.camp == "Campfire" and "For your camp: a camp station is placed beside a campfire."
 				or ("A camp station: some of your crafts need %s placed nearby. Placing it uses it up; it needs a "
-				.. "campfire nearby, and every camp feature shares a %d hour cooldown."):format(
-				WithArticle(data.camp), ns.CAMP.COOLDOWN_HOURS), 1, 1, 1, true)
+				.. "campfire nearby, stands %d minutes, and every camp station shares a %d minute cooldown."):format(
+				WithArticle(data.camp), ns.CAMP.STATION_MINUTES, ns.CAMP.COOLDOWN_MINUTES), 1, 1, 1, true)
 		end
 		if data.tool then
 			local recipe = ns.db.recipes[data.tool.recipeID]
@@ -1622,7 +1741,10 @@ local function RowOnEnter(row)
 			GameTooltip:AddDoubleLine("Crafts already queued", tostring(item.queued), 0.45, 0.75, 1, 0.45, 0.75, 1)
 		end
 		GameTooltip:AddDoubleLine(item.queued and "More crafts needed" or "Crafts needed",
-			tostring(item.dear or item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+			tostring(item.dear or (item.camp and item.camp.wanted) or item.wanted or item.crafts), 1, 1, 1, 1, 1, 1)
+		if item.camp then
+			GameTooltip:AddLine(UI.RestockCampText(item.camp, UI.restockCamp), 1, 0.6, 0.2, true)
+		end
 		if item.dear then
 			local kept = item.wanted or item.crafts
 			GameTooltip:AddLine((kept > 0 and ("Only %d more are worth making: "):format(kept)
@@ -2693,11 +2815,11 @@ local function SetRow(row, data)
 		row.colHave:SetText(tostring(item.owned))
 		if item.goal == 0 then
 			row.colCraft:SetText(smart and smart.paused and Color("ffffb040", "paused") or Color(COLOR_MUTED, "skip"))
-		elseif item.wanted or item.dear then
-			-- Cut to what your gold covers, or to what's still worth making at what the materials really cost:
-			-- crafts of wanted.
+		elseif item.wanted or item.dear or item.camp then
+			-- Cut to what your gold covers, to what's still worth making at what the materials really cost, or to
+			-- the one camp station an hour and its window: crafts of wanted.
 			row.colCraft:SetText(Color(item.crafts > 0 and "ffffb040" or COLOR_LOSS, tostring(item.crafts))
-				.. Color(COLOR_MUTED, "/" .. (item.dear or item.wanted)))
+				.. Color(COLOR_MUTED, "/" .. (item.dear or (item.camp and item.camp.wanted) or item.wanted)))
 		elseif item.trim then
 			-- More queued than the stock still needs.
 			row.colCraft:SetText(Color(COLOR_LOSS, "-" .. item.trim))
@@ -4429,6 +4551,9 @@ function CreateRestockPane()
 				(deposit and (" with " .. ns.Money(budget.deposit) .. " kept for posting") or "")
 					.. ((budget.keep or 0) > 0 and ((deposit and " and " or " with ") .. ns.Money(budget.keep)
 						.. " left alone") or ""))) }
+		end
+		if UI.restockCamp and (UI.restockCamp.station or UI.restockCamp.cut > 0) then
+			table.insert(notes, UI.RestockCampNote(UI.restockCamp))
 		end
 		-- Crafts are picked at the cheapest listing; the queued restock is checked against every listing later.
 		local reading = ns.Depth.Status()
