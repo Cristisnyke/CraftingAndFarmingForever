@@ -244,6 +244,8 @@ local function SetOpen(state)
 	open = state
 	if not open and job then Finish("the bank closed") end
 	Changed()
+	-- The Next step bar jumps to the bank step while you're at the bank.
+	if ns.UI and ns.UI.Refresh then ns.UI.Refresh("next") end
 end
 
 ns.On("BANKFRAME_OPENED", function() SetOpen(true) end)

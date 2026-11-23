@@ -3603,8 +3603,16 @@ do
 	local bar = ns.UI.windows.next
 	check("vendor step: closed merchant, no button on another step", bar.vendoring, false)
 	check("vendor step: needs a merchant", select(2, ns.Vendor.Run()), "Talk to a vendor first.")
+	-- Walked away from the auction house and the mailbox earlier tests left open: only the merchant is here.
+	Fire("AUCTION_HOUSE_CLOSED")
+	Fire("MAIL_CLOSED")
+	RunTimers()
+	local firstStep = bar.list[1] and bar.list[1].text
+	check("vendor step: another step comes first", firstStep ~= nil and not firstStep:find("^Buy from vendor"), true)
 	Fire("MERCHANT_SHOW")
 	check("vendor step: button at the merchant", bar.vendoring, true)
+	check("vendor step: the bar jumps to the vendor step here", bar.list[1].text:find("^Buy from vendor") ~= nil, true)
+	check("vendor step: says it's here", bar.here ~= nil and bar.here > 1, true)
 	check("vendor step: rounded up to the bundle", bar.vendorButton.text, "Buy for your queue: 50c")
 	check("vendor step: too poor", select(2, ns.Vendor.Run()), "Not enough gold: this costs 50c.")
 	playerMoney = 1000
@@ -3621,6 +3629,8 @@ do
 	check("vendor step: says what it bought", said[1], "Vendor: bought Coarse Thread x5 for 50c.")
 	check("vendor step: plan has nothing left to buy here", ns.Vendor.Pending(), nil)
 	check("vendor step: button gone once bought", bar.vendoring, false)
+	check("vendor step: back to the first step once bought", bar.list[1].text, firstStep)
+	check("vendor step: no longer jumped", bar.here, nil)
 	-- Limited stock: what's there, and the rest named as short.
 	bought = 0
 	slots[2].info.numAvailable = 0

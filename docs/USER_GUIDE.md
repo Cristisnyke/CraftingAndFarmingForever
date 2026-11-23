@@ -153,6 +153,7 @@ The bank's own free space isn't checked before planning; **Bank it** stops and s
 
 While anything is in the queue, a small bar at the top of the screen shows the first step of the Queue tab's to-do list: what to get from an alt, take from the bank, buy, gather (in Farm It mode), sub-craft or craft. When that step is done it moves on to the next; "1 of 4" says how many steps are left. On a crafting step it has its own **Craft Next** button, or says why it can't craft yet.
 
+- **It follows you.** When you're standing where a later step is done, it shows that step instead: at a vendor that sells something for your queue, the **Buy from vendor** step; at your bank, the bank step; at a mailbox, collecting (or mailing your crafts to your bank alt); at the auction house, the buying step. It says **Here: 3 of 5** meanwhile, and goes back to the first step once that one is done or you walk away.
 - The **-** button folds it to a single line that still names the step; **+** opens it again. It remembers which you chose.
 - Drag it anywhere; it remembers the place.
 - It opens by itself when you queue something and disappears when the queue is empty. `/cff next` folds or unfolds it.

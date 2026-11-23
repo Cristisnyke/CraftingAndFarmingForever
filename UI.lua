@@ -659,13 +659,16 @@ local function BuildQueueList()
 		or "red: dearer since last scan, green: cheaper") .. ")", plan.buy, "max", ns.Prices.AH, plan)
 	-- New players don't know where the list is: say it under the heading, short enough for the Next step bar.
 	if #list > beforeBuy then
+		list[beforeBuy + 1].ah = true -- jumped to on the Next step bar at the auction house
 		for offset, text in ipairs(UI.SHOPPING_HOW) do
 			table.insert(list, beforeBuy + 1 + offset, { kind = "tip", text = text })
 		end
 	end
 	-- Right after the auction house, which always has a mailbox beside it; not before, as purchases land there one by
 	-- one and collecting halfway through would send you away with things still to buy.
+	local mailAt = #list + 1
 	Section("Collect from your mailbox", plan.mail)
+	if list[mailAt] then list[mailAt].collect = true end -- jumped to on the Next step bar at a mailbox
 	local vendorAt = #list + 1
 	Section("Buy from vendor: %s", plan.vendor, "at", ns.Prices.Vendor)
 	if list[vendorAt] then list[vendorAt].vendor = true end -- the Next step bar can buy it at a merchant
@@ -951,25 +954,34 @@ local function ShortStepTitle(text)
 	return short
 end
 
+-- Where the player stands right now, for a step that can be done there: a merchant selling something the vendor step
+-- buys, the open bank, mailbox or auction house.
+local function StepIsHere(header)
+	if header.vendor and ns.Vendor.IsOpen() and (ns.Vendor.Pending() ~= nil or ns.Vendor.Busy()) then return true end
+	if header.bank and ns.Bank.IsOpen() then return true end
+	if (header.mail or header.collect) and ns.Seller.IsOpen() then return true end
+	if header.ah and UI.atAuctionHouse then return true end
+	return false
+end
+
 -- The Next step bar: the first step of the Queue tab's to-do list, cut down to fit a small window. Every header in
 -- that list is a step, except that the gathering groups (Mine, Pick herbs, ...) count as one: you gather whatever
--- you come across, so they're shown together, each under its own heading. Returns the step's header, how many steps
--- there are, and its rows: items without prices, queue entries as plain crafts.
+-- you come across, so they're shown together, each under its own heading. A later step that can be done where the
+-- player stands (StepIsHere) is shown instead of the first, so nobody walks off to the auction house while standing
+-- at the vendor; once it's done, the bar goes back to the first step. Returns the step's header, how many steps
+-- there are, its rows (items without prices, queue entries as plain crafts) and its number when it isn't the first.
 local function BuildNextStep()
-	local current, steps, rows = nil, 0, {}
-	local lastGather = false
+	local groups, lastGather = {}, false
 	for _, data in ipairs(BuildQueueList()) do
 		if data.kind == "header" then
-			if not (data.gather and lastGather) then steps = steps + 1 end
-			lastGather = data.gather or false
-			if steps == 1 then
-				if not current then
-					current = data
-				else
-					table.insert(rows, { kind = "header", text = ShortStepTitle(data.text) })
-				end
+			if data.gather and lastGather then
+				table.insert(groups[#groups].rows, { kind = "header", text = ShortStepTitle(data.text) })
+			else
+				table.insert(groups, { header = data, rows = {} })
 			end
-		elseif steps == 1 then
+			lastGather = data.gather or false
+		elseif groups[1] then
+			local rows = groups[#groups].rows
 			if data.kind == "queue" then
 				table.insert(rows, { kind = "next", recipeID = data.entry.recipeID, count = (data.run or 0) > 0 and data.run or data.entry.qty,
 					char = data.entry.char })
@@ -985,7 +997,16 @@ local function BuildNextStep()
 			end
 		end
 	end
-	return current, steps, rows
+	local pick = 1
+	for index = 2, #groups do
+		if StepIsHere(groups[index].header) and not StepIsHere(groups[1].header) then
+			pick = index
+			break
+		end
+	end
+	local group = groups[pick]
+	if not group then return nil, 0, {} end
+	return group.header, #groups, group.rows, pick > 1 and pick or nil
 end
 
 
@@ -4266,8 +4287,8 @@ local function CreateNextWindow()
 	end
 
 	window.build = function()
-		local step, steps, rows = BuildNextStep()
-		window.step, window.steps = step, steps
+		local step, steps, rows, here = BuildNextStep()
+		window.step, window.steps, window.here = step, steps, here
 		local folded = ns.db.ui.nextMinimized
 		local list = {}
 		window.nextCraft, window.nextCount, window.blocking, window.open, window.crafting = nil, nil, nil, nil, false
@@ -4326,7 +4347,12 @@ local function CreateNextWindow()
 		else
 			title:SetText(farming and "Next step  " .. Color(COLOR_MUTED, "Farm It") or "Next step")
 		end
-		count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
+		-- A step jumped to because you're standing where it's done: say so, the order comes back after it.
+		if window.here then
+			count:SetText(Color("ff66ccff", ("Here: %d of %d"):format(window.here, window.steps)))
+		else
+			count:SetText(window.steps > 1 and Color(COLOR_MUTED, ("1 of %d"):format(window.steps)) or "")
+		end
 		if window.crafting and not folded then
 			craft:Show()
 			craft:Update(window.nextCraft, window.nextCount, window.blocking, window.open)
@@ -5728,6 +5754,8 @@ StaticPopupDialogs["CFF_SCAN"] = {
 }
 
 ns.On("AUCTION_HOUSE_SHOW", function()
+	UI.atAuctionHouse = true
+	UI.Refresh("next")
 	-- Auctionator creates its scan frames as the auction house opens, so wait for them.
 	C_Timer.After(1.5, function()
 		if ns.Option("scanPopup") and ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
@@ -5750,6 +5778,7 @@ ns.On("PLAYER_MONEY", function()
 end)
 
 ns.On("AUCTION_HOUSE_CLOSED", function()
+	UI.atAuctionHouse = false
 	StaticPopup_Hide("CFF_SCAN")
 	UI.RefreshAll()
 end)

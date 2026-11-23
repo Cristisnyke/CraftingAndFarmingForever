@@ -59,7 +59,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - **Bag space**: when a big queue's materials won't fit in your bags, it tells you what to put in the bank first and, if that isn't enough, splits the queue into runs that fit, crafting what uses up the most room first. At the bank, **Bank it** on the Next step bar does the moving for you.
 - **Vendor reagents in one click**: at a vendor that sells something your queue needs, **Buy for your queue** (under the vendor window and on the Next step bar) buys exactly what's missing.
 - **Total profit** for the whole queue, and **Still to buy** compared with the gold you're carrying.
-- **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. Fold it to one line; it disappears when the queue is empty.
+- **Next step bar**: while anything is queued, a small bar at the top of the screen shows the next thing to do, with its own Craft Next when it's time to craft. At a vendor, the bank, a mailbox or the auction house it jumps to the step you can do right there, then goes back to the normal order. Fold it to one line; it disappears when the queue is empty.
 - **Craft Next** crafts the next thing this character can make. If it can't, it tells you why (the next craft is on your alt, say), and if the craft needs a different profession it opens that one for you. It's also a progress bar: while you craft it shows how far through the batch you are (8 / 20) and how long until that batch and all your crafts are done.
 - After each scan, prices show what they were before: **was 1s 20c, now 1s 45c**, red when it hurts your profit and green when it helps.
 
