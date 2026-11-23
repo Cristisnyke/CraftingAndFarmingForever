@@ -4,6 +4,8 @@
 local ADDON, ns = ...
 ns.name = ADDON
 ns.LIST_NAME = "Crafting and Farming Forever Queue"
+-- Recipe items the logged-in character can learn now, lowest skill first (Shopping.SyncRecipes).
+ns.RECIPE_LIST_NAME = "Crafting and Farming Forever Recipes"
 ns.AH_CUT = 0.05
 ns.STALE_SECONDS = 24 * 60 * 60
 

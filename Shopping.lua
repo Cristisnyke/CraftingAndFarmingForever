@@ -107,3 +107,102 @@ function Shopping.Sync()
 		ns.Say("chatWarnings", "Could not update the Auctionator list: " .. tostring(err))
 	end
 end
+
+---------------------------------------------------------------------------
+-- Recipes to learn: a second list with the recipe items (patterns, plans, formulas...) the logged-in character can
+-- learn right now, lowest skill first. Only recipes that come as an item which isn't bound; trainer recipes have
+-- nothing to buy.
+---------------------------------------------------------------------------
+
+Shopping.recipeStatus = { items = 0, loading = 0 }
+
+-- Search strings in order, plus how many names are still loading.
+function Shopping.RecipeStrings(charKey)
+	local Book = ns.RecipeBook
+	local rows, loading = {}, 0
+	for recipeID in pairs(Book.Learnable(charKey)) do
+		local data = ns.RecipeData[recipeID]
+		local _, bound = Book.Price(recipeID)
+		if data and data.i and not bound then
+			local name = ns.Items.Name(data.i)
+			if name then
+				table.insert(rows, { skill = data.s or 0, name = Sanitize(name) })
+			elseif not ns.Items.IsMissing(data.i) then
+				loading = loading + 1
+			end
+		end
+	end
+	table.sort(rows, function(a, b)
+		if a.skill ~= b.skill then return a.skill < b.skill end
+		return a.name < b.name
+	end)
+	local strings, have = {}, {}
+	for _, row in ipairs(rows) do
+		-- Two recipes can share an item name; an exact-name search finds both.
+		local key = row.name:lower()
+		if not have[key] then
+			have[key] = true
+			table.insert(strings, Shopping.SearchString(row.name))
+		end
+	end
+	return strings, loading
+end
+
+-- True when old minus some entries is exactly new (same order): then rows can be deleted in place.
+local function OnlyRemoved(old, new)
+	local j = 1
+	for _, s in ipairs(old) do
+		if s == new[j] then j = j + 1 end
+	end
+	return j == #new + 1
+end
+
+local function UpdateRecipes()
+	local api = Auctionator.API.v1
+	local manager = Auctionator.Shopping.ListManager
+	local wanted, loading = Shopping.RecipeStrings(ns.CharKey())
+	Shopping.recipeStatus.loading = loading
+	Shopping.recipeStatus.items = #wanted
+	-- Wait for every name, so the order is right in one go.
+	if loading > 0 then return end
+	if manager:GetIndexForName(ns.RECIPE_LIST_NAME) == nil then
+		if #wanted > 0 then api.CreateShoppingList(ns.name, ns.RECIPE_LIST_NAME, wanted) end
+		return
+	end
+	local existing = api.GetShoppingListItems(ns.name, ns.RECIPE_LIST_NAME)
+	local same = #existing == #wanted
+	for i = 1, #wanted do
+		if existing[i] ~= wanted[i] then same = false break end
+	end
+	if same then return end
+	if OnlyRemoved(existing, wanted) then
+		-- A recipe learned (often one just bought): delete its row, so a search in progress isn't disturbed.
+		local keep = {}
+		for _, s in ipairs(wanted) do keep[s] = true end
+		for _, s in ipairs(existing) do
+			if not keep[s] then api.DeleteShoppingListItem(ns.name, ns.RECIPE_LIST_NAME, s) end
+		end
+		return
+	end
+	-- New ones (a skill-up, another character): rewrite the list in skill order.
+	api.CreateShoppingList(ns.name, ns.RECIPE_LIST_NAME, wanted)
+end
+
+function Shopping.SyncRecipes()
+	if not (ns.RecipeBook and Auctionator and Auctionator.API and Auctionator.Shopping
+		and Auctionator.Shopping.ListManager) then return end
+	local ok, err = pcall(UpdateRecipes)
+	Shopping.recipeStatus.error = not ok and tostring(err) or nil
+end
+
+local function RequestRecipes()
+	ns.Debounce("recipeList", 1, Shopping.SyncRecipes)
+end
+ns.WhenDataReady(RequestRecipes)
+ns.On("AUCTION_HOUSE_SHOW", RequestRecipes)
+ns.On("NEW_RECIPE_LEARNED", RequestRecipes)
+ns.On("SKILL_LINES_CHANGED", RequestRecipes)
+ns.On("TRADE_SKILL_LIST_UPDATE", RequestRecipes)
+ns.On("GET_ITEM_INFO_RECEIVED", function()
+	if Shopping.recipeStatus.loading > 0 then RequestRecipes() end
+end)

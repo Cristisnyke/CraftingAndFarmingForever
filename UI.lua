@@ -5817,6 +5817,8 @@ local function Diagnostics()
 	end
 	Add(("sales recorded: %d sold, %d expired; open posts tracked: %d"):format(soldTotal, expiredTotal, #ns.db.sales.lots))
 	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.LIST_NAME, status.items, status.loading, tostring(status.error)))
+	local rs = ns.Shopping.recipeStatus
+	Add(("list '%s': %d items, %d loading, error: %s"):format(ns.RECIPE_LIST_NAME, rs.items, rs.loading, tostring(rs.error)))
 	Add(("queue profit: %s from %d entries, %d without a price, %d bind on pickup"):format(ns.Money(ns.totals.net), ns.totals.counted, ns.totals.excluded, ns.totals.bound))
 	local openKey = ns.Recipes.OpenProfession()
 	Add("open profession: " .. tostring(openKey) .. ", recipes in window: " .. CountKeys(ns.Recipes.OpenRecipes()))

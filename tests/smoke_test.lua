@@ -4518,6 +4518,44 @@ do
 	check("recipes: learned counted", profit.list.info.learnedHidden, knownHere)
 	check("recipes: status line", profit.status.text:find("3 recipes to find for", 1, true) ~= nil, true)
 
+	-- Recipes to learn list: recipe items this character can learn now, lowest skill first, in its own list.
+	do
+		local Shopping = ns.Shopping
+		local RL = ns.RECIPE_LIST_NAME
+		lists[RL] = nil
+		ns.RecipeData[900005] = { p = myProfession, s = 20, i = 4005, w = { { k = "v", n = { 222 } } } }
+		names[4001], names[4005] = "Pattern: Bolt of Test", nil
+		Shopping.SyncRecipes()
+		check("recipe list: waits for names", lists[RL], nil)
+		check("recipe list: loading counted", Shopping.recipeStatus.loading, 1)
+		names[4005] = "Pattern: Early Thing"
+		Shopping.SyncRecipes()
+		local list = lists[RL] or {}
+		-- 900003 has no recipe item (quest), 900002 needs more skill and binds, 10 is learned.
+		check("recipe list: learnable recipe items only", #list, 2)
+		check("recipe list: lowest skill first", list[1] and list[1]:find("Early Thing", 1, true) ~= nil, true)
+		check("recipe list: then the next", list[2] and list[2]:find("Bolt of Test", 1, true) ~= nil, true)
+		check("recipe list: no quantity", list[1] and list[1]:sub(-1), ";")
+		-- Learning one deletes its row in place; no rewrite.
+		local creates = createCalls
+		mine.recipes[900005] = true
+		Shopping.SyncRecipes()
+		check("recipe list: learned one removed", #lists[RL], 1)
+		check("recipe list: removed in place", createCalls, creates)
+		Shopping.SyncRecipes()
+		check("recipe list: unchanged, untouched", createCalls, creates)
+		-- A skill-up that makes a new one learnable: rewritten in order (900002 binds, so add one that doesn't).
+		ns.RecipeData[900006] = { p = myProfession, s = 30, i = 4006, w = { { k = "v", n = { 222 } } } }
+		names[4006] = "Pattern: Middle Thing"
+		Shopping.SyncRecipes()
+		check("recipe list: new one in skill order", lists[RL][1]:find("Middle Thing", 1, true) ~= nil, true)
+		check("recipe list: rewritten once", createCalls, creates + 1)
+		mine.recipes[900005] = nil
+		ns.RecipeData[900005], ns.RecipeData[900006] = nil, nil
+		names[4001], names[4005], names[4006] = nil, nil, nil
+		lists[RL] = nil
+	end
+
 	-- Skill goes up: the recipe that just became learnable lights it again, and says "new" once looked at.
 	mine.skill[myProfession].level = 300
 	ns.db.ui.profitMode = "profit"
