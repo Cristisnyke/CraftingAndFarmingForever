@@ -194,6 +194,8 @@ Guild bank, warband bank, mail on other characters and your own auctions don't c
 - **Kill for drops**: which creatures drop it.
 - **Disenchant**, and **Other sources** for anything else.
 
+When your character has Mining, Herbalism, Skinning or Fishing, a material it can gather is listed as itself: a skinner is sent to skin Medium Leather, not to skin Light Leather and turn it into Medium Leather. The same goes for ore and herbs. Without that profession, Farm It still lists the lower tier to convert when you know a recipe for it.
+
 Your current zone comes first. Hover a row to see everything known about where the item comes from. Gathering comes first; errands (alts, bank, auction house, mailbox, vendor) after it, then smelting. The bar counts down as you gather and moves on to the errands, smelting and crafting when everything is gathered. While farming, the bar has a **Buy It** button that switches back to buying and reopens the queue; the Queue tab's **Buy It** does the same. The Auctionator list is the same in both modes.
 
 ## Restock

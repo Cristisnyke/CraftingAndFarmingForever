@@ -3573,6 +3573,27 @@ do
 	GetCursorInfo, ClearCursor = nil, nil
 end
 
+-- Farm It knows the gathering professions of the character you're on (GitHub #9): read from the client, kept per
+-- character, and a change replans.
+do
+	local lines = { 393, 186 } -- Skinning, Mining
+	GetProfessions = function() return 1, 2 end
+	GetProfessionInfo = function(index) return "p", nil, 1, 75, 0, 0, lines[index] end
+	Fire("SKILL_LINES_CHANGED")
+	RunTimers()
+	check("gathering: skinning read", ns.Recipes.CanGather("skin"), true)
+	check("gathering: mining read", ns.Recipes.CanGather("mine"), true)
+	check("gathering: no herbalism", ns.Recipes.CanGather("herb"), false)
+	check("gathering: Medium Leather is skinned", ns.Recipes.GatherKind(2319), "skin")
+	lines = { 182 }
+	GetProfessions = function() return 1 end
+	Fire("SKILL_LINES_CHANGED")
+	RunTimers()
+	check("gathering: dropped skinning", ns.Recipes.CanGather("skin"), false)
+	check("gathering: took herbalism", ns.Recipes.CanGather("herb"), true)
+	GetProfessions, GetProfessionInfo = nil, nil
+end
+
 -- The vendor step done at a merchant: the Next step bar's button buys what the plan gets from vendors, rounded up to
 -- what one purchase gives, whatever step the bar is on.
 do

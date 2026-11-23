@@ -1259,6 +1259,45 @@ function Recipes.IsCraftingProfession(professionID)
 	return professionID ~= nil and not GATHERING[professionID]
 end
 
+-- Farm It's gathering kinds (Sources.lua's k) by profession skill line.
+Recipes.GATHER_KINDS = { [186] = "mine", [182] = "herb", [393] = "skin", [356] = "fish" }
+
+-- The gathering professions the logged-in character has, as char.gathering = { mine = true, ... }. Herbalism and
+-- Skinning have no recipes, so they can't be told from char.recipes. Left nil when the client can't say.
+function Recipes.ReadGathering()
+	if not GetProfessions or not GetProfessionInfo then return end
+	local char = ns.CharRecord()
+	if not char then return end
+	local found = {}
+	for _, index in pairs({ GetProfessions() }) do
+		local line = select(7, GetProfessionInfo(index))
+		local kind = line and Recipes.GATHER_KINDS[line]
+		if kind then found[kind] = true end
+	end
+	local changed = char.gathering == nil
+	for _, kind in pairs(Recipes.GATHER_KINDS) do
+		if not changed and (char.gathering[kind] or false) ~= (found[kind] or false) then changed = true end
+	end
+	char.gathering = found
+	if changed and ns.RequestPlan then ns.RequestPlan() end
+end
+
+-- Whether the logged-in character can gather this kind (mine, herb, skin, fish): true / false, nil = not known yet.
+function Recipes.CanGather(kind)
+	local char = ns.CharKey() and ns.db.chars[ns.CharKey()]
+	if not char or not char.gathering then return nil end
+	return char.gathering[kind] == true
+end
+
+-- Farm It's gathering kind for an item, when it's mined, picked, skinned or fished.
+function Recipes.GatherKind(itemID)
+	local source = ns.SourceData and ns.SourceData[itemID]
+	return source and source.k or nil
+end
+
+ns.WhenDataReady(function() Recipes.ReadGathering() end)
+ns.On("SKILL_LINES_CHANGED", function() ns.Debounce("gathering", 0.5, Recipes.ReadGathering) end)
+
 -- True when the character knows at least one recipe filed under the profession.
 function Recipes.CharHasProfession(charKey, professionID)
 	local char = charKey and ns.db.chars[charKey]

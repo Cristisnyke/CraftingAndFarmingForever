@@ -1570,7 +1570,18 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 		return nil
 	end
 
+	-- Gathered as it is (Medium Leather skinned, Iron Ore mined, Kingsblood picked) by the character farming: better
+	-- than gathering a lower tier to turn into it. False when it isn't known whether you can (fall back as before).
+	local function GatherDirectly(itemID)
+		local kind = ctx.gatherKind and ctx.gatherKind(itemID)
+		return kind ~= nil and ctx.canGather ~= nil and ctx.canGather(kind) == true
+	end
+
 	local function AcquireByFarming(itemID, count, char)
+		if GatherDirectly(itemID) then
+			plan.farm[itemID] = (plan.farm[itemID] or 0) + count
+			return
+		end
 		local recipeID = FarmRecipe(itemID, char)
 		if recipeID then
 			local yield = MinimumYield(ctx.recipes[recipeID])

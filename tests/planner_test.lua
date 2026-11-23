@@ -129,6 +129,45 @@ do
 	check("farm: nothing to gather", next(farm.farm), nil)
 end
 
+-- Farm It gathers a material itself when the character farming has the gathering profession for it, instead of a
+-- lower tier to turn into it (GitHub #9: Medium Leather skinned, not Light Leather converted). Same for mining and
+-- herbalism. Without the profession, or not known yet, the conversion stays.
+do
+	local LIGHT, MEDIUM, ARMOR, COPPER, TIN, HERB_LOW, HERB_HIGH, POTION = 41, 42, 43, 44, 45, 46, 47, 48
+	local recipes = {
+		[410] = { o = MEDIUM, qmin = 1, qmax = 1, r = { { 4, LIGHT } } },
+		[411] = { o = ARMOR, qmin = 1, qmax = 1, r = { { 2, MEDIUM } } },
+		[420] = { o = TIN, qmin = 1, qmax = 1, r = { { 3, COPPER } } }, -- a made-up ore conversion
+		[421] = { o = ARMOR, qmin = 1, qmax = 1, r = { { 2, TIN } } },
+		[430] = { o = HERB_HIGH, qmin = 1, qmax = 1, r = { { 2, HERB_LOW } } },
+		[431] = { o = POTION, qmin = 1, qmax = 1, r = { { 1, HERB_HIGH } } },
+	}
+	local kinds = { [LIGHT] = "skin", [MEDIUM] = "skin", [COPPER] = "mine", [TIN] = "mine", [HERB_LOW] = "herb", [HERB_HIGH] = "herb" }
+	local function Farm(recipeID, can)
+		local ctx = Context({ recipes = recipes, known = { [MEDIUM] = { 410 }, [TIN] = { 420 }, [HERB_HIGH] = { 430 } },
+			ah = {} })
+		ctx.gatherKind = function(id) return kinds[id] end
+		ctx.canGather = function(kind) if can == nil then return nil end return can[kind] == true end
+		return Planner.BuildPlan(ctx, { { recipeID = recipeID, qty = 1 } }, true)
+	end
+	local skinner = Farm(411, { skin = true })
+	check("gather direct: skinner skins Medium Leather", skinner.farm[MEDIUM], 2)
+	check("gather direct: no Light Leather", skinner.farm[LIGHT], nil)
+	check("gather direct: no conversion craft", #skinner.crafts, 1)
+	local noSkinning = Farm(411, { mine = true })
+	check("gather direct: no skinning, converts", noSkinning.farm[LIGHT], 8)
+	check("gather direct: no skinning, no Medium", noSkinning.farm[MEDIUM], nil)
+	local unknown = Farm(411, nil)
+	check("gather direct: not known yet, converts as before", unknown.farm[LIGHT], 8)
+	local miner = Farm(421, { mine = true })
+	check("gather direct: miner mines the higher ore", miner.farm[TIN], 2)
+	check("gather direct: miner, no lower ore", miner.farm[COPPER], nil)
+	local herbalist = Farm(431, { herb = true })
+	check("gather direct: herbalist picks the herb itself", herbalist.farm[HERB_HIGH], 1)
+	check("gather direct: herbalist, no lower herb", herbalist.farm[HERB_LOW], nil)
+	check("gather direct: other professions don't count", Farm(431, { skin = true }).farm[HERB_LOW], 2)
+end
+
 -- Plan: empty stock. 2 shirts need 6 bolts (craft) = 12 cloth (buy) + 2 thread (vendor); sub-craft comes first.
 local plan = Planner.BuildPlan(Context(), { { recipeID = 300, qty = 2, char = "me" } })
 check("plan craft order first", plan.crafts[1].recipeID, 200)

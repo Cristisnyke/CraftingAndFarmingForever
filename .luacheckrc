@@ -12,7 +12,7 @@ read_globals = {
 	"ATTACHMENTS_MAX_SEND", "ClearSendMail", "ClickSendMailItemButton", "GetSendMailItem", "GetSendMailPrice", "MailFrame",
 	"MailFrameTab_OnClick", "SendMail", "SendMailFrame", "RegionalUniqueNamesEnabled", "Constants",
 	"BuyMerchantItem", "C_MerchantFrame", "ERR_BAG_FULL", "ERR_INV_FULL", "ERR_NOT_ENOUGH_MONEY", "GetMerchantItemID",
-	"GetMerchantItemInfo", "GetMerchantItemLink", "GetMerchantItemMaxStack", "GetMerchantNumItems", "MerchantFrame",
+	"GetMerchantItemInfo", "GetMerchantItemLink", "GetMerchantItemMaxStack", "GetMerchantNumItems", "GetProfessions", "GetProfessionInfo", "MerchantFrame",
 	"ATTACHMENTS_MAX_RECEIVE", "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT",
 	"AUCTION_SOLD_MAIL_SUBJECT", "AuctionHouseFrame", "Auctionator", "CANCEL", "C_AddOns", "C_AuctionHouse",
 	"C_Container", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
