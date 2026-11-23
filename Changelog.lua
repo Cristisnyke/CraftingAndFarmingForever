@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.29.0", lines = {
+		"- Restock uses one camp station at most. A placed camp station stands only 15 minutes, and placing one puts every station on a 1 hour cooldown. Restock now picks the one station whose crafts earn the most once the station itself (and a campfire kit) is paid for, and leaves out items needing another one (\"0/4\" in the Craft column; hover it for why, e.g. \"only one camp station an hour, and a Master Forge pays more\"). It queues only as many station crafts as fit its 15 minutes (\"12/20\"), and none while the cooldown runs.",
+		"- Camp crafts come last, back to back. The to-do list does every other craft first, sub-crafts for the station's crafts included, then has a step of its own to place the station and craft beside it. That step says how many crafts fit the 15 minutes (or the minutes your placed station has left), how long the cooldown still runs, and warns when your queue needs two different stations.",
+	} },
 	{ version = "1.28.0", lines = {
 		"- Fix: bank alt mode mailed campfire kits to the bank alt. A recipe you know makes them, so they counted as crafts to sell. Campfire kits and camp stations now stay with the character who has them. Thanks to felo747474 for the report.",
 		"- Skill up tooltips show both resale prices. Hover a recipe to see what a vendor pays and what it sells for on the auction house after the cut. The one that isn't counted is grey and says \"(not counted)\": tick Selling on the AH to count the auction house price when it's more. Thanks to the player on CurseForge who asked.",
