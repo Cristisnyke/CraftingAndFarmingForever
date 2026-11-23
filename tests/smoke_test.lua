@@ -4049,6 +4049,8 @@ do
 	C_TradeSkillUI.GetRecipeRequirements = realReq
 	check("station items by name", ns.Recipes.StationItems("Fermenter")[1], 279970)
 	check("no camp anvil", #ns.Recipes.StationItems("Anvil"), 0)
+	check("iron oven is a station", ns.Recipes.StationItems("Iron Oven")[1], 279982)
+	check("anarchist's workbench is a station", ns.Recipes.StationItems("Anarchist's Workbench")[1], 279989)
 	check("campfire kits", ns.Recipes.CampfireItems()[1], 279981)
 
 	table.insert(ns.db.queue, { recipeID = 10, qty = 3, char = ns.CharKey() })

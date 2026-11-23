@@ -803,7 +803,7 @@ end
 
 -- Camp stations (Forever's camping): a Fermenter, a Loom and the like are items you place at a campfire, used up when
 -- placed, and some recipes can only be crafted beside one. Only those found nowhere in the world are listed: the
--- camp Anvil isn't, as every town has an anvil. Item IDs from Wowhead Forever (2026-11-22). Placing one needs the
+-- camp Anvil isn't, as every town has an anvil. Item IDs from Wowhead Forever (2026-11-22; Iron Oven and Anarchist's Workbench 2026-11-23). Placing one needs the
 -- profession at the item's skill and a campfire nearby; every camp feature shares a 1 hour cooldown.
 ns.CAMP = {
 	stations = {
@@ -811,7 +811,7 @@ ns.CAMP = {
 		[279941] = "Tanning Rack", [279945] = "Sewing Machine", [279985] = "Arcane Salvager",
 		[279987] = "Arcane Forge", [279955] = "Master Forge", [279952] = "Molten Foundry", [279964] = "Greenhouse",
 		[279965] = "Fishing Rack", [279940] = "Toxin Study", [279969] = "Field Guide", [279949] = "Repair Bot",
-		[279957] = "Cookie's Feast",
+		[279957] = "Cookie's Feast", [279982] = "Iron Oven", [279989] = "Anarchist's Workbench",
 	},
 	-- Basic, Journeyman and Expert Campfire Kit: any of them takes a station.
 	fires = { 279981, 279961, 279974 },

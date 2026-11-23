@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Iron Oven and Anarchist's Workbench count as camp stations.** Cooking recipes that need an Iron Oven and engineering recipes that need an Anarchist's Workbench now get the same treatment as the Fermenter: the station's cost in the plan, its crafts done back to back within its 15 minutes, and Restock making them in batches. Open the profession once so the add-on learns which recipes need one.
+
 ## 1.30.0
 
 - **Camp station crafts restock in batches.** A Fermenter costs the same whether you make 1 dye or 30, so restocking 1 dye for 10s profit with a 12s Fermenter made no sense. Items that need a camp station are now left alone while you have their goal, and once you're under it, Restock makes 3 times the goal in one go (hover the row to see it). What isn't posted waits in your bags. Change the 3 with **Camp batch** in Options (1 turns it off).
