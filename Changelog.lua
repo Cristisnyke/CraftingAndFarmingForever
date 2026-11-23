@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.33.0", lines = {
+		"- Recipes to learn, as a shopping list. Each of your professions gets its own Auctionator shopping list, such as Tailoring Shopping List, with the recipe items (patterns, plans, formulas) the character you're playing can learn right now, lowest skill first. Recipes you only get from a trainer aren't on it. It updates when you learn one or your skill goes up. Thanks to user_cggami8p66nyruw7 for the idea.",
+	} },
 	{ version = "1.32.0", lines = {
 		"- Farm It gathers what you can gather. A skinner is now sent to skin Medium Leather, not to skin Light Leather and turn it into Medium Leather. The same goes for ore you can mine and herbs you can pick. Without the gathering profession, the conversion is still listed. Thanks to calmcacil for the report.",
 	} },

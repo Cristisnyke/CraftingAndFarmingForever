@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.33.0
 
 - **Recipes to learn, as a shopping list.** Each of your professions gets its own Auctionator shopping list, such as **Tailoring Shopping List**, with the recipe items (patterns, plans, formulas) the character you're playing can learn right now, lowest skill first. Recipes you only get from a trainer aren't on it. It updates when you learn one or your skill goes up. Thanks to user_cggami8p66nyruw7 for the idea.
 
