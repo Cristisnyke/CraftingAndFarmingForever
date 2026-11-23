@@ -525,6 +525,22 @@ do
 	check("committed: stays listed when it earns too little", row and row.queued, 5)
 	check("committed: but nothing new is asked for", row.crafts, 0)
 	check("not committed, earns too little: not listed", Rows({ minProfit = 100000, committed = function() return 0, 0 end }), nil)
+
+	-- Camp station crafts come in batches: nothing while stock is at the goal, then up to goal x batch.
+	restockCtx.recipes[3].f = { "Fermenter" }
+	local none = function() return 0, 0 end
+	row = Rows({ committed = none, stationBatch = 3 })
+	check("batch: under the goal, crafts up to goal x 3", row.crafts, 25)
+	check("batch: batch goal noted", row.batch, 30)
+	row = Rows({ committed = none, stationBatch = 3, stock = function() return 4, 6 end })
+	check("batch: at the goal, nothing", row.crafts, 0)
+	check("batch: 1 = off", Rows({ committed = none, stationBatch = 1 }).crafts, 5)
+	check("batch: off, no batch goal", Rows({ committed = none, stationBatch = 1 }).batch, nil)
+	row = Rows({ stationBatch = 3 })
+	check("batch: a queued batch isn't trimmed", row.trim, nil)
+	check("batch: queued batch topped up to the batch goal", row.crafts, 20)
+	restockCtx.recipes[3].f = nil
+	check("batch: no station, no batch", Rows({ committed = none, stationBatch = 3 }).batch, nil)
 end
 
 -- Fitting a restock to your gold: ore is 10 each. A (net 400 for 10 of ore) beats B (net 100 for 50 of ore).

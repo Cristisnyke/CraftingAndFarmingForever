@@ -494,6 +494,17 @@ function Restock.KeepGold()
 	return ns.db.restock.keepCopper or ns.Planner.RESTOCK_KEEP
 end
 
+-- Crafts needing a camp station are made in batches: up to the goal times this once stock falls under the goal.
+Restock.BATCH_DEFAULT, Restock.BATCH_MAX = 3, 20
+function Restock.StationBatch()
+	return ns.db.restock.stationBatch or Restock.BATCH_DEFAULT
+end
+
+function Restock.SetStationBatch(times)
+	ns.db.restock.stationBatch = math.max(1, math.min(Restock.BATCH_MAX, math.floor(times)))
+	budgetCache = nil
+end
+
 function Restock.SetKeepGold(copper)
 	ns.db.restock.keepCopper = math.max(0, math.min(Restock.KEEP_MAX, math.floor(copper)))
 	budgetCache = nil
@@ -728,6 +739,7 @@ function Restock.Rows()
 		committed = function(itemID) return units[itemID] or 0, crafts[itemID] or 0 end,
 		fullGoal = Restock.FullGoal,
 		minProfit = ns.db.restock.minProfitSilver * 100,
+		stationBatch = Restock.StationBatch(),
 	})
 	-- Costed for all characters at once: an alt's crafts need buying for too.
 	local all = {}

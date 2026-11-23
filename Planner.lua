@@ -764,6 +764,9 @@ end
 --   committed(itemID)  -> units and crafts of an earlier restock still on the queue (optional)
 --   fullGoal(itemID)   -> the goal with no gold limit on it (optional; the goal when left out)
 --   minProfit          -> minimum profit per craft, in copper
+--   stationBatch       -> goal multiplier for crafts needing a camp station (optional; nil or 1 = none): such a row
+--                         asks for nothing while stock is at its goal; once under it, it crafts up to goal x this
+--                         (row.batch), so one placed station makes a batch worth its cost
 -- An earlier restock on the queue is committed: its materials may be bought already. So a row's crafts are only what
 -- the goal lacks beyond it (row.queued = the crafts already there), and its item stays listed even when a price
 -- moved and it no longer earns enough. It is only cut back (row.trim, in crafts) when the stock itself says so: more
@@ -791,12 +794,24 @@ function Planner.RestockRows(ctx, opts)
 					crafts = earns and Planner.RestockCrafts(goal, onAH or 0, owned, planned, yield) or 0,
 					yield = yield,
 				}
+				-- A camp station costs the same for 1 craft or 30: once stock falls under the goal, a station craft
+				-- is made up to the bigger batch goal, and the rest waits in the bags until it's posted.
+				local batch = (opts.stationBatch or 1) > 1 and Planner.StationKey(ctx.recipes[best.recipeID])
+					and math.ceil(goal * opts.stationBatch) or nil
+				if batch and batch > goal then
+					row.batch = batch
+					-- A restock already queued for it means a station anyway: that one is topped up to the batch too.
+					if earns and (row.crafts > 0 or queued > 0) then
+						row.crafts = Planner.RestockCrafts(batch, onAH or 0, owned, planned, yield)
+					end
+				end
 				-- Units held or queued already that will go on the AH: their deposits have to be paid too.
 				local wholeGoal = math.max(goal, opts.fullGoal and opts.fullGoal(itemID) or goal)
 				row.holds = math.max(0, math.min(owned + planned, wholeGoal - (onAH or 0)))
 				if queued > 0 then
 					row.queued = queued
 					local full = math.max(goal, opts.fullGoal and opts.fullGoal(itemID) or goal)
+					if row.batch then full = math.ceil(full * opts.stationBatch) end
 					local excess = (onAH or 0) + owned + planned - full
 					local trim = math.min(queued, math.floor(excess / yield))
 					if trim > 0 then row.trim = trim end

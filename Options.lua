@@ -518,7 +518,7 @@ function Options.Build(parent, top)
 	keep:SetMaxLetters(20)
 	local keepText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	keepText:SetPoint("LEFT", keep, "RIGHT", 6, 0)
-	keepText:SetText(MUTED .. "a restock never spends, like 1g 50s 20c|r")
+	keepText:SetText(MUTED .. "never spent, like 1g 50s|r")
 	local function SaveKeep(self)
 		local value = ns.Planner.ParseMoney(self:GetText())
 		if value and value ~= ns.Restock.KeepGold() then
@@ -547,6 +547,47 @@ function Options.Build(parent, top)
 		.. "usually costs more than the last scan said, because only the cheapest listing's price is known. "
 		.. "This is what's left for that, and for posting again when auctions expire.")
 	controls.keepGold = keep
+	-- Beside it, in the second column: how big a camp station's batch is.
+	local batchLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	batchLabel:SetPoint("TOPLEFT", LEFT + 384, -y - 5)
+	batchLabel:SetText("Camp batch")
+	local batch = ns.UI.SkinBox(CreateFrame("EditBox", nil, parent, "InputBoxTemplate"))
+	batch:SetSize(36, 20)
+	batch:SetPoint("TOPLEFT", LEFT + 450, -y)
+	batch:SetAutoFocus(false)
+	batch:SetNumeric(true)
+	batch:SetMaxLetters(2)
+	local batchText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	batchText:SetPoint("LEFT", batch, "RIGHT", 4, 0)
+	batchText:SetText(MUTED .. "x the goal|r")
+	local function SaveBatch(self)
+		local value = tonumber(self:GetText())
+		if value and value >= 1 and value ~= ns.Restock.StationBatch() then
+			ns.Restock.SetStationBatch(value)
+			ns.UI.Refresh("restock")
+		end
+	end
+	batch:SetScript("OnEnterPressed", function(self)
+		SaveBatch(self)
+		self:ClearFocus()
+		self:Sync()
+	end)
+	batch:SetScript("OnEscapePressed", function(self)
+		self:SetText(tostring(ns.Restock.StationBatch()))
+		self:ClearFocus()
+	end)
+	batch:SetScript("OnEditFocusLost", function(self)
+		SaveBatch(self)
+		self:SetText(tostring(ns.Restock.StationBatch()))
+	end)
+	batch.Sync = function(self)
+		if not self:HasFocus() then self:SetText(tostring(ns.Restock.StationBatch())) end
+	end
+	Tip(batch, "Camp batch", ("Crafts that need a camp station (dyes and oils at a Fermenter, say) cost a station "
+		.. "and a campfire kit however few you make. So the restock leaves them alone while you have their goal, and "
+		.. "once you're under it, makes the goal times this many in one go. What isn't posted waits in your bags. "
+		.. "Default %d; 1 = no batches. Press Enter to save."):format(ns.Restock.BATCH_DEFAULT))
+	controls.stationBatch = batch
 	y = y + 24 + 10
 
 	Heading(parent, "Advertising", y)
@@ -643,6 +684,7 @@ function Options.Build(parent, top)
 		controls.characters:Sync()
 		controls.smartLevel:Sync()
 		controls.keepGold:Sync()
+		controls.stationBatch:Sync()
 		controls.bankAltMode:Sync()
 		controls.bankAltName:Sync()
 		controls.priceCap:Sync()

@@ -1737,6 +1737,11 @@ local function RowOnEnter(row)
 		local smart = ns.Restock.SmartInfo(item.itemID)
 		GameTooltip:AddDoubleLine(ns.Restock.IsCustom(item.itemID) and "Goal (your own)"
 			or smart and "Goal (smart)" or "Goal (default)", tostring(item.goal), 1, 1, 1, 1, 1, 1)
+		if item.batch then
+			GameTooltip:AddLine(("Needs a camp station, so it's made in batches: once stock falls under %d, it's "
+				.. "crafted up to %d (%dx the goal, see Options), so one station pays for itself. What isn't posted "
+				.. "waits in your bags."):format(item.goal, item.batch, ns.Restock.StationBatch()), 0.45, 0.75, 1, true)
+		end
 		if item.queued then
 			GameTooltip:AddDoubleLine("Crafts already queued", tostring(item.queued), 0.45, 0.75, 1, 0.45, 0.75, 1)
 		end

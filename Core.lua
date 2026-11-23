@@ -88,7 +88,7 @@ end
 -- db.priceRound        = number of the latest full scan or scan of our shopping list
 -- db.depth[itemID]     = { at = time read, more = true when there are more, { price, units }, ... }: the listings a
 --                        search of that item showed, cheapest first, without your own (Depth.lua)
--- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (cautious to aggressive in %, nil = 50), keepCopper (what a restock leaves alone, nil = 1 gold), duration = 1 to 3 for posting,
+-- db.restock           = { stackGoal, singleGoal, minProfitSilver, smartLevel (cautious to aggressive in %, nil = 50), keepCopper (what a restock leaves alone, nil = 1 gold), stationBatch (camp station crafts restock to goal x this, nil = 3), duration = 1 to 3 for posting,
 --                          goals = { [itemID] = per-item goal },
 --                          cuts = { [recipeID] = { kept = crafts, at = time() } }: a queued restock cut at the AH (Queue.lua) }
 -- db.lastAuctionRefusal = { kind, text, at, code }, what the auction house last refused
