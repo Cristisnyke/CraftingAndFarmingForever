@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.30.0
 
 - **Camp station crafts restock in batches.** A Fermenter costs the same whether you make 1 dye or 30, so restocking 1 dye for 10s profit with a 12s Fermenter made no sense. Items that need a camp station are now left alone while you have their goal, and once you're under it, Restock makes 3 times the goal in one go (hover the row to see it). What isn't posted waits in your bags. Change the 3 with **Camp batch** in Options (1 turns it off).
 
