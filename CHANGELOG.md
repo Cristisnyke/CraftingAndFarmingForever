@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.31.0
 
 - **The Next step bar follows you.** Talk to a vendor that sells something your queue needs and the bar jumps straight to the **Buy from vendor** step, even if the auction house comes first. The same goes for the bank (bank steps), the mailbox (collecting, or mailing to your bank alt) and the auction house (the buying step). The bar says **Here: 3 of 5** while it does, and goes back to the normal order once that step is done or you walk away. Thanks to felo747474 for the idea.
 

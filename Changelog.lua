@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.31.0", lines = {
+		"- The Next step bar follows you. Talk to a vendor that sells something your queue needs and the bar jumps straight to the Buy from vendor step, even if the auction house comes first. The same goes for the bank (bank steps), the mailbox (collecting, or mailing to your bank alt) and the auction house (the buying step). The bar says Here: 3 of 5 while it does, and goes back to the normal order once that step is done or you walk away. Thanks to felo747474 for the idea.",
+	} },
 	{ version = "1.30.1", lines = {
 		"- Iron Oven and Anarchist's Workbench count as camp stations. Cooking recipes that need an Iron Oven and engineering recipes that need an Anarchist's Workbench now get the same treatment as the Fermenter: the station's cost in the plan, its crafts done back to back within its 15 minutes, and Restock making them in batches. Open the profession once so the add-on learns which recipes need one.",
 	} },
