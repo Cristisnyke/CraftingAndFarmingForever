@@ -241,6 +241,7 @@ local createCalls = 0
 local prices = { [1] = 10, [2] = 100, [4] = 1000, [5] = 500 }
 local listManager = {
 	GetIndexForName = function(_, name) return lists[name] and 1 or nil end,
+	Delete = function(_, name) lists[name] = nil end,
 	GetByName = function(_, name)
 		return {
 			InsertItem = function(_, s) table.insert(lists[name], s) end,
@@ -4521,8 +4522,10 @@ do
 	-- Recipes to learn list: recipe items this character can learn now, lowest skill first, in its own list.
 	do
 		local Shopping = ns.Shopping
-		local RL = ns.RECIPE_LIST_NAME
+		local RL = ns.Shopping.RecipeListName(ns.Recipes.ProfessionName(myProfession))
 		lists[RL] = nil
+		lists[ns.RECIPE_LIST_NAME] = { "old" }
+		ns.db.recipeShoppingLists = nil
 		ns.RecipeData[900005] = { p = myProfession, s = 20, i = 4005, w = { { k = "v", n = { 222 } } } }
 		names[4001], names[4005] = "Pattern: Bolt of Test", nil
 		Shopping.SyncRecipes()
@@ -4531,6 +4534,8 @@ do
 		names[4005] = "Pattern: Early Thing"
 		Shopping.SyncRecipes()
 		local list = lists[RL] or {}
+		check("recipe list: named after the profession", RL:match(" Shopping List$") ~= nil and RL ~= " Shopping List", true)
+		check("recipe list: first version's list deleted", lists[ns.RECIPE_LIST_NAME], nil)
 		-- 900003 has no recipe item (quest), 900002 needs more skill and binds, 10 is learned.
 		check("recipe list: learnable recipe items only", #list, 2)
 		check("recipe list: lowest skill first", list[1] and list[1]:find("Early Thing", 1, true) ~= nil, true)
@@ -4550,6 +4555,15 @@ do
 		Shopping.SyncRecipes()
 		check("recipe list: new one in skill order", lists[RL][1]:find("Middle Thing", 1, true) ~= nil, true)
 		check("recipe list: rewritten once", createCalls, creates + 1)
+		-- Another character without this profession: its list goes.
+		lists["Leatherworking Shopping List"] = { "x" }
+		ns.db.recipeShoppingLists["Leatherworking Shopping List"] = true
+		lists["My Own List"] = { "y" }
+		Shopping.SyncRecipes()
+		check("recipe list: stale profession list deleted", lists["Leatherworking Shopping List"], nil)
+		check("recipe list: player's own list kept", lists["My Own List"] ~= nil, true)
+		check("recipe list: this profession's kept", lists[RL] ~= nil, true)
+		lists["My Own List"] = nil
 		mine.recipes[900005] = nil
 		ns.RecipeData[900005], ns.RecipeData[900006] = nil, nil
 		names[4001], names[4005], names[4006] = nil, nil, nil

@@ -45,7 +45,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - Every recipe in the game you haven't learned yet, by the skill it needs, green when you can learn it now.
 - What each one would earn per craft, and how many crafts it takes to pay for the recipe at its auction house price: sort by it before you buy a recipe.
 - Hover one for where it comes from: trainer, vendor (with its price, tokens or Merchant's Favor, and reputation), quest, dungeon boss, drop, world drop or holiday, and whether you can buy it on the auction house.
-- An Auctionator shopping list of the recipe items you can learn right now, lowest skill first, ready to search on the Shopping tab.
+- An Auctionator shopping list per profession of the recipe items you can learn right now, lowest skill first, ready to search on the Shopping tab.
 - Hide bind-on-pickup crafts to see only recipes whose items you can sell, with what each craft sells for.
 - See which of your characters have learned it or can learn it, or switch to all characters to see every recipe an alt is still missing.
 
