@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.32.0
 
 - **Farm It gathers what you can gather.** A skinner is now sent to skin Medium Leather, not to skin Light Leather and turn it into Medium Leather. The same goes for ore you can mine and herbs you can pick. Without the gathering profession, the conversion is still listed. Thanks to calmcacil for the report.
 

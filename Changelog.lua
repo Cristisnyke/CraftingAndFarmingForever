@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.32.0", lines = {
+		"- Farm It gathers what you can gather. A skinner is now sent to skin Medium Leather, not to skin Light Leather and turn it into Medium Leather. The same goes for ore you can mine and herbs you can pick. Without the gathering profession, the conversion is still listed. Thanks to calmcacil for the report.",
+	} },
 	{ version = "1.31.0", lines = {
 		"- The Next step bar follows you. Talk to a vendor that sells something your queue needs and the bar jumps straight to the Buy from vendor step, even if the auction house comes first. The same goes for the bank (bank steps), the mailbox (collecting, or mailing to your bank alt) and the auction house (the buying step). The bar says Here: 3 of 5 while it does, and goes back to the normal order once that step is done or you walk away. Thanks to felo747474 for the idea.",
 	} },
