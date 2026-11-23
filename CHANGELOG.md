@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.30.1
 
 - **Iron Oven and Anarchist's Workbench count as camp stations.** Cooking recipes that need an Iron Oven and engineering recipes that need an Anarchist's Workbench now get the same treatment as the Fermenter: the station's cost in the plan, its crafts done back to back within its 15 minutes, and Restock making them in batches. Open the profession once so the add-on learns which recipes need one.
 
