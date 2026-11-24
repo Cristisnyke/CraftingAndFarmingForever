@@ -258,6 +258,129 @@ end
 
 -- Builds the controls on `parent`, starting `top` below its top edge. Returns the function that shows the saved
 -- values. Options.Controls(parent) hands the controls to the tests.
+-- The Craft alert button and its menu: a sound before a batch of crafts runs out. The pane has no room for its rows.
+local function AlertButton(parent, x, y)
+	local Alert = ns.Alert
+	local button = ns.UI.FlatButton(parent, "", 200, 22)
+	button:SetPoint("TOPLEFT", x, -y)
+	Tip(button, "Craft alert", "A sound a few seconds before the game stops crafting while you still have crafts "
+		.. "queued, so you can be in another window and come back in time to press Craft Next.")
+	local menu, update
+	local function Pick(buttons, current)
+		for key, choice in pairs(buttons) do
+			if key == current then
+				choice:SetText("|cffffffff" .. choice.label .. "|r")
+				choice:LockHighlight()
+			else
+				choice:SetText(choice.label)
+				choice:UnlockHighlight()
+			end
+		end
+	end
+	local function Row(list, y0, perRow, width, onPick)
+		local buttons = {}
+		for index, entry in ipairs(list) do
+			local choice = ns.UI.FlatButton(menu, entry.label, width, 20)
+			local column, row = (index - 1) % perRow, math.floor((index - 1) / perRow)
+			choice:SetPoint("TOPLEFT", LEFT + 64 + column * (width + 2), -(y0 + row * 22))
+			choice.label = entry.label
+			choice:SetScript("OnClick", function()
+				onPick(entry.key)
+				Alert.Play()
+				update()
+				button:Sync()
+			end)
+			buttons[entry.key] = choice
+		end
+		return buttons
+	end
+	local function Build()
+		menu = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+		menu:SetFrameStrata("DIALOG")
+		menu:SetSize(400, 262)
+		menu:SetPoint("TOPLEFT", button, "BOTTOMLEFT", -4, -2)
+		menu:EnableMouse(true)
+		ns.UI.ThemeBackdrop(menu, 0.97)
+		local title = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		title:SetPoint("TOPLEFT", 12, -10)
+		title:SetText("Craft alert")
+		local close = ns.UI.FlatButton(menu, "x", 20, 18)
+		close:SetPoint("TOPRIGHT", -6, -6)
+		close:SetScript("OnClick", function() menu:Hide() end)
+		local enabled = Check(menu, "Play a sound before crafting stops",
+			"While the game crafts a batch and you have more crafts queued after it, the sound plays this many "
+				.. "seconds before the batch ends. Nothing plays when the queue is done.", 32,
+			Alert.Enabled, Alert.SetEnabled)
+		enabled:SetHitRectInsets(0, -300, 0, 0)
+		Label(menu, "Sound", 62)
+		local sounds = Row(Alert.SOUNDS, 62, 3, 100, Alert.SetSound)
+		Label(menu, "Channel", 112)
+		local channels = Row(Alert.CHANNELS, 112, 5, 61, Alert.SetChannel)
+		Label(menu, "Warn", 142)
+		local lead = ns.UI.SkinBox(CreateFrame("EditBox", nil, menu, "InputBoxTemplate"))
+		lead:SetSize(30, 20)
+		lead:SetPoint("TOPLEFT", LEFT + 68, -142)
+		lead:SetAutoFocus(false)
+		lead:SetNumeric(true)
+		lead:SetMaxLetters(2)
+		local leadText = menu:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		leadText:SetPoint("LEFT", lead, "RIGHT", 6, 0)
+		leadText:SetText(("seconds before the batch ends (1 to %d)"):format(Alert.LEAD_MAX))
+		local function SaveLead(self)
+			local value = tonumber(self:GetText())
+			if value then Alert.SetLead(value) end
+			self:SetText(tostring(Alert.Lead()))
+		end
+		lead:SetScript("OnEnterPressed", function(self)
+			SaveLead(self)
+			self:ClearFocus()
+		end)
+		lead:SetScript("OnEscapePressed", function(self)
+			self:SetText(tostring(Alert.Lead()))
+			self:ClearFocus()
+		end)
+		lead:SetScript("OnEditFocusLost", SaveLead)
+		Tip(lead, "Warn seconds early", ("How long before the game stops crafting the sound plays. Default %d; "
+			.. "press Enter to save."):format(Alert.LEAD_DEFAULT))
+		local background = Check(menu, "Game sound while in another window",
+			"The game's own Sound in Background setting (System > Sound). Off, the game is silent while you're "
+				.. "alt-tabbed, and so is the alert.", 170, Alert.BackgroundSound, Alert.SetBackgroundSound)
+		background:SetHitRectInsets(0, -300, 0, 0)
+		local note = menu:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		note:SetPoint("TOPLEFT", LEFT + 4, -200)
+		note:SetPoint("RIGHT", menu, "RIGHT", -12, 0)
+		note:SetJustifyH("LEFT")
+		local test = ns.UI.FlatButton(menu, "Play", 60, 20)
+		test:SetPoint("BOTTOMRIGHT", -10, 10)
+		test:SetScript("OnClick", Alert.Play)
+		update = function()
+			enabled:Sync()
+			background:Sync()
+			if not lead:HasFocus() then lead:SetText(tostring(Alert.Lead())) end
+			Pick(sounds, Alert.Sound().key)
+			Pick(channels, Alert.Channel().key)
+			local warning = Alert.MutedReason()
+			if not warning and Alert.BackgroundSound() == false then
+				warning = "The game is silent in the background, so you won't hear the alert while alt-tabbed."
+			end
+			note:SetText(warning and ("|cffff9933" .. warning .. "|r") or (MUTED .. "Click a sound or channel to hear it.|r"))
+		end
+		menu:SetScript("OnShow", update)
+		parent:HookScript("OnHide", function() menu:Hide() end)
+		menu:Hide()
+	end
+	button:SetScript("OnClick", function(self)
+		if not menu then Build() end
+		menu:SetShown(not menu:IsShown())
+		self:Sync()
+	end)
+	button.Sync = function(self)
+		self:SetText(("Craft alert: %s  >"):format(Alert.Enabled() and Alert.Sound().label or "off"))
+		if menu and menu:IsShown() then update() end
+	end
+	return button
+end
+
 function Options.Build(parent, top)
 	local controls = {}
 	local y = top + 4
@@ -279,6 +402,9 @@ function Options.Build(parent, top)
 	controls.autoOpen:SetHitRectInsets(0, -340, 0, 0)
 	AddCheck("minimap", "Show the minimap button", "The button on the minimap that opens this window.",
 		ns.MinimapButton.Shown, ns.MinimapButton.SetShown)
+	controls.minimap:SetHitRectInsets(0, -200, 0, 0)
+	-- Beside it, in the second column.
+	controls.craftAlert = AlertButton(parent, LEFT + 380, y - 22)
 	AddCheck("nextStep", "Show the Next step bar",
 		"The small bar that shows what to do next while there's something in the queue. Without it, the Queue tab "
 			.. "is your list, also when farming.")
@@ -694,6 +820,7 @@ function Options.Build(parent, top)
 			end
 		end
 		controls.characters:Sync()
+		controls.craftAlert:Sync()
 		controls.smartLevel:Sync()
 		controls.keepGold:Sync()
 		controls.stationBatch:Sync()

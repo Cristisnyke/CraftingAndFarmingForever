@@ -936,6 +936,7 @@ function Queue.CraftNext()
 		ns.Say("chatWarnings", reason)
 		return
 	end
+	ns.Alert.BatchStarted(craft.recipeID, count)
 	C_TradeSkillUI.CraftRecipe(craft.recipeID, count)
 end
 
