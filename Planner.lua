@@ -772,15 +772,28 @@ end
 -- moved and it no longer earns enough. It is only cut back (row.trim, in crafts) when the stock itself says so: more
 -- on the AH, held and queued than the goal without its gold limit, as when expired auctions came back. Gold running
 -- low after shopping never cuts it.
+-- A recipe with a cooldown (ctx.cooldown: transmutes and the like) makes one craft per cooldown: a row of it asks for
+-- 1 at most (row.cooldownWanted = what the goal wanted), and none while the crafter has it on cooldown (row.cooldown =
+-- seconds left). Another recipe for the same item that's ready is picked first.
 function Planner.RestockRows(ctx, opts)
 	local rows = {}
+	local function Cooldown(recipeID)
+		if not ctx.cooldown then return 0, false end
+		return ctx.cooldown(ctx.crafter and ctx.crafter(recipeID) or ctx.me, recipeID)
+	end
 	for itemID, recipeIDs in pairs(ctx.known) do
 		if opts.isSellable(itemID) then
-			local best
+			local best, bestReady
 			for _, recipeID in ipairs(recipeIDs) do
 				local result = Planner.Profit(ctx, recipeID)
-				if result and result.net and (not best or result.net > best.net) then best = result end
+				if result and result.net then
+					if not best or result.net > best.net then best = result end
+					if Cooldown(recipeID) <= 0 and (not bestReady or result.net > bestReady.net) then
+						bestReady = result
+					end
+				end
 			end
+			best = bestReady or best
 			local goal = opts.goal(itemID)
 			local units, queued = 0, 0
 			if opts.committed then units, queued = opts.committed(itemID) end
@@ -803,6 +816,14 @@ function Planner.RestockRows(ctx, opts)
 					-- A restock already queued for it means a station anyway: that one is topped up to the batch too.
 					if earns and (row.crafts > 0 or queued > 0) then
 						row.crafts = Planner.RestockCrafts(batch, onAH or 0, owned, planned, yield)
+					end
+				end
+				local left, hasCooldown = Cooldown(best.recipeID)
+				if hasCooldown and row.crafts > 0 then
+					if left > 0 then
+						row.cooldown, row.cooldownWanted, row.crafts = left, row.crafts, 0
+					elseif row.crafts > 1 then
+						row.cooldownWanted, row.crafts = row.crafts, 1
 					end
 				end
 				-- Units held or queued already that will go on the AH: their deposits have to be paid too.
@@ -1321,6 +1342,8 @@ function Planner.BuildPlan(ctx, queue, farming, wanted)
 	local function Usable(recipeID, char)
 		local recipe = ctx.recipes[recipeID]
 		if not recipe or recipe.x or active[recipeID] then return false end
+		-- A recipe on cooldown (a transmute) can't make the material now: buy it instead.
+		if ctx.cooldown and char and ctx.cooldown(char, recipeID) > 0 then return false end
 		return not (ctx.knows and char) or ctx.knows(char, recipeID)
 	end
 

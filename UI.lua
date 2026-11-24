@@ -1785,6 +1785,15 @@ local function RowOnEnter(row)
 			GameTooltip:AddLine("Queued restocks stay as they are while you shop and craft, whatever your gold "
 				.. "and the prices do meanwhile.", 0.6, 0.6, 0.6, true)
 		end
+		if item.cooldownWanted then
+			local left = item.cooldown or 0
+			GameTooltip:AddLine(left > 0
+				and ("On cooldown for %s: ready in %dh %02dm. Restock asks for it again then, one craft per "
+					.. "cooldown."):format(ns.CharLabel(ns.Recipes.Crafter(item.recipeID)), math.floor(left / 3600),
+					math.floor(left / 60) % 60)
+				or ("Has a cooldown: one craft now, the rest (%d wanted) after it."):format(item.cooldownWanted),
+				1, 0.6, 0.2, true)
+		end
 		if item.wanted then
 			GameTooltip:AddLine(item.crafts > 0
 				and ("Your gold covers %d of them: other items earn more for their materials."):format(item.crafts)
@@ -2841,11 +2850,15 @@ local function SetRow(row, data)
 		row.colHave:SetText(tostring(item.owned))
 		if item.goal == 0 then
 			row.colCraft:SetText(smart and smart.paused and Color("ffffb040", "paused") or Color(COLOR_MUTED, "skip"))
-		elseif item.wanted or item.dear or item.camp then
-			-- Cut to what your gold covers, to what's still worth making at what the materials really cost, or to
-			-- the one camp station an hour and its window: crafts of wanted.
+		elseif item.cooldown then
+			-- The recipe is on cooldown for its crafter (a transmute).
+			row.colCraft:SetText(Color("ffffb040", "cooldown"))
+		elseif item.wanted or item.dear or item.camp or item.cooldownWanted then
+			-- Cut to what your gold covers, to what's still worth making at what the materials really cost, to
+			-- the one camp station an hour and its window, or to one craft per cooldown: crafts of wanted.
 			row.colCraft:SetText(Color(item.crafts > 0 and "ffffb040" or COLOR_LOSS, tostring(item.crafts))
-				.. Color(COLOR_MUTED, "/" .. (item.dear or (item.camp and item.camp.wanted) or item.wanted)))
+				.. Color(COLOR_MUTED, "/" .. (item.dear or (item.camp and item.camp.wanted) or item.wanted
+				or item.cooldownWanted)))
 		elseif item.trim then
 			-- More queued than the stock still needs.
 			row.colCraft:SetText(Color(COLOR_LOSS, "-" .. item.trim))

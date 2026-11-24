@@ -18,7 +18,7 @@ read_globals = {
 	"C_Container", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
 	"ChatFrame1", "ClearCursor", "ChatFrameUtil", "ChatFrame_OpenChat", "CreateColor", "CreateFrame", "Enum", "GameTooltip",
 	"GameTooltip_Hide", "GetCVarBool", "GetCurrentKeyBoardFocus", "GetCursorInfo", "GetChannelList", "GetCursorPosition", "GetInboxHeaderInfo",
-	"GetInboxInvoiceInfo", "GetInboxItem", "GetInboxNumItems", "GetMoney", "GetRealmName", "GetSpellInfo",
+	"GetInboxInvoiceInfo", "GetInboxItem", "GetInboxNumItems", "GetMoney", "GetRealmName", "GetSpellInfo", "GetSpellBaseCooldown",
 	"GetSpellTexture", "GetTime", "HideUIPanel", "InCombatLockdown", "IsControlKeyDown", "IsInGuild", "IsInInstance",
 	"InterfaceOptions_AddCategory", "IsShiftKeyDown", "ItemLocation", "LibStub", "Minimap", "NO", "ProfessionsFrame", "Settings", "SettingsPanel", "StaticPopup_Hide",
 	"StaticPopup_Show", "TRADE", "UIParent", "UnitCastingInfo", "UnitClass", "UnitGUID", "UnitName", "YES",

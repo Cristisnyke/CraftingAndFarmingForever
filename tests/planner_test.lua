@@ -532,6 +532,54 @@ check("restock stocked row last", restockRows[2].itemID, SHIRT)
 check("restock stocked needs none", restockRows[2].crafts, 0)
 check("restock best recipe", restockRows[2].recipeID, 1)
 
+-- Recipes with a cooldown (transmutes): one craft per cooldown, none while it runs, a ready recipe picked first.
+do
+	local cooling = {}
+	local ctx = Context({
+		recipes = restockCtx.recipes, known = restockCtx.known,
+		ah = { [ORE] = 10, [SHIRT] = 1000, [BAR] = 500, [BOLT] = 5, [GEM] = 2000, [CLOTH] = 12 },
+	})
+	ctx.cooldown = function(_, recipeID)
+		local entry = cooling[recipeID]
+		if not entry then return 0, false end
+		return entry, true
+	end
+	local function Row(itemID)
+		for _, row in ipairs(Planner.RestockRows(ctx, {
+			isSellable = function(id) return id ~= GEM end,
+			goal = function(id) return id == BAR and 10 or 3 end,
+			stock = function() return 0, 0 end,
+			queued = function() return 0 end,
+			minProfit = 100,
+		})) do
+			if row.itemID == itemID then return row end
+		end
+	end
+	check("cooldown: none, all crafts", Row(BAR).crafts, 10)
+	cooling[3] = 0
+	local row = Row(BAR)
+	check("cooldown: ready, one craft", row.crafts, 1)
+	check("cooldown: ready, says what the goal wanted", row.cooldownWanted, 10)
+	check("cooldown: ready, not on cooldown", row.cooldown, nil)
+	cooling[3] = 3600
+	row = Row(BAR)
+	check("cooldown: running, still listed", row ~= nil, true)
+	check("cooldown: running, no crafts", row and row.crafts, 0)
+	check("cooldown: running, seconds left", row and row.cooldown, 3600)
+	cooling[1] = 600
+	row = Row(SHIRT)
+	check("cooldown: the ready recipe is picked", row.recipeID, 2)
+	check("cooldown: and asks for all", row.crafts, 3)
+
+	-- A material whose recipe is on cooldown is bought, not crafted.
+	local planCtx = Context()
+	planCtx.cooldown = function(char, recipeID) return (char == "me" and recipeID == 200) and 60 or 0, recipeID == 200 end
+	local plan = Planner.BuildPlan(planCtx, { { recipeID = 300, qty = 1 } })
+	check("cooldown: sub-craft on cooldown bought", plan.buy[BOLT], 3)
+	plan = Planner.BuildPlan(Context(), { { recipeID = 300, qty = 1 } })
+	check("cooldown: sub-craft without one crafted", plan.buy[BOLT], nil)
+end
+
 -- A restock already on the queue is committed: only what's still missing is asked for, it stays listed when it no
 -- longer earns enough, and it's only cut back when the stock passes the goal without its gold limit.
 do

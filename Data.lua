@@ -927,6 +927,52 @@ local function CampItemBySpell(spellID)
 	return nil
 end
 
+-- Recipe cooldowns (transmutes and the like), per character: char.cooldowns[recipeID] = { r = ready at (time()), l =
+-- full length in seconds when known }. An entry means the recipe has a cooldown at all. Read from the client at each
+-- profession scan and just after the recipe is cast.
+local function ReadCooldown(char, recipeID)
+	local read = C_TradeSkillUI and C_TradeSkillUI.GetRecipeCooldown
+	if not read then return false end
+	local ok, left, _, charges, maxCharges = pcall(read, recipeID)
+	if not ok then return false end
+	local base = GetSpellBaseCooldown and select(2, pcall(GetSpellBaseCooldown, recipeID))
+	local length = type(base) == "number" and base > 0 and base / 1000 or nil
+	left = type(left) == "number" and left > 0 and left or 0
+	-- With charges, one left means it can be cast now.
+	if (maxCharges or 0) > 0 and (charges or 0) > 0 then left = 0 end
+	local old = char.cooldowns and char.cooldowns[recipeID]
+	if left <= 0 and not length and not old then return false end
+	char.cooldowns = char.cooldowns or {}
+	local ready = left > 0 and math.floor(time() + left) or 0
+	local entry = { r = ready, l = length or (old and old.l) }
+	if old and old.r == entry.r and old.l == entry.l then return false end
+	char.cooldowns[recipeID] = entry
+	return true
+end
+
+-- Seconds until charKey can cast the recipe again (0 = ready) and whether it has a cooldown at all.
+function Recipes.Cooldown(charKey, recipeID)
+	local char = charKey and ns.db.chars[charKey]
+	local entry = char and char.cooldowns and char.cooldowns[recipeID]
+	if not entry then return 0, false end
+	return math.max(0, (entry.r or 0) - time()), true
+end
+
+-- Just cast: read the cooldown it started (the length learned earlier if the client says nothing yet).
+local function NoteCooldownCast(recipeID)
+	local char = ns.CharRecord()
+	if not (char and ns.db.recipes[recipeID]) then return end
+	C_Timer.After(0.5, function()
+		local changed = ReadCooldown(char, recipeID)
+		local now = char.cooldowns and char.cooldowns[recipeID]
+		if now and now.r <= time() and now.l then
+			now.r = math.floor(time() + now.l)
+			changed = true
+		end
+		if changed and ns.RequestPlan then ns.RequestPlan() end
+	end)
+end
+
 ns.On("UNIT_SPELLCAST_SENT", function(unit)
 	if unit ~= "player" or not ns.db then return end
 	campCounts = {}
@@ -936,6 +982,7 @@ end)
 ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 	if unit ~= "player" or not ns.db then return end
 	if type(spellID) == "number" and not (issecretvalue and issecretvalue(spellID)) then
+		NoteCooldownCast(spellID)
 		local itemID = CampItemBySpell(spellID)
 		if itemID then
 			campCounts = nil
@@ -1138,7 +1185,7 @@ local function ScanOpenProfession()
 
 	-- Each recipe's colour for this character right now, for levelling. It changes with every skill point.
 	char.skillUps = char.skillUps or {}
-	local skillChanged = false
+	local skillChanged, cooldownChanged = false, false
 	for recipeID, info in pairs(learned) do
 		local old = char.skillUps[recipeID]
 		local difficulty, skillUps = info.relativeDifficulty, info.numSkillUps
@@ -1146,6 +1193,7 @@ local function ScanOpenProfession()
 			char.skillUps[recipeID] = { d = difficulty, n = skillUps }
 			skillChanged = true
 		end
+		if ReadCooldown(char, recipeID) then cooldownChanged = true end
 		if not readThisSession[recipeID] then
 			if Recipes.Read(recipeID, info, baseKey, baseName) then
 				readThisSession[recipeID] = true
@@ -1160,6 +1208,10 @@ local function ScanOpenProfession()
 			char.skill[baseKey] = { level = base.skillLevel, max = base.maxSkillLevel }
 			skillChanged = true
 		end
+	end
+	if cooldownChanged then
+		if ns.Restock and ns.Restock.ForgetSmart then ns.Restock.ForgetSmart() end
+		if ns.RequestPlan then ns.RequestPlan() end
 	end
 	if skillChanged and ns.UI then
 		ns.UI.Refresh("profit")

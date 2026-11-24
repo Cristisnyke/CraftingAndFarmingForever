@@ -53,6 +53,7 @@ local function NewContext()
 		-- The plan is for the logged-in character: other characters' queued crafts are theirs to do.
 		me = ns.CharKey(),
 		knows = Recipes.Knows,
+		cooldown = Recipes.Cooldown,
 		gatherKind = Recipes.GatherKind,
 		canGather = Recipes.CanGather,
 		charName = ns.CharName, -- full names, as Syndicator's alt stock names them
