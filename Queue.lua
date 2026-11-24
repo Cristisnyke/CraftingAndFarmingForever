@@ -54,6 +54,7 @@ local function NewContext()
 		me = ns.CharKey(),
 		knows = Recipes.Knows,
 		cooldown = Recipes.Cooldown,
+		hasCooldown = Recipes.HasCooldown,
 		gatherKind = Recipes.GatherKind,
 		canGather = Recipes.CanGather,
 		charName = ns.CharName, -- full names, as Syndicator's alt stock names them

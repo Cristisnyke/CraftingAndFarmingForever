@@ -1035,6 +1035,12 @@ do
 	check("price at the limit kept", result.saleUnit, 260)
 	-- Without a cap (option off) the listing is used as it is.
 	check("no cap, no flag", Planner.Profit(Context(), 300).capped, nil)
+	-- A recipe with a cooldown (Mooncloth) isn't capped: its high price is real.
+	ctx.hasCooldown = function(recipeID) return recipeID == 300 end
+	local scarce = Planner.Profit(ctx, 300)
+	check("cooldown recipe not capped", scarce.capped, nil)
+	check("cooldown recipe keeps its price", scarce.saleUnit, 1000)
+	ctx.hasCooldown = nil
 	-- Yield counts: 2 bars from 2 ore (20) = 10 a bar; 50 is 500% -> 20 a bar.
 	local yieldCtx = Context({ recipes = { [100] = { o = BAR, qmin = 2, qmax = 2, r = { { 2, ORE } } } }, known = { [BAR] = { 100 } } })
 	yieldCtx.priceCap = { max = 4, normal = 2 }

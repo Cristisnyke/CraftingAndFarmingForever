@@ -978,6 +978,24 @@ function Recipes.Cooldown(charKey, recipeID)
 	return math.max(0, (entry.r or 0) - time()), true
 end
 
+-- Recipes with a cooldown that the client may not say so for until a character knows them (by spell ID, the same
+-- as vanilla's): Mooncloth and the transmutes.
+Recipes.COOLDOWN_RECIPES = {
+	[18560] = true, -- Mooncloth
+	[11479] = true, [11480] = true, [17187] = true, [17559] = true, [17560] = true, [17561] = true,
+	[17562] = true, [17563] = true, [17564] = true, [17565] = true, [17566] = true, [25146] = true,
+}
+
+-- Whether a recipe has a cooldown at all, for any character, learned or not.
+function Recipes.HasCooldown(recipeID)
+	if Recipes.COOLDOWN_RECIPES[recipeID] then return true end
+	for _, char in pairs(ns.db.chars or {}) do
+		if char.cooldowns and char.cooldowns[recipeID] then return true end
+	end
+	local ok, base = pcall(GetSpellBaseCooldown or error, recipeID)
+	return ok and type(base) == "number" and base > 0
+end
+
 -- Just cast: read the cooldown it started (the length learned earlier if the client says nothing yet).
 local function NoteCooldownCast(recipeID)
 	local char = ns.CharRecord()

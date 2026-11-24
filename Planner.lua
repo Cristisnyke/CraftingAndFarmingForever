@@ -9,6 +9,8 @@
 --   ahCut              = 0.05
 --   priceCap           = { max = 4, normal = 2 } (optional): a result listed above max x its material cost is
 --                        counted at normal x that cost and flagged capped, as one odd listing can't be trusted
+--   hasCooldown(recipeID) -> true when the recipe has a cooldown (optional): those results are scarce and really
+--                        sell far above their materials, so the price cap leaves them alone
 --   normalPrice(itemID)-> copper (optional): the item's usual price (Planner.NormalPrice). A result listed above it
 --                        counts at it, so a short price spike can't make a craft look good that will sell for less
 --   postage(recipeID, itemID) -> copper per unit made (optional): bank alt mode's postage, off the profit
@@ -238,7 +240,9 @@ function Planner.Profit(ctx, recipeID, crafts)
 	end
 	-- A lone listing at many times the material cost (7s of materials posted for 20g) would show a huge profit that
 	-- won't sell. Above the cap the sale counts at the normal mark-up instead, and the row is flagged to check.
+	-- Recipes with a cooldown (Mooncloth, transmutes) are scarce, so a high price is real: no cap for them.
 	local cap = ctx.priceCap
+	if cap and ctx.hasCooldown and ctx.hasCooldown(recipeID) then cap = nil end
 	if cap and saleUnit and cost and cost > 0 then
 		local unitCost = cost / yield
 		if saleUnit > unitCost * cap.max then
