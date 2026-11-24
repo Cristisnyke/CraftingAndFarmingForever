@@ -15,7 +15,7 @@ lua5.1 tools/gen_sources.lua "$ATT" > "$tmp/Sources.lua"
 lua5.1 tools/gen_recipes.lua "$ATT" > "$tmp/RecipeSources.lua"
 
 # Recipes added or gone, by ID, so a big drop (AllTheThings changed its format) shows before it ships.
-ids() { grep -oE '^\[[0-9]+\]' "$1" | tr -d '[]' | sort -n; }
+ids() { grep -oE '^\[[0-9]+\]' "$1" | tr -d '[]' | sort; }
 ids RecipeSources.lua > "$tmp/old-recipes"
 ids "$tmp/RecipeSources.lua" > "$tmp/new-recipes"
 added=$(comm -13 "$tmp/old-recipes" "$tmp/new-recipes" | wc -l)
