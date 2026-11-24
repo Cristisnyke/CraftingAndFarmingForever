@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.35.1", lines = {
+		"- Refactoring and code optimization.",
+	} },
 	{ version = "1.35.0", lines = {
 		"- Recipe shopping lists can be turned off. Untick Recipe shopping lists on the Options tab and the per-profession recipe lists are deleted and stay gone. Before, a deleted list came back. Thanks to felo747474.",
 	} },
