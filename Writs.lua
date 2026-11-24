@@ -191,12 +191,17 @@ function Writs.Done(writ)
 	return ok and done == true
 end
 
--- How many writs this character holds (bags and bank), for the Writs tab's flair.
+-- How many of this writ the character holds (bags and bank). /cff fakeheld (testing, this session only) pretends
+-- you hold one of the first writ.
+function Writs.HeldCount(writ)
+	return ns.Stock.Own(writ.id) + ((ns.fakeHeld and writ == Writs.list[1]) and 1 or 0)
+end
+
+-- How many writs the character holds in all, for the Writs tab's flair.
 function Writs.Held()
 	local held = 0
-	for _, writ in ipairs(Writs.list) do held = held + ns.Stock.Own(writ.id) end
-	-- /cff fakeheld (testing, this session only) pretends you hold one more.
-	return held + (ns.fakeHeld and 1 or 0)
+	for _, writ in ipairs(Writs.list) do held = held + Writs.HeldCount(writ) end
+	return held
 end
 
 -- The writ's name without "Craftsman's Writ: ", for a writ whose item has no ID here.
@@ -224,12 +229,15 @@ function Writs.Rows(tier, craftableOnly)
 	local ctx = ns.NewContext()
 	local rows = {}
 	for _, writ in ipairs(Writs.list) do
-		if not tier or writ.tier == tier then
+		-- A writ you hold is always listed, whatever the filters, so you can see which one it is.
+		local held = Writs.HeldCount(writ)
+		if held > 0 or not tier or writ.tier == tier then
 			local row = ns.Planner.Writ(ctx, writ)
-			if row.craftable or not craftableOnly then
+			if held > 0 or row.craftable or not craftableOnly then
 				row.queued = ns.Queue.WantedCount("writ", writ.id)
 				row.done = Writs.Done(writ)
-				row.haveWrit = ns.Stock.Own(writ.id) > 0
+				row.held = held
+				row.haveWrit = held > 0
 				row.haveItem = writ.item and ns.Stock.Own(writ.item) >= writ.count or false
 				table.insert(rows, row)
 			end

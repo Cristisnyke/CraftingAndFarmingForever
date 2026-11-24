@@ -1068,13 +1068,14 @@ local function BuildWritsList()
 	if zones and next(zones) then
 		local kept = {}
 		for _, item in ipairs(rows) do
-			if zones[item.writ.zone or ns.Writs.NO_ZONE] then kept[#kept + 1] = item end
+			if item.held > 0 or zones[item.writ.zone or ns.Writs.NO_ZONE] then kept[#kept + 1] = item end
 		end
 		rows = kept
 	end
 	local key, ascending = UI.ListSort("writs")
 	for index, item in ipairs(rows) do item.order = index end
 	table.sort(rows, function(a, b)
+		if (a.held > 0) ~= (b.held > 0) then return a.held > 0 end -- the ones you hold first
 		local left, right = WritSortValue(a, key), WritSortValue(b, key)
 		if left ~= right then
 			if left == nil or right == nil then return left ~= nil end
@@ -1110,6 +1111,7 @@ local function BuildCratesList()
 	local key, ascending = UI.ListSort("crates")
 	for index, item in ipairs(rows) do item.order = index end
 	table.sort(rows, function(a, b)
+		if (a.held > 0) ~= (b.held > 0) then return a.held > 0 end -- the ones you hold first
 		local left, right = CrateSortValue(a, key), CrateSortValue(b, key)
 		if left ~= right then
 			if left == nil or right == nil then return left ~= nil end
@@ -1580,6 +1582,30 @@ local function ShowWritTooltip(row, item)
 end
 
 -- "20 Iron Ore", for a crate's bundle.
+-- Writs and crates you hold: the row is tinted gold and starts with how many you have.
+local Held = {}
+function Held.Mark(row, held)
+	if held > 0 then row.tint:SetColorTexture(1, 0.82, 0, 0.20) end
+	row.tint:SetShown(held > 0)
+end
+function Held.Text(held)
+	return held > 0 and Color("ffffd100", ("You have %d: "):format(held)) or ""
+end
+-- The names of what you hold, one per line, for the tab's tooltip.
+function Held.Names(key)
+	local names = {}
+	local list = key == "writs" and ns.Writs.list or ns.Crates.list
+	for _, entry in ipairs(list) do
+		local count = key == "writs" and ns.Writs.HeldCount(entry) or ns.Crates.HeldCount(entry)
+		if count > 0 then
+			local name = key == "writs" and (entry.item and ns.Items.Name(entry.item) or ns.Writs.Name(entry))
+				or ns.Crates.Name(entry)
+			names[#names + 1] = ("%s x%d"):format(name or "Loading...", count)
+		end
+	end
+	return names
+end
+
 local function BundleText(fill)
 	return ("%d %s"):format(fill.count, ns.Items.Name(fill.item) or "...")
 end
@@ -2815,6 +2841,7 @@ local function SetRow(row, data)
 		-- Both columns are for the whole entry, every queued craft.
 		local cost = boundCost or (data.matCost and data.matCost * entry.qty)
 		row.cost:SetText(cost and ns.Money(cost) or Color(COLOR_MUTED, "?"))
+		row.tint:SetColorTexture(0.8, 0.1, 0.1, 0.18)
 		row.tint:SetShown(net ~= nil and net < 0 and not boundCost)
 		row.profit:SetText(boundCost and Color(COLOR_MUTED, "can't sell")
 			or net and (((capped or spike) and Color(COLOR_WARN, "! ") or "") .. Color(net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(net)))
@@ -2912,7 +2939,8 @@ local function SetRow(row, data)
 		if writ.count > 1 then label = label .. " x" .. writ.count end
 		local where = ns.Writs.TIERS[writ.tier]
 		if writ.zone then where = where .. ", " .. writ.zone .. (writ.zoneGuess and "?" or "") end
-		row.left:SetText(label .. "  " .. (item.done and Color(COLOR_PROFIT, "done today") or Color(COLOR_MUTED, where))
+		Held.Mark(row, item.held)
+		row.left:SetText(Held.Text(item.held) .. label .. "  " .. (item.done and Color(COLOR_PROFIT, "done today") or Color(COLOR_MUTED, where))
 			.. (item.queued > 0 and Color("ff7fb8ff", "  queued") or ""))
 		PlaceRight(row, WritControls(row), true)
 		row.colAH:SetText(item.writPrice and Color(item.haveWrit and COLOR_PROFIT or "ffffffff", ns.Money(item.writPrice))
@@ -2929,7 +2957,8 @@ local function SetRow(row, data)
 		row.icon:SetTexture(ns.Items.Icon(crate.id) or 134400)
 		local label = ns.Crates.Name(crate) or Color(COLOR_MUTED, "Loading...")
 		local note = item.best and BundleText(item.best) or ns.Crates.TIERS[crate.tier]
-		row.left:SetText(label .. "  " .. (item.cheapest and Color(COLOR_PROFIT, "best buy: " .. note) or Color(COLOR_MUTED, note))
+		Held.Mark(row, item.held)
+		row.left:SetText(Held.Text(item.held) .. label .. "  " .. (item.cheapest and Color(COLOR_PROFIT, "best buy: " .. note) or Color(COLOR_MUTED, note))
 			.. (item.queued > 0 and Color("ff7fb8ff", "  queued x" .. item.queued) or ""))
 		PlaceRight(row, WritControls(row), true)
 		row.colAH:SetText(item.cratePrice and Color(item.haveCrate and COLOR_PROFIT or "ffffffff", ns.Money(item.cratePrice))
@@ -5185,8 +5214,9 @@ local function CreateMain()
 			tab:SetScript("OnEnter", function(self)
 				if (self.held or 0) == 0 then return end
 				GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-				GameTooltip:SetText(("You have %d %s (bags and bank)."):format(self.held,
+				GameTooltip:SetText(("You have %d %s (bags and bank):"):format(self.held,
 					info.key == "writs" and (self.held == 1 and "writ" or "writs") or (self.held == 1 and "crate" or "crates")))
+				for _, name in ipairs(Held.Names(info.key)) do GameTooltip:AddLine(name, 1, 0.82, 0) end
 				GameTooltip:Show()
 			end)
 			tab:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -5614,7 +5644,7 @@ SlashCmdList.CFF = function(input)
 	elseif command == "fakeheld" then -- testing aid, not in the help line: pretend to hold a writ and a crate
 		ns.fakeHeld = not ns.fakeHeld or nil
 		ns.Say("chatDone", "Pretending to hold a writ and a crate: " .. tostring(ns.fakeHeld == true))
-		UpdateTabStrip()
+		UI.RefreshAll()
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then

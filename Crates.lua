@@ -66,12 +66,17 @@ function Crates.Fill(ctx, crate, count)
 	return ns.Planner.Crate(ctx, crate).best or crate.bundles[1]
 end
 
--- How many crates this character holds (bags and bank), for the Crates tab's flair.
+-- How many of this crate the character holds (bags and bank). /cff fakeheld (testing, this session only)
+-- pretends you hold one of the first crate.
+function Crates.HeldCount(crate)
+	return ns.Stock.Own(crate.id) + ((ns.fakeHeld and crate == Crates.list[1]) and 1 or 0)
+end
+
+-- How many crates the character holds in all, for the Crates tab's flair.
 function Crates.Held()
 	local held = 0
-	for _, crate in ipairs(Crates.list) do held = held + ns.Stock.Own(crate.id) end
-	-- /cff fakeheld (testing, this session only) pretends you hold one more.
-	return held + (ns.fakeHeld and 1 or 0)
+	for _, crate in ipairs(Crates.list) do held = held + Crates.HeldCount(crate) end
+	return held
 end
 
 -- The crate's name without "Waylaid Crate: ".
@@ -86,10 +91,13 @@ function Crates.Rows(tier)
 	local ctx = ns.NewContext()
 	local rows, best = {}, nil
 	for _, crate in ipairs(Crates.list) do
-		if not tier or crate.tier == tier then
+		-- A crate you hold is always listed, whatever the level filter, so you can see which one it is.
+		local held = Crates.HeldCount(crate)
+		if held > 0 or not tier or crate.tier == tier then
 			local row = ns.Planner.Crate(ctx, crate)
 			row.queued = ns.Queue.WantedCount("crate", crate.id)
-			row.haveCrate = ns.Stock.Own(crate.id) > 0
+			row.held = held
+			row.haveCrate = held > 0
 			if row.best then row.haveFill = ns.Stock.Own(row.best.item) >= row.best.count end
 			if row.perToken and (not best or row.perToken < best.perToken) then best = row end
 			table.insert(rows, row)
