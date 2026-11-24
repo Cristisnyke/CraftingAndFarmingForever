@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.35.0
 
 - **Recipe shopping lists can be turned off.** Untick **Recipe shopping lists** on the Options tab and the per-profession recipe lists are deleted and stay gone. Before, a deleted list came back. Thanks to felo747474.
 
