@@ -7,7 +7,9 @@
 #   tools/release.sh 1.1.0 --dry-run   everything except commit, tag, push and upload; shows what would be sent
 #   tools/release.sh 1.1.0 --upload-only   upload the existing tag v1.1.0 again (after a failed upload)
 #
-# The changelog is the "## 1.1.0" section of CHANGELOG.md, so write it first.
+# The changelog is the "## 1.1.0" section of CHANGELOG.md; when there is none, "## Unreleased" is renamed to it (and
+# Changelog.lua regenerated, committed with the release). After the upload, every issue a commit since the last tag
+# says "Fixes #N" about gets a "Fixed in 1.1.0." comment, and the CurseForge threads to answer are listed.
 # Needs the CurseForge API token in ~/.config/cff/curseforge-token and "## X-Curse-Project-ID" in the toc.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -43,6 +45,22 @@ TOKEN=$(tr -d '[:space:]' < "$TOKEN_FILE")
 PROJECT_ID=$(toc_field "$TOC" X-Curse-Project-ID)
 [[ "$PROJECT_ID" =~ ^[0-9]+$ ]] || die "Add '## X-Curse-Project-ID: <id>' to $TOC (the number on the CurseForge project page)."
 
+# No section for this version yet: the Unreleased one becomes it (on disk only in a real release).
+if ! grep -qx "## $VERSION" CHANGELOG.md && grep -qx "## Unreleased" CHANGELOG.md && [ "$UPLOAD_ONLY" = 0 ]; then
+	if [ "$DRY_RUN" = 1 ]; then
+		SECTION=Unreleased
+	else
+		[ -z "$(git status --porcelain)" ] || die "Commit or stash your changes first; a release is built from committed code."
+		[ "$(git branch --show-current)" = main ] || die "Release from the main branch."
+		sed -i "s/^## Unreleased$/## $VERSION/" CHANGELOG.md
+		lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua
+		git add CHANGELOG.md Changelog.lua
+		git commit -q -m "Changelog for $VERSION"$'\n\n'"Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+		echo "CHANGELOG.md: Unreleased is now $VERSION."
+	fi
+fi
+SECTION=${SECTION:-$VERSION}
+
 CHANGELOG=$(python3 -c '
 import sys
 lines, found, out = open("CHANGELOG.md", encoding="utf-8").read().splitlines(), False, []
@@ -52,8 +70,8 @@ for line in lines:
         found = line[3:].strip() == sys.argv[1]
         continue
     if found: out.append(line)
-print("\n".join(out).strip())' "$VERSION")
-[ -n "$CHANGELOG" ] || die "CHANGELOG.md has no '## $VERSION' section, or it's empty."
+print("\n".join(out).strip())' "$SECTION")
+[ -n "$CHANGELOG" ] || die "CHANGELOG.md has no '## $VERSION' (or Unreleased) section, or it's empty."
 
 if [ "$UPLOAD_ONLY" = 1 ]; then
 	git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || die "No tag $TAG to upload."
@@ -138,3 +156,18 @@ if [ "$STATUS" != 200 ]; then
 	exit 1
 fi
 echo "Uploaded: file id $(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("id"))' "$BODY"). CurseForge reviews it before it goes live."
+
+# --- After the upload ------------------------------------------------------------------------------------------------
+
+PREVIOUS=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
+if [ -n "$PREVIOUS" ]; then
+	mapfile -t FIXED < <(git log "$PREVIOUS..$TAG" --format=%B | grep -oE 'Fixes #[0-9]+' | grep -oE '[0-9]+' | sort -un)
+	for issue in "${FIXED[@]}"; do
+		gh issue comment "$issue" --body "Fixed in $VERSION." >/dev/null && echo "#$issue: commented \"Fixed in $VERSION.\""
+		thread=$(gh issue view "$issue" --json body --jq .body | grep -oE 'thread [0-9]+' | head -1 || true)
+		[ -z "$thread" ] || echo "  CurseForge $thread: tell them it's in $VERSION."
+	done
+	if ! git diff --quiet "$PREVIOUS" "$TAG" -- docs/CURSEFORGE.md; then
+		echo "docs/CURSEFORGE.md changed since $PREVIOUS: paste it on the CurseForge page (Markdown editor)."
+	fi
+fi

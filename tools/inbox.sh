@@ -11,9 +11,9 @@
 # Usage: tools/inbox.sh [--mark]
 #   --mark  only marks what the previous run showed (prints nothing else)
 set -euo pipefail
+cd "$(dirname "$0")/.."
 repo=Cristisnyke/CraftingAndFarmingForever
 owner=Cristisnyke
-cf_project=1791788
 cf_owner=thesnic
 dir="$HOME/.config/cff"
 seen_file="$dir/inbox-seen"
@@ -72,31 +72,23 @@ gh api "repos/$repo/issues?state=closed&since=$window&per_page=100" --paginate -
 
 echo
 echo "== CurseForge: threads with posts not marked yet (! = last word isn't yours: needs a reply)"
-# The website's own JSON endpoint (no official comments API); plain curl works,
-# the HTML page is behind Cloudflare.
-threads="[]"
-cf_fail=1
-for page in $(seq 0 49); do
-	json=$(curl -sf -A "Mozilla/5.0" "https://www.curseforge.com/api/v1/mods/$cf_project/comments?pageIndex=$page&pageSize=20") || { cf_fail=2; break; }
-	cf_fail=0
-	# Pages past the end repeat the last one: stop when a page brings no new thread.
-	fresh=$(jq -c --argjson have "$threads" '[.data[] | select(.id as $id | $have | map(.id) | index($id) | not)]' <<<"$json")
-	[ "$fresh" = "[]" ] && break
-	threads=$(jq -c --argjson have "$threads" '$have + .' <<<"$fresh")
-done
-if [ "$cf_fail" != 0 ]; then
+# Only the unmarked posts and the one before them (for context) are printed; [id] is what tools/issue.sh and a reply
+# take.
+if ! threads=$(tools/cf_comments.sh); then
 	echo "!!! CurseForge FETCH FAILED: comments NOT checked. Run again."
 else
 	jq -r --argjson seen "$seen" --arg me "$cf_owner" '
 		def when: (./1000 | strflocaltime("%Y-%m-%d %H:%M"));
 		def unseen: ("cf:\(.id)") as $k | ($seen | index($k)) == null;
-		def post: "  \(if unseen then "*" else " " end) \(.author.displayName) \(.datePosted | when):\n      \(.text | gsub("\\s+"; " "))";
+		def post: "  \(if unseen then "*" else " " end) [\(.id)] \(.author.displayName) \(.datePosted | when):\n      \(.text | gsub("\\s+"; " "))";
 		.[]
-		| [recurse(.replies[]?)] as $all
+		| [recurse(.replies[]?)] | sort_by(.datePosted) as $all
 		| select(any($all[]; unseen))
-		| ($all | max_by(.datePosted)) as $last
-		| "\(if ($last.author.username | ascii_downcase) != $me then "!" else " " end) thread \(.id)",
-		  ($all | sort_by(.datePosted)[] | post),
+		| ($all | last) as $last
+		| ([range(0; $all | length) | select($all[.] | unseen)] | first) as $first
+		| ([$first - 1, 0] | max) as $from
+		| "\(if ($last.author.username | ascii_downcase) != $me then "!" else " " end) thread \($all[0].id)\(if $from > 0 then " (\($from) earlier posts not shown)" else "" end)",
+		  ($all[$from:][] | post),
 		  ""' <<<"$threads"
 	jq -r '.[] | recurse(.replies[]?) | "cf:\(.id)"' <<<"$threads" >> "$shown"
 	echo "(checked $(jq length <<<"$threads") threads, $(jq '[.[] | recurse(.replies[]?)] | length' <<<"$threads") posts)"

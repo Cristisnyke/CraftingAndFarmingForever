@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 # Syntax, top-level local room, calls between files, accidental globals, lint and tests, on Lua 5.1 as the game uses. Run from anywhere.
+# tools/check.sh --quiet prints only failures, warnings, notes and the test counts (for routine runs).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [ "${1:-}" = "--quiet" ]; then
+	log=$(mktemp)
+	trap 'rm -f "$log"' EXIT
+	status=0
+	tools/check.sh >"$log" 2>&1 || status=$?
+	grep -E 'FAIL|[Ee]rror|warning|is not in the toc|room for fewer|Accidental|out of date|^Note:|not installed|checks, ' "$log" \
+		| grep -vE 'Total: 0 warnings / 0 errors|^.cff66ccff' || true
+	if [ "$status" = 0 ]; then echo "check: OK"; else echo "check: FAILED (exit $status), last lines:"; tail -15 "$log"; fi
+	exit "$status"
+fi
 
 # The toc decides what the game loads, so a file missing from it can't pass here unnoticed.
 mapfile -t ADDON_FILES < <(tr -d '\r' < CraftingAndFarmingForever.toc | grep -E '\.lua$')
