@@ -113,10 +113,13 @@ The generated files carry AllTheThings' MIT notice. Keep it.
 
 Work and commit on `main` locally. A version is published only once it has been confirmed working in game; passing tests aren't enough.
 
-1. Add a `## x.y.z` section to `CHANGELOG.md` describing the changes, then `lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua`, and commit both. The section becomes the CurseForge changelog and the in-game Changelog tab, so write it for players: short, plain bullets about what they'll notice, no code names. `tools/check.sh` fails if `Changelog.lua` is out of date. Work in progress goes under `## Unreleased`, which the game doesn't show.
+1. Changes collect under `## Unreleased` (`tools/changelog.sh "bullet"` adds one and regenerates `Changelog.lua`); `release.sh` renames that section to the version when there is no `## x.y.z` yet. Or add a `## x.y.z` section to `CHANGELOG.md` yourself, then `lua5.1 tools/gen_changelog.lua CHANGELOG.md > Changelog.lua`, and commit both. The section becomes the CurseForge changelog and the in-game Changelog tab, so write it for players: short, plain bullets about what they'll notice, no code names. `tools/check.sh` fails if `Changelog.lua` is out of date. Work in progress goes under `## Unreleased`, which the game doesn't show.
 2. Try `tools/release.sh x.y.z --dry-run`. It runs the checks, finds the CurseForge game version that matches the toc's `## Interface`, and shows what it would upload, without changing anything.
 3. `tools/release.sh x.y.z` (add `--beta` or `--alpha` for a test build) bumps `## Version` in the toc, commits, tags `vx.y.z`, pushes to GitHub, builds the zip with `tools/package.sh` and uploads it to CurseForge. CurseForge reviews the file before it goes live.
 4. If the upload fails after the push, fix the cause and run `tools/release.sh x.y.z --upload-only`.
+   After the upload it comments "Fixed in x.y.z." on every issue a commit since the last tag `Fixes`, names their CurseForge threads, and says when `docs/CURSEFORGE.md` changed.
+
+Day-to-day helpers: `tools/check.sh --quiet` (failures, warnings and counts only), `tools/commit.sh "subject" [issue...]` (quiet check, commit with `Fixes #N`, deploy, issues to `in-game-test`), `tools/inbox.sh [--mark]` (new GitHub and CurseForge feedback), `tools/issue.sh <kind> <CurseForge post id> "title"`, `tools/label.sh <stage> <issue...>`, `tools/cf_comments.sh` (all CurseForge comments as JSON).
 
 The script needs the CurseForge API token in `~/.config/cff/curseforge-token` (readable only by you, never in the repository) and `## X-Curse-Project-ID` in the toc.
 
