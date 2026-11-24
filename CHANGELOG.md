@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.35.2
 
 - **Fix: flasks didn't count the Alchemy Laboratory.** Recipes that need an Alchemy Lab now put the Alchemy Laboratory on your camp list like the Fermenter, with its cost in the plan. Open Alchemy once so the add-on learns which recipes need it. Thanks to felo747474 for the report.
 

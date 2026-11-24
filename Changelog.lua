@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.35.2", lines = {
+		"- Fix: flasks didn't count the Alchemy Laboratory. Recipes that need an Alchemy Lab now put the Alchemy Laboratory on your camp list like the Fermenter, with its cost in the plan. Open Alchemy once so the add-on learns which recipes need it. Thanks to felo747474 for the report.",
+	} },
 	{ version = "1.35.1", lines = {
 		"- Refactoring and code optimization.",
 	} },
