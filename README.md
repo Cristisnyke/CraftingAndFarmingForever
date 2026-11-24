@@ -94,6 +94,10 @@ Upgrading from **CraftLedger**, the add-on's old name? With the game closed, run
 - [User guide](docs/USER_GUIDE.md): every tab and button, how prices and stock are worked out, and troubleshooting.
 - [Development](docs/DEVELOPMENT.md): code layout, tests, deployment, regenerating the source data, and releases.
 
+## Support
+
+Enjoying the add-on? You can [buy me a coffee on Ko-fi](https://ko-fi.com/thesnic). It's entirely optional and the add-on stays free.
+
 ## Credits
 
 Crafting and Farming Forever is built on other people's work. Thank you to:

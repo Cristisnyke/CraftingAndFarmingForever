@@ -166,6 +166,10 @@ TradeSkillMaster (TSM) support is coming in a future update.
 
 The best place for bugs and ideas is [GitHub issues](https://github.com/Cristisnyke/CraftingAndFarmingForever/issues/new/choose): the form asks for everything needed (your add-on version, the output of `/cff diag` and any Lua error text from BugSack), and you can follow each report until it's fixed. Comments here are read too. The add-on is actively developed, and suggestions are welcome.
 
+## Support
+
+Enjoying the add-on? You can [buy me a coffee on Ko-fi](https://ko-fi.com/thesnic). It's entirely optional and the add-on stays free.
+
 ## Credits
 
 - **[Auctionator](https://www.curseforge.com/wow/addons/auctionator)** by plusmouse and Borjamacare: prices, price history and the shopping list.
