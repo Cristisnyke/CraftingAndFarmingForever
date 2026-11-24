@@ -28,7 +28,8 @@ The game loads the files in the order listed in `CraftingAndFarmingForever.toc`.
 | `Crates.lua` | Waylaid Crate data (crate, level, bundles of materials), the cost maths is `Planner.Crate`; + queues one through `Queue.Want` (`db.wanted`) |
 | `Writs.lua` | Craftsman's Writ data (writ, wanted item, level, hand-in zone), the cost maths is `Planner.Writ`; + queues one through `Queue.Want` (`db.wanted`) |
 | `Shopping.lua` | Keeps the `Crafting and Farming Forever Queue` Auctionator list in sync, editing it in place |
-| `UI.lua` | The tabbed window and its panes, the Next step bar (also the Farm It list), the recipe-page Queue button, the scan prompt, advertising, the slash command |
+| `UI.lua` | The tabbed window and its panes, the Next step bar (also the Farm It list), the recipe-page Queue button, the scan prompt, the slash command |
+| `Advertise.lua` | Advertising in Trade chat: the Ad box beside the chat, its destination picker and send buttons, quotes in whispers |
 | `Posting.lua` | The Restocking tab in the auction house: candidate items, live price search, posting |
 | `Changelog.lua` | Generated from `CHANGELOG.md` by `tools/gen_changelog.lua`: the Changelog tab's text. Don't edit by hand. |
 | `Options.lua` | The Options tab's controls (`Options.Build`), also registered as a page in the game's Options > AddOns |
@@ -57,7 +58,7 @@ tools/check.sh
 
 Besides syntax, the toc and the tests it checks:
 
-- **Room for locals:** Lua 5.1 refuses a file with more than 200 locals at its top level. Every file must still have room for 15 more (`LOCALS_SPARE`); when one doesn't, group constants into a table (UI.lua's `COLUMN`, `NEXT`, `AD`, `Live`) rather than adding top-level locals.
+- **Room for locals:** Lua 5.1 refuses a file with more than 200 locals at its top level. Every file must still have room for 15 more (`LOCALS_SPARE`); when one doesn't, group constants into a table (UI.lua's `COLUMN`, `NEXT`, `Live`; Advertise.lua's `AD`) rather than adding top-level locals.
 - **Calls between files** (`tools/check_calls.lua`): every `ns.fn(...)`, `ns.Module.fn(...)` and `Module.fn(...)` through a local alias must name a function some file defines. It catches typos and calls left behind by a rename, which luacheck can't see because modules are fields of `ns`.
 - **Unused arguments** are reported by luacheck, except `self`, `event` and names starting with `_`: when a handler's signature forces an argument you don't use, call it `_elapsed`, `_button` and so on.
 

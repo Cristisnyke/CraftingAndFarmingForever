@@ -19,9 +19,7 @@ local POST_TIMEOUT = 3 -- seconds; a post that never gets an answer stops blocki
 local BAGS = { 0, 1, 2, 3, 4, 5 } -- backpack, four bags and the reagent bag
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED, COLOR_WARN = "ff55dd55", "ffff6655", "ff999999", "ffffb040"
 
-local function Color(hex, text)
-	return "|c" .. hex .. text .. "|r"
-end
+local Color = ns.UI.Color
 
 local window -- the list, in the shape UI.Refresh expects
 local form = {}
@@ -165,10 +163,7 @@ local function FinishLookup(itemID, lowest, mine)
 	UpdateForm()
 end
 
-local function IsEquipment(itemID)
-	local classID = select(6, C_Item.GetItemInfoInstant(itemID))
-	return classID == Enum.ItemClass.Weapon or classID == Enum.ItemClass.Armor
-end
+local IsEquipment = ns.Items.IsEquipment
 
 -- Commodities and items are searched and sorted differently, and the server refuses a sort meant for the other kind.
 -- Equipment is listed per item level, so it needs the sell search and a key with no level to find them all.

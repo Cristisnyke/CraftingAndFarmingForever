@@ -83,6 +83,12 @@ end
 
 -- Daggers are bought two at a time: a rogue wants one for each hand. Not those for one hand only.
 local DAGGER_CLASS, DAGGER_SUBCLASS = 2, 15
+-- Weapons and armour: listed per item level at the auction house, so searched differently from other items.
+function Items.IsEquipment(itemID)
+	local classID = select(6, C_Item.GetItemInfoInstant(itemID))
+	return classID == Enum.ItemClass.Weapon or classID == Enum.ItemClass.Armor
+end
+
 function Items.SoldInPairs(itemID)
 	if not C_Item.GetItemInfoInstant then return false end
 	local _, _, _, equipLoc, _, classID, subclassID = C_Item.GetItemInfoInstant(itemID)
@@ -482,20 +488,32 @@ function Stock.SetLeftOut(entry, on)
 end
 
 -- Bags and bank of other characters on the connected realm and same faction, since those can mail to this one.
-function Stock.Alts(itemID)
+-- Syndicator's holdings of an item: its per-character list without the characters left out, and its name for the one
+-- you're playing. Nil without Syndicator or when it can't answer.
+local function Holdings(itemID)
 	local api = SyndicatorAPI()
-	if not api then return {} end
+	if not api then return nil end
 	local ok, info = pcall(api.GetInventoryInfoByItemID, itemID, true, true)
-	if not ok or type(info) ~= "table" then return {} end
+	if not ok or type(info) ~= "table" then return nil end
 	local me = api.GetCurrentCharacter()
 	local leftOut = LeftOut(me)
-	local result = {}
+	local list = {}
 	for _, char in ipairs(info.characters or {}) do
 		local key = SyndicatorKey(char)
+		if not leftOut[key] then list[#list + 1] = { char = char, key = key } end
+	end
+	return list, me
+end
+
+function Stock.Alts(itemID)
+	local list, me = Holdings(itemID)
+	local result = {}
+	for _, entry in ipairs(list or result) do
+		local char, key = entry.char, entry.key
 		local count = (char.bags or 0) + (char.bank or 0)
 		-- Bank alt mode: the bank alt's things are for selling, kept apart from the crafters' materials.
 		local seller = ns.Seller and ns.Seller.Enabled() and ns.Seller.IsName(char.character or key)
-		if key ~= me and not leftOut[key] and count > 0 and not seller then
+		if key ~= me and count > 0 and not seller then
 			table.insert(result, { name = char.character or key, count = count })
 		end
 	end
@@ -658,20 +676,14 @@ ns.On("AUCTION_HOUSE_CLOSED", function() wipe(listings) end)
 function Stock.ForRestock(itemID)
 	-- Crafts mailed to the bank alt that it hasn't seen in its mailbox yet count as held too.
 	local owned = Stock.Own(itemID) + (ns.Seller and ns.Seller.InTransit(itemID) or 0)
-	local api = SyndicatorAPI()
-	if not api then return nil, owned end
-	local ok, info = pcall(api.GetInventoryInfoByItemID, itemID, true, true)
-	if not ok or type(info) ~= "table" then return nil, owned end
-	local me = api.GetCurrentCharacter()
-	local leftOut = LeftOut(me)
+	local list, me = Holdings(itemID)
+	if not list then return nil, owned end
 	local onAH = 0
-	for _, char in ipairs(info.characters or {}) do
-		local key = SyndicatorKey(char)
-		if not leftOut[key] then
-			onAH = onAH + (char.auctions or 0)
-			owned = owned + (char.mail or 0)
-			if key ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
-		end
+	for _, entry in ipairs(list) do
+		local char = entry.char
+		onAH = onAH + (char.auctions or 0)
+		owned = owned + (char.mail or 0)
+		if entry.key ~= me then owned = owned + (char.bags or 0) + (char.bank or 0) end
 	end
 	return onAH, owned
 end

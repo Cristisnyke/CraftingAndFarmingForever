@@ -164,10 +164,7 @@ local function ReadItem(itemKey)
 	return true
 end
 
-local function IsEquipment(itemID)
-	local classID = select(6, C_Item.GetItemInfoInstant(itemID))
-	return classID == Enum.ItemClass.Weapon or classID == Enum.ItemClass.Armor
-end
+local IsEquipment = ns.Items.IsEquipment
 
 ---------------------------------------------------------------------------
 -- The check
