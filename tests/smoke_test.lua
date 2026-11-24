@@ -358,6 +358,29 @@ do
 	ns.db.recipes[50], ns.db.chars[me].recipes[50] = nil, nil
 end
 
+-- A recipe cooldown read a second apart (time() is whole seconds, the time left isn't) isn't a change: it replanned
+-- at every profession scan while a transmute was on cooldown.
+do
+	local realTime, realForget = time, ns.Restock.ForgetSmart
+	local now, left, forgets = 1000000, 3599.6, 0
+	time = function() return now end
+	ns.Restock.ForgetSmart = function() forgets = forgets + 1 end
+	C_TradeSkillUI.GetRecipeCooldown = function(id) if id == 10 then return left end end
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("cooldown: recorded", ns.db.chars[me].cooldowns[10].r, 1003599)
+	forgets = 0
+	now, left = 1000001, 3599.4 -- the same end, read 0.2 s later across a whole second
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("cooldown: a second's jitter is no change", forgets, 0)
+	check("cooldown: ready time kept", ns.db.chars[me].cooldowns[10].r, 1003599)
+	left = 0
+	Fire("TRADE_SKILL_LIST_UPDATE")
+	check("cooldown: ready is a change", forgets, 1)
+	C_TradeSkillUI.GetRecipeCooldown = nil
+	ns.db.chars[me].cooldowns = nil
+	time, ns.Restock.ForgetSmart = realTime, realForget
+end
+
 -- A known recipe is only forgotten when the game says outright, twice and 10 s apart, that it isn't learned.
 do
 	local realIDs, realRecipeInfo = C_TradeSkillUI.GetAllRecipeIDs, C_TradeSkillUI.GetRecipeInfo

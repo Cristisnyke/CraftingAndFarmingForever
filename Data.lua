@@ -944,6 +944,9 @@ local function ReadCooldown(char, recipeID)
 	if left <= 0 and not length and not old then return false end
 	char.cooldowns = char.cooldowns or {}
 	local ready = left > 0 and math.floor(time() + left) or 0
+	-- time() is whole seconds and left isn't, so the same cooldown reads a second either side from scan to scan:
+	-- that isn't a change (it would replan at every profession scan while a transmute is on cooldown).
+	if old and old.r and ready > 0 and math.abs(old.r - ready) <= 2 then ready = old.r end
 	local entry = { r = ready, l = length or (old and old.l) }
 	if old and old.r == entry.r and old.l == entry.l then return false end
 	char.cooldowns[recipeID] = entry
