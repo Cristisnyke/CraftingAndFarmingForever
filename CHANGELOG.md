@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.35.3
 
 - Recipes with a cooldown, such as Mooncloth and transmutes, are no longer marked "check price": their profit now counts what they really sell for.
 
