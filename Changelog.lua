@@ -4,6 +4,10 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.34.0", lines = {
+		"- Restock knows about cooldowns: a recipe on cooldown (like Transmute: Arcanite) isn't asked for until it's ready, says \"cooldown\" in the Craft column, and asks for one craft at a time. Materials whose recipe is on cooldown are bought instead of crafted. Open the profession once so the add-on can read them. Thanks felo747474.",
+		"- The vendor button buys exactly the number your queue needs, even when the vendor sells an item in bundles (vials in fives), instead of whole bundles. Thanks felo747474.",
+	} },
 	{ version = "1.33.0", lines = {
 		"- Recipes to learn, as a shopping list. Each of your professions gets its own Auctionator shopping list, such as Tailoring Shopping List, with the recipe items (patterns, plans, formulas) the character you're playing can learn right now, lowest skill first. Recipes you only get from a trainer aren't on it. It updates when you learn one or your skill goes up. Thanks to user_cggami8p66nyruw7 for the idea.",
 	} },
