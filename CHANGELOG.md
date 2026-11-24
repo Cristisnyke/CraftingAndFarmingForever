@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.37.0
 
 - **Writs and Crates tabs light up when you have some.** While you carry writs or crates (bags or bank), their tab turns gold with a pulsing glow and shows how many you have; hover it to see which ones. Inside the tab, the ones you hold are tinted gold, say "You have 1" and are listed first, even when your filters would hide them. Thanks to Soricelu for the idea.
 

@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.37.0", lines = {
+		"- Writs and Crates tabs light up when you have some. While you carry writs or crates (bags or bank), their tab turns gold with a pulsing glow and shows how many you have; hover it to see which ones. Inside the tab, the ones you hold are tinted gold, say \"You have 1\" and are listed first, even when your filters would hide them. Thanks to Soricelu for the idea.",
+	} },
 	{ version = "1.36.0", lines = {
 		"- New Craft alert (Options tab, off by default): a sound a few seconds before the game stops crafting a batch while you still have crafts queued, so you can be alt-tabbed and come back in time to press Craft Next. Pick from six game sounds and the channel it plays on (Master, Effects, Music, Ambience or Dialog), and how many seconds early it warns (default 3). The menu also has the game's Sound in Background switch, without which nothing is heard while alt-tabbed",
 	} },
