@@ -825,6 +825,9 @@ ns.CAMP = {
 		[279965] = "Fishing Rack", [279940] = "Toxin Study", [279969] = "Field Guide", [279949] = "Repair Bot",
 		[279957] = "Cookie's Feast", [279982] = "Iron Oven", [279989] = "Anarchist's Workbench",
 	},
+	-- Other names a recipe's requirement may give a station: flasks ask for an "Alchemy Lab" (the old dungeon lab's
+	-- name), not the item's "Alchemy Laboratory".
+	aliases = { [279990] = { "Alchemy Lab", "Alchemist's Lab" } },
 	-- Basic, Journeyman and Expert Campfire Kit: any of them takes a station.
 	fires = { 279981, 279961, 279974 },
 }
@@ -834,7 +837,9 @@ ns.CAMP = {
 function Recipes.StationItems(name)
 	local items = {}
 	for itemID, english in pairs(ns.CAMP.stations) do
-		if name == english or name == Items.Name(itemID) then table.insert(items, itemID) end
+		local match = name == english or name == Items.Name(itemID)
+		for _, alias in ipairs(ns.CAMP.aliases[itemID] or {}) do match = match or name == alias end
+		if match then table.insert(items, itemID) end
 	end
 	table.sort(items)
 	return items
