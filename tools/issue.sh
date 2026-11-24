@@ -11,5 +11,5 @@ found=$(jq -c --argjson id "$post" '.[] | .id as $thread | recurse(.replies[]?) 
 	| {thread: $thread, who: .author.displayName, text: .text, when: (.datePosted / 1000 | strflocaltime("%Y-%m-%d"))}' \
 	<<<"$threads" | head -1)
 [ -n "$found" ] || { echo "No CurseForge post $post" >&2; exit 1; }
-body=$(jq -r '"From CurseForge comment by \(.who) (thread \(.thread), \(.when)): https://www.curseforge.com/wow/addons/crafting-and-farming-forever/comments\n\n" + (.text | split("\n") | map("> " + .) | join("\n"))' <<<"$found")
+body=$(jq -r '"From CurseForge comment by \(.who) (thread \(.thread), \(.when)): https://www.curseforge.com/wow/addons/craftingandfarmingforever/comments\n\n" + (.text | split("\n") | map("> " + .) | join("\n"))' <<<"$found")
 gh issue create --label "$kind" --label "$stage" --title "$title" --body "$body"
