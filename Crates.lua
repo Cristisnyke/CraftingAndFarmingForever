@@ -70,7 +70,8 @@ end
 function Crates.Held()
 	local held = 0
 	for _, crate in ipairs(Crates.list) do held = held + ns.Stock.Own(crate.id) end
-	return held
+	-- /cff fakeheld (testing, this session only) pretends you hold one more.
+	return held + (ns.fakeHeld and 1 or 0)
 end
 
 -- The crate's name without "Waylaid Crate: ".

@@ -5611,6 +5611,10 @@ SlashCmdList.CFF = function(input)
 		ns.Options.Sync()
 	elseif command == "minimap" then
 		ns.MinimapButton.Toggle()
+	elseif command == "fakeheld" then -- testing aid, not in the help line: pretend to hold a writ and a crate
+		ns.fakeHeld = not ns.fakeHeld or nil
+		ns.Say("chatDone", "Pretending to hold a writ and a crate: " .. tostring(ns.fakeHeld == true))
+		UpdateTabStrip()
 	elseif command == "diag" then
 		Diagnostics()
 	elseif command == "" then

@@ -195,7 +195,8 @@ end
 function Writs.Held()
 	local held = 0
 	for _, writ in ipairs(Writs.list) do held = held + ns.Stock.Own(writ.id) end
-	return held
+	-- /cff fakeheld (testing, this session only) pretends you hold one more.
+	return held + (ns.fakeHeld and 1 or 0)
 end
 
 -- The writ's name without "Craftsman's Writ: ", for a writ whose item has no ID here.
