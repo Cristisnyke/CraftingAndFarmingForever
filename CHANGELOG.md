@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.36.0
 
 - New Craft alert (Options tab, off by default): a sound a few seconds before the game stops crafting a batch while you still have crafts queued, so you can be alt-tabbed and come back in time to press Craft Next. Pick from six game sounds and the channel it plays on (Master, Effects, Music, Ambience or Dialog), and how many seconds early it warns (default 3). The menu also has the game's Sound in Background switch, without which nothing is heard while alt-tabbed
 
