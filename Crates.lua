@@ -66,6 +66,13 @@ function Crates.Fill(ctx, crate, count)
 	return ns.Planner.Crate(ctx, crate).best or crate.bundles[1]
 end
 
+-- How many crates this character holds (bags and bank), for the Crates tab's flair.
+function Crates.Held()
+	local held = 0
+	for _, crate in ipairs(Crates.list) do held = held + ns.Stock.Own(crate.id) end
+	return held
+end
+
 -- The crate's name without "Waylaid Crate: ".
 function Crates.Name(crate)
 	local name = ns.Items.Name(crate.id)

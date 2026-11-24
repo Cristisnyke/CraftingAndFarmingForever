@@ -191,6 +191,13 @@ function Writs.Done(writ)
 	return ok and done == true
 end
 
+-- How many writs this character holds (bags and bank), for the Writs tab's flair.
+function Writs.Held()
+	local held = 0
+	for _, writ in ipairs(Writs.list) do held = held + ns.Stock.Own(writ.id) end
+	return held
+end
+
 -- The writ's name without "Craftsman's Writ: ", for a writ whose item has no ID here.
 function Writs.Name(writ)
 	local name = ns.Items.Name(writ.id)

@@ -3095,6 +3095,23 @@ function UpdateTabStrip()
 			or (tab.key == "profit" and RECIPE.NewCount() > 0)
 		tab.label:SetText(Color(selected and "ffffffff" or (unseen and "ff55dd55" or "ffb8b8b8"), title))
 		tab.badge:SetShown(unseen and true or false)
+		-- Writs or crates in your possession: the tab shows how many, in gold, and pulses until you look.
+		local held = (tab.key == "writs" and ns.Writs.Held()) or (tab.key == "crates" and ns.Crates.Held()) or 0
+		tab.held = held
+		if held > 0 then
+			tab.label:SetText(Color(selected and "ffffffff" or "ffffd100", title)
+				.. Color("ffffd100", (" (%d)"):format(held)))
+		end
+		if tab.key == "writs" or tab.key == "crates" then
+			tab.flair:SetShown(held > 0)
+			if tab.flairAnim then
+				if held > 0 and not selected then
+					if not tab.flairAnim:IsPlaying() then tab.flairAnim:Play() end
+				elseif tab.flairAnim:IsPlaying() then
+					tab.flairAnim:Stop()
+				end
+			end
+		end
 		local shade = selected and THEME.primary or THEME.button
 		tab.bg:SetColorTexture(shade[1], shade[2], shade[3], selected and 0.55 or 0.6)
 		tab.accent:SetShown(selected)
@@ -5141,6 +5158,39 @@ local function CreateMain()
 		tab.badge:SetSize(6, 6)
 		tab.badge:SetPoint("TOPRIGHT", -4, -4)
 		tab.badge:Hide()
+		if info.key == "writs" or info.key == "crates" then
+			-- Gold glow and top edge while you hold some (UpdateTabStrip).
+			local flair = tab:CreateTexture(nil, "ARTWORK")
+			flair:SetAllPoints()
+			flair:SetColorTexture(1, 0.82, 0, 0.18)
+			flair:Hide()
+			local edge = tab:CreateTexture(nil, "OVERLAY")
+			edge:SetColorTexture(1, 0.82, 0, 1)
+			edge:SetHeight(2)
+			edge:SetPoint("TOPLEFT")
+			edge:SetPoint("TOPRIGHT")
+			edge:Hide()
+			flair:HookScript("OnShow", function() edge:Show() end)
+			flair:HookScript("OnHide", function() edge:Hide() end)
+			local anim = flair.CreateAnimationGroup and flair:CreateAnimationGroup()
+			if anim then
+				local pulse = anim:CreateAnimation("Alpha")
+				pulse:SetFromAlpha(1)
+				pulse:SetToAlpha(0.25)
+				pulse:SetDuration(0.9)
+				anim:SetLooping("BOUNCE")
+				anim:SetScript("OnStop", function() flair:SetAlpha(1) end)
+			end
+			tab.flair, tab.flairAnim = flair, anim or false
+			tab:SetScript("OnEnter", function(self)
+				if (self.held or 0) == 0 then return end
+				GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+				GameTooltip:SetText(("You have %d %s (bags and bank)."):format(self.held,
+					info.key == "writs" and (self.held == 1 and "writ" or "writs") or (self.held == 1 and "crate" or "crates")))
+				GameTooltip:Show()
+			end)
+			tab:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		end
 		main.tabButtons[index] = tab
 	end
 

@@ -4997,5 +4997,19 @@ do
 	ns.db.chars[alt], ns.db.recipes[901], Syndicator = nil, nil, nil
 end
 
+do -- Writs and Crates tabs: held writs and crates are counted for the tab's flair
+	local itemCount = C_Item.GetItemCount
+	C_Item.GetItemCount = function() return 0 end
+	check("held: no writs", ns.Writs.Held(), 0)
+	check("held: no crates", ns.Crates.Held(), 0)
+	C_Item.GetItemCount = function(id)
+		return (id == 264011 and 2) or (id == 264153 and 1) or (id == 248682 and 3) or 0
+	end
+	check("held: writs summed", ns.Writs.Held(), 3)
+	check("held: crates summed", ns.Crates.Held(), 3)
+	ns.UI.RefreshTabs()
+	C_Item.GetItemCount = itemCount
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
