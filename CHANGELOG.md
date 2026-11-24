@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- Under the hood: code tidied up and reorganised (advertising has its own file now), and the Profit and Restock tabs redraw once per burst of price updates at the auction house instead of after every one.
+- Refactoring and code optimization.
 
 ## 1.35.0
 
