@@ -55,7 +55,7 @@ echo "== GitHub comments from others, not marked yet"
 	gh api "repos/$repo/issues/comments?since=$window&per_page=100" --paginate --jq '.[] | {k: "gh-comment:\(.id)", u: .user.login, w: .created_at, t: "--- #\(.issue_url | split("/") | last)", b: .body}' || gh_fail=1
 	gh api "repos/$repo/pulls/comments?since=$window&per_page=100" --paginate --jq '.[] | {k: "gh-review:\(.id)", u: .user.login, w: .created_at, t: "--- PR review #\(.pull_request_url | split("/") | last) \(.path):\(.line // "?")", b: .body}' || gh_fail=1
 } | jq -rc --argjson seen "$seen" --arg owner "$owner" '
-	select(.u != $owner) | select(($seen | index(.k)) | not) | [.k, "\(.t) \(.u) \(.w)\n\(.b)\n"] | @json' \
+	select(.u != $owner) | .k as $k | select(($seen | index($k)) | not) | [.k, "\(.t) \(.u) \(.w)\n\(.b)\n"] | @json' \
 	| while read -r row; do
 		jq -r '.[1]' <<<"$row"
 		jq -r '.[0]' <<<"$row" >> "$shown"
