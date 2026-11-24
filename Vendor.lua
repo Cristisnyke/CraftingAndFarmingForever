@@ -62,8 +62,8 @@ local function Stock()
 end
 
 -- What the vendor step would buy here: { buys = { { itemID, units, cost, short } }, cost, notHere = { [itemID] =
--- units } }, from the plan the Queue tab shows. Units round up to what one purchase gives (thread sold in fives);
--- short = units this merchant hasn't got (limited stock). Nil while the merchant is closed or nothing is to buy.
+-- units } }, from the plan the Queue tab shows. Exact units, even when the merchant lists a bundle (vials in fives):
+-- BuyMerchantItem takes units, as the game's shift-click does. short = units this merchant hasn't got (limited stock). Nil while the merchant is closed or nothing is to buy.
 function Vendor.Pending()
 	if not open then return nil end
 	local wanted = ns.ActivePlan().vendor or {}
@@ -76,7 +76,7 @@ function Vendor.Pending()
 	for _, itemID in ipairs(ids) do
 		local units, slot = wanted[itemID], stock[itemID]
 		if units > 0 and slot then
-			local buy = math.ceil(units / slot.stack) * slot.stack
+			local buy = units
 			local short = 0
 			if slot.available >= 0 and buy > slot.available * slot.stack then
 				buy = slot.available * slot.stack

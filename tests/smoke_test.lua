@@ -3595,8 +3595,8 @@ do
 	GetProfessions, GetProfessionInfo = nil, nil
 end
 
--- The vendor step done at a merchant: the Next step bar's button buys what the plan gets from vendors, rounded up to
--- what one purchase gives, whatever step the bar is on.
+-- The vendor step done at a merchant: the Next step bar's button buys exactly what the plan gets from vendors, even
+-- from a bundle (thread in fives), whatever step the bar is on.
 do
 	local itemCount, money = C_Item.GetItemCount, playerMoney
 	local bought = 0
@@ -3617,7 +3617,7 @@ do
 		playerMoney = playerMoney - amount * slots[index].info.price / slots[index].info.stackCount
 	end
 	C_Item.GetItemCount = function(id) return id == 1 and 3 or id == 3 and bought or 0 end
-	playerMoney = 40
+	playerMoney = 10
 	ns.Queue.Clear()
 	ns.Queue.Add(20, 2)
 	RunTimers()
@@ -3635,8 +3635,8 @@ do
 	check("vendor step: button at the merchant", bar.vendoring, true)
 	check("vendor step: the bar jumps to the vendor step here", bar.list[1].text:find("^Buy from vendor") ~= nil, true)
 	check("vendor step: says it's here", bar.here ~= nil and bar.here > 1, true)
-	check("vendor step: rounded up to the bundle", bar.vendorButton.text, "Buy for your queue: 50c")
-	check("vendor step: too poor", select(2, ns.Vendor.Run()), "Not enough gold: this costs 50c.")
+	check("vendor step: exact units, not the bundle", bar.vendorButton.text, "Buy for your queue: 20c")
+	check("vendor step: too poor", select(2, ns.Vendor.Run()), "Not enough gold: this costs 20c.")
 	playerMoney = 1000
 	local said = {}
 	local realPrint = ns.Print
@@ -3646,9 +3646,9 @@ do
 	ns.Print = realPrint
 	check("vendor step: one purchase", #purchases, 1)
 	check("vendor step: the thread's slot", purchases[1] and purchases[1].index, 2)
-	check("vendor step: five units", purchases[1] and purchases[1].amount, 5)
+	check("vendor step: two units", purchases[1] and purchases[1].amount, 2)
 	check("vendor step: finished", ns.Vendor.Progress(), nil)
-	check("vendor step: says what it bought", said[1], "Vendor: bought Coarse Thread x5 for 50c.")
+	check("vendor step: says what it bought", said[1], "Vendor: bought Coarse Thread x2 for 20c.")
 	check("vendor step: plan has nothing left to buy here", ns.Vendor.Pending(), nil)
 	check("vendor step: button gone once bought", bar.vendoring, false)
 	check("vendor step: back to the first step once bought", bar.list[1].text, firstStep)
@@ -3670,7 +3670,7 @@ do
 	check("vendor step: counts after closing, not at once", ns.Vendor.Progress() ~= nil, true)
 	RunTimers()
 	ns.Print = realPrint
-	check("vendor step: counted the last purchase", said[1], "Vendor: bought Coarse Thread x5 for 50c.")
+	check("vendor step: counted the last purchase", said[1], "Vendor: bought Coarse Thread x2 for 20c.")
 	check("vendor step: says why it stopped", said[2], "Vendor: stopped (the merchant closed).")
 	ns.Queue.Clear()
 	RunTimers()
