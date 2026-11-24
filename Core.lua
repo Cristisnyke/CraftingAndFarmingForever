@@ -101,7 +101,7 @@ end
 -- db.sellerTransit     = { [itemID] = { units, at } }, crafts mailed to the bank alt it hasn't seen yet (Seller.lua)
 -- db.lastSeenVersion   = the add-on version whose What's new the player has seen
 -- db.ui                = { autoOpen, tab, queueBeside, farmMode, adDestination, quoteMargin (%), positions = { main|next = { x, y } },
---                          adEnabled, nextStep, scanPopup, chatTips/chatSales/chatPlan/chatDone/chatWarnings (ns.CHAT_KINDS), depthCheck (off only when false), adText, quoteText (own wording),
+--                          adEnabled, nextStep, scanPopup, recipeLists, chatTips/chatSales/chatPlan/chatDone/chatWarnings (ns.CHAT_KINDS), depthCheck (off only when false), adText, quoteText (own wording),
 --                          bankAltMode (on only when true), bankAltName, noAutoMail (mail only on a click),
 --                          excludedChars = { [GUID or Syndicator "Name-Realm"] = true }: characters left out (ns.CharExcluded), ... }
 --

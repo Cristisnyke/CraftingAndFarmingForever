@@ -297,6 +297,18 @@ function Options.Build(parent, top)
 	AddCheck("scanPopup", "Ask to scan at the auction house when prices are old",
 		"The Yes or No box that offers a new scan when your prices are more than a day old. The orange note in this "
 			.. "window stays either way.")
+	-- Beside it, in the second column.
+	controls.recipeLists = Check(parent, "Recipe shopping lists",
+		"An Auctionator shopping list per profession with the recipes this character can learn right now. Off: "
+			.. "the lists the add-on made are deleted and not made again.", y - 22,
+		function() return ns.Option("recipeLists") end, function(on)
+			ns.SetOption("recipeLists", on)
+			ns.Shopping.SyncRecipes()
+		end)
+	controls.recipeLists:ClearAllPoints()
+	controls.recipeLists:SetPoint("TOPLEFT", LEFT + 380, -(y - 22))
+	controls.recipeLists:SetHitRectInsets(0, -200, 0, 0)
+	controls.scanPopup:SetHitRectInsets(0, -340, 0, 0)
 	-- Every kind of chat line the add-on writes, in a small menu of its own: the pane has no room for five rows.
 	local chat = ns.UI.FlatButton(parent, "", 220, 22)
 	local menu

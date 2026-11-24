@@ -4563,6 +4563,16 @@ do
 		check("recipe list: stale profession list deleted", lists["Leatherworking Shopping List"], nil)
 		check("recipe list: player's own list kept", lists["My Own List"] ~= nil, true)
 		check("recipe list: this profession's kept", lists[RL] ~= nil, true)
+		-- Turned off on the Options tab: the add-on's lists go and aren't made again; the player's own stays.
+		ns.SetOption("recipeLists", false)
+		Shopping.SyncRecipes()
+		check("recipe list off: deleted", lists[RL], nil)
+		check("recipe list off: player's own list kept", lists["My Own List"] ~= nil, true)
+		Shopping.SyncRecipes()
+		check("recipe list off: not made again", lists[RL], nil)
+		ns.SetOption("recipeLists", true)
+		Shopping.SyncRecipes()
+		check("recipe list on: made again", lists[RL] ~= nil, true)
 		lists["My Own List"] = nil
 		mine.recipes[900005] = nil
 		ns.RecipeData[900005], ns.RecipeData[900006] = nil, nil

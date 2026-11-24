@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- **Recipe shopping lists can be turned off.** Untick **Recipe shopping lists** on the Options tab and the per-profession recipe lists are deleted and stay gone. Before, a deleted list came back. Thanks to felo747474.
+
 ## 1.34.0
 
 - Restock knows about cooldowns: a recipe on cooldown (like Transmute: Arcanite) isn't asked for until it's ready, says "cooldown" in the Craft column, and asks for one craft at a time. Materials whose recipe is on cooldown are bought instead of crafted. Open the profession once so the add-on can read them. Thanks felo747474.

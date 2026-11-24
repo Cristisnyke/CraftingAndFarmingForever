@@ -194,7 +194,10 @@ end
 
 local function UpdateRecipes()
 	local manager = Auctionator.Shopping.ListManager
-	local byList, loading = Shopping.RecipeStrings(ns.CharKey())
+	-- Turned off on the Options tab: the lists this add-on made go and stay gone.
+	local on = ns.Option("recipeLists")
+	local byList, loading = {}, 0
+	if on then byList, loading = Shopping.RecipeStrings(ns.CharKey()) end
 	local status = Shopping.recipeStatus
 	status.loading, status.items, status.lists = loading, 0, 0
 	for _, wanted in pairs(byList) do

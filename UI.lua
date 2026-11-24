@@ -5842,7 +5842,7 @@ local function Diagnostics()
 	Add("profession link API: " .. tostring(C_TradeSkillUI.GetTradeSkillListLink ~= nil)
 		.. ", posting to: " .. tostring(ns.db.ui.adDestination or "TRADE"))
 	local off = {}
-	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "chatSales", "chatPlan", "chatDone", "chatWarnings", "adEnabled", "priceCap", "smartRestock", "bagSpace", "depthCheck" }) do
+	for _, key in ipairs({ "autoOpen", "nextStep", "scanPopup", "chatTips", "chatSales", "chatPlan", "chatDone", "chatWarnings", "adEnabled", "priceCap", "smartRestock", "bagSpace", "depthCheck", "recipeLists" }) do
 		if not ns.Option(key) then table.insert(off, key) end
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
