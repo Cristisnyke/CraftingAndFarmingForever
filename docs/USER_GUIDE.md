@@ -275,6 +275,8 @@ Your profit from what you craft and sell, with sold and expired auctions per ite
 
 Craftsman's Writs are tradable items that start a daily quest: hand in the writ with one crafted item (200 for Crafted Solid Shot) and you get reputation with the Azeroth Commerce Authority or Durotar Supply and Logistics, plus a Coin Pouch. The Writs tab (`/cff writs`) shows what each one costs you.
 
+While this character holds writs (bags or bank), the **Writs** tab turns gold, pulses and shows how many, e.g. **Writs (2)**; hover it to see which ones. Inside, those rows are tinted gold, start with "You have 1:" and come first, even when a filter would hide them.
+
 - **Item wanted**: the item, the writ's level and where it's handed in. A zone with `?` is a guess from the pattern of the other writs; no zone means nobody has reported it yet (the quest marks it on your map). "done today" means this character already handed it in.
 - **Writ**: the writ's auction house price. Green when you hold the writ.
 - **Item**: the wanted item by the cheapest way. Blue means one of your characters crafts it; white is bought.
@@ -288,6 +290,8 @@ Craftsman's Writs are tradable items that start a daily quest: hand in the writ 
 ## Crates
 
 Waylaid Crates drop from monsters and sell on the auction house. A labelled crate ("Waylaid Crate: Journeyman Ore") is filled with any one bundle from its list of materials, and the sealed crate is handed to your faction's trade representative for Merchant's Favor and a little coin. Anyone can fill them: no profession is needed. The Crates tab (`/cff crates`) shows which crate gives the cheapest Merchant's Favor. The unlabelled "Waylaid Crate" isn't listed.
+
+While this character holds crates (bags or bank), the **Crates** tab turns gold, pulses and shows how many; hover it to see which ones. Inside, those rows are tinted gold, start with "You have 1:" and come first, whatever level is picked.
 
 - **Crate**: the crate, and its cheapest bundle ("20 Iron Ore"). The row with the cheapest Merchant's Favor says **best buy**, and the bottom line names it.
 - **Price**: the crate's auction house price. Green when you hold it.
