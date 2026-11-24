@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Under the hood: code tidied up and reorganised (advertising has its own file now), and the Profit and Restock tabs redraw once per burst of price updates at the auction house instead of after every one.
+
 ## 1.35.0
 
 - **Recipe shopping lists can be turned off.** Untick **Recipe shopping lists** on the Options tab and the per-profession recipe lists are deleted and stay gone. Before, a deleted list came back. Thanks to felo747474.
