@@ -688,8 +688,8 @@ QueueRow().quote.scripts.OnClick(QueueRow().quote)
 check("quote to a two-part name uses reply", chatBoxText, "/r link x2: 1s 54c")
 ChatEdit_GetLastTellTarget = nil
 
--- Price cap from the Options tab: the shirt's 70c of materials sell for 3s, over 400%, so with the cap on profit
--- counts it at 200% (1s 40c) and the row and the queue entry say check price.
+-- Price check from the Options tab: the shirt's 70c of materials sell for 10s, over 400%, so with the check on the
+-- row and the queue entry say check price, and profit still counts the 10s listing.
 do
 	local tabBefore = ns.db.ui.tab
 	ns.UI.Show("options")
@@ -699,17 +699,13 @@ do
 	check("cap turned on", ns.Option("priceCap"), true)
 	RunTimers()
 	check("capped queue entry flagged", ns.totals.capped[1], true)
-	check("capped revenue at 200%", ns.totals.revenue, 2 * 140 * 0.95)
+	check("capped revenue at the listing", ns.totals.revenue, 2 * 1000 * 0.95)
 	check("max box shows 400", controls.capMax:GetText(), "400")
-	check("normal box shows 200", controls.capNormal:GetText(), "200")
-	controls.capNormal:SetText("900")
-	controls.capNormal.scripts.OnEnterPressed(controls.capNormal)
-	check("normal never above max", select(2, ns.Queue.PriceCapPercents()), 400)
 	controls.capMax:SetText("5000")
 	controls.capMax.scripts.OnEnterPressed(controls.capMax)
 	RunTimers()
 	check("higher limit lets the listing through", ns.totals.capped[1], nil)
-	ns.Queue.SetPriceCapPercents(400, 200)
+	ns.Queue.SetPriceCapPercent(400)
 	ns.UI.Show("profit")
 	local flagged
 	ns.db.ui.priceCap = true

@@ -124,7 +124,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 
 ### Suspicious prices
 
-- A crafted item listed far above its material cost (over 400% by default) counts at 200% and is marked "check price", so one odd listing can't fake a big profit. Recipes with a cooldown (Mooncloth, transmutes) are left alone. Both limits are in Options.
+- A crafted item listed far above its material cost (over 400% by default) is marked "check price", since that is often one odd listing that won't sell; profit still counts the listing. Recipes with a cooldown (Mooncloth, transmutes) are left alone. The limit is in Options.
 - Price spikes: the add-on learns each item's usual price from your scans (the middle of the last 7 days). A crafted item listed above it counts at its usual price, and spikes of 130% or more are marked, so you don't craft at spiked material prices for a sale that won't last. A price that holds for 3 scan days, or that your own sales keep getting, becomes the new usual price.
 
 ### Stale-price warning

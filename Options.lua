@@ -499,9 +499,9 @@ function Options.Build(parent, top)
 	y = y + 10
 	Heading(parent, "Profit", y)
 	y = y + 22
-	controls.priceCap = Check(parent, "Limit suspicious sale prices",
-		"One odd listing (7s of materials posted for 20g) would show a huge profit. A crafted item listed above the "
-			.. "limit counts at the normal mark-up instead, and its row says check price.", y,
+	controls.priceCap = Check(parent, "Flag suspicious sale prices",
+		"One odd listing (7s of materials posted for 20g) may never sell. A crafted item listed above the limit "
+			.. "says check price, with ! before its profit. Profit still counts today's listing.", y,
 		function() return ns.Option("priceCap") end, function(on) ns.SetOption("priceCap", on) end)
 	controls.priceCap:SetScript("OnClick", function(self)
 		ns.SetOption("priceCap", self:GetChecked() and true or false)
@@ -563,16 +563,10 @@ function Options.Build(parent, top)
 		box.percent = percent
 		return box
 	end
-	controls.capMax = PercentBox(nil, "Above", function() return (ns.Queue.PriceCapPercents()) end,
-		function(value) ns.Queue.SetPriceCapPercents(value, nil) end, "Highest believable price",
+	controls.capMax = PercentBox(nil, "Above", function() return ns.Queue.PriceCapPercent() end,
+		function(value) ns.Queue.SetPriceCapPercent(value) end, "Highest believable price",
 		"A sale price above this % of the material cost is suspicious. Default 400. Press Enter to save.")
-	controls.capMax.percent:SetText("% of material cost,")
-	controls.capNormal = PercentBox(controls.capMax.percent, "count it as",
-		function() return select(2, ns.Queue.PriceCapPercents()) end,
-		function(value) ns.Queue.SetPriceCapPercents(nil, value) end, "Suspicious price counted as",
-		"What profit uses instead, as % of the material cost. Default 200, never above the first number. Press "
-			.. "Enter to save.")
-	controls.capNormal.percent:SetText("%")
+	controls.capMax.percent:SetText("% of material cost")
 	y = y + 32
 
 	Heading(parent, "Restock", y)
@@ -829,7 +823,6 @@ function Options.Build(parent, top)
 		controls.priceCap:Sync()
 		controls.normalPrice:Sync()
 		controls.capMax:Sync()
-		controls.capNormal:Sync()
 		controls.adText:Sync()
 		controls.margin:Sync()
 		controls.quoteText:Sync()

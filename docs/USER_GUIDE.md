@@ -34,7 +34,7 @@ Every known recipe, ranked by profit per craft:
 - **+** queues one craft; **Shift + +** queues ten. **Right-click +** (or Ctrl-click) opens a box to type how many crafts to queue.
 - **Bind-on-pickup results** can't be sold, so they're listed after the priced recipes with their **craft cost** instead of a profit. They can still be queued.
 - Enchants that don't produce an item aren't listed.
-- **Check price** (orange, with `!` before the profit): the item is listed for more than 400% of its material cost, which is usually one odd listing that won't sell. Profit then counts it at 200% of the material cost instead; the tooltip shows the real listing. Recipes with a cooldown (Mooncloth, transmutes) are never capped, since they really sell far above their materials. Search the item at the auction house before you craft it. The same mark shows on the Queue tab. Both numbers are on the Options tab.
+- **Check price** (orange, with `!` before the profit): the item is listed for more than 400% of its material cost, which is usually one odd listing that won't sell. Profit still counts that listing, so check it. Recipes with a cooldown (Mooncloth, transmutes) are never flagged, since they really sell far above their materials. Search the item at the auction house before you craft it. The same mark shows on the Queue tab. The limit is on the Options tab.
 
 ### Skill up (levelling)
 
@@ -320,7 +320,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Chat messages | A menu with a tick box for each kind of chat line: Reminders (old prices, where the shopping list is), Sales (sold, money in the mailbox), Plan news (the plan checked again, a restock cut), What buttons did (Bank it, Buy for your queue, restock updated, profit reset) and Warnings (refused posts, old prices on a quote, why a button can't do something). Commands you type, like `/cff diag`, always answer |
 | Read listings at the auction house | On by default. The add-on looks up every listing of what your queue would buy, so buying many counts at the real cost (see [What buying many really costs](#what-buying-many-really-costs)). The screen is locked for the few seconds it reads. Off: only the items you open yourself are read, and the screen is never locked |
 | Plan around bag space | On by default. When the queue's materials won't fit in your bags, says what to bank and splits the queue into runs (see [Bag space](#bag-space)) |
-| Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price** (never for recipes with a cooldown). Off: the listing is used as it is |
+| Flag suspicious sale prices | On by default. A crafted item listed above this % of its material cost (400) says **check price** with `!` before its profit, which still counts the listing (never for recipes with a cooldown). Off: no flag |
 | Count price spikes at the usual price | On by default. A crafted item listed above its usual price (the middle of its last 7 days) counts at the usual price, and items at 130% or more say so (see [Usual prices and spikes](#usual-prices-and-spikes)). Off: today's listing is used as it is |
 | Smart restock goals | On by default. Restock goals follow your sales (see Restock). Off: every item without its own goal uses the default goals |
 | Bank alt mode | Off by default. With a name in the **Bank alt** box beside it, that character sells everything and your others mail it their crafts (see [Bank alt mode](#bank-alt-mode)) |

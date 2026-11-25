@@ -7,8 +7,8 @@
 --   ahPrice(itemID)    -> copper or nil
 --   vendorPrice(itemID)-> copper or nil
 --   ahCut              = 0.05
---   priceCap           = { max = 4, normal = 2 } (optional): a result listed above max x its material cost is
---                        counted at normal x that cost and flagged capped, as one odd listing can't be trusted
+--   priceCap           = { max = 4 } (optional): a result listed above max x its material cost is flagged
+--                        capped (check the price), still counted at its listing
 --   hasCooldown(recipeID) -> true when the recipe has a cooldown (optional): those results are scarce and really
 --                        sell far above their materials, so the price cap leaves them alone, and as a material
 --                        they count at their market price (the one made could be sold instead), not as crafted
@@ -247,29 +247,25 @@ function Planner.Profit(ctx, recipeID, crafts)
 		table.sort(result.unread)
 		cost = result.cost
 	end
-	-- A lone listing at many times the material cost (7s of materials posted for 20g) would show a huge profit that
-	-- won't sell. Above the cap the sale counts at the normal mark-up instead, and the row is flagged to check.
-	-- Recipes with a cooldown (Mooncloth, transmutes) are scarce, so a high price is real: no cap for them.
+	-- A lone listing at many times the material cost (7s of materials posted for 20g) may be one that won't sell.
+	-- Above the cap the row is flagged to check, but profit stays at today's listing (the player checks it).
+	-- Recipes with a cooldown (Mooncloth, transmutes) are scarce, so a high price is real: no flag for them.
 	local cap = ctx.priceCap
 	if cap and ctx.hasCooldown and ctx.hasCooldown(recipeID) then cap = nil end
 	if cap and saleUnit and cost and cost > 0 then
 		local unitCost = cost / yield
-		if saleUnit > unitCost * cap.max then
-			result.listedUnit = saleUnit
-			result.capped = true
-			saleUnit = unitCost * math.min(cap.normal, cap.max)
-			result.saleUnit = saleUnit
-		end
+		if saleUnit > unitCost * cap.max then result.capped = true end
 	end
 	-- During a spike the materials and the result may both be dear: the materials are paid now, the result sells
-	-- later, likely at its usual price. So the sale counts at no more than that.
+	-- later, likely at its usual price. So the sale counts at no more than that, unless the row is flagged to check
+	-- the price: that one counts at today's listing.
 	local normal = ctx.normalPrice and Priced(ctx.normalPrice(recipe.o))
 	if normal and result.saleUnit then
-		local listed = result.listedUnit or result.saleUnit
+		local listed = result.saleUnit
 		result.normalUnit = normal
 		result.ofNormal = listed / normal
 		result.spiked = result.ofNormal >= Planner.NORMAL.HIGH or nil
-		if saleUnit > normal then
+		if saleUnit > normal and not result.capped then
 			result.listedUnit = listed
 			result.atNormal = true
 			saleUnit = normal

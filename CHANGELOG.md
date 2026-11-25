@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Rows marked "check price" now show their profit at the current auction house price instead of a lowered one. The "!" stays so you know to check the listing. The second "count it as %" box in Options is gone.
+
 ## 1.37.3
 
 - Recipes: click a recipe for its Wowhead link, ready to copy with Ctrl+C. It goes to the page of the item that teaches it, or the recipe itself when no item does.

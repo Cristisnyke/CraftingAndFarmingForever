@@ -7,29 +7,24 @@ local Queue = {}
 ns.Queue = Queue
 local Recipes = ns.Recipes
 
--- Price cap: a crafted item listed above max % of its material cost counts at normal % instead, flagged to check.
+-- Price check: a crafted item listed above max % of its material cost is flagged "check price" (profit still counts
+-- the listing).
 Queue.PRICE_CAP_DEFAULT_MAX = 400
-Queue.PRICE_CAP_DEFAULT_NORMAL = 200
 Queue.PRICE_CAP_LIMIT = 10000
 
-function Queue.PriceCapPercents()
-	local max = ns.db.ui.priceCapMax or Queue.PRICE_CAP_DEFAULT_MAX
-	return max, math.min(ns.db.ui.priceCapNormal or Queue.PRICE_CAP_DEFAULT_NORMAL, max)
+function Queue.PriceCapPercent()
+	return ns.db.ui.priceCapMax or Queue.PRICE_CAP_DEFAULT_MAX
 end
 
--- Max at least 100% (the cost itself); normal from 100% up to max.
-function Queue.SetPriceCapPercents(max, normal)
-	if max then ns.db.ui.priceCapMax = math.max(100, math.min(Queue.PRICE_CAP_LIMIT, math.floor(max))) end
-	if normal then ns.db.ui.priceCapNormal = math.max(100, math.min(Queue.PRICE_CAP_LIMIT, math.floor(normal))) end
-	ns.db.ui.priceCapNormal = math.min(ns.db.ui.priceCapNormal or Queue.PRICE_CAP_DEFAULT_NORMAL,
-		ns.db.ui.priceCapMax or Queue.PRICE_CAP_DEFAULT_MAX)
+-- At least 100% (the cost itself).
+function Queue.SetPriceCapPercent(max)
+	ns.db.ui.priceCapMax = math.max(100, math.min(Queue.PRICE_CAP_LIMIT, math.floor(max)))
 end
 
--- Nil when the player turned the cap off.
+-- Nil when the player turned the check off.
 function Queue.PriceCap()
 	if not ns.Option("priceCap") then return nil end
-	local max, normal = Queue.PriceCapPercents()
-	return { max = max / 100, normal = normal / 100 }
+	return { max = Queue.PriceCapPercent() / 100 }
 end
 
 local function NewContext()

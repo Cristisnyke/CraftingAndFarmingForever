@@ -1496,7 +1496,7 @@ local function ShowProfitTooltip(row, result)
 		GameTooltip:AddLine("Bind on pickup: can't be sold on the auction house.", 1, 0.6, 0.2, true)
 	else
 		local sale = result.saleUnit and (ns.Money(result.saleUnit * result.yield)) or "no price"
-		local lowered = result.capped or result.atNormal
+		local lowered = result.atNormal
 		GameTooltip:AddDoubleLine(lowered and "Counted as selling for" or "Sells for", sale, 1, 1, 1, 1, 1, 1)
 		if lowered then
 			GameTooltip:AddDoubleLine("Listed on the AH for", ns.Money(result.listedUnit * result.yield), 1, 0.6, 0.2, 1, 0.6, 0.2)
@@ -1512,10 +1512,9 @@ local function ShowProfitTooltip(row, result)
 			GameTooltip:AddLine("Listed a little above its usual price: profit counts the usual price.", 0.6, 0.6, 0.6, true)
 		end
 		if result.capped then
-			local max, normal = ns.Queue.PriceCapPercents()
-			GameTooltip:AddLine(("Check this price: it's more than %d%% of the material cost, so profit counts it at "
-				.. "%d%% instead. Often one odd listing that won't sell. Search the item at the auction house before "
-				.. "crafting it. Change the limits in Options."):format(max, normal), 1, 0.6, 0.2, true)
+			GameTooltip:AddLine(("Check this price: it's more than %d%% of the material cost. Profit counts today's "
+				.. "listing, but it's often one odd listing that won't sell. Search the item at the auction house "
+				.. "before crafting it. Change the limit in Options."):format(ns.Queue.PriceCapPercent()), 1, 0.6, 0.2, true)
 		end
 		if result.postage then
 			GameTooltip:AddDoubleLine("Postage to " .. (ns.Seller.Name() or "your bank alt"), ns.Money(result.postage),
@@ -1900,9 +1899,8 @@ local function RowOnEnter(row)
 				GameTooltip:AddDoubleLine("Sale price now", ns.Money(new), 1, 1, 1, 1, 1, 1)
 			end
 			if ns.totals.capped and ns.totals.capped[data.index] then
-				local max, normal = ns.Queue.PriceCapPercents()
-				GameTooltip:AddLine(("Check the price: it's listed at more than %d%% of the material cost, so the "
-					.. "profit counts it at %d%%. Search it at the auction house before crafting."):format(max, normal),
+				GameTooltip:AddLine(("Check the price: it's listed at more than %d%% of the material cost. Profit "
+					.. "counts today's listing; search it at the auction house before crafting."):format(ns.Queue.PriceCapPercent()),
 					1, 0.6, 0.2, true)
 			elseif ns.totals.spiked and ns.totals.spiked[data.index] then
 				GameTooltip:AddLine(("Price spike: listed at %d%% of its usual price, so the profit counts the usual "
@@ -5653,7 +5651,7 @@ local function Diagnostics()
 	end
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
 		.. tostring(ns.db.ui.adText ~= nil) .. ", own quote text: " .. tostring(ns.db.ui.quoteText ~= nil))
-	Add(("price cap: above %d%% counts as %d%%"):format(ns.Queue.PriceCapPercents()))
+	Add(("price check: above %d%%"):format(ns.Queue.PriceCapPercent()))
 	ns.db.lastDiag = lines
 end
 

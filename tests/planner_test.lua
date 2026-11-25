@@ -1018,18 +1018,17 @@ do
 	check("restock time: nothing to craft", Planner.RestockTime(ctx, { rows[2] }, secondsOf), 0)
 end
 
--- Price cap: shirt materials 65, listed at 1000 (over 400%): counted at 200% = 130, flagged to check.
+-- Price check: shirt materials 65, listed at 1000 (over 400%): flagged to check, still counted at the listing.
 do
 	local ctx = Context()
-	ctx.priceCap = { max = 4, normal = 2 }
+	ctx.priceCap = { max = 4 }
 	local capped = Planner.Profit(ctx, 300)
 	check("capped flag", capped.capped, true)
-	check("capped listed price kept", capped.listedUnit, 1000)
-	check("capped sale at normal", capped.saleUnit, 130)
-	check("capped net", capped.net, 130 * 0.95 - 65)
+	check("capped sale at the listing", capped.saleUnit, 1000)
+	check("capped net at the listing", capped.net, 1000 * 0.95 - 65)
 	-- At or under the limit nothing changes: 260 = exactly 400%.
 	local fair = Context({ ah = { [ORE] = 10, [BAR] = 50, [CLOTH] = 10, [BOLT] = 100, [SHIRT] = 260 } })
-	fair.priceCap = { max = 4, normal = 2 }
+	fair.priceCap = { max = 4 }
 	local result = Planner.Profit(fair, 300)
 	check("price at the limit not capped", result.capped, nil)
 	check("price at the limit kept", result.saleUnit, 260)
@@ -1044,7 +1043,7 @@ do
 	-- A cooldown material (bolt, recipe 200) counts at its market price, not its crafting cost (#17): shirt
 	-- materials 3 x 100 + 5 = 305, so 1000 isn't capped. Without a market price the crafting cost is used.
 	local scarceMat = Context()
-	scarceMat.priceCap = { max = 4, normal = 2 }
+	scarceMat.priceCap = { max = 4 }
 	scarceMat.hasCooldown = function(recipeID) return recipeID == 200 end
 	local bag = Planner.Profit(scarceMat, 300)
 	check("cooldown material at market price", bag.cost, 305)
@@ -1056,14 +1055,14 @@ do
 	local unpriced = Context({ ah = { [CLOTH] = 10, [SHIRT] = 1000 } })
 	unpriced.hasCooldown = scarceMat.hasCooldown
 	check("cooldown material without a price is crafted", Planner.Profit(unpriced, 300).cost, 65)
-	-- Yield counts: 2 bars from 2 ore (20) = 10 a bar; 50 is 500% -> 20 a bar.
+	-- Yield counts: 2 bars from 2 ore (20) = 10 a bar; 50 is 500% -> flagged.
 	local yieldCtx = Context({ recipes = { [100] = { o = BAR, qmin = 2, qmax = 2, r = { { 2, ORE } } } }, known = { [BAR] = { 100 } } })
-	yieldCtx.priceCap = { max = 4, normal = 2 }
-	check("cap per unit with yield", Planner.Profit(yieldCtx, 100).saleUnit, 20)
+	yieldCtx.priceCap = { max = 4 }
+	check("cap per unit with yield", Planner.Profit(yieldCtx, 100).capped, true)
 	-- Queue totals mark the capped entry.
 	local totals = Planner.QueueTotals(ctx, { { recipeID = 300, qty = 2 } }, function() return true end)
 	check("queue totals flag capped", totals.capped[1], true)
-	check("queue totals use capped price", totals.net, (130 * 0.95 - 65) * 2)
+	check("queue totals use the listing", totals.net, (1000 * 0.95 - 65) * 2)
 end
 
 -- Craftsman's Writs: the writ plus the wanted item by the cheapest path, against the pouch and the reputation.
@@ -1776,13 +1775,13 @@ do
 	local none = Context()
 	none.normalPrice = function() return nil end
 	check("no normal: unchanged", Planner.Profit(none, 300).saleUnit, 1000)
-	-- With the cap too: whichever is lower counts; a capped row isn't also marked as a spike in the queue.
+	-- Flagged to check the price too: it counts at the listing, not the usual price; not also marked as a spike.
 	local both = Context()
-	both.priceCap = { max = 4, normal = 2 }
+	both.priceCap = { max = 4 }
 	both.normalPrice = function(id) return ({ [SHIRT] = 500 })[id] end
 	result = Planner.Profit(both, 300)
-	check("cap + normal: lower counts", result.saleUnit, 130)
-	check("cap + normal: listed is the AH price", result.listedUnit, 1000)
+	check("cap + normal: listing counts", result.saleUnit, 1000)
+	check("cap + normal: not lowered", result.atNormal, nil)
 	check("cap + normal: ratio from the listing", result.ofNormal, 2)
 	local totals = Planner.QueueTotals(ctx, { { recipeID = 300, qty = 1 } }, function() return true end)
 	check("queue totals: spike ratio", totals.spiked[1] ~= nil, true)
