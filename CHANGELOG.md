@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.37.4
 
 - Rows marked "check price" now show their profit at the current auction house price instead of a lowered one. The "!" stays so you know to check the listing. The second "count it as %" box in Options is gone.
 
