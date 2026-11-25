@@ -10,7 +10,8 @@
 --   priceCap           = { max = 4, normal = 2 } (optional): a result listed above max x its material cost is
 --                        counted at normal x that cost and flagged capped, as one odd listing can't be trusted
 --   hasCooldown(recipeID) -> true when the recipe has a cooldown (optional): those results are scarce and really
---                        sell far above their materials, so the price cap leaves them alone
+--                        sell far above their materials, so the price cap leaves them alone, and as a material
+--                        they count at their market price (the one made could be sold instead), not as crafted
 --   normalPrice(itemID)-> copper (optional): the item's usual price (Planner.NormalPrice). A result listed above it
 --                        counts at it, so a short price spike can't make a craft look good that will sell for less
 --   postage(recipeID, itemID) -> copper per unit made (optional): bank alt mode's postage, off the profit
@@ -52,6 +53,12 @@ function Planner.NewContext(ctx)
 	return ctx
 end
 
+-- A cooldown recipe (Mooncloth) can't be crafted on demand: as a material its product counts at the price it would
+-- sell for, so only when it has no price is the crafting cost used.
+local function Scarce(ctx, recipeID, priced)
+	return priced and ctx.hasCooldown and ctx.hasCooldown(recipeID) or false
+end
+
 -- Cheapest way to get one unit of an item: unit price, "ah" | "vendor" | "craft", recipeID when crafted.
 function Planner.ItemCost(ctx, itemID)
 	local memo = ctx.costMemo[itemID]
@@ -63,10 +70,11 @@ function Planner.ItemCost(ctx, itemID)
 	if ah then unit, kind = ah, "ah" end
 	if vendor and (not unit or vendor < unit) then unit, kind = vendor, "vendor" end
 
+	local priced = unit ~= nil
 	for _, candidate in ipairs(ctx.known[itemID] or {}) do
 		if ctx.visiting[candidate] then
 			ctx.cycleHits = ctx.cycleHits + 1
-		else
+		elseif not Scarce(ctx, candidate, priced) then
 			local recipe = ctx.recipes[candidate]
 			local total = recipe and Planner.RecipeCost(ctx, candidate)
 			if total then
@@ -152,10 +160,11 @@ function Planner.ItemCostFor(ctx, itemID, count)
 		if depth then note.read[itemID] = true else note.unread[itemID] = true end
 	end
 
+	local priced = total ~= nil
 	for _, candidate in ipairs(ctx.known[itemID] or {}) do
 		if ctx.visiting[candidate] then
 			ctx.cycleHits = ctx.cycleHits + 1
-		else
+		elseif not Scarce(ctx, candidate, priced) then
 			local recipe = ctx.recipes[candidate]
 			if recipe then
 				local craftTotal, _, craftNote = Planner.RecipeCostFor(ctx, candidate, count / AverageYield(recipe))

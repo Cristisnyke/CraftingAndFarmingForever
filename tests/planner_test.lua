@@ -1041,6 +1041,21 @@ do
 	check("cooldown recipe not capped", scarce.capped, nil)
 	check("cooldown recipe keeps its price", scarce.saleUnit, 1000)
 	ctx.hasCooldown = nil
+	-- A cooldown material (bolt, recipe 200) counts at its market price, not its crafting cost (#17): shirt
+	-- materials 3 x 100 + 5 = 305, so 1000 isn't capped. Without a market price the crafting cost is used.
+	local scarceMat = Context()
+	scarceMat.priceCap = { max = 4, normal = 2 }
+	scarceMat.hasCooldown = function(recipeID) return recipeID == 200 end
+	local bag = Planner.Profit(scarceMat, 300)
+	check("cooldown material at market price", bag.cost, 305)
+	check("cooldown material: product not capped", bag.capped, nil)
+	check("cooldown material bought", bag.parts[1].kind, "ah")
+	local batch = Context({ depth = {} })
+	batch.hasCooldown = scarceMat.hasCooldown
+	check("cooldown material at market price in a batch", Planner.Profit(batch, 300, 2).cost, 305)
+	local unpriced = Context({ ah = { [CLOTH] = 10, [SHIRT] = 1000 } })
+	unpriced.hasCooldown = scarceMat.hasCooldown
+	check("cooldown material without a price is crafted", Planner.Profit(unpriced, 300).cost, 65)
 	-- Yield counts: 2 bars from 2 ore (20) = 10 a bar; 50 is 500% -> 20 a bar.
 	local yieldCtx = Context({ recipes = { [100] = { o = BAR, qmin = 2, qmax = 2, r = { { 2, ORE } } } }, known = { [BAR] = { 100 } } })
 	yieldCtx.priceCap = { max = 4, normal = 2 }
