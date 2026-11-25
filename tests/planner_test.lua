@@ -1737,6 +1737,18 @@ do
 	check("normal: even count median", Planner.NormalPrice({ [97] = 40, [98] = 50, [99] = 200, [100] = 60 }, 100), 55)
 	check("normal: older than 14 days left out", Planner.NormalPrice({ [86] = 999, [98] = 50, [99] = 60 }, 100), nil)
 	check("normal: day 87 still counts", Planner.NormalPrice({ [87] = 70, [98] = 50, [99] = 60 }, 100), 60)
+	-- A price that has held for the last 3 scan days is the new level, not a spike (#15).
+	local risen = { [90] = 40, [92] = 42, [94] = 44, [97] = 64, [99] = 66, [100] = 63 }
+	check("normal: risen price held 3 days is usual", Planner.NormalPrice(risen, 100), 64)
+	check("normal: two high days still a spike", Planner.NormalPrice({ [90] = 40, [92] = 42, [94] = 44, [96] = 43, [99] = 66, [100] = 63 }, 100), 43.5)
+	check("normal: one dip among high days still a spike", Planner.NormalPrice({ [90] = 40, [92] = 42, [94] = 44, [97] = 64, [99] = 50, [100] = 63 }, 100), 47)
+	check("normal: fallen price held 3 days is usual", Planner.NormalPrice({ [90] = 90, [92] = 92, [94] = 94, [97] = 60, [99] = 62, [100] = 61 }, 100), 61)
+	-- Own sales: copper received per unit, grossed up for the AH cut.
+	check("sold: none", Planner.SoldPrice(nil, 100, 0.05), nil)
+	check("sold: too few units", Planner.SoldPrice({ [100] = { s = 2, g = 190 } }, 100, 0.05), nil)
+	check("sold: gross unit price", Planner.SoldPrice({ [99] = { s = 10, g = 950 }, [100] = { s = 7, g = 665 } }, 100, 0.05), 100)
+	check("sold: older than 7 days left out", Planner.SoldPrice({ [93] = { s = 10, g = 95000 }, [100] = { s = 3, g = 285 } }, 100, 0.05), 100)
+	check("sold: unknown money skipped", Planner.SoldPrice({ [99] = { s = 5, g = 0 }, [100] = { s = 3, g = 285 } }, 100, 0.05), 100)
 	-- The player's case: crafted for 1g, listed at 1g40 during a spike, usually 60s. Profit counts 60s: a loss.
 	local ctx = Context()
 	ctx.normalPrice = function(id) return ({ [SHIRT] = 600 })[id] end

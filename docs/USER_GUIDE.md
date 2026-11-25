@@ -174,6 +174,8 @@ Prices jump for a day or two now and then: materials and the item you'd make bot
 - A crafted item listed above its usual price counts at the usual price in Profit, Queue and Restock. Below it, today's price counts.
 - At 130% of usual or more, its row says so in orange, for example **167% of usual**, with **!** before the profit. The tooltip shows the listed price, the usual price and how far apart they are.
 - Material lines in tooltips add **% of usual** when a material is unusually dear (orange) or cheap (green). Materials always count at what they cost now, since that's what you pay.
+- A price that holds is no spike. When the last 3 days you scanned were all 130% or more of the days before (or all well below them), that's the new usual price.
+- Your own sales count too. When you sold 3 or more in the last 7 days for more than the usual price, what they fetched (before the AH cut) is the usual price, since that price clearly sells.
 - It needs a few days of scans before it shows anything. Days you don't scan simply aren't counted.
 - Switch it off with **Count price spikes at the usual price** in Options.
 

@@ -172,9 +172,15 @@ local function RecordDay(itemID, price, changed)
 end
 
 -- The item's usual price (median of its daily lows), nil until enough days are seen or with the option off.
+-- What the player's own recent sales fetched raises it: a price that keeps selling is no spike.
 function Prices.Normal(itemID)
 	if not ns.Option("normalPrice") then return nil end
-	return ns.Planner.NormalPrice(ns.db.priceDays[itemID], Today())
+	local today = Today()
+	local normal = ns.Planner.NormalPrice(ns.db.priceDays[itemID], today)
+	local item = normal and ns.Sales and ns.Sales.Item(Items.Name(itemID))
+	local sold = item and ns.Planner.SoldPrice(item.days, today, ns.AH_CUT)
+	if sold and sold > normal then return sold end
+	return normal
 end
 
 -- The current price as a share of the usual one (1.5 = 150%), nil when either is unknown.

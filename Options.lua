@@ -511,8 +511,8 @@ function Options.Build(parent, top)
 	controls.normalPrice = Check(parent, "Count price spikes at the usual price",
 		"The add-on notes each item's lowest price every day you scan. After 3 days, the middle of the last 14 days "
 			.. "is its usual price. A crafted item listed above it counts at the usual price, so a short spike can't "
-			.. "make you craft something that sells for less once the spike ends. Items at 130% or more say so on "
-			.. "their row.", y,
+			.. "make you craft something that sells for less once the spike ends. A price that holds for 3 scan days, or "
+			.. "that your own sales keep getting, becomes the usual price. Items at 130% or more say so on their row.", y,
 		function() return ns.Option("normalPrice") end, function(on) ns.SetOption("normalPrice", on) end)
 	controls.normalPrice:SetScript("OnClick", function(self)
 		ns.SetOption("normalPrice", self:GetChecked() and true or false)

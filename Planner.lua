@@ -331,20 +331,53 @@ end
 
 -- Usual prices: the lowest price seen each day (days = { [day number] = copper }), and the median of the last DAYS
 -- days is what the item normally sells for. Fewer than MIN_DAYS days say nothing. HIGH = a price this many times
--- the usual one is a spike, LOW (its inverse) unusually cheap.
-Planner.NORMAL = { DAYS = 14, MIN_DAYS = 3, HIGH = 1.3 }
+-- the usual one is a spike, LOW (its inverse) unusually cheap. A price that has held for the last HOLD scan days
+-- (all of them HIGH or more, or all LOW or less, of the days before) is no spike but the new level: their median is the usual price.
+-- SOLD_DAYS / SOLD_UNITS: own sales of at least this many units in this many days (Planner.SoldPrice).
+Planner.NORMAL = { DAYS = 14, MIN_DAYS = 3, HIGH = 1.3, HOLD = 3, SOLD_DAYS = 7, SOLD_UNITS = 3 }
 Planner.NORMAL.LOW = 1 / Planner.NORMAL.HIGH
 
-function Planner.NormalPrice(days, today)
-	if not days then return nil end
-	local values = {}
-	for day, copper in pairs(days) do
-		if day > today - Planner.NORMAL.DAYS and day <= today and copper > 0 then values[#values + 1] = copper end
-	end
-	if #values < Planner.NORMAL.MIN_DAYS then return nil end
+local function Median(values)
 	table.sort(values)
 	local middle = (#values + 1) / 2
 	return (values[math.floor(middle)] + values[math.ceil(middle)]) / 2
+end
+
+function Planner.NormalPrice(days, today)
+	if not days then return nil end
+	local seen = {}
+	for day, copper in pairs(days) do
+		if day > today - Planner.NORMAL.DAYS and day <= today and copper > 0 then seen[#seen + 1] = day end
+	end
+	if #seen < Planner.NORMAL.MIN_DAYS then return nil end
+	table.sort(seen)
+	local values, before, recent = {}, {}, {}
+	for i, day in ipairs(seen) do
+		values[i] = days[day]
+		local into = i > #seen - Planner.NORMAL.HOLD and recent or before
+		into[#into + 1] = days[day]
+	end
+	if #before > 0 then
+		local earlier = Median(before)
+		local low, high = math.min(unpack(recent)), math.max(unpack(recent))
+		if low >= earlier * Planner.NORMAL.HIGH or high <= earlier * Planner.NORMAL.LOW then return Median(recent) end
+	end
+	return Median(values)
+end
+
+-- What the player's own recent sales of an item fetched per unit, before the AH cut: saleDays = the Sales record's
+-- { [day number] = { s = sold, g = copper received } }, cut = the AH's share. Nil under SOLD_UNITS units in the
+-- last SOLD_DAYS days. A price that keeps selling is the market's, not a spike.
+function Planner.SoldPrice(saleDays, today, cut)
+	if not saleDays then return nil end
+	local units, copper = 0, 0
+	for day, entry in pairs(saleDays) do
+		if day > today - Planner.NORMAL.SOLD_DAYS and day <= today and (entry.s or 0) > 0 and (entry.g or 0) > 0 then
+			units, copper = units + entry.s, copper + entry.g
+		end
+	end
+	if units < Planner.NORMAL.SOLD_UNITS then return nil end
+	return copper / units / (1 - (cut or 0))
 end
 
 -- Craftsman's Writs: a tradable writ starts a daily quest that wants a crafted item and pays reputation and a coin

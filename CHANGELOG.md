@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Price spikes: a price that has held for your last 3 scan days, or that your own sales keep getting (3 or more sold in 7 days), now counts as the new usual price instead of a spike. Crafts that really sell at today's price no longer show a loss.
+
 ## 1.37.1
 
 - Items made from Mooncloth or transmutes (Mooncloth Bag and others) now count those materials at their auction house price, so their profit is real and no longer gets cut by the price cap.
