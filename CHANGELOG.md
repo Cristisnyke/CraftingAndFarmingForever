@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.37.1
 
 - Items made from Mooncloth or transmutes (Mooncloth Bag and others) now count those materials at their auction house price, so their profit is real and no longer gets cut by the price cap.
 - Refactoring and code optimization.
