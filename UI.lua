@@ -429,6 +429,7 @@ local function BuildRecipeList()
 		return list
 	end
 	table.insert(list, { kind = "header", text = "Recipe", columns = "recipes" })
+	table.insert(list, { kind = "tip", text = "Click any recipe for its Wowhead link: who sells it, what drops it." })
 	for _, row in ipairs(rows) do table.insert(list, { kind = "recipe", row = row, who = who }) end
 	return list
 end
@@ -1458,7 +1459,8 @@ function RECIPE.ShowTooltip(row, item)
 	end
 
 	RECIPE.AddCharacterLines(recipeID, professionName)
-	GameTooltip:AddLine("Click for a Wowhead link to copy.", 0.6, 0.6, 0.6, true)
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine("<Click for the Wowhead link>", 0.4, 0.8, 1)
 	if data and data.i then GameTooltip:AddLine("Shift-click to link the recipe in chat.", 0.6, 0.6, 0.6, true) end
 	GameTooltip:Show()
 	-- Once per recipe, so a name that never loads doesn't redraw it forever.
@@ -3529,7 +3531,10 @@ function CreateProfitPane()
 		hideBound:SetChecked(ns.db.ui.recipeHideBound and true or false)
 		if self.list.recipes then
 			local info = self.list.info
-			local shown = #self.list > 0 and self.list[1].kind == "header" and #self.list - 1 or 0
+			local shown = 0
+			for _, entry in ipairs(self.list) do
+				if entry.kind == "recipe" then shown = shown + 1 end
+			end
 			local whose = self.list.who == "all" and "your characters" or ns.CharLabel(ns.CharKey())
 			local parts = { ("%s %s for %s."):format(ns.Plural(shown, "recipe", "recipes"),
 				ns.db.ui.recipeLearned and "listed" or "to find", whose) }

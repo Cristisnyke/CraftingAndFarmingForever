@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - Recipes: click a recipe for its Wowhead link, ready to copy with Ctrl+C. It goes to the page of the item that teaches it, or the recipe itself when no item does.
+- Recipes: a tip at the top of the list and a line in each recipe's tooltip say that a click gives its Wowhead link.
 
 ## 1.37.2
 
