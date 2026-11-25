@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Recipes: click a recipe for its Wowhead link, ready to copy with Ctrl+C. It goes to the page of the item that teaches it, or the recipe itself when no item does.
+
 ## 1.37.2
 
 - Price spikes: a price that has held for your last 3 scan days, or that your own sales keep getting (3 or more sold in 7 days), now counts as the new usual price instead of a spike. Crafts that really sell at today's price no longer show a loss.

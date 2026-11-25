@@ -1458,6 +1458,7 @@ function RECIPE.ShowTooltip(row, item)
 	end
 
 	RECIPE.AddCharacterLines(recipeID, professionName)
+	GameTooltip:AddLine("Click for a Wowhead link to copy.", 0.6, 0.6, 0.6, true)
 	if data and data.i then GameTooltip:AddLine("Shift-click to link the recipe in chat.", 0.6, 0.6, 0.6, true) end
 	GameTooltip:Show()
 	-- Once per recipe, so a name that never loads doesn't redraw it forever.
@@ -1949,8 +1950,8 @@ local function RowOnClick(row)
 		if IsModifiedClick and IsModifiedClick("CHATLINK") then
 			local link = recipeData and recipeData.i and select(2, C_Item.GetItemInfo(recipeData.i))
 			if link and ChatEdit_InsertLink then ChatEdit_InsertLink(link) end
-		elseif ns.Recipes.Knows(ns.CharKey(), recipeID) and ns.Recipes.OpenRecipes()[recipeID] then
-			C_TradeSkillUI.OpenRecipe(recipeID)
+		else
+			RECIPE.ShowWowhead(recipeID, recipeData and recipeData.i)
 		end
 	elseif data and (data.kind == "profit" or data.kind == "skill") then
 		local recipeID = data.kind == "profit" and data.result.recipeID or data.row.recipeID
@@ -5482,6 +5483,39 @@ end
 ---------------------------------------------------------------------------
 -- Scan prompt
 ---------------------------------------------------------------------------
+
+-- Add-ons can't open a browser or write the clipboard, so the link goes in a box, selected, ready for Ctrl+C.
+-- The recipe item's page says where to get it; recipes without one (trainer ones) get the spell page.
+StaticPopupDialogs["CFF_WOWHEAD"] = {
+	text = "Wowhead link for %s\nPress Ctrl+C to copy it.",
+	button1 = "Close",
+	hasEditBox = true,
+	editBoxWidth = 320,
+	OnShow = function(self, url)
+		local box = self.editBox or self.EditBox
+		box:SetText(url)
+		box:HighlightText()
+		box:SetFocus()
+	end,
+	EditBoxOnTextChanged = function(box, url)
+		-- Keep the link as it was if a key gets typed into the box.
+		if box:GetText() ~= url then
+			box:SetText(url)
+			box:HighlightText()
+		end
+	end,
+	EditBoxOnEnterPressed = function(box) box:GetParent():Hide() end,
+	EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
+
+function RECIPE.ShowWowhead(recipeID, itemID)
+	local url = itemID and ("https://www.wowhead.com/forever/item=" .. itemID)
+		or ("https://www.wowhead.com/forever/spell=" .. recipeID)
+	StaticPopup_Show("CFF_WOWHEAD", ns.RecipeBook.Name(recipeID) or "this recipe", nil, url)
+end
 
 StaticPopupDialogs["CFF_CLEAR_QUEUE"] = {
 	text = "Crafting and Farming Forever: %s",
