@@ -6,6 +6,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 - Items made from Mooncloth or transmutes (Mooncloth Bag and others) now count those materials at their auction house price, so their profit is real and no longer gets cut by the price cap.
 - Refactoring and code optimization.
+- Farm It and recipe source data updated from AllTheThings 5.4.19.
 
 ## 1.37.0
 
