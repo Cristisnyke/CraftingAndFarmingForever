@@ -1729,20 +1729,20 @@ do
 	check("restock camp: no station rows", Planner.RestockStations(CampContext({ state = FREE }), Rows({ { 901, 5, 1 } }), {}), nil)
 end
 
--- Usual prices: median of the daily lows of the last 14 days, needs 3 days.
+-- Usual prices: median of the daily lows of the last 7 days, needs 3 days.
 do
 	check("normal: no days", Planner.NormalPrice(nil, 100), nil)
 	check("normal: two days say nothing", Planner.NormalPrice({ [99] = 50, [100] = 60 }, 100), nil)
 	check("normal: odd count median", Planner.NormalPrice({ [98] = 50, [99] = 200, [100] = 60 }, 100), 60)
 	check("normal: even count median", Planner.NormalPrice({ [97] = 40, [98] = 50, [99] = 200, [100] = 60 }, 100), 55)
-	check("normal: older than 14 days left out", Planner.NormalPrice({ [86] = 999, [98] = 50, [99] = 60 }, 100), nil)
-	check("normal: day 87 still counts", Planner.NormalPrice({ [87] = 70, [98] = 50, [99] = 60 }, 100), 60)
+	check("normal: older than 7 days left out", Planner.NormalPrice({ [93] = 999, [98] = 50, [99] = 60 }, 100), nil)
+	check("normal: day 94 still counts", Planner.NormalPrice({ [94] = 70, [98] = 50, [99] = 60 }, 100), 60)
 	-- A price that has held for the last 3 scan days is the new level, not a spike (#15).
-	local risen = { [90] = 40, [92] = 42, [94] = 44, [97] = 64, [99] = 66, [100] = 63 }
+	local risen = { [94] = 40, [95] = 42, [96] = 44, [98] = 64, [99] = 66, [100] = 63 }
 	check("normal: risen price held 3 days is usual", Planner.NormalPrice(risen, 100), 64)
-	check("normal: two high days still a spike", Planner.NormalPrice({ [90] = 40, [92] = 42, [94] = 44, [96] = 43, [99] = 66, [100] = 63 }, 100), 43.5)
-	check("normal: one dip among high days still a spike", Planner.NormalPrice({ [90] = 40, [92] = 42, [94] = 44, [97] = 64, [99] = 50, [100] = 63 }, 100), 47)
-	check("normal: fallen price held 3 days is usual", Planner.NormalPrice({ [90] = 90, [92] = 92, [94] = 94, [97] = 60, [99] = 62, [100] = 61 }, 100), 61)
+	check("normal: two high days still a spike", Planner.NormalPrice({ [94] = 40, [95] = 42, [96] = 44, [97] = 43, [99] = 66, [100] = 63 }, 100), 43.5)
+	check("normal: one dip among high days still a spike", Planner.NormalPrice({ [94] = 40, [95] = 42, [96] = 44, [98] = 64, [99] = 50, [100] = 63 }, 100), 47)
+	check("normal: fallen price held 3 days is usual", Planner.NormalPrice({ [94] = 90, [95] = 92, [96] = 94, [98] = 60, [99] = 62, [100] = 61 }, 100), 61)
 	-- Own sales: copper received per unit, grossed up for the AH cut.
 	check("sold: none", Planner.SoldPrice(nil, 100, 0.05), nil)
 	check("sold: too few units", Planner.SoldPrice({ [100] = { s = 2, g = 190 } }, 100, 0.05), nil)
@@ -1758,6 +1758,7 @@ do
 	check("spike: counted at normal", result.saleUnit, 600)
 	check("spike: ratio", math.floor(result.ofNormal * 100 + 0.5), 167)
 	check("spike: net at normal", result.net, 600 * 0.95 - 65)
+	check("spike: net at today's price", result.todayNet, 1000 * 0.95 - 65)
 	-- 10% above normal: counted at normal, not flagged.
 	local mild = Context()
 	mild.normalPrice = function(id) return ({ [SHIRT] = 910 })[id] end
@@ -1770,6 +1771,7 @@ do
 	result = Planner.Profit(cheap, 300)
 	check("below normal: current price", result.saleUnit, 1000)
 	check("below normal: no flag", result.atNormal, nil)
+	check("below normal: no today's net", result.todayNet, nil)
 	-- No usual price yet: unchanged.
 	local none = Context()
 	none.normalPrice = function() return nil end

@@ -170,10 +170,10 @@ A new comparison starts when you scan the whole shopping list or run a full scan
 
 ### Usual prices and spikes
 
-Prices jump for a day or two now and then: materials and the item you'd make both get dearer, the add-on shows a fine profit, you craft, and by the time you post the price is back to normal and you sell at a loss. To catch that, the add-on notes each item's lowest price every day you scan, for the last 14 days. Once it has 3 days, the middle of them (the median) is the item's **usual price**.
+Prices jump for a day or two now and then: materials and the item you'd make both get dearer, the add-on shows a fine profit, you craft, and by the time you post the price is back to normal and you sell at a loss. To catch that, the add-on notes each item's lowest price every day you scan, for the last 7 days. Once it has 3 days, the middle of them (the median) is the item's **usual price**.
 
 - A crafted item listed above its usual price counts at the usual price in Profit, Queue and Restock. Below it, today's price counts.
-- At 130% of usual or more, its row says so in orange, for example **167% of usual**, with **!** before the profit. The tooltip shows the listed price, the usual price and how far apart they are.
+- At 130% of usual or more, its row says so in orange, for example **167% of usual**, with **!** before the profit. The tooltip shows the listed price, the usual price and how far apart they are. Below the profit, **Profit at today's price** shows what it would make if it sells at today's listing.
 - Material lines in tooltips add **% of usual** when a material is unusually dear (orange) or cheap (green). Materials always count at what they cost now, since that's what you pay.
 - A price that holds is no spike. When the last 3 days you scanned were all 130% or more of the days before (or all well below them), that's the new usual price.
 - Your own sales count too. When you sold 3 or more in the last 7 days for more than the usual price, what they fetched (before the AH cut) is the usual price, since that price clearly sells.
@@ -321,7 +321,7 @@ The **Options** tab sits before Changelog. Right-clicking the minimap button, `/
 | Read listings at the auction house | On by default. The add-on looks up every listing of what your queue would buy, so buying many counts at the real cost (see [What buying many really costs](#what-buying-many-really-costs)). The screen is locked for the few seconds it reads. Off: only the items you open yourself are read, and the screen is never locked |
 | Plan around bag space | On by default. When the queue's materials won't fit in your bags, says what to bank and splits the queue into runs (see [Bag space](#bag-space)) |
 | Limit suspicious sale prices | On by default. A crafted item listed above the first % of its material cost (400) counts at the second (200) and says **check price** (never for recipes with a cooldown). Off: the listing is used as it is |
-| Count price spikes at the usual price | On by default. A crafted item listed above its usual price (the middle of its last 14 days) counts at the usual price, and items at 130% or more say so (see [Usual prices and spikes](#usual-prices-and-spikes)). Off: today's listing is used as it is |
+| Count price spikes at the usual price | On by default. A crafted item listed above its usual price (the middle of its last 7 days) counts at the usual price, and items at 130% or more say so (see [Usual prices and spikes](#usual-prices-and-spikes)). Off: today's listing is used as it is |
 | Smart restock goals | On by default. Restock goals follow your sales (see Restock). Off: every item without its own goal uses the default goals |
 | Bank alt mode | Off by default. With a name in the **Bank alt** box beside it, that character sells everything and your others mail it their crafts (see [Bank alt mode](#bank-alt-mode)) |
 | Camp batch | 3 by default. Crafts that need a camp station restock to their goal times this once you're under the goal, so one station pays for itself; 1 turns batches off |

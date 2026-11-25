@@ -1502,7 +1502,7 @@ local function ShowProfitTooltip(row, result)
 			GameTooltip:AddDoubleLine("Listed on the AH for", ns.Money(result.listedUnit * result.yield), 1, 0.6, 0.2, 1, 0.6, 0.2)
 		end
 		if result.normalUnit then
-			GameTooltip:AddDoubleLine("Usual price (last 14 days)", ns.Money(result.normalUnit * result.yield)
+			GameTooltip:AddDoubleLine(("Usual price (last %d days)"):format(ns.Planner.NORMAL.DAYS), ns.Money(result.normalUnit * result.yield)
 				.. (" (now %d%%)"):format(math.floor(result.ofNormal * 100 + 0.5)), 1, 1, 1, 1, 1, 1)
 		end
 		if result.spiked and not result.capped then
@@ -1524,6 +1524,9 @@ local function ShowProfitTooltip(row, result)
 		if result.net then
 			GameTooltip:AddDoubleLine(result.postage and "Profit after AH cut and postage" or "Profit after 5% AH cut",
 				ns.Money(result.net), 1, 1, 1, 1, 1, 1)
+			if result.todayNet then
+				GameTooltip:AddDoubleLine("Profit at today's price", ns.Money(result.todayNet), 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+			end
 		end
 		local age = ns.Prices.ItemAgeDays(result.itemID)
 		if age and age > 0 then GameTooltip:AddLine(("Last seen on the AH %s ago."):format(ns.Plural(age, "day", "days")), 1, 0.6, 0.2) end

@@ -282,6 +282,10 @@ function Planner.Profit(ctx, recipeID, crafts)
 	if cost and saleUnit then
 		result.net = saleUnit * yield * (1 - ctx.ahCut) - cost - (result.postage or 0)
 		result.margin = cost > 0 and result.net / cost or nil
+		-- Counted below today's listing: what it would make at today's price, so the cap never hides it (#18).
+		if result.atNormal then
+			result.todayNet = result.listedUnit * yield * (1 - ctx.ahCut) - cost - (result.postage or 0)
+		end
 	end
 	return result
 end
@@ -334,7 +338,7 @@ end
 -- the usual one is a spike, LOW (its inverse) unusually cheap. A price that has held for the last HOLD scan days
 -- (all of them HIGH or more, or all LOW or less, of the days before) is no spike but the new level: their median is the usual price.
 -- SOLD_DAYS / SOLD_UNITS: own sales of at least this many units in this many days (Planner.SoldPrice).
-Planner.NORMAL = { DAYS = 14, MIN_DAYS = 3, HIGH = 1.3, HOLD = 3, SOLD_DAYS = 7, SOLD_UNITS = 3 }
+Planner.NORMAL = { DAYS = 7, MIN_DAYS = 3, HIGH = 1.3, HOLD = 3, SOLD_DAYS = 7, SOLD_UNITS = 3 }
 Planner.NORMAL.LOW = 1 / Planner.NORMAL.HIGH
 
 local function Median(values)
