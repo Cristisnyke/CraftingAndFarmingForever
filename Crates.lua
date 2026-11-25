@@ -66,10 +66,9 @@ function Crates.Fill(ctx, crate, count)
 	return ns.Planner.Crate(ctx, crate).best or crate.bundles[1]
 end
 
--- How many of this crate the character holds (bags and bank). /cff fakeheld (testing, this session only)
--- pretends you hold one of the first crate.
+-- How many of this crate the character holds (bags and bank).
 function Crates.HeldCount(crate)
-	return ns.Stock.Own(crate.id) + ((ns.fakeHeld and crate == Crates.list[1]) and 1 or 0)
+	return ns.Stock.Own(crate.id)
 end
 
 -- How many crates the character holds in all, for the Crates tab's flair.

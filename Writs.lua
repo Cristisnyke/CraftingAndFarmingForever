@@ -191,10 +191,9 @@ function Writs.Done(writ)
 	return ok and done == true
 end
 
--- How many of this writ the character holds (bags and bank). /cff fakeheld (testing, this session only) pretends
--- you hold one of the first writ.
+-- How many of this writ the character holds (bags and bank).
 function Writs.HeldCount(writ)
-	return ns.Stock.Own(writ.id) + ((ns.fakeHeld and writ == Writs.list[1]) and 1 or 0)
+	return ns.Stock.Own(writ.id)
 end
 
 -- How many writs the character holds in all, for the Writs tab's flair.

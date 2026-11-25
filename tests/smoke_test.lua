@@ -5008,9 +5008,8 @@ do -- Writs and Crates tabs: held writs and crates are counted for the tab's fla
 	check("held: writs summed", ns.Writs.Held(), 3)
 	check("held: crates summed", ns.Crates.Held(), 3)
 	ns.UI.RefreshTabs()
-	C_Item.GetItemCount = function() return 0 end
-	ns.fakeHeld = true
-	check("held: fake writ", ns.Writs.Held(), 1)
+	C_Item.GetItemCount = function(id) return (id == 264011 or id == 248682) and 1 or 0 end
+	check("held: one writ", ns.Writs.Held(), 1)
 	local listed
 	for _, row in ipairs(ns.Writs.Rows(3, true)) do
 		if row.writ.id == 264011 then listed = row.held end
@@ -5022,7 +5021,6 @@ do -- Writs and Crates tabs: held writs and crates are counted for the tab's fla
 	end
 	check("held: a held crate is listed past the level filter", listed, 1)
 	ns.UI.RefreshAll()
-	ns.fakeHeld = nil
 	C_Item.GetItemCount = itemCount
 end
 
