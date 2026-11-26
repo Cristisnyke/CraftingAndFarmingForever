@@ -1748,22 +1748,29 @@ do
 	check("sold: gross unit price", Planner.SoldPrice({ [99] = { s = 10, g = 950 }, [100] = { s = 7, g = 665 } }, 100, 0.05), 100)
 	check("sold: older than 7 days left out", Planner.SoldPrice({ [93] = { s = 10, g = 95000 }, [100] = { s = 3, g = 285 } }, 100, 0.05), 100)
 	check("sold: unknown money skipped", Planner.SoldPrice({ [99] = { s = 5, g = 0 }, [100] = { s = 3, g = 285 } }, 100, 0.05), 100)
-	-- The player's case: crafted for 1g, listed at 1g40 during a spike, usually 60s. Profit counts 60s: a loss.
+	-- A big spike: listed at 1g, usually 20s (500%). Profit counts 20s.
 	local ctx = Context()
-	ctx.normalPrice = function(id) return ({ [SHIRT] = 600 })[id] end
+	ctx.normalPrice = function(id) return ({ [SHIRT] = 200 })[id] end
 	local result = Planner.Profit(ctx, 300)
 	check("spike: flagged", result.spiked, true)
 	check("spike: listed kept", result.listedUnit, 1000)
-	check("spike: counted at normal", result.saleUnit, 600)
-	check("spike: ratio", math.floor(result.ofNormal * 100 + 0.5), 167)
-	check("spike: net at normal", result.net, 600 * 0.95 - 65)
+	check("spike: counted at normal", result.saleUnit, 200)
+	check("spike: ratio", math.floor(result.ofNormal * 100 + 0.5), 500)
+	check("spike: net at normal", result.net, 200 * 0.95 - 65)
 	check("spike: net at today's price", result.todayNet, 1000 * 0.95 - 65)
-	-- 10% above normal: counted at normal, not flagged.
+	-- 167% of usual: marked as a spike, but under the 400% cut today's listing counts.
+	local marked = Context()
+	marked.normalPrice = function(id) return ({ [SHIRT] = 600 })[id] end
+	result = Planner.Profit(marked, 300)
+	check("under cut: flagged", result.spiked, true)
+	check("under cut: today's listing counts", result.saleUnit, 1000)
+	check("under cut: not lowered", result.atNormal, nil)
+	-- 10% above normal (Tin Bars at 124% was the case): today's listing counts, not flagged.
 	local mild = Context()
 	mild.normalPrice = function(id) return ({ [SHIRT] = 910 })[id] end
 	result = Planner.Profit(mild, 300)
 	check("mild: not flagged", result.spiked, nil)
-	check("mild: counted at normal", result.saleUnit, 910)
+	check("mild: today's listing counts", result.saleUnit, 1000)
 	-- Below normal: the current price counts.
 	local cheap = Context()
 	cheap.normalPrice = function(id) return ({ [SHIRT] = 2000 })[id] end

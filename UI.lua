@@ -1504,11 +1504,13 @@ local function ShowProfitTooltip(row, result)
 			GameTooltip:AddDoubleLine(("Usual price (last %d days)"):format(ns.Planner.NORMAL.DAYS), ns.Money(result.normalUnit * result.yield)
 				.. (" (now %d%%)"):format(math.floor(result.ofNormal * 100 + 0.5)), 1, 1, 1, 1, 1, 1)
 		end
-		if result.spiked and not result.capped then
+		if result.atNormal then
 			GameTooltip:AddLine("Price spike: profit counts the usual price, since the spike may be over before yours "
 				.. "sell. Materials count at what they cost now.", 1, 0.6, 0.2, true)
-		elseif result.atNormal and not result.capped then
-			GameTooltip:AddLine("Listed a little above its usual price: profit counts the usual price.", 0.6, 0.6, 0.6, true)
+		elseif result.spiked and not result.capped then
+			GameTooltip:AddLine(("Listed well above its usual price. Profit counts today's listing (the usual price "
+				.. "only from %d%%); the spike may be over before yours sell."):format(ns.Planner.NORMAL.CUT * 100),
+				1, 0.6, 0.2, true)
 		end
 		if result.capped then
 			GameTooltip:AddLine(("Check this price: it's more than %d%% of the material cost. Profit counts today's "
@@ -1911,9 +1913,10 @@ local function RowOnEnter(row)
 					.. "counts today's listing; search it at the auction house before crafting."):format(ns.Queue.PriceCapPercent()),
 					1, 0.6, 0.2, true)
 			elseif ns.totals.spiked and ns.totals.spiked[data.index] then
-				GameTooltip:AddLine(("Price spike: listed at %d%% of its usual price, so the profit counts the usual "
-					.. "price. The spike may be over before these sell."):format(math.floor(ns.totals.spiked[data.index] * 100 + 0.5)),
-					1, 0.6, 0.2, true)
+				local ratio = ns.totals.spiked[data.index]
+				GameTooltip:AddLine(("Price spike: listed at %d%% of its usual price, so the profit counts %s. The "
+					.. "spike may be over before these sell."):format(math.floor(ratio * 100 + 0.5),
+					ratio >= ns.Planner.NORMAL.CUT and "the usual price" or "today's listing"), 1, 0.6, 0.2, true)
 			end
 			AddSalesLines(ns.Items.Name(queuedRecipe.o))
 		end

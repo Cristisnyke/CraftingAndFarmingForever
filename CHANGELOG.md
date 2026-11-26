@@ -6,6 +6,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 - While the add-on checks the auction house, the list scrolls to the material being read, and its row counts through the listings up to the amount you buy, with the running average beside it.
 - Craft Next bar comes alive while crafting: each craft flashes and floats up with its profit, a streak and session earnings counter sits above the bar, and a finished batch ends with a burst and a banner.
+- Profit counts a crafted item's usual price instead of today's listing only when it's listed at 400% of usual or more (it was any price above usual, so slightly dearer items like Tin Bars showed a loss). Spikes of 130% or more are still marked.
 
 ## 1.38.0
 

@@ -256,16 +256,16 @@ function Planner.Profit(ctx, recipeID, crafts)
 		local unitCost = cost / yield
 		if saleUnit > unitCost * cap.max then result.capped = true end
 	end
-	-- During a spike the materials and the result may both be dear: the materials are paid now, the result sells
-	-- later, likely at its usual price. So the sale counts at no more than that, unless the row is flagged to check
-	-- the price: that one counts at today's listing.
+	-- During a big spike (NORMAL.CUT times usual or more) the materials and the result may both be dear: the materials
+	-- are paid now, the result sells later, likely at its usual price. So the sale counts at that, unless the row is
+	-- flagged to check the price: that one counts at today's listing. Below CUT, today's listing counts.
 	local normal = ctx.normalPrice and Priced(ctx.normalPrice(recipe.o))
 	if normal and result.saleUnit then
 		local listed = result.saleUnit
 		result.normalUnit = normal
 		result.ofNormal = listed / normal
 		result.spiked = result.ofNormal >= Planner.NORMAL.HIGH or nil
-		if saleUnit > normal and not result.capped then
+		if result.ofNormal >= Planner.NORMAL.CUT and not result.capped then
 			result.listedUnit = listed
 			result.atNormal = true
 			saleUnit = normal
@@ -334,7 +334,9 @@ end
 -- the usual one is a spike, LOW (its inverse) unusually cheap. A price that has held for the last HOLD scan days
 -- (all of them HIGH or more, or all LOW or less, of the days before) is no spike but the new level: their median is the usual price.
 -- SOLD_DAYS / SOLD_UNITS: own sales of at least this many units in this many days (Planner.SoldPrice).
-Planner.NORMAL = { DAYS = 7, MIN_DAYS = 3, HIGH = 1.3, HOLD = 3, SOLD_DAYS = 7, SOLD_UNITS = 3 }
+-- HIGH: listed this far above usual is marked as a spike. CUT: this far above, the sale counts at the usual price
+-- (the user's choice 2026-11-26: 400%; any price above usual used to be cut, so 124% Tin Bars showed a loss).
+Planner.NORMAL = { DAYS = 7, MIN_DAYS = 3, HIGH = 1.3, CUT = 4, HOLD = 3, SOLD_DAYS = 7, SOLD_UNITS = 3 }
 Planner.NORMAL.LOW = 1 / Planner.NORMAL.HIGH
 
 local function Median(values)

@@ -172,7 +172,7 @@ A new comparison starts when you scan the whole shopping list or run a full scan
 
 Prices jump for a day or two now and then: materials and the item you'd make both get dearer, the add-on shows a fine profit, you craft, and by the time you post the price is back to normal and you sell at a loss. To catch that, the add-on notes each item's lowest price every day you scan, for the last 7 days. Once it has 3 days, the middle of them (the median) is the item's **usual price**.
 
-- A crafted item listed above its usual price counts at the usual price in Profit, Queue and Restock. Below it, today's price counts.
+- A crafted item listed at 400% of its usual price or more counts at the usual price in Profit, Queue and Restock. Below that, today's price counts.
 - At 130% of usual or more, its row says so in orange, for example **167% of usual**, with **!** before the profit. The tooltip shows the listed price, the usual price and how far apart they are. Below the profit, **Profit at today's price** shows what it would make if it sells at today's listing.
 - Material lines in tooltips add **% of usual** when a material is unusually dear (orange) or cheap (green). Materials always count at what they cost now, since that's what you pay.
 - A price that holds is no spike. When the last 3 days you scanned were all 130% or more of the days before (or all well below them), that's the new usual price.
