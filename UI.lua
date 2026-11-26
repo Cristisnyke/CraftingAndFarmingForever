@@ -1109,10 +1109,10 @@ end
 local function BuildCratesList()
 	local rows, best = ns.Crates.Rows(ns.db.ui.crateTier)
 	local key, ascending = UI.ListSort("crates")
-	for index, item in ipairs(rows) do item.order = index end
+	for index, item in ipairs(rows) do item.order, item.sortValue = index, CrateSortValue(item, key) end
 	table.sort(rows, function(a, b)
 		if (a.held > 0) ~= (b.held > 0) then return a.held > 0 end -- the ones you hold first
-		local left, right = CrateSortValue(a, key), CrateSortValue(b, key)
+		local left, right = a.sortValue, b.sortValue
 		if left ~= right then
 			if left == nil or right == nil then return left ~= nil end
 			if ascending then return left < right end
