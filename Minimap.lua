@@ -175,9 +175,5 @@ function MinimapButton.Toggle()
 	ns.Options.Sync()
 end
 
-function MinimapButton.Kind()
-	return libIcon and "LibDBIcon" or (button and "own" or "none")
-end
-
 -- At login every add-on has loaded, so the libraries are there if anything brought them.
 ns.On("PLAYER_LOGIN", function() ns.WhenDataReady(Setup) end)

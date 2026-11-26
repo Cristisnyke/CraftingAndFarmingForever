@@ -3252,7 +3252,7 @@ end
 -- Minimap button: without the broker libraries it's the add-on's own button, under the name collectors look for.
 do
 	local mini = ns.MinimapButton
-	check("own minimap button without the libraries", mini.Kind(), "own")
+	check("own minimap button without the libraries", mini.button ~= nil, true)
 	check("minimap button shown", mini.button:IsShown(), true)
 	local x, y = mini.Offset(90, 80)
 	check("minimap button at the top for 90 degrees", math.abs(x) < 0.001 and math.abs(y - 80) < 0.001, true)
