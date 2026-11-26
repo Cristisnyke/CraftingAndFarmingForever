@@ -1694,6 +1694,8 @@ local COLUMN_TIPS = {
 		"Click Recipe, Chance, Craft or Per point to sort by it; click again to reverse.",
 	},
 	restock = {
+		"Profit: what one craft earns after the 5% auction house cut, minus its materials (the row tooltip has the "
+			.. "details).",
 		"Sells: the chance one sells within 24 hours, from your sales history.",
 		"AH: how many you have on the auction house, across your characters. Updates when you visit the auction house.",
 		"Have: how many your characters hold in bags, banks and mail.",
@@ -1983,6 +1985,7 @@ local COLUMN = {
 	CHANCE = 44,
 	RESTOCK = 38,
 	WRIT = 76,
+	RESTOCK_PROFIT = 76, -- Restock: profit per craft
 	RECIPE_MONEY = 72, -- Recipes mode: AH price and Profit
 	PAYBACK = 62,
 }
@@ -2129,9 +2132,10 @@ local Live = {
 }
 
 local function RestockControls(row)
+	row.profit:SetWidth(COLUMN.RESTOCK_PROFIT)
 	return {
 		{ row.remove, 2 }, { row.plus, 6 }, { row.amount, 6 }, { row.minus, 8 }, { row.reset, 4 },
-		{ row.colCraft, 4 }, { row.colHave, 6 }, { row.colAH, 6 }, { row.chance, 6 },
+		{ row.colCraft, 4 }, { row.colHave, 6 }, { row.colAH, 6 }, { row.chance, 6 }, { row.profit, 6 },
 	}
 end
 
@@ -2759,8 +2763,9 @@ local function SetRow(row, data)
 			row.colAH:SetText(Color("ffffd100", "AH"))
 			row.colHave:SetText(Color("ffffd100", "Have"))
 			row.colCraft:SetText(Color("ffffd100", "Craft"))
+			row.profit:SetText(Color("ffffd100", "Profit"))
 			row.amountLabel:SetText("Goal")
-			for _, region in ipairs({ row.chance, row.colAH, row.colHave, row.colCraft, row.amountLabel }) do
+			for _, region in ipairs({ row.chance, row.colAH, row.colHave, row.colCraft, row.profit, row.amountLabel }) do
 				region:Show()
 			end
 		elseif data.columns == "incoming" then
@@ -2903,6 +2908,8 @@ local function SetRow(row, data)
 			row.amount:SetTextColor(0.6, 0.6, 0.6)
 		end
 		row.chance:SetText(ChanceText(ns.Items.Name(item.itemID)))
+		row.profit:SetText(item.net and Color(item.net >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(item.net))
+			or Color(COLOR_MUTED, "-"))
 		row.colAH:SetText(item.onAH and tostring(item.onAH) or Color(COLOR_MUTED, "?"))
 		row.colHave:SetText(tostring(item.owned))
 		local skipping = ns.Restock.Skipped(item.itemID)

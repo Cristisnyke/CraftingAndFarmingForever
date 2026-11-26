@@ -971,6 +971,18 @@ do
 	check("skip: own goal untouched", ns.db.restock.goals[4], 50)
 	ns.Restock.SetSkipped(4, false)
 	check("skip: crafts back", Wants(), true)
+	-- The Profit column shows each row's profit per craft, and the header names it.
+	local tabBefore = ns.db.ui.tab
+	ns.UI.Show("restock")
+	ns.UI.Refresh("restock")
+	local shown, header
+	for _, row in ipairs(ns.UI.windows.restock.rows) do
+		if row.data and row.data.kind == "restock" and row.data.row.itemID == 4 then shown = row end
+		if row.data and row.data.columns == "restock" then header = row end
+	end
+	check("restock profit column", shown and shown.profit:GetText():find(ns.Money(shown.data.row.net), 1, true) ~= nil, true)
+	check("restock profit header", header and header.profit:GetText():find("Profit", 1, true) ~= nil, true)
+	if tabBefore then ns.UI.Show(tabBefore) end
 	ns.db.restock.goals[4] = nil
 end
 -- Camp stations on the Restock tab: one an hour, so a row needing one it can't have gets no crafts, and says why.
