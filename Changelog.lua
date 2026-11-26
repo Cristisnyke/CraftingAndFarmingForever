@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.37.5", lines = {
+		"- Refactoring and code optimization (Options, Sorting, WritsTab, CratesTab, Bank).",
+	} },
 	{ version = "1.37.4", lines = {
 		"- Rows marked \"check price\" now show their profit at the current auction house price instead of a lowered one. The \"!\" stays so you know to check the listing. The second \"count it as %\" box in Options is gone.",
 	} },

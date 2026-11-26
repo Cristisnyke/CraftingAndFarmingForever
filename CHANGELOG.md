@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.37.5
 
 - Refactoring and code optimization (Options, Sorting, WritsTab, CratesTab, Bank).
 
