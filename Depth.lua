@@ -214,7 +214,10 @@ end
 local function Answered(ok)
 	local itemID = asked.itemID
 	asked = nil
-	if ok then stats.answered = stats.answered + 1 end
+	if ok then
+		stats.answered = stats.answered + 1
+		if ns.Lock then ns.Lock.Read(itemID) end
+	end
 	if not ok and not retried[itemID] then
 		-- Once more, after the others.
 		retried[itemID] = true

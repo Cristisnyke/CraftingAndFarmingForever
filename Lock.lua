@@ -2,7 +2,10 @@
 -- While the add-on reads listings at the auction house (Depth.lua's own check), the screen is locked: a see-through
 -- sheet over everything takes every click and key, so no search or purchase of yours gets in the check's way. The
 -- window stays on the tab you had open; a box at its bottom names the item being read, and the rows that need it are
--- outlined, so you can see what it's doing.
+-- outlined, so you can see what it's doing. A list scrolls to the row being read when it's out of view. Each item read
+-- is then counted on its row: a gold sweep runs across it through the listings, cheapest first, up to the number you
+-- buy, with ticks where the price steps up and the running average beside it. The searches don't wait for the show:
+-- items read faster than they're shown are counted faster.
 --
 -- One lock covers the whole check. Reading a listing changes the plan, and the new plan can want more listings read:
 -- the lock stays up through that (Lock.LINGER after each round) instead of dropping and coming back. It still can't
@@ -21,6 +24,15 @@ Lock.LINGER = 3 -- seconds it stays after a round of searches ends, for the plan
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local WIDTH, HEIGHT = 420, 64
 local MARK = { 1, 0.82, 0 } -- the outline of rows that need the item being read
+local SHOW = {
+	SECONDS = 1.1, -- a sweep across a row, with nothing else waiting to be shown
+	MIN = 0.3, -- the quickest sweep, with a backlog
+	HOLD = 0.45, -- the result stays this long before the next item
+	BACKLOG = 6, -- items waiting to be shown at most; older ones are skipped
+	SCROLL_STEP = 0.03, -- seconds between scroll steps, as a list glides to the row
+	BAND = 46, -- width of the searching shimmer
+	SHORT = { 1, 0.3, 0.25 }, -- the part of the amount the listings don't cover
+}
 
 local frame
 local since, progressAt, lastLeft -- GetTime() it went up and of the last answer; searches left then
@@ -30,6 +42,9 @@ local released -- you (or a time-out) took the screen back: it stays yours until
 local marks, marked = {}, {} -- outline frames; the row frames they're on
 local users = {} -- [itemID] = { [recipeID] = true }: recipes that make or need it, directly or one step up
 local stats = { shown = 0, escaped = 0, slow = 0 }
+local shows = {} -- items just read, counted on their rows in turn: { itemID, t = seconds shown }
+local clock, scrollWait = 0, 0 -- seconds the lock has been animating; till the next scroll step
+local follow = {} -- [window] = { itemID, offset }: the scroll position a list glides to
 
 local function Mark(index)
 	local mark = marks[index]
@@ -46,8 +61,67 @@ local function Mark(index)
 		edge:SetPoint(side[2])
 		if side[3] > 0 then edge:SetWidth(side[3]) else edge:SetHeight(side[4]) end
 	end
+	-- The counting sweep: the gold part counted so far, its bright leading edge, a tick where the price steps up,
+	-- red for the part nobody lists.
+	mark.sweep = mark:CreateTexture(nil, "ARTWORK", nil, 1)
+	mark.sweep:SetPoint("TOPLEFT")
+	mark.sweep:SetPoint("BOTTOMLEFT")
+	mark.sweep:SetColorTexture(MARK[1], MARK[2], MARK[3], 0.45)
+	mark.short = mark:CreateTexture(nil, "ARTWORK", nil, 1)
+	mark.short:SetPoint("TOPRIGHT")
+	mark.short:SetPoint("BOTTOMRIGHT")
+	mark.short:SetColorTexture(SHOW.SHORT[1], SHOW.SHORT[2], SHOW.SHORT[3], 0.28)
+	mark.lead = mark:CreateTexture(nil, "OVERLAY", nil, 2)
+	mark.lead:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+	mark.lead:SetBlendMode("ADD")
+	mark.lead:SetSize(18, 40)
+	mark.band = mark:CreateTexture(nil, "ARTWORK", nil, 2)
+	mark.band:SetColorTexture(1, 0.9, 0.4, 0.22)
+	mark.band:SetBlendMode("ADD")
+	mark.band:SetPoint("TOP")
+	mark.band:SetPoint("BOTTOM")
+	mark.band:SetWidth(SHOW.BAND)
+	mark.ticks = {}
+	if index == 1 then
+		-- What's being counted, above the first row: "Counting 87 / 192, avg 1g 23s".
+		local badge = CreateFrame("Frame", nil, mark)
+		badge:SetPoint("BOTTOMRIGHT", mark, "TOPRIGHT", 0, 1)
+		badge:SetHeight(18)
+		local back = badge:CreateTexture(nil, "BACKGROUND")
+		back:SetAllPoints(badge)
+		back:SetColorTexture(0.06, 0.05, 0.01, 0.92)
+		local line = badge:CreateTexture(nil, "BORDER")
+		line:SetPoint("BOTTOMLEFT")
+		line:SetPoint("BOTTOMRIGHT")
+		line:SetHeight(1)
+		line:SetColorTexture(MARK[1], MARK[2], MARK[3], 0.95)
+		badge.text = badge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		badge.text:SetPoint("CENTER", 0, 1)
+		mark.badge = badge
+	end
 	marks[index] = mark
 	return mark
+end
+
+local function Tick(mark, index)
+	local tick = mark.ticks[index]
+	if tick then return tick end
+	tick = mark:CreateTexture(nil, "OVERLAY", nil, 1)
+	tick:SetColorTexture(1, 0.95, 0.6, 0.9)
+	tick:SetSize(1, 6)
+	mark.ticks[index] = tick
+	return tick
+end
+
+-- Units counted down an item's listings, cheapest first: what they cost and how many there were.
+function Lock.Tally(record, units)
+	local cost, got = 0, 0
+	for _, tier in ipairs(record or {}) do
+		local take = math.min(tier[2], units - got)
+		if take <= 0 then break end
+		cost, got = cost + take * tier[1], got + take
+	end
+	return cost, got
 end
 
 local function Unmark()
@@ -57,6 +131,8 @@ end
 
 local function Hide()
 	idleSince = nil
+	wipe(shows)
+	wipe(follow)
 	if frame and frame:IsShown() then
 		Unmark()
 		frame:Hide()
@@ -120,6 +196,59 @@ local function Related(data, set)
 	return recipeID ~= nil and set[recipeID] == true
 end
 
+-- The amount of the item you buy, as its row says; else what the plan buys; else everything listed.
+local function Needed(itemID, record)
+	for _, window in pairs(ns.UI.windows) do
+		for _, data in ipairs(window.list or {}) do
+			if Direct(data, itemID) and data.count and data.count > 0 then return data.count end
+		end
+	end
+	local buy = ns.plan and ns.plan.buy and ns.plan.buy[itemID]
+	if buy and buy > 0 then return buy end
+	local _, got = Lock.Tally(record, math.huge)
+	return math.max(got, 1)
+end
+
+-- The first entry of a list about the item: its row to buy it, else a craft that needs it.
+local function IndexIn(window, itemID)
+	local set, related = Users(itemID), nil
+	for index, data in ipairs(window.list) do
+		if Direct(data, itemID) then return index end
+		if not related and Related(data, set) then related = index end
+	end
+	return related
+end
+
+-- Glides each open list to the item's row when it's out of view, so it lands a third of the way down.
+local function Follow(itemID, elapsed)
+	scrollWait = scrollWait - elapsed
+	if not itemID or scrollWait > 0 then return end
+	scrollWait = SHOW.SCROLL_STEP
+	for _, window in pairs(ns.UI.windows) do
+		if window.list and window.container and not window.mini and window.frame and window.frame:IsVisible() then
+			local offset, visible, maxOffset = ns.UI.ListView(window)
+			local goal = follow[window]
+			if not goal or goal.itemID ~= itemID then
+				local index = IndexIn(window, itemID)
+				goal = nil
+				if index and visible > 0 and (index <= offset or index > offset + visible) then
+					goal = { itemID = itemID, offset = math.min(math.max(index - 1 - math.floor(visible / 3), 0), maxOffset) }
+				end
+				follow[window] = goal
+			end
+			if goal then
+				local gap = goal.offset - offset
+				if gap == 0 then
+					follow[window] = { itemID = itemID, offset = offset, reached = true }
+				elseif not goal.reached then
+					local step = math.max(1, math.floor(math.abs(gap) / 4))
+					ns.UI.SetListOffset(window, offset + (gap > 0 and step or -step))
+				end
+			end
+		end
+	end
+end
+
 -- Outlines the rows of every open list that are about the item: in each list the row to buy it, or when it has none
 -- (the Restock tab) the crafts that need it.
 local function MarkRows(itemID)
@@ -158,14 +287,117 @@ local function MarkRows(itemID)
 	end
 end
 
+-- What the sweep shows: show = the item being counted (nil: the search is still out, a shimmer runs instead).
+local function View(itemID, show)
+	if not show then return nil end
+	local record = ns.Depth.Of(itemID)
+	if not record then return nil end
+	local needed = Needed(itemID, record)
+	local duration = math.max(SHOW.MIN, SHOW.SECONDS / #shows)
+	local t = math.min(show.t / duration, 1)
+	local eased = 1 - (1 - t) * (1 - t) -- quick start, settles at the end
+	local _, available = Lock.Tally(record, needed)
+	local units = math.floor(eased * available + 0.5)
+	local cost = Lock.Tally(record, units)
+	return { record = record, needed = needed, available = available, units = units, cost = cost,
+		done = t >= 1, after = math.max(show.t - duration, 0) }
+end
+
+local function ViewText(view)
+	if not view then
+		return ("Searching the auction house" .. ("."):rep(math.floor(clock * 3) % 4))
+	end
+	local average = view.units > 0 and ("avg " .. ns.Money(view.cost / view.units)) or ""
+	if view.done and view.available < view.needed then
+		return ("|cffff6b5bonly %d of %d listed|r, %s"):format(view.available, view.needed, average)
+	end
+	return ("%s %d / %d, %s"):format(view.done and "Counted" or "Counting", view.units, view.needed, average)
+end
+
+local function Paint(mark, view)
+	local width = mark:GetWidth() or 0
+	mark.band:SetShown(view == nil and width > SHOW.BAND)
+	if not view then
+		mark.sweep:Hide()
+		mark.short:Hide()
+		mark.lead:Hide()
+		for _, tick in ipairs(mark.ticks) do tick:Hide() end
+		mark.band:ClearAllPoints()
+		mark.band:SetPoint("TOP")
+		mark.band:SetPoint("BOTTOM")
+		mark.band:SetPoint("LEFT", mark, "LEFT", (math.sin(clock * 3) + 1) / 2 * (width - SHOW.BAND), 0)
+		return
+	end
+	local reach = view.available / view.needed
+	local at = width * math.min(view.units / view.needed, 1)
+	mark.sweep:SetShown(at >= 1)
+	mark.sweep:SetWidth(math.max(at, 1))
+	-- A flash as the count ends, fading over the hold.
+	mark.sweep:SetAlpha(view.done and 0.6 + 0.4 * math.max(0, 1 - view.after / SHOW.HOLD) or 0.6)
+	mark.lead:SetShown(not view.done and at >= 1)
+	mark.lead:ClearAllPoints()
+	mark.lead:SetPoint("CENTER", mark, "LEFT", at, 0)
+	mark.short:SetShown(view.done and reach < 1)
+	mark.short:SetWidth(math.max(width * (1 - reach), 1))
+	-- A tick wherever the price steps up, as the sweep passes it.
+	local index, counted = 0, 0
+	for _, tier in ipairs(view.record) do
+		counted = counted + tier[2]
+		if counted >= view.needed then break end
+		local x = width * counted / view.needed
+		if x > at then break end
+		index = index + 1
+		local tick = Tick(mark, index)
+		tick:ClearAllPoints()
+		tick:SetPoint("BOTTOM", mark, "BOTTOMLEFT", x, 0)
+		tick:Show()
+	end
+	for i = index + 1, #mark.ticks do mark.ticks[i]:Hide() end
+end
+
+local function PaintAll(view)
+	local text = ViewText(view)
+	for index, mark in ipairs(marks) do
+		if mark:IsShown() then
+			Paint(mark, view)
+			if index == 1 and mark.badge then
+				mark.badge.text:SetText(text)
+				mark.badge:SetWidth((mark.badge.text:GetStringWidth() or 0) + 14)
+			end
+		end
+	end
+	-- Also on the box, for the rows not on screen.
+	frame.note:SetText(text .. "|cff808080   Escape unlocks the screen.|r")
+end
+
+-- The item being shown: moves on once its count has been on screen long enough.
+local function Advance(elapsed)
+	local show = shows[1]
+	while show do
+		local duration = math.max(SHOW.MIN, SHOW.SECONDS / #shows)
+		show.t = show.t + elapsed
+		elapsed = 0
+		if show.t < duration + SHOW.HOLD and ns.Depth.Of(show.itemID) then return show end
+		table.remove(shows, 1)
+		show = shows[1]
+	end
+	return nil
+end
+
+-- Our search for the item was answered (Depth.lua): its count goes on screen in turn.
+function Lock.Read(itemID)
+	if not Lock.Shown() then return end
+	shows[#shows + 1] = { itemID = itemID, t = 0 }
+	while #shows > SHOW.BACKLOG do table.remove(shows, 1) end
+end
+
 local function Describe(left, total, itemID, waiting)
 	local key = (left or "-") .. ":" .. (itemID or "-") .. ":" .. tostring(waiting)
 	if frame.described == key then return end
 	frame.described = key
 	if not left then
 		frame.item:SetText("Done reading. Working out the plan with the new prices...")
-		frame.bar:SetMinMaxValues(0, 1)
-		frame.bar:SetValue(1)
+		frame.bar.target = 1
 		return
 	end
 	local name = itemID and ns.Items.Name(itemID)
@@ -177,33 +409,45 @@ local function Describe(left, total, itemID, waiting)
 	else
 		frame.item:SetText(("Reading listings: %d of %d"):format(total - left + 1, total))
 	end
-	frame.bar:SetMinMaxValues(0, math.max(total, 1))
-	frame.bar:SetValue(math.max(total - left, 0))
+	frame.bar.target = math.max(total - left, 0) / math.max(total, 1)
 end
 
 -- Whether the lock still has a reason to be up, checked every frame it is.
-function Lock.Update()
+function Lock.Update(_, elapsed)
 	if not (frame and frame:IsShown()) then return end
 	if not AuctionHouseOpen() or InCombatLockdown() or not ns.Option("depthCheck") then return Hide() end
+	elapsed = elapsed or 0
+	clock = clock + elapsed
 	local now = GetTime()
 	local left, total = ns.Depth.Status()
+	local show = Advance(elapsed)
+	-- The progress bar glides to where the check is.
+	local bar = frame.bar
+	bar.value = (bar.value or 0) + ((bar.target or 0) - (bar.value or 0)) * math.min(1, elapsed * 8)
+	bar:SetValue(bar.value)
 	if not left then
 		-- Between rounds: the plan is being worked out again, and may want more read.
-		idleSince = idleSince or now
-		if now - idleSince > Lock.LINGER then return Hide() end
-		progressAt = now
 		Describe(nil)
-		MarkRows(nil)
-		return
+		progressAt = now
+		if not show then
+			idleSince = idleSince or now
+			if now - idleSince > Lock.LINGER then return Hide() end
+			MarkRows(nil)
+			frame.note:SetText(frame.note.idle)
+			return
+		end
+	else
+		-- Holding off for someone else's search: that isn't the check being stuck.
+		local waiting = ns.Depth.Holding(now) > 0
+		if left ~= lastLeft or waiting then lastLeft, progressAt = left, now end
+		if now - progressAt > Lock.STALL or now - since > Lock.MAX then return Release(true) end
+		Describe(left, total, ns.Depth.Current(), waiting)
 	end
 	idleSince = nil
-	-- Holding off for someone else's search: that isn't the check being stuck.
-	local waiting = ns.Depth.Holding(now) > 0
-	if left ~= lastLeft or waiting then lastLeft, progressAt = left, now end
-	if now - progressAt > Lock.STALL or now - since > Lock.MAX then return Release(true) end
-	local itemID = ns.Depth.Current()
-	Describe(left, total, itemID, waiting)
+	local itemID = show and show.itemID or ns.Depth.Current()
+	Follow(itemID, elapsed)
 	MarkRows(itemID)
+	PaintAll(View(itemID, show))
 end
 
 local function Create()
@@ -248,13 +492,15 @@ local function Create()
 	frame.item:SetPoint("TOP", frame.title, "BOTTOM", 0, -4)
 	frame.note = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	frame.note:SetPoint("TOP", frame.item, "BOTTOM", 0, -3)
-	frame.note:SetText("Outlined: the rows that need it. Escape unlocks the screen.")
+	frame.note.idle = "Outlined: the rows that need it. Escape unlocks the screen."
+	frame.note:SetText(frame.note.idle)
 
 	local bar = CreateFrame("StatusBar", nil, box)
 	frame.bar = bar
 	bar:SetPoint("BOTTOMLEFT", 1, 1)
 	bar:SetPoint("BOTTOMRIGHT", -1, 1)
 	bar:SetHeight(4)
+	bar:SetMinMaxValues(0, 1)
 	bar:SetStatusBarTexture(WHITE)
 	bar:SetStatusBarColor(theme.accent[1], theme.accent[2], theme.accent[3], 1)
 	local track = bar:CreateTexture(nil, "BACKGROUND")
@@ -304,6 +550,7 @@ function Lock.Start()
 	if typing then typing:ClearFocus() end
 	since = GetTime()
 	progressAt, lastLeft, idleSince, frame.described = since, nil, nil, nil
+	frame.bar.value, frame.bar.target = 0, 0
 	wipe(users) -- recipes may have been learned since
 	stats.shown = stats.shown + 1
 	frame:Show()

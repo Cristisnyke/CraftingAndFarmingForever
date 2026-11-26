@@ -1022,6 +1022,7 @@ ns.On("UNIT_SPELLCAST_START", function(unit, _, spellID)
 		ns.db.craftGap = (ns.db.craftGap or Queue.DEFAULT_GAP) * 0.7 + gap * 0.3
 	end
 	cast = { recipeID = spellID, start = start, finish = finish }
+	if ns.CraftFx then ns.CraftFx.Casting() end
 	local planned = PlanCount(spellID)
 	if not run or run.recipeID ~= spellID or run.done >= run.total then
 		run = { recipeID = spellID, total = planned or 1, done = 0 }
@@ -1037,6 +1038,7 @@ ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 	if run and run.recipeID == spellID then run.done = run.done + 1 end
 	craftedSinceBuild[spellID] = (craftedSinceBuild[spellID] or 0) + 1
 	lastDone = { recipeID = spellID, at = GetTime() }
+	if ns.CraftFx then ns.CraftFx.Crafted(spellID, run and run.done, run and run.total) end
 	Changed()
 end)
 

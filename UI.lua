@@ -3094,6 +3094,18 @@ local function RenderRows(window)
 	window.slider:SetShown(maxOffset > 0)
 end
 
+-- A list's scroll position, the rows it shows at once and how far it scrolls; and moving it (Lock.lua follows the
+-- item being read with these).
+function UI.ListView(window)
+	local visible = math.min(ROW_COUNT, math.floor(window.container:GetHeight() / ROW_HEIGHT))
+	return window.offset, visible, math.max(0, #window.list - visible)
+end
+
+function UI.SetListOffset(window, offset)
+	window.offset = math.max(0, offset)
+	RenderRows(window)
+end
+
 local function UpdateBanner()
 	local stale = ns.Prices.IsStale()
 	main.banner:SetShown(stale)
@@ -3793,6 +3805,7 @@ CRAFT_BAR.STYLES = {
 	blocked  = { { 0.11, 0.12, 0.16 }, { 0.20, 0.22, 0.28 } },
 }
 local craftBars = {}
+UI.craftBars = craftBars -- for CraftFx.lua's effects
 
 
 local function CraftIcon(recipeID)

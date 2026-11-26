@@ -21,7 +21,7 @@ local timers = {}
 local function NewFrame()
 	local frame = { scripts = {}, shown = false, height = 400 }
 	return setmetatable(frame, { __index = function(_, key)
-		if key == "professionID" or key == "data" or key == "target" then return nil end -- add-on data on a frame, not a method
+		if key == "professionID" or key == "data" or key == "target" or key == "width" then return nil end -- add-on data on a frame, not a method
 		local methods = {
 			SetScript = function(self, name, fn) self.scripts[name] = fn end,
 			HookScript = function(self, name, fn) self.scripts[name] = fn end,
@@ -2869,6 +2869,13 @@ do
 	UnitCastingInfo = function() return "Recipe10", nil, nil, 106600, 108600 end
 	now = 106.6
 	Fire("UNIT_SPELLCAST_START", "player", "cast", 10)
+	-- Each craft floats up from the bar and counts the streak; the third of three finished the batch.
+	local fx = button.cf.fx
+	check("craft fx: layer on the bar", fx ~= nil, true)
+	check("craft fx: streak counted", fx and fx.chip.shown, true)
+	check("craft fx: batch banner", fx and fx.banner.shown and fx.banner.text:find("Batch complete! ", 1, true) ~= nil,
+		true)
+	check("craft fx: session crafts", ns.CraftFx.Diag():find("^%d+ crafts this session") ~= nil, true)
 	-- 3 done, 2 more queued during the last one: a new run of the 2, though the plan still counts 3.
 	progress = ns.Queue.CraftProgress()
 	check("queued more: new run of two", progress.total, 2)
@@ -3799,7 +3806,7 @@ do
 	end
 	-- The lock lingers a moment after a check, as the plan is worked out again: these frames let it go.
 	local function Linger()
-		for _ = 1, ns.Lock.LINGER + 1 do ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 0.1) end
+		for _ = 1, 40 do ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 0.1) end
 	end
 	local function BuyHeader()
 		ns.UI.Show("queue")
@@ -3849,6 +3856,22 @@ do
 	end
 	-- On the Queue tab and on the Next step bar, nothing else.
 	check("lock: the rows to buy it are outlined", #marked == cloth and cloth, 2)
+	-- A list too short to show the cloth: it scrolls to it.
+	local queueWindow = ns.UI.windows.queue
+	local clothAt
+	for index, data in ipairs(queueWindow.list) do
+		if data.kind == "item" and data.itemID == 1 then clothAt = index end
+	end
+	local savedHeight = queueWindow.container.height
+	queueWindow.container.height = 22 -- one row
+	ns.UI.SetListOffset(queueWindow, clothAt > 1 and 0 or 1)
+	check("lock: cloth out of view first", queueWindow.offset + 1 ~= clothAt, true)
+	for _ = 1, 6 do ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 0.05) end
+	check("lock: list scrolled to the item being read", queueWindow.offset + 1, clothAt)
+	queueWindow.container.height = savedHeight
+	ns.UI.SetListOffset(queueWindow, 0)
+	check("lock: shimmer while the search is out", ns.Lock.frame.note.text:find("Searching the auction house", 1, true)
+		~= nil, true)
 	check("depth: header says it's reading", BuyHeader():find("reading listings, 1 to go", 1, true) ~= nil, true)
 
 	-- 2 at 10, plenty at 30, and 4 of your own at 9 that you can't buy.
@@ -3864,8 +3887,22 @@ do
 	check("lock: stays a moment as the plan is worked out again", ns.Lock.Shown(), true)
 	check("lock: says it's done reading", ns.Lock.frame.item.text,
 		"Done reading. Working out the plan with the new prices...")
-	check("lock: outline gone", #ns.Lock.Marked(), 0)
+	-- The answer is counted on the cloth's row: 2 at 10c, then 10 at 30c, up to the 12 bought.
+	local counted = ns.Lock.Marked()[1]
+	check("lock: the read item stays outlined for its count", counted and counted.data.kind == "item"
+		and counted.data.itemID, 1)
+	check("lock: count starts on the row", ns.Lock.frame.note.text:find("Counting 0 / 12", 1, true) ~= nil, true)
+	ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 0.3)
+	local counting = ns.Lock.frame.note.text
+	check("lock: count runs across the listings", counting:find("Counting %d+ / 12, avg") ~= nil
+		and not counting:find("Counting 0 /", 1, true), true)
+	ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 1)
+	check("lock: count ends at the average paid", ns.Lock.frame.note.text:find("Counted 12 / 12, avg 27c", 1, true)
+		~= nil, true)
+	check("lock: tally down the listings", select(1, ns.Lock.Tally(ns.db.depth[1], 12)), 320)
+	check("lock: tally stops where the listings end", select(2, ns.Lock.Tally({ { 5, 3 } }, 12)), 3)
 	Linger()
+	check("lock: outline gone", #ns.Lock.Marked(), 0)
 	check("lock: then gone", ns.Lock.Shown(), false)
 	check("depth: cheapest tier stored", ns.db.depth[1][1][1] == 10 and ns.db.depth[1][1][2], 2)
 	check("depth: next tier stored", ns.db.depth[1][2][1] == 30 and ns.db.depth[1][2][2], 100)

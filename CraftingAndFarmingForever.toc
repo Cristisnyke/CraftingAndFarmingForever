@@ -28,6 +28,7 @@ Shopping.lua
 Writs.lua
 Crates.lua
 UI.lua
+CraftFx.lua
 Advertise.lua
 Lock.lua
 Posting.lua

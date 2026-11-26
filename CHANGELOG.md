@@ -2,6 +2,11 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- While the add-on checks the auction house, the list scrolls to the material being read, and its row counts through the listings up to the amount you buy, with the running average beside it.
+- Craft Next bar comes alive while crafting: each craft flashes and floats up with its profit, a streak and session earnings counter sits above the bar, and a finished batch ends with a burst and a banner.
+
 ## 1.38.0
 
 - Restocking tab: after posting, it moves on to the item below instead of going back to one you skipped with Next item.
