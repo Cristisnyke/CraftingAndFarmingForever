@@ -196,8 +196,24 @@ local function Related(data, set)
 	return recipeID ~= nil and set[recipeID] == true
 end
 
--- The amount of the item you buy, as its row says; else what the plan buys; else everything listed.
-local function Needed(itemID, record)
+-- What the queue's crafts use of an item, every alternative of a slot counted (Planner.ReservedMaterials' rule).
+function Lock.Used(plan, recipes, itemID)
+	local used = 0
+	for _, craft in ipairs(plan and plan.crafts or {}) do
+		local recipe = recipes[craft.recipeID]
+		for _, slot in ipairs(recipe and recipe.r or {}) do
+			for i = 2, #slot do
+				if slot[i] == itemID then used = used + (slot[1] or 1) * craft.count end
+			end
+		end
+	end
+	return used
+end
+
+-- The amount the count runs to: what you buy of the item, as its row says, else what the plan buys. An item read
+-- only to weigh buying against crafting (no row to buy it) runs to what the queue's crafts use of it; never to
+-- everything listed.
+local function Needed(itemID)
 	for _, window in pairs(ns.UI.windows) do
 		for _, data in ipairs(window.list or {}) do
 			if Direct(data, itemID) and data.count and data.count > 0 then return data.count end
@@ -205,8 +221,7 @@ local function Needed(itemID, record)
 	end
 	local buy = ns.plan and ns.plan.buy and ns.plan.buy[itemID]
 	if buy and buy > 0 then return buy end
-	local _, got = Lock.Tally(record, math.huge)
-	return math.max(got, 1)
+	return math.max(Lock.Used(ns.plan, ns.db.recipes, itemID), 1)
 end
 
 -- The first entry of a list about the item: its row to buy it, else a craft that needs it.
@@ -292,7 +307,7 @@ local function View(itemID, show)
 	if not show then return nil end
 	local record = ns.Depth.Of(itemID)
 	if not record then return nil end
-	local needed = Needed(itemID, record)
+	local needed = Needed(itemID)
 	local duration = math.max(SHOW.MIN, SHOW.SECONDS / #shows)
 	local t = math.min(show.t / duration, 1)
 	local eased = 1 - (1 - t) * (1 - t) -- quick start, settles at the end

@@ -3901,6 +3901,10 @@ do
 		~= nil, true)
 	check("lock: tally down the listings", select(1, ns.Lock.Tally(ns.db.depth[1], 12)), 320)
 	check("lock: tally stops where the listings end", select(2, ns.Lock.Tally({ { 5, 3 } }, 12)), 3)
+	-- An item read only to weigh buying against crafting counts to what the crafts use, not everything listed.
+	check("lock: used by the queue's crafts", ns.Lock.Used({ crafts = { { recipeID = 7, count = 35 } } },
+		{ [7] = { r = { { 2, 5, 6 }, { 1, 9 } } } }, 6), 70)
+	check("lock: not used", ns.Lock.Used({ crafts = {} }, {}, 6), 0)
 	Linger()
 	check("lock: outline gone", #ns.Lock.Marked(), 0)
 	check("lock: then gone", ns.Lock.Shown(), false)
