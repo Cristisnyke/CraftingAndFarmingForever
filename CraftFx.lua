@@ -112,8 +112,7 @@ local function Layer(bar)
 	fx.banner:SetPoint("BOTTOM", bar, "TOP", 0, FX.BANNER_Y)
 	fx.banner:Hide()
 
-	fx:SetScript("OnUpdate", function(self, elapsed) Tick(self, elapsed) end)
-	bar.cf.fx = fx
+	bar.cf.fx = fx -- runs once woken (Wake)
 	return fx
 end
 
