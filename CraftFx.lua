@@ -18,6 +18,13 @@ local FX = {
 	BURST_SPARKS = 14,
 	BANNER_SECONDS = 2.8,
 	CHIP_SECONDS = 8, -- the streak chip stays this long after the last craft
+	CHIP_FONT = 18, -- size of the streak chip's text
+	CHIP_HEIGHT = 28,
+	-- Each craft: the chip jumps to POP times its size and wobbles back (WOBBLE a second, settling at DAMP), hops up
+	-- HOP pixels, and its background flashes gold.
+	POP = 0.6, WOBBLE = 16, DAMP = 6, HOP = 12, BUMP_SECONDS = 1.2,
+	FLOAT_START = 34, -- the floating profit starts above the chip
+	BANNER_Y = 80,
 	SHIMMER_SECONDS = 1.6, -- a pass of the light along the fill
 	ROLL_SPEED = 6, -- how fast the session total rolls up to its new value
 	PROFIT_AGE = 60, -- seconds a recipe's profit is reused
@@ -79,20 +86,27 @@ local function Layer(bar)
 	fx.flash:SetPoint("BOTTOMRIGHT", -2, 2)
 	fx.flash:Hide()
 
-	-- Streak and session earnings, above the bar's right end.
+	-- Streak and session earnings, above the middle of the bar.
 	local chip = CreateFrame("Frame", nil, fx)
-	chip:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 2)
-	chip:SetHeight(16)
-	local back = chip:CreateTexture(nil, "BACKGROUND")
-	back:SetAllPoints(chip)
-	back:SetColorTexture(0.03, 0.05, 0.1, 0.9)
-	chip.text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	chip.text:SetPoint("CENTER")
+	chip:SetPoint("BOTTOM", bar, "TOP", 0, 3)
+	chip:SetHeight(FX.CHIP_HEIGHT)
+	chip.back = chip:CreateTexture(nil, "BACKGROUND")
+	chip.back:SetAllPoints(chip)
+	chip.back:SetColorTexture(0.03, 0.05, 0.1, 0.92)
+	local line = chip:CreateTexture(nil, "BORDER")
+	line:SetPoint("BOTTOMLEFT")
+	line:SetPoint("BOTTOMRIGHT")
+	line:SetHeight(2)
+	line:SetColorTexture(FX.GOLD[1], FX.GOLD[2], FX.GOLD[3], 0.9)
+	chip.text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	chip.text:SetPoint("CENTER", 0, 1)
+	local font = chip.text:GetFont()
+	if font then chip.text:SetFont(font, FX.CHIP_FONT, "OUTLINE") end
 	chip:Hide()
 	fx.chip = chip
 
 	fx.banner = fx:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	fx.banner:SetPoint("BOTTOM", bar, "TOP", 0, 22)
+	fx.banner:SetPoint("BOTTOM", bar, "TOP", 0, FX.BANNER_Y)
 	fx.banner:Hide()
 
 	fx:SetScript("OnUpdate", function(self, elapsed) Tick(self, elapsed) end)
@@ -183,7 +197,7 @@ Tick = function(fx, elapsed)
 			else
 				busy = true
 				float:ClearAllPoints()
-				float:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", float.x, (1 - (1 - p) * (1 - p)) * FX.FLOAT_RISE - 6)
+				float:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", float.x, FX.FLOAT_START + (1 - (1 - p) * (1 - p)) * FX.FLOAT_RISE)
 				float:SetAlpha(p < 0.6 and 1 or (1 - p) / 0.4)
 			end
 		end
@@ -218,7 +232,7 @@ Tick = function(fx, elapsed)
 			-- Pops in, holds, fades.
 			fx.banner:SetAlpha(p < 0.08 and p / 0.08 or p > 0.75 and (1 - p) / 0.25 or 1)
 			fx.banner:ClearAllPoints()
-			fx.banner:SetPoint("BOTTOM", bar, "TOP", 0, 22 + 8 * (1 - math.min(p / 0.08, 1)))
+			fx.banner:SetPoint("BOTTOM", bar, "TOP", 0, FX.BANNER_Y + 8 * (1 - math.min(p / 0.08, 1)))
 		end
 	end
 
@@ -234,10 +248,17 @@ Tick = function(fx, elapsed)
 			local text = ("|cffffd24ax%d|r streak"):format(streak.count)
 			if fx.hasProfit then text = text .. "   session " .. Signed(fx.shownEarned) end
 			chip.text:SetText(text)
-			chip:SetWidth((chip.text:GetStringWidth() or 0) + 14)
-			-- A little bump on each craft.
-			local bump = math.max(0, 1 - (clock - streak.at) / 0.25)
-			if chip.SetScale then chip:SetScale(1 + 0.18 * bump) end
+			chip:SetWidth((chip.text:GetStringWidth() or 0) + 24)
+			-- Each craft: a big pop that wobbles back, a hop and a gold flash.
+			local since = clock - streak.at
+			local decay = since < FX.BUMP_SECONDS and math.exp(-FX.DAMP * since) or 0
+			if chip.SetScale then
+				chip:SetScale(math.max(0.85, 1 + FX.POP * decay * math.cos(FX.WOBBLE * since)))
+			end
+			chip:ClearAllPoints()
+			chip:SetPoint("BOTTOM", bar, "TOP", 0, 3 + FX.HOP * decay)
+			local flash = math.min(1, decay * 1.5)
+			chip.back:SetColorTexture(0.03 + 0.6 * flash, 0.05 + 0.45 * flash, 0.1, 0.92)
 		end
 	end
 
