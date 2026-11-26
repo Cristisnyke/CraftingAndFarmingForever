@@ -302,6 +302,11 @@ local function MarkRows(itemID)
 	end
 end
 
+-- Seconds a sweep across a row takes: quicker while more wait to be shown.
+local function SweepSeconds()
+	return math.max(SHOW.MIN, SHOW.SECONDS / math.max(#shows, 1))
+end
+
 -- Seconds a count's result stays: shorter while more wait to be shown.
 local function HoldFor()
 	return math.max(SHOW.MIN_HOLD, SHOW.HOLD / math.max(#shows, 1))
@@ -319,7 +324,7 @@ local function View(itemID, show)
 	local record = ns.Depth.Of(itemID)
 	if not record then return nil end
 	local needed = Needed(itemID)
-	local duration = math.max(SHOW.MIN, SHOW.SECONDS / #shows)
+	local duration = SweepSeconds()
 	local t = math.min(show.t / duration, 1)
 	local eased = 1 - (1 - t) * (1 - t) -- quick start, settles at the end
 	local _, available = Lock.Tally(record, needed)
@@ -416,7 +421,7 @@ end
 local function Advance(elapsed)
 	local show = shows[1]
 	while show do
-		local duration = math.max(SHOW.MIN, SHOW.SECONDS / #shows)
+		local duration = SweepSeconds()
 		show.t = show.t + elapsed
 		elapsed = 0
 		if show.t < duration + HoldFor() and ns.Depth.Of(show.itemID) then return show end
