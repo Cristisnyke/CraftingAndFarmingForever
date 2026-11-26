@@ -261,6 +261,25 @@ local function SelectRow(row, byHand)
 	end
 end
 
+-- The row to move on to: the first one below the old selection (in the list as last shown) with something left to
+-- post, so an item skipped with Next item doesn't come back after each post; past the bottom, the first one.
+local function NextToPost(rows)
+	local byID = {}
+	for _, row in ipairs(rows) do
+		if row.toPost > 0 then byID[row.itemID] = row end
+	end
+	local shown, after = window.list or {}, false
+	for _, data in ipairs(shown) do
+		local itemID = data.row and data.row.itemID
+		if after and byID[itemID] then return byID[itemID] end
+		if itemID and itemID == selected then after = true end
+	end
+	for _, row in ipairs(rows) do
+		if row.toPost > 0 then return row end
+	end
+	return nil
+end
+
 -- Keeps the selection while it's still useful, otherwise moves on to the next thing to post.
 local function ChooseSelection(rows)
 	local current
@@ -276,9 +295,7 @@ local function ChooseSelection(rows)
 		SelectRow(current)
 		return
 	end
-	local nextRow = rows[1]
-	if nextRow and nextRow.toPost <= 0 then nextRow = nil end
-	SelectRow(nextRow)
+	SelectRow(NextToPost(rows))
 end
 
 local function BuildList()

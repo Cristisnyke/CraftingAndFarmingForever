@@ -2612,6 +2612,39 @@ do
 	check("last scan used after the wait", posts[#posts].price, 900)
 	Fire("AUCTION_HOUSE_AUCTION_CREATED")
 
+	-- Skipped with Next item, then the one after it posted: moves on down the list, not back to the skipped one.
+	do
+		ns.db.recipes[51] = { n = "Third Craft", o = 3, qmin = 1, qmax = 1, r = { { 1, 1 } } }
+		ns.db.chars[me].recipes[51] = true
+		for _, itemID in ipairs({ shirt, bolts, 3 }) do ns.db.restock.goals[itemID] = 500 end
+		bags = { { itemID = shirt, stackCount = 2 }, { itemID = bolts, stackCount = 2 }, { itemID = 3, stackCount = 2 } }
+		ns.UI.Refresh("posting")
+		local order = {}
+		for _, data in ipairs(window.list) do
+			if data.row and data.row.toPost > 0 then order[#order + 1] = data.row.itemID end
+		end
+		check("three to post", #order, 3)
+		ns.Posting.Select(order[1])
+		ns.Posting.SelectNext()
+		ns.UI.Refresh("posting")
+		local second
+		for _, data in ipairs(window.list) do if data.selected then second = data.row.itemID end end
+		check("next item skips the top one", second, order[2])
+		listings[second] = { { buyoutAmount = 500, unitPrice = 500, containsOwnerItem = false } }
+		Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = second })
+		Fire("COMMODITY_SEARCH_RESULTS_UPDATED", second)
+		ns.Posting.PostSelected()
+		Fire("AUCTION_HOUSE_AUCTION_CREATED")
+		for _, slot in ipairs(bags) do if slot.itemID == second then slot.stackCount = 0 end end
+		RunTimers()
+		ns.UI.Refresh("posting")
+		local now
+		for _, data in ipairs(window.list) do if data.selected then now = data.row.itemID end end
+		check("after a post: the one below, not the skipped top one", now, order[3])
+		ns.db.recipes[51], ns.db.chars[me].recipes[51] = nil, nil
+		for _, itemID in ipairs({ shirt, bolts, 3 }) do ns.db.restock.goals[itemID] = nil end
+	end
+
 	AuctionHouseFrame:Hide()
 	Fire("AUCTION_HOUSE_CLOSED")
 	created.frame:Hide()
