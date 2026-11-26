@@ -18,7 +18,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - **Where do I farm these materials?** Farm It: which ore veins, herbs and creatures, in which zones.
 - **Are Craftsman's Writs worth it?** The Writs tab: the gold each reputation point costs, cheapest first.
 - **Which Waylaid Crate should I fill?** The Crates tab: the gold each Merchant's Favor costs, with the best buy marked.
-- **How many should I post?** Restock: a goal per item that follows your own sales.
+- **How many should I post?** Restock: a goal per item that follows your own sales, with each item's profit shown and an X to skip one for now.
 - **How much gold am I really making?** The Sales tab: profit today, this week and this month, after the auction house cut and material costs.
 
 ## Features
