@@ -4,7 +4,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 
 ## Unreleased
 
-- Refactoring and code optimization (Options, Sorting, WritsTab, CratesTab).
+- Refactoring and code optimization (Options, Sorting, WritsTab, CratesTab, Bank).
 
 ## 1.37.4
 

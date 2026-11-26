@@ -9,6 +9,7 @@ ns.Bank = Bank
 
 local BAGS = { 0, 1, 2, 3, 4 }
 local REAGENT_BAG = 5
+local DEPOSIT_FROM = { REAGENT_BAG, 0, 1, 2, 3, 4 } -- every bag, the reagent bag first
 local TIMING = {
 	STEP = 0.05, -- between checks while a move is on its way
 	WAIT = 2,    -- seconds the server gets to answer one move
@@ -170,7 +171,7 @@ Step = function()
 		move = job.moves[job.index]
 	end
 	if not move then return Finish() end
-	local from = move.deposit and { REAGENT_BAG, 0, 1, 2, 3, 4 } or BankContainers()
+	local from = move.deposit and DEPOSIT_FROM or BankContainers()
 	local source = Source(from, move.itemID, move.left)
 	if not source then
 		move.missing, move.left = move.left, 0
