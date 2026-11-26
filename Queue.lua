@@ -1058,7 +1058,8 @@ ns.On("UNIT_SPELLCAST_INTERRUPTED", CastEnded)
 --   recipeID     the recipe being worked through (cast now, or paused in the middle of it), or nil
 --   done, total  crafts of it finished / in all since you started on it
 --   runSeconds   time left on that recipe, or nil
---   allSeconds, allCount   time and crafts left on everything this character crafts in the queue
+--   allSeconds, allCount   time and crafts left on everything this character crafts in the plan (this bag run)
+--   totalSeconds, totalCount   the same over every bag run, only when the queue is split into runs
 --   allFraction  0..1 of all crafts done since you started crafting, or nil
 function Queue.CraftProgress()
 	local now = GetTime()
@@ -1091,6 +1092,10 @@ function Queue.CraftProgress()
 	end
 	progress.runSeconds, progress.allSeconds, progress.allCount =
 		ns.Planner.TimeLeft(plan.crafts, ns.CharKey(), Queue.CraftSeconds, current)
+	if plan.run and plan.run.allCrafts then
+		local _, seconds, count = ns.Planner.TimeLeft(plan.run.allCrafts, ns.CharKey(), Queue.CraftSeconds, current)
+		if count > progress.allCount then progress.totalSeconds, progress.totalCount = seconds, count end
+	end
 	-- The all-crafts fill starts with your first craft and ends when nothing's left; queuing more widens it
 	-- without losing what's done.
 	if progress.allCount == 0 then

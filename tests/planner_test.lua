@@ -1191,6 +1191,13 @@ do
 	check("space: run planned", run.run ~= nil, true)
 	check("space: run is as big as fits", run.run and run.run.crafts, 9)
 	check("space: rest waits", run.run and run.run.later, 41)
+	-- Time of every run, not just this one: the whole queue's crafts ride along.
+	local fullCount = 0
+	for _, craft in ipairs(run.run and run.run.allCrafts or {}) do fullCount = fullCount + craft.count end
+	check("space: all runs' crafts kept", fullCount >= 50, true)
+	local _, runTime = Planner.TimeLeft(run.crafts, "me", function() return 1 end)
+	local _, allTime = Planner.TimeLeft(run.run and run.run.allCrafts or {}, "me", function() return 1 end)
+	check("space: all runs take longer than this run", allTime > runTime, true)
 	check("space: run buys only its ore", run.buy[ORE], 180)
 	check("space: run buys no cloth yet", run.buy[CLOTH], nil)
 	check("space: heaviest craft first", run.crafts[1] and run.crafts[1].recipeID, 400)

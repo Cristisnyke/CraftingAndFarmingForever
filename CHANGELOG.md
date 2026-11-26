@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- When your bags can't hold the whole queue, the Craft Next bar and the queue now show the time of this run and of all runs, not just the first run.
+
 ## 1.39.0
 
 - While the add-on checks the auction house, the list scrolls to the material being read, and its row counts through the listings up to the amount you buy ("Counting 87 of 192"), then pulses green or red for cheaper or dearer than usual.

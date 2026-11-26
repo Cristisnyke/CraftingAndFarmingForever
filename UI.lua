@@ -880,18 +880,25 @@ local function BuildQueueList()
 			end
 			mine = before
 		end
+		-- Split into bag runs: this run's time (its sub-crafts included) and what the later runs add.
+		local runSeconds, laterSeconds
+		if plan.run then
+			local _, seconds = ns.Planner.TimeLeft(plan.crafts, me, ns.Queue.CraftSeconds)
+			local _, all = ns.Planner.TimeLeft(plan.run.allCrafts or plan.crafts, me, ns.Queue.CraftSeconds)
+			runSeconds, laterSeconds = seconds, math.max(all - seconds, 0)
+		end
 		if #mine > 0 then
-			local title = plan.run and ("Craft this run: %s (as many as your bags hold)"):format(
-				ns.Plural(plan.run.crafts, "craft", "crafts")) or "Craft your queue"
+			local title = plan.run and ("Craft this run: %s, %s (as many as your bags hold)"):format(
+				ns.Plural(plan.run.crafts, "craft", "crafts"), ns.Planner.FormatDuration(runSeconds)) or "Craft your queue"
 			if #camp > 0 then title = title .. " (before the camp)" end
 			table.insert(list, { kind = "header", text = NumberedStep() .. title, columns = "queue", crafting = true })
 			for _, row in ipairs(mine) do table.insert(list, row) end
 		end
 		CampSteps()
 		if #later > 0 then
-			table.insert(list, { kind = "header", columns = "queue", text = Step() .. ("Next run: %s left (craft this "
-				.. "run first, then the list starts over with room in your bags)"):format(
-				ns.Plural(plan.run.later, "craft", "crafts")) })
+			table.insert(list, { kind = "header", columns = "queue", text = Step() .. ("Next runs: %s left, %s more (craft "
+				.. "this run first, then the list starts over with room in your bags)"):format(
+				ns.Plural(plan.run.later, "craft", "crafts"), ns.Planner.FormatDuration(laterSeconds)) })
 			for _, row in ipairs(later) do table.insert(list, row) end
 		end
 		table.sort(order, function(a, b) return ns.CharLabel(a) < ns.CharLabel(b) end)
@@ -3818,9 +3825,17 @@ local function CraftIcon(recipeID)
 		or (GetSpellTexture and GetSpellTexture(recipeID))) or nil
 end
 
--- "all crafts 3:10 (45)", or nothing when the recipe on the bar is all there is.
+-- "all crafts 3:10 (45)", or nothing when the recipe on the bar is all there is. Split into bag runs:
+-- "this run 3:10 (45)  all runs 9:30 (135)".
 local function AllCraftsText(progress, onlyThis)
 	if not progress.allSeconds or progress.allCount == 0 then return nil end
+	if progress.totalSeconds then
+		local total = ("all runs %s %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.totalSeconds)),
+			Color(COLOR_MUTED, ("(%d)"):format(progress.totalCount)))
+		if onlyThis then return total end
+		return ("this run %s %s  %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.allSeconds)),
+			Color(COLOR_MUTED, ("(%d)"):format(progress.allCount)), total)
+	end
 	if onlyThis then return Color(COLOR_MUTED, "nothing else queued") end
 	return ("all crafts %s %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.allSeconds)),
 		Color(COLOR_MUTED, ("(%d)"):format(progress.allCount)))
@@ -3936,7 +3951,7 @@ local function CraftBarTooltip(bar)
 		if craft.char == me and craft.count > 0 then
 			if lines == 0 then
 				GameTooltip:AddLine(" ")
-				GameTooltip:AddLine("Still to craft here")
+				GameTooltip:AddLine(progress.totalSeconds and "Still to craft here this run" or "Still to craft here")
 			end
 			lines = lines + 1
 			if lines <= 12 then
@@ -3947,7 +3962,12 @@ local function CraftBarTooltip(bar)
 	end
 	if lines > 12 then GameTooltip:AddLine(("and %d more"):format(lines - 12), 0.6, 0.6, 0.6) end
 	if lines > 0 then
-		GameTooltip:AddDoubleLine("All crafts", ns.Planner.FormatDuration(progress.allSeconds), 1, 0.82, 0, 1, 0.82, 0)
+		GameTooltip:AddDoubleLine(progress.totalSeconds and "This run" or "All crafts",
+			ns.Planner.FormatDuration(progress.allSeconds), 1, 0.82, 0, 1, 0.82, 0)
+		if progress.totalSeconds then
+			GameTooltip:AddDoubleLine(("All runs (%d crafts)"):format(progress.totalCount),
+				ns.Planner.FormatDuration(progress.totalSeconds), 1, 0.82, 0, 1, 0.82, 0)
+		end
 	end
 	GameTooltip:AddLine(" ")
 	GameTooltip:AddLine("The fill is the recipe you're crafting, the light line under it all your crafts. Times "
@@ -4615,6 +4635,8 @@ function CreateRestockPane()
 				GameTooltip:AddDoubleLine("Sub-crafts", tostring(self.count - self.direct), 1, 0.82, 0, 1, 1, 1)
 			end
 		end
+		GameTooltip:AddLine("This is every craft. When your bags can't hold it all at once, the queue is split "
+			.. "into runs; the Craft Next bar then shows this run and all runs.", 0.6, 0.6, 0.6, true)
 		GameTooltip:AddLine("Cast times are learned as you craft; until then the spell's own time is used.",
 			0.6, 0.6, 0.6, true)
 		GameTooltip:Show()

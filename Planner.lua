@@ -2152,7 +2152,8 @@ end
 -- Builds the buying plan with bag space in mind. Without space (bags unknown) it's BuildPlan's. When everything fits,
 -- that plan as it is. Otherwise, crafts that free the most bag room come first, and:
 --   plan.room = { bank = { [itemID] = units } to put in the bank first, short = slots still missing }
---   plan.run  = { qty = { [RunKey] = crafts this run }, crafts = this run's, later = crafts left for later runs }
+--   plan.run  = { qty = { [RunKey] = crafts this run }, crafts = this run's, later = crafts left for later runs,
+--                allCrafts = the whole queue's plan crafts (for the time of every run) }
 --              when the whole queue can't fit even after the bank: the run is as big as fits, at least one craft.
 -- committed = the run being worked through (returned by an earlier call; saved by the caller): kept until its crafts
 -- are done, so the plan doesn't change under you halfway through. Returns the plan and the run to save (nil: none).
@@ -2182,7 +2183,7 @@ function Planner.SpacePlan(ctx, queue, wanted, space, committed)
 	local function AsRun(plan, runQty)
 		local crafts = 0
 		for _, qty in pairs(runQty) do crafts = crafts + qty end
-		plan.run = { qty = runQty, crafts = crafts, later = total - crafts }
+		plan.run = { qty = runQty, crafts = crafts, later = total - crafts, allCrafts = full.crafts }
 		return plan
 	end
 
