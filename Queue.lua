@@ -604,6 +604,18 @@ function Restock.SetGoal(itemID, goal)
 	ns.db.restock.goals[itemID] = goal ~= (AutoGoal(itemID)) and goal or nil
 end
 
+-- Items left out of restocking until /reload or logout (Skip on a Restock row): their goal counts as 0 for the
+-- restock, so Queue restock adds none and takes queued restock crafts of them off. Not saved on purpose.
+local skipped = {}
+
+function Restock.Skipped(itemID)
+	return skipped[itemID] == true
+end
+
+function Restock.SetSkipped(itemID, on)
+	skipped[itemID] = on and true or nil
+end
+
 -- Units already planned by entries the user queued by hand, by item; and what an earlier restock still has on the
 -- queue: units and crafts by item. A queued restock is committed (see Planner.RestockRows).
 local function QueuedUnits()
@@ -732,11 +744,11 @@ function Restock.Rows()
 	local ctx = NewContext()
 	local rows = ns.Planner.RestockRows(ctx, {
 		isSellable = ns.Items.CanSellOnAH,
-		goal = Restock.Goal,
+		goal = function(itemID) return skipped[itemID] and 0 or Restock.Goal(itemID) end,
 		stock = ns.Stock.ForRestock,
 		queued = function(itemID) return queued[itemID] or 0 end,
 		committed = function(itemID) return units[itemID] or 0, crafts[itemID] or 0 end,
-		fullGoal = Restock.FullGoal,
+		fullGoal = function(itemID) return skipped[itemID] and 0 or Restock.FullGoal(itemID) end,
 		minProfit = ns.db.restock.minProfitSilver * 100,
 		stationBatch = Restock.StationBatch(),
 	})
@@ -745,6 +757,10 @@ function Restock.Rows()
 	for key, value in pairs(ctx) do all[key] = value end
 	all.me = nil
 	HoldToCuts(rows)
+	-- A skipped item was restocked as goal 0; its row still shows the goal it keeps.
+	for _, row in ipairs(rows) do
+		if skipped[row.itemID] then row.goal = Restock.Goal(row.itemID) end
+	end
 	-- One camp station an hour, standing 15 minutes: only the best one's crafts, as many as fit.
 	local camp = ns.Planner.RestockStations(all, rows, ns.db.queue)
 	if camp then ns.Planner.SortRestock(rows) end

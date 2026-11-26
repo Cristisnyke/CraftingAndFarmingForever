@@ -1698,6 +1698,7 @@ local COLUMN_TIPS = {
 		"AH: how many you have on the auction house, across your characters. Updates when you visit the auction house.",
 		"Have: how many your characters hold in bags, banks and mail.",
 		"Craft: how many crafts Queue restock would add. 5q: already on your queue. Grey 'skip' means the goal is 0.",
+		"X: skip the item until you /reload or log out, keeping its goal. Click again to restock it.",
 		"Goal: how many you want on the auction house. Grey goals follow the defaults at the bottom; white ones are "
 			.. "your own for that item. The arrow button puts an item back on the default.",
 	},
@@ -2129,7 +2130,7 @@ local Live = {
 
 local function RestockControls(row)
 	return {
-		{ row.plus, 2 }, { row.amount, 6 }, { row.minus, 8 }, { row.reset, 4 },
+		{ row.remove, 2 }, { row.plus, 6 }, { row.amount, 6 }, { row.minus, 8 }, { row.reset, 4 },
 		{ row.colCraft, 4 }, { row.colHave, 6 }, { row.colAH, 6 }, { row.chance, 6 },
 	}
 end
@@ -2327,10 +2328,23 @@ local function CreateRow(parent)
 		local data = self:GetParent().data
 		if data and data.kind == "queue" then ns.Queue.Remove(data.index) end
 		if data and data.kind == "want" then ns.Queue.SetWanted(data.index, 0) end
+		if data and data.kind == "restock" then
+			ns.Restock.SetSkipped(data.row.itemID, not ns.Restock.Skipped(data.row.itemID))
+			UI.Refresh("restock")
+		end
 	end)
 	row.remove:SetScript("OnEnter", function(self)
+		local data = self:GetParent().data
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText("Remove from the queue")
+		if data and data.kind == "restock" then
+			local skipping = ns.Restock.Skipped(data.row.itemID)
+			GameTooltip:SetText(skipping and "Restock it again" or "Skip for now")
+			GameTooltip:AddLine(skipping and "Skipped until you /reload or log out. Click to restock it again."
+				or "Leaves it out of Queue restock until you /reload or log out, without changing its goal. "
+				.. "Restock crafts of it already on the queue come off when you queue the restock.", 1, 1, 1, true)
+		else
+			GameTooltip:SetText("Remove from the queue")
+		end
 		GameTooltip:Show()
 	end)
 	row.remove:SetScript("OnLeave", GameTooltip_Hide)
@@ -2640,6 +2654,7 @@ local function SetRow(row, data)
 	row.plus:Hide()
 	row.minus:Hide()
 	row.remove:Hide()
+	row.remove:SetAlpha(1)
 	row.quote:Hide()
 	row.cost:Hide()
 	row.profit:Hide()
@@ -2890,7 +2905,12 @@ local function SetRow(row, data)
 		row.chance:SetText(ChanceText(ns.Items.Name(item.itemID)))
 		row.colAH:SetText(item.onAH and tostring(item.onAH) or Color(COLOR_MUTED, "?"))
 		row.colHave:SetText(tostring(item.owned))
-		if item.goal == 0 then
+		local skipping = ns.Restock.Skipped(item.itemID)
+		row.remove:SetAlpha(skipping and 1 or 0.5)
+		if skipping then
+			row.left:SetText(Color(COLOR_MUTED, ns.Items.Name(item.itemID) or "?"))
+			row.colCraft:SetText(Color("ffffb040", "skipped"))
+		elseif item.goal == 0 then
 			row.colCraft:SetText(smart and smart.paused and Color("ffffb040", "paused") or Color(COLOR_MUTED, "skip"))
 		elseif item.cooldown then
 			-- The recipe is on cooldown for its crafter (a transmute).

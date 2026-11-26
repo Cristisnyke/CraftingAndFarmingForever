@@ -956,6 +956,23 @@ do
 	check("restock crafting time counts new and queued crafts", direct, 3)
 	check("restock crafting time in seconds", seconds >= 3 * ns.Queue.CraftSeconds(shirtRow.recipeID), true)
 end
+-- Skip for now: no crafts, the goal kept and shown, back after a second click.
+do
+	local function Shirt()
+		for _, row in ipairs((ns.Restock.Rows())) do if row.itemID == 4 then return row end end
+	end
+	-- Wanted: crafts before any cut to your gold.
+	local function Wants() local row = Shirt(); return (row.wanted or row.crafts) > 0 end
+	ns.db.restock.goals[4] = 50
+	check("skip: crafts wanted before", Wants(), true)
+	ns.Restock.SetSkipped(4, true)
+	check("skip: no crafts", Wants(), false)
+	check("skip: goal shown unchanged", Shirt().goal, 50)
+	check("skip: own goal untouched", ns.db.restock.goals[4], 50)
+	ns.Restock.SetSkipped(4, false)
+	check("skip: crafts back", Wants(), true)
+	ns.db.restock.goals[4] = nil
+end
 -- Camp stations on the Restock tab: one an hour, so a row needing one it can't have gets no crafts, and says why.
 do
 	local recipe = ns.db.recipes[shirtRow.recipeID]
