@@ -27,11 +27,18 @@ local MARK = { 1, 0.82, 0 } -- the outline of rows that need the item being read
 local SHOW = {
 	SECONDS = 1.1, -- a sweep across a row, with nothing else waiting to be shown
 	MIN = 0.3, -- the quickest sweep, with a backlog
-	HOLD = 0.45, -- the result stays this long before the next item
+	HOLD = 1.2, -- the result pulses this long before the next item (less with a backlog, never under MIN_HOLD)
+	MIN_HOLD = 0.4,
+	PULSE = 2, -- pulses a second at the end of a count
 	BACKLOG = 6, -- items waiting to be shown at most; older ones are skipped
 	SCROLL_STEP = 0.03, -- seconds between scroll steps, as a list glides to the row
 	BAND = 46, -- width of the searching shimmer
 	SHORT = { 1, 0.3, 0.25 }, -- the part of the amount the listings don't cover
+	-- The end of a count pulses green when the average is at or below the item's usual price, red above it, gold
+	-- when there's no usual price yet. The text on the pill is black: legible on all three.
+	CHEAP = { 0.2, 0.9, 0.3 },
+	DEAR = { 1, 0.25, 0.2 },
+	TEXT = { 0, 0, 0 },
 }
 
 local frame
@@ -82,23 +89,18 @@ local function Mark(index)
 	mark.band:SetPoint("BOTTOM")
 	mark.band:SetWidth(SHOW.BAND)
 	mark.ticks = {}
-	if index == 1 then
-		-- What's being counted, above the first row: "Counting 87 / 192, avg 1g 23s".
-		local badge = CreateFrame("Frame", nil, mark)
-		badge:SetPoint("BOTTOMRIGHT", mark, "TOPRIGHT", 0, 1)
-		badge:SetHeight(18)
-		local back = badge:CreateTexture(nil, "BACKGROUND")
-		back:SetAllPoints(badge)
-		back:SetColorTexture(0.06, 0.05, 0.01, 0.92)
-		local line = badge:CreateTexture(nil, "BORDER")
-		line:SetPoint("BOTTOMLEFT")
-		line:SetPoint("BOTTOMRIGHT")
-		line:SetHeight(1)
-		line:SetColorTexture(MARK[1], MARK[2], MARK[3], 0.95)
-		badge.text = badge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		badge.text:SetPoint("CENTER", 0, 1)
-		mark.badge = badge
-	end
+	-- "Counting 87 of 192" on a solid pill in the middle of the row, black on the sweep's colour.
+	local pill = CreateFrame("Frame", nil, mark)
+	pill:SetPoint("CENTER")
+	pill:SetHeight(15)
+	pill:SetFrameLevel((mark:GetFrameLevel() or 0) + 3)
+	pill.back = pill:CreateTexture(nil, "BACKGROUND")
+	pill.back:SetAllPoints(pill)
+	pill.text = pill:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	pill.text:SetPoint("CENTER", 0, 0)
+	pill.text:SetTextColor(SHOW.TEXT[1], SHOW.TEXT[2], SHOW.TEXT[3])
+	if pill.text.SetShadowOffset then pill.text:SetShadowOffset(0, 0) end
+	mark.pill = pill
 	marks[index] = mark
 	return mark
 end
@@ -302,6 +304,17 @@ local function MarkRows(itemID)
 	end
 end
 
+-- Seconds a count's result stays: shorter while more wait to be shown.
+local function HoldFor()
+	return math.max(SHOW.MIN_HOLD, SHOW.HOLD / math.max(#shows, 1))
+end
+
+-- "cheap" (average at or below the usual price), "dear" (above), nil (no usual price to go by).
+function Lock.Verdict(average, usual)
+	if not (average and usual and usual > 0) then return nil end
+	return average <= usual and "cheap" or "dear"
+end
+
 -- What the sweep shows: show = the item being counted (nil: the search is still out, a shimmer runs instead).
 local function View(itemID, show)
 	if not show then return nil end
@@ -314,8 +327,9 @@ local function View(itemID, show)
 	local _, available = Lock.Tally(record, needed)
 	local units = math.floor(eased * available + 0.5)
 	local cost = Lock.Tally(record, units)
+	local verdict = t >= 1 and units > 0 and Lock.Verdict(cost / units, ns.Prices.Normal(itemID)) or nil
 	return { record = record, needed = needed, available = available, units = units, cost = cost,
-		done = t >= 1, after = math.max(show.t - duration, 0) }
+		done = t >= 1, after = math.max(show.t - duration, 0), verdict = verdict }
 end
 
 local function ViewText(view)
@@ -329,8 +343,26 @@ local function ViewText(view)
 	return ("%s %d / %d, %s"):format(view.done and "Counted" or "Counting", view.units, view.needed, average)
 end
 
+-- The pill's words: just the count.
+function Lock.PillText(view)
+	if not view then return "Searching" .. ("."):rep(math.floor(clock * 3) % 4) end
+	return ("Counting %d of %d"):format(view.units, view.needed)
+end
+
+-- The sweep's colour and strength: gold while counting; at the end, green or red pulsing.
+local function SweepLook(view)
+	local colour = view and (view.verdict == "cheap" and SHOW.CHEAP or view.verdict == "dear" and SHOW.DEAR) or MARK
+	if not (view and view.done) then return colour, 0.6 end
+	local wave = 0.5 + 0.5 * math.cos(view.after * 2 * math.pi * SHOW.PULSE)
+	return colour, 0.45 + 0.55 * wave
+end
+
 local function Paint(mark, view)
 	local width = mark:GetWidth() or 0
+	local colour, strength = SweepLook(view)
+	mark.pill.back:SetColorTexture(colour[1], colour[2], colour[3], 1)
+	mark.pill.text:SetText(Lock.PillText(view))
+	mark.pill:SetWidth((mark.pill.text:GetStringWidth() or 0) + 12)
 	mark.band:SetShown(view == nil and width > SHOW.BAND)
 	if not view then
 		mark.sweep:Hide()
@@ -347,8 +379,9 @@ local function Paint(mark, view)
 	local at = width * math.min(view.units / view.needed, 1)
 	mark.sweep:SetShown(at >= 1)
 	mark.sweep:SetWidth(math.max(at, 1))
-	-- A flash as the count ends, fading over the hold.
-	mark.sweep:SetAlpha(view.done and 0.6 + 0.4 * math.max(0, 1 - view.after / SHOW.HOLD) or 0.6)
+	-- The whole bar pulses green or red as the count ends.
+	mark.sweep:SetColorTexture(colour[1], colour[2], colour[3], 0.45)
+	mark.sweep:SetAlpha(strength)
 	mark.lead:SetShown(not view.done and at >= 1)
 	mark.lead:ClearAllPoints()
 	mark.lead:SetPoint("CENTER", mark, "LEFT", at, 0)
@@ -372,13 +405,9 @@ end
 
 local function PaintAll(view)
 	local text = ViewText(view)
-	for index, mark in ipairs(marks) do
+	for _, mark in ipairs(marks) do
 		if mark:IsShown() then
 			Paint(mark, view)
-			if index == 1 and mark.badge then
-				mark.badge.text:SetText(text)
-				mark.badge:SetWidth((mark.badge.text:GetStringWidth() or 0) + 14)
-			end
 		end
 	end
 	-- Also on the box, for the rows not on screen.
@@ -392,7 +421,7 @@ local function Advance(elapsed)
 		local duration = math.max(SHOW.MIN, SHOW.SECONDS / #shows)
 		show.t = show.t + elapsed
 		elapsed = 0
-		if show.t < duration + SHOW.HOLD and ns.Depth.Of(show.itemID) then return show end
+		if show.t < duration + HoldFor() and ns.Depth.Of(show.itemID) then return show end
 		table.remove(shows, 1)
 		show = shows[1]
 	end

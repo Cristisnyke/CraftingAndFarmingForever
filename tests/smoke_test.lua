@@ -3899,6 +3899,10 @@ do
 	ns.Lock.frame.scripts.OnUpdate(ns.Lock.frame, 1)
 	check("lock: count ends at the average paid", ns.Lock.frame.note.text:find("Counted 12 / 12, avg 27c", 1, true)
 		~= nil, true)
+	check("lock: pill says just the count", ns.Lock.PillText({ units = 87, needed = 192 }), "Counting 87 of 192")
+	check("lock: cheaper than usual pulses green", ns.Lock.Verdict(27, 30), "cheap")
+	check("lock: dearer than usual pulses red", ns.Lock.Verdict(31, 30), "dear")
+	check("lock: no usual price, no verdict", ns.Lock.Verdict(31, nil), nil)
 	check("lock: tally down the listings", select(1, ns.Lock.Tally(ns.db.depth[1], 12)), 320)
 	check("lock: tally stops where the listings end", select(2, ns.Lock.Tally({ { 5, 3 } }, 12)), 3)
 	-- An item read only to weigh buying against crafting counts to what the crafts use, not everything listed.
