@@ -3113,7 +3113,7 @@ local function UpdateBanner()
 	local stale = ns.Prices.IsStale()
 	main.banner:SetShown(stale)
 	if not stale then return end
-	local atAH = AuctionHouseFrame and AuctionHouseFrame:IsShown() and true or false
+	local atAH = ns.AuctionHouseOpen()
 	main.banner.text:SetText(ScanAgeText() .. (atAH and "" or " Scan at the auction house."))
 	main.banner.text:ClearAllPoints()
 	main.banner.text:SetPoint("RIGHT", main.banner, "RIGHT", atAH and -86 or 0, 0)
@@ -5506,7 +5506,7 @@ local function HookProfessionWindow()
 	ProfessionsFrame:HookScript("OnHide", function()
 		lastOpenProfession = nil
 		-- Walking from the profession window to the auction house keeps it up, for the queue and the shopping list.
-		local atAH = AuctionHouseFrame and AuctionHouseFrame:IsShown()
+		local atAH = ns.AuctionHouseOpen()
 		if main and main.withProfession and not atAH then UI.Hide() end
 		UI.RefreshAll()
 	end)
@@ -5627,11 +5627,11 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 	UI.Refresh("next")
 	-- Auctionator creates its scan frames as the auction house opens, so wait for them.
 	C_Timer.After(1.5, function()
-		if ns.Option("scanPopup") and ns.Prices.IsStale() and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+		if ns.Option("scanPopup") and ns.Prices.IsStale() and ns.AuctionHouseOpen() then
 			StaticPopup_Show("CFF_SCAN", ScanAgeText())
 		end
 		-- Once per visit, the way to the list, when there's something on it.
-		if ns.Option("chatTips") and next(ns.plan.buy) and AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+		if ns.Option("chatTips") and next(ns.plan.buy) and ns.AuctionHouseOpen() then
 			ns.Say("chatTips", ('Materials to buy: click the Shopping tab at the bottom of the auction house (Auctionator), '
 				.. 'then the list "%s".'):format(ns.LIST_NAME))
 		end
