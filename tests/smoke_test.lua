@@ -4985,10 +4985,10 @@ do
 		end
 	end
 	check("leave out: not in Recipes for all characters", listed, false)
-	ns.SetCharExcluded(ns.CharKey(), true)
+	ns.Stock.SetLeftOut({ key = ns.CharKey() }, true)
 	check("leave out: the one you're playing always counts", ns.CharExcluded(ns.CharKey()), false)
 	ns.Stock.SetLeftOut(altEntry, false)
-	ns.SetCharExcluded(ns.CharKey(), false)
+	ns.Stock.SetLeftOut({ key = ns.CharKey() }, false)
 	check("leave out: all cleared", ns.db.ui.excludedChars, nil)
 	check("leave out: recipe back", ns.Recipes.KnownMap()[9011] ~= nil, true)
 	ns.db.chars[alt], ns.db.recipes[901], Syndicator = nil, nil, nil

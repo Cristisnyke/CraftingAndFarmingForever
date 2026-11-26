@@ -313,12 +313,6 @@ function ns.CharExcluded(key)
 	return char ~= nil and char.syndicatorKey ~= nil and excluded[char.syndicatorKey] == true
 end
 
-function ns.SetCharExcluded(key, on)
-	local excluded = ns.db.ui.excludedChars or {}
-	excluded[key] = on and true or nil
-	ns.db.ui.excludedChars = next(excluded) and excluded or nil
-end
-
 -- A character's name for showing: its full name (ns.CharName, Data.lua), with its class when another record has the
 -- same name (an old record of a character Forever gave a new GUID).
 function ns.CharLabel(key)
