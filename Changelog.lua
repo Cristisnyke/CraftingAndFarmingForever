@@ -4,6 +4,12 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.38.0", lines = {
+		"- Restocking tab: after posting, it moves on to the item below instead of going back to one you skipped with Next item.",
+		"- Restocking tab: every row shows the profit for one item at the last scanned AH price.",
+		"- Restock tab: an X on each row skips the item until you /reload or log out, keeping its goal; click it again to restock it.",
+		"- Restock tab: a Profit column shows what one craft of each item earns.",
+	} },
 	{ version = "1.37.5", lines = {
 		"- Refactoring and code optimization (Options, Sorting, WritsTab, CratesTab, Bank).",
 	} },

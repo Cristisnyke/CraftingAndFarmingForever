@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.38.0
 
 - Restocking tab: after posting, it moves on to the item below instead of going back to one you skipped with Next item.
 - Restocking tab: every row shows the profit for one item at the last scanned AH price.
