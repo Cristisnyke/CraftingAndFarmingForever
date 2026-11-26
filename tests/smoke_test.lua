@@ -1829,22 +1829,22 @@ do
 	check("enough recipes to sort", #Results() >= 3, true)
 	check("profit, highest first by default", ns.UI.ProfitSort(), "profit")
 	check("default order", Ordered(Net, false), true)
-	ns.UI.SortProfit("name")
+	ns.UI.SortList("profit", "name")
 	check("sorted by name", ns.db.ui.profitSort, "name")
 	check("names A to Z", Ordered(Name, true), true)
-	ns.UI.SortProfit("name")
+	ns.UI.SortList("profit", "name")
 	check("second click reverses", ns.db.ui.profitSortAsc, false)
 	check("names Z to A", Ordered(Name, false), true)
-	ns.UI.SortProfit("profit")
+	ns.UI.SortList("profit", "profit")
 	check("profit highest first", Ordered(Net, false), true)
-	ns.UI.SortProfit("profit")
+	ns.UI.SortList("profit", "profit")
 	check("profit lowest first", Ordered(Net, true), true)
 	local seenUnpriced, pricedAfter = false, false
 	for _, result in ipairs(Results()) do
 		if result.net == nil then seenUnpriced = true elseif seenUnpriced then pricedAfter = true end
 	end
 	check("no price stays last when reversed", pricedAfter, false)
-	ns.UI.SortProfit("chance")
+	ns.UI.SortList("profit", "chance")
 	check("sells, likely first", ns.db.ui.profitSortAsc, false)
 	-- Clicking a heading button.
 	local headings = profit.rows[1].sortHeadings

@@ -266,7 +266,6 @@ function UI.SortList(mode, key)
 end
 
 function UI.ProfitSort() return UI.ListSort("profit") end
-function UI.SortProfit(key) UI.SortList("profit", key) end
 
 -- What a recipe sorts by. Nil (no price, no sales data, name still loading) always goes last.
 local function SortValue(result, key)
