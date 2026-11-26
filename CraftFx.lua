@@ -2,7 +2,8 @@
 -- Something to watch while you craft, on every Craft Next bar on screen (UI.lua): a light sweeps along the fill while
 -- a cast runs; each craft flashes the bar and floats the item up with its profit; a chip above the bar counts the
 -- streak and what this session's crafts earned (rolling up to the new total); a finished batch bursts into sparks with
--- a banner. Profit is the Profit tab's figure for one craft (AH sale after the cut, less materials), nothing new.
+-- a banner. Profit is the Profit tab's figure for one craft (AH sale after the cut, less materials) at today's
+-- listing, not the usual price a spike is counted at.
 -- Only drawn while something moves: idle bars run no code.
 
 local _, ns = ...
@@ -47,8 +48,10 @@ local function NetEach(recipeID)
 	local recipe = ns.db.recipes[recipeID]
 	local net
 	if recipe and recipe.o and ns.Items.CanSellOnAH(recipe.o) then
+		-- At today's listing (todayNet) when the Profit tab counts the sale at the usual price: you're about to post
+		-- what you craft now, so that is what this craft earns (Smelt Tin: +10c at today's price, -32c at usual).
 		local result = ns.Planner.Profit(ns.NewContext(), recipeID)
-		net = result and result.net
+		net = result and (result.todayNet or result.net)
 	end
 	profitCache[recipeID] = { at = clock, net = net }
 	return net
