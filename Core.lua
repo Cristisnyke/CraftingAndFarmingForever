@@ -176,6 +176,7 @@ local function Normalize(db)
 	-- Left behind by older versions: the auction debug log, the separate windows before the tabbed one, renamed options.
 	db.auctionLog = nil
 	db.ui.hideLosing, db.ui.manualChat, db.ui.writCraftable, db.ui.writZone = nil, nil, nil, nil
+	db.ui.priceCapNormal = nil -- the "count it as %" price check box, removed in 1.37.4
 	if db.ui.positions then
 		for window in pairs(db.ui.positions) do
 			if window ~= "main" and window ~= "next" then db.ui.positions[window] = nil end

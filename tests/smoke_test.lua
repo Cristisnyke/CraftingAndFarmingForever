@@ -2033,7 +2033,7 @@ RunTimers()
 -- Late saved data: the session's queue is merged into the table the client hands over.
 ns.Queue.Add(10, 1)
 CraftingAndFarmingForeverDB = { queue = { { recipeID = 30, qty = 1, char = me } }, recipes = {}, chars = {},
-	ui = { hideLosing = true, manualChat = {}, writCraftable = true, positions = { main = { x = 1, y = 2 }, next = { x = 3, y = 4 }, farm = { x = 5, y = 6 } } },
+	ui = { hideLosing = true, manualChat = {}, writCraftable = true, priceCapNormal = 150, positions = { main = { x = 1, y = 2 }, next = { x = 3, y = 4 }, farm = { x = 5, y = 6 } } },
 	auctionLog = { "old" },
 	costs = { [901] = { q = 5, c = 500 } }, costsSeeded = 1,
 	sales = { profitFrom = 1, items = { axe = { name = "Axe", sold = 2, expired = 0, gold = 900, exposure = 0,
@@ -2051,6 +2051,7 @@ check("their sales cost nothing", ns.db.sales.items.axe.days[1].c == 0 and ns.db
 check("results from before profit untouched", ns.db.sales.items.axe.days[0].c, 100)
 ns.db.sales.items.axe = nil
 check("old options dropped", ns.db.ui.hideLosing == nil and ns.db.ui.manualChat == nil and ns.db.ui.writCraftable == nil, true)
+check("old price check box dropped", ns.db.ui.priceCapNormal, nil)
 check("old window positions dropped", ns.db.ui.positions.farm, nil)
 check("main position kept", ns.db.ui.positions.main.y, 2)
 check("next position kept", ns.db.ui.positions.next.x, 3)
