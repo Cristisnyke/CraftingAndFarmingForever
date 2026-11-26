@@ -77,6 +77,9 @@ function Posting.Rows()
 				unitCost = ns.Planner.CraftUnitCost(ctx, itemID),
 				name = ns.Items.Name(itemID) or "",
 			})
+			local row, price = rows[#rows], ns.Prices.AH(itemID)
+			-- One sold at the last scanned price, after the AH cut, minus what one costs to craft.
+			row.unitProfit = price and row.unitCost and price * (1 - ns.AH_CUT) - row.unitCost or nil
 		end
 	end
 	table.sort(rows, function(a, b)

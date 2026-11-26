@@ -2431,6 +2431,9 @@ do
 	check("bound copy not counted", rows[1].row.inBags, 3)
 	check("goal limits the suggestion", rows[1].row.toPost, 2)
 	check("first row selected", rows[1].selected, true)
+	check("profit each from the scanned price", rows[1].row.unitProfit,
+		ns.Prices.AH(shirt) and rows[1].row.unitCost and ns.Prices.AH(shirt) * (1 - ns.AH_CUT) - rows[1].row.unitCost or nil)
+	check("profit each known", rows[1].row.unitProfit ~= nil, true)
 	check("search sent", searches >= 1, true)
 	check("items sort by buyout", lastSearch.sort, 4)
 	check("items use the plain search", lastSearch.kind, "plain")

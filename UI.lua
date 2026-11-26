@@ -1844,6 +1844,12 @@ local function RowOnEnter(row)
 	elseif data.kind == "post" then
 		GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 		GameTooltip:SetItemByID(data.row.itemID)
+		if data.row.unitProfit then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddDoubleLine("Profit each", ns.Money(data.row.unitProfit), 1, 1, 1, 1, 1, 1)
+			GameTooltip:AddLine("At the last scanned AH price after the 5% cut, minus what one costs to craft. Click it "
+				.. "for the profit at the live price.", 0.6, 0.6, 0.6, true)
+		end
 		AddSalesLines(ns.Items.Name(data.row.itemID))
 		GameTooltip:Show()
 	elseif data.kind == "incoming" then
@@ -2977,6 +2983,10 @@ local function SetRow(row, data)
 		row.icon:SetTexture(ns.Items.Icon(item.itemID))
 		row.left:SetText(ItemLabel(item.itemID))
 		local held = ("%d in bags, AH %s/%d"):format(item.inBags, item.onAH and tostring(item.onAH) or "?", item.goal)
+		if item.unitProfit then
+			held = Color(item.unitProfit >= 0 and COLOR_PROFIT or COLOR_LOSS, (item.unitProfit >= 0 and "+" or "")
+				.. ns.Money(item.unitProfit) .. " each") .. "   " .. held
+		end
 		if item.toPost > 0 then
 			row.right:SetText(Color("ffffb040", "post " .. item.toPost) .. "   " .. held)
 		elseif item.goal > 0 and (item.onAH or 0) < item.goal then
