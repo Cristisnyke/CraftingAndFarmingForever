@@ -153,9 +153,7 @@ local function Release(slow)
 	Hide()
 end
 
-local function AuctionHouseOpen()
-	return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
-end
+local AuctionHouseOpen = ns.AuctionHouseOpen
 
 -- Recipes an item is read for: those that make it or need it, and those that need what those make (ore: the bars
 -- smelted from it and what the bars go into).

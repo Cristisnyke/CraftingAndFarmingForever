@@ -361,6 +361,11 @@ function ns.CleanChatText(text, maxLength)
 	return (text:sub(1, cut):gsub("%s+$", ""))
 end
 
+-- Whether the auction house window is open.
+function ns.AuctionHouseOpen()
+	return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
+end
+
 function ns.Money(copper)
 	if not copper then return "?" end
 	-- The sign after rounding: an average loss of a fraction of a copper is 0c, not -0c.

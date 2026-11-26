@@ -42,9 +42,7 @@ local PURCHASE_SECONDS = 30 -- a purchase is taken to be done this long after it
 -- For /cff diag: searches sent, answered, given up for no answer, answers not believed, others' searches read.
 local stats = { sent = 0, answered = 0, timeouts = 0, unbelieved = 0, passive = 0 }
 
-local function AuctionHouseOpen()
-	return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
-end
+local AuctionHouseOpen = ns.AuctionHouseOpen
 
 ---------------------------------------------------------------------------
 -- Listings
