@@ -5148,11 +5148,7 @@ function CreateCratesPane()
 	local queueIt = HeaderButton(window.frame, "Queue it", 72, function()
 		local target = ns.db.ui.favorTarget
 		local mix = target and ns.Queue.SetFavorGoal(target)
-		if mix then
-			local crates = 0
-			for _, pick in ipairs(mix.crates) do crates = crates + pick.count end
-			ns.Say("chatPlan", ("Queued %d crates for %d Merchant's Favor."):format(crates, mix.favor))
-		end
+		if mix then ns.Say("chatPlan", ("Queued %d crates for %d Merchant's Favor."):format(mix.count, mix.favor)) end
 		UI.Refresh("crates")
 	end, true)
 	queueIt:SetPoint("RIGHT", clear, "LEFT", -4, 0)

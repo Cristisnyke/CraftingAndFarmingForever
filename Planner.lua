@@ -515,8 +515,8 @@ end
 -- (Crates.list), held(crate) = how many of it you hold (free; only the bundle to fill it costs). Each crate's cost
 -- rises with the count, down its listings and its materials', so this works out the cheapest count of each crate
 -- together (a knapsack over favor in steps of 5, every crate's favor being a multiple of it). Returns nil when no
--- mix reaches the target, else { favor, cost (gold back from the coin taken off), perFavor, rough = some price is
--- only the cheapest listing, crates = { { crate, count, held, tokens }, ... } cheapest per favor first }.
+-- mix reaches the target, else { favor, count (crates in all), cost (gold back from the coin taken off), perFavor,
+-- rough = some price is only the cheapest listing, crates = { { crate, count, held, tokens }, ... } cheapest per favor first }.
 Planner.FAVOR_STEP = 5
 function Planner.FavorMix(ctx, crates, target, held)
 	local step = Planner.FAVOR_STEP
@@ -556,7 +556,7 @@ function Planner.FavorMix(ctx, crates, target, held)
 		end
 	end
 	if best[goal] == INF then return nil end
-	local mix = { cost = best[goal], favor = 0, rough = false, crates = {} }
+	local mix = { cost = best[goal], favor = 0, count = 0, rough = false, crates = {} }
 	local at = goal
 	for c = #choices, 1, -1 do
 		local choice = choices[c]
@@ -564,7 +564,7 @@ function Planner.FavorMix(ctx, crates, target, held)
 		if count > 0 then
 			table.insert(mix.crates, { crate = choice.crate, count = count, held = math.min(count, choice.held),
 				tokens = choice.tokens, cost = choice.costs[count] })
-			mix.favor = mix.favor + count * choice.tokens
+			mix.favor, mix.count = mix.favor + count * choice.tokens, mix.count + count
 			if not choice.reads[count] then mix.rough = true end
 			at = choice.from[at]
 		end

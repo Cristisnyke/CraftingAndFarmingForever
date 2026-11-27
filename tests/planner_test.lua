@@ -1838,6 +1838,7 @@ do
 		depth = { [CRATE_A] = { { 600, 1 }, { 3000, 5 } } } })
 	local mix = Planner.FavorMix(favorCtx, favorCrates, 30)
 	check("favor: reaches the target", mix.favor, 30)
+	check("favor: crates in all", mix.count, 3)
 	check("favor: cheapest mix cost", mix.cost, 300 + 1400)
 	check("favor: cheap listing first", mix.crates[1].crate.id .. "x" .. mix.crates[1].count, CRATE_A .. "x1")
 	check("favor: then the other crate", mix.crates[2].crate.id .. "x" .. mix.crates[2].count, CRATE_B .. "x2")
