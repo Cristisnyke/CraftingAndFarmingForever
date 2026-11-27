@@ -3407,6 +3407,31 @@ do
 	for _, data in ipairs(queue.list) do if data.kind == "want" then want = data end end
 	check("writ listed on the Queue tab", want and want.entry.id, KNIFE_WRIT)
 	check("writ row costs the writ and the item", want and want.cost, 5300)
+	-- Writs aren't a step (#23): their own unnumbered section at the very end, left out of the Next step bar.
+	local writHeader, lastHeader
+	for _, data in ipairs(queue.list) do
+		if data.kind == "header" then
+			lastHeader = data
+			if data.handIn then writHeader = data end
+		end
+	end
+	check("writs under their own section", writHeader ~= nil, true)
+	check("writ section is last", lastHeader == writHeader, true)
+	check("writ section unnumbered", writHeader and writHeader.text:find("^%d"), nil)
+	local bar = ns.UI.windows.next
+	check("bar up while the writ is still to buy", bar ~= nil and bar.frame:IsShown(), true)
+	for _, data in ipairs(bar and bar.list or {}) do
+		if data.kind == "header" then check("bar never shows the writ section", data.text:find("Writs:", 1, true), nil) end
+	end
+	-- Bought and made: only the hand-in is left, so the bar goes away; the writ stays queued.
+	local itemCount = C_Item.GetItemCount
+	C_Item.GetItemCount = function(id) return (id == KNIFE_WRIT or id == KNIFE) and 1 or 0 end
+	ns.RequestPlan()
+	RunTimers()
+	check("held writ: nothing to buy", ns.plan.buy[KNIFE_WRIT], nil)
+	check("held writ: still queued", ns.Queue.Count(), 1)
+	check("held writ: no Next step bar", bar.frame:IsShown(), false)
+	C_Item.GetItemCount = itemCount
 	-- Handing the writ in takes it off the queue.
 	Fire("QUEST_TURNED_IN", KNIFE_WRIT - 169800)
 	RunTimers()

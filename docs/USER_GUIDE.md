@@ -290,7 +290,7 @@ While this character holds writs (bags or bank), the **Writs** tab turns gold, p
 - **Filter by zone** (button beside the level buttons): shows only the writs handed in at the zones you tick. The list it opens gives each zone with how many writs it has at the level picked; click zones to tick or untick them, as many as you like (the list stays open; click the button again to close it). **Zone not known** covers the writs whose zone isn't known yet, **All zones** clears the ticks. The button names the zone, or how many are picked.
 - **Zone** (heading beside Item wanted): sorts by where the writ is handed in, A to Z, so one zone's writs come together for one trip; within a zone the cheapest reputation comes first. Zones marked ? are guesses; writs with no known zone come last.
 - The list starts with only the writs whose item one of your characters can craft. Tick **Show all writs, not only what I can craft** to see every writ. **All / Journeyman / Expert / Artisan** show one level.
-- **+** puts the writ on your queue. The Queue tab lists it under "Hand in writs, fill crates", and the queue's shopping list gets the writ and the item it wants, less what you hold; when crafting the item yourself is cheaper, its materials are bought and the craft is planned instead. The writ comes off the queue when you hand it in.
+- **+** puts the writ on your queue. The Queue tab lists it at the very end under "Writs: hand in when you're there": it isn't a step, so the Next step bar leaves it out and hides once only held writs are left. The queue's shopping list gets the writ and the item it wants, less what you hold; when crafting the item yourself is cheaper, its materials are bought and the craft is planned instead. The writ comes off the queue when you hand it in.
 
 ## Crates
 
@@ -304,7 +304,7 @@ While this character holds crates (bags or bank), the **Crates** tab turns gold,
 - **Favor**: the Merchant's Favor a filled crate pays. Crates of gathered materials pay 5, 10 and 15 (Apprentice, Journeyman, Expert); crates of crafted materials (Fabrics, Ingots, Parts) pay 10, 20 and 30. Artisan crates show `~`: nobody has reported their reward yet, so 20 and 40 follow the pattern.
 - **Per Favor**: the crate and its fill, less the coin the hand-in pays, for each Merchant's Favor. The list starts with the cheapest.
 - **All / Apprentice / Journeyman / Expert / Artisan** show one level.
-- **+** puts one crate on your queue (Shift: five). The Queue tab lists it under "Hand in writs, fill crates" with an amount box, and the queue's shopping list gets the crates and their cheapest bundle, less what you hold; a bundle you already hold in full is used first. A crate comes off the queue when you fill it.
+- **+** puts one crate on your queue (Shift: five). The Queue tab lists it under "Fill crates" with an amount box, and the queue's shopping list gets the crates and their cheapest bundle, less what you hold; a bundle you already hold in full is used first. A crate comes off the queue when you fill it.
 
 ## Options
 

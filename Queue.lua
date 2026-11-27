@@ -338,6 +338,15 @@ function Queue.Count()
 	return #ns.db.queue + #ns.db.wanted
 end
 
+-- True when the queue holds writs and nothing else (no crafts, no crates).
+function Queue.OnlyWrits()
+	if #ns.db.queue > 0 or #ns.db.wanted == 0 then return false end
+	for _, want in ipairs(ns.db.wanted) do
+		if want.kind ~= "writ" then return false end
+	end
+	return true
+end
+
 ---------------------------------------------------------------------------
 -- Queued writs and crates: db.wanted[i] = { kind = "writ" or "crate", id = its item, qty }. They aren't crafts, so
 -- they live beside the craft queue; the plan gets the writ or crate and what it needs like any other material.

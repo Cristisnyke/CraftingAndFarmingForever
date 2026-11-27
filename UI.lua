@@ -909,7 +909,10 @@ local function BuildQueueList()
 		end
 	end
 	CampSteps() -- with nothing queued by hand: a writ's or crate's crafts can need a station too
-	-- Queued writs and crates come last: by then you hold the writ or crate and what it needs.
+	-- Queued writs and crates come last: by then you hold the writ or crate and what it needs. Crates are a step (you
+	-- fill one from your bags anywhere); writs aren't: they're handed in whenever you're in the zone, so they get an
+	-- unnumbered section at the very end, which the Next step bar leaves out (#23).
+	local writRows = {}
 	if #ns.db.wanted > 0 then
 		local ctx = ns.NewContext()
 		local rows = {}
@@ -924,11 +927,11 @@ local function BuildQueueList()
 					local unit = fill and ns.Planner.ItemCost(ctx, fill.item)
 					row.cost = price and price > 0 and unit and price + unit * fill.count or nil
 				end
-				table.insert(rows, row)
+				table.insert(want.kind == "writ" and writRows or rows, row)
 			end
 		end
 		if #rows > 0 then
-			table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Hand in writs, fill crates" })
+			table.insert(list, { kind = "header", text = (number > 0 and Step() or "") .. "Fill crates" })
 			for _, row in ipairs(rows) do table.insert(list, row) end
 		end
 	end
@@ -948,6 +951,10 @@ local function BuildQueueList()
 		if list[at] then list[at].mail = true end
 	end
 	MailSteps()
+	if #writRows > 0 then
+		table.insert(list, { kind = "header", handIn = true, text = "Writs: hand in when you're there (not a step)" })
+		for _, row in ipairs(writRows) do table.insert(list, row) end
+	end
 	for at = toolsAt, #list do
 		if list[at].crafting then
 			for offset, row in ipairs(toolReminders) do table.insert(list, at + offset, row) end
@@ -986,6 +993,7 @@ end
 local function BuildNextStep()
 	local groups, lastGather = {}, false
 	for _, data in ipairs(BuildQueueList()) do
+		if data.handIn then break end -- queued writs: last, and not a step
 		if data.kind == "header" then
 			if data.gather and lastGather then
 				table.insert(groups[#groups].rows, { kind = "header", text = ShortStepTitle(data.text) })
@@ -4529,7 +4537,8 @@ end
 function UpdateNextStep()
 	-- Bank alt mode keeps it up while there are crafts to mail (a step Farm It doesn't have).
 	local mailing = ns.db and ns.plan.send and not ns.db.ui.farmMode
-	if not ns.db or (ns.Queue.Count() == 0 and not mailing) or not NextStepAllowed() or not ns.Option("nextStep") then
+	if not ns.db or (ns.Queue.Count() == 0 and not mailing) or not NextStepAllowed() or not ns.Option("nextStep")
+		or (ns.Queue.OnlyWrits() and not BuildNextStep()) then -- queued writs held, ready to hand in: no step left
 		if windows.next then windows.next.frame:Hide() end
 		return
 	end
@@ -4556,6 +4565,10 @@ function UI.ToggleNextStep()
 	end
 	if ns.Queue.Count() == 0 then
 		ns.Say("chatWarnings", "The queue is empty, so there's no next step.")
+		return
+	end
+	if ns.Queue.OnlyWrits() and not BuildNextStep() then
+		ns.Say("chatWarnings", "Only writs are left: hand them in when you're there. They come off the queue by themselves.")
 		return
 	end
 	if not NextStepAllowed() then
