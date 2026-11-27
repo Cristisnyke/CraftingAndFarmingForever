@@ -2384,6 +2384,15 @@ do
 		GetContainerItemInfo = function(_, slot) return bags[slot] end,
 	}
 	ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot, itemID = bags[slot].itemID } end }
+	-- Bag contents: soulbound left out, stacks summed, an unlocked slot preferred.
+	bags[1] = { itemID = 7, stackCount = 2, isLocked = true }
+	bags[2] = { itemID = 7, stackCount = 3 }
+	bags[3] = { itemID = 8, stackCount = 1, isBound = true }
+	local bagCounts, bagSlots = ns.Stock.BagContents()
+	check("bag contents: stacks summed", bagCounts[7], 5)
+	check("bag contents: soulbound left out", bagCounts[8], nil)
+	check("bag contents: unlocked slot", bagSlots[7].slot, 2)
+	wipe(bags)
 	Enum.ItemCommodityStatus = { Commodity = 2 }
 	local posts = {}
 	local commodity = {}

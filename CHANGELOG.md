@@ -7,7 +7,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 - Queued writs are no longer a step: they sit at the end of the Queue tab under "Writs: hand in when you're there", the Next step bar leaves them out and hides once only writs you hold are left. They still come off the queue when you hand them in.
 - Writs tab: sorted by Zone, each zone gets a row with the combined cost, reputation and gold per reputation of its writs (cheapest zone first), and its + queues them all.
 - Crates tab: type the Merchant's Favor you need and it shows the cheapest mix of crates for it (crates you hold first, counted down the auction house listings of the crates and their materials); Queue it puts them on your queue, and at the auction house the mix is picked again once the listings are read.
-- Refactoring and code optimization (Items, Queue, Stock, Planner, Crates, Core).
+- Refactoring and code optimization (Items, Queue, Stock, Planner, Crates, Core, Posting).
 
 ## 1.40.0
 

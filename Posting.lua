@@ -16,7 +16,6 @@ local SORT_PRICE, SORT_BUYOUT = 0, 4 -- the game's auction sort orders
 local REFUSAL_WINDOW = 10 -- seconds; a server refusal this soon after a request is taken to be for that request
 local LOOKUP_TIMEOUT = 5 -- seconds; after this the last scanned price is used instead
 local POST_TIMEOUT = 3 -- seconds; a post that never gets an answer stops blocking the button
-local BAGS = { 0, 1, 2, 3, 4, 5 } -- backpack, four bags and the reagent bag
 local COLOR_PROFIT, COLOR_LOSS, COLOR_MUTED, COLOR_WARN = "ff55dd55", "ffff6655", "ff999999", "ffffb040"
 
 local Color = ns.UI.Color
@@ -35,29 +34,11 @@ local postedSince = {} -- units posted since Syndicator last refreshed its count
 -- Rows
 ---------------------------------------------------------------------------
 
--- Units of each sellable item in the bags and one slot holding it. Bank items can't be posted from here.
-local function BagContents()
-	local counts, slots = {}, {}
-	for _, bag in ipairs(BAGS) do
-		for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
-			local info = C_Container.GetContainerItemInfo(bag, slot)
-			if info and info.itemID and not info.isBound then
-				counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1)
-				-- Prefer one that isn't locked: Auctionator's Selling tab locks the item it has selected.
-				local known = slots[info.itemID]
-				if not known or (known.locked and not info.isLocked) then
-					slots[info.itemID] = { bag = bag, slot = slot, locked = info.isLocked }
-				end
-			end
-		end
-	end
-	return counts, slots
-end
 
 -- One row per item in the bags that a known recipe makes. Those to post come first, then the rest for posting by hand.
 function Posting.Rows()
 	local ctx = ns.NewContext()
-	local counts = BagContents()
+	local counts = ns.Stock.BagContents()
 	local reserved = ns.Planner.ReservedMaterials(ctx, ns.plan)
 	-- Bank alt mode: the bank alt posts everything, so a crafter is only offered posting by hand.
 	local crafter = ns.Seller.Active()
@@ -103,7 +84,7 @@ local function IsCommodity(location)
 end
 
 local function SelectedLocation()
-	local _, slots = BagContents()
+	local _, slots = ns.Stock.BagContents()
 	local slot = selected and slots[selected]
 	if not slot then return nil end
 	return ItemLocation:CreateFromBagAndSlot(slot.bag, slot.slot), slot.locked

@@ -110,20 +110,6 @@ end
 -- What to send
 ---------------------------------------------------------------------------
 
--- Units of each item in the bags that can be mailed (not soulbound).
-local function BagCounts()
-	local counts = {}
-	for _, bag in ipairs(BAGS) do
-		for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
-			local info = C_Container.GetContainerItemInfo(bag, slot)
-			if info and info.itemID and not info.isBound then
-				counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1)
-			end
-		end
-	end
-	return counts
-end
-
 -- Materials of this character's own recipes: kept for crafting, only sent as far as the auction house lacks them.
 local function OwnMaterials(ctx, me)
 	local materials = {}
@@ -141,7 +127,7 @@ end
 -- known recipe makes that can be sold, minus what the queue, a queued writ or crate, or a tool still needs.
 function Seller.Plan(ctx, plan, wanted)
 	if not Seller.Active() then return nil end
-	local bags = BagCounts()
+	local bags = ns.Stock.BagContents()
 	local items = {}
 	for itemID in pairs(ctx.known) do
 		if ns.Items.CanSellOnAH(itemID) and not ns.Recipes.IsCampItem(itemID) then

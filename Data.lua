@@ -542,6 +542,27 @@ end
 -- The bags as Planner.SpacePlan reads them: slots, what's in them and what each item takes. Bag 5 is the reagent bag,
 -- which only takes crafting reagents. Nil when the bags can't be read.
 local REAGENT_BAG = 5
+
+-- Units of each item in the bags that isn't soulbound (can be posted or mailed), and one slot holding each: the
+-- backpack, four bags and the reagent bag.
+function Stock.BagContents()
+	local counts, slots = {}, {}
+	for bag = 0, REAGENT_BAG do
+		for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+			local info = C_Container.GetContainerItemInfo(bag, slot)
+			if info and info.itemID and not info.isBound then
+				counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1)
+				-- Prefer one that isn't locked: Auctionator's Selling tab locks the item it has selected.
+				local known = slots[info.itemID]
+				if not known or (known.locked and not info.isLocked) then
+					slots[info.itemID] = { bag = bag, slot = slot, locked = info.isLocked }
+				end
+			end
+		end
+	end
+	return counts, slots
+end
+
 function Stock.BagSpace()
 	if not (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo) then return nil end
 	local space = { slots = 0, reagentSlots = 0, usedOther = 0, usedReagent = 0, bags = {}, itemSlots = {},
