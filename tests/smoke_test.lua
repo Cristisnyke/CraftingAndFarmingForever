@@ -3625,6 +3625,11 @@ do
 	check("favor repick: hand-queued crate kept", ns.Queue.WantedCount("crate", ORE_CRATE), 1)
 	check("favor repick: ingot crates", ns.Queue.WantedCount("crate", INGOT_CRATE), 2)
 	check("favor repick: nothing more to change", ns.Queue.RepickFavor(), false)
+	-- A goal crate the mix no longer has is a change too.
+	table.insert(ns.db.wanted, { kind = "crate", id = 248682, qty = 1, favor = 1 })
+	check("favor repick: leftover goal crate", ns.Queue.RepickFavor(), true)
+	check("favor repick: leftover goal crate dropped", ns.Queue.WantedCount("crate", 248682), 0)
+	RunTimers()
 	-- Filling one takes its favor off the goal.
 	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", nil, INGOT_CRATE + 998744)
 	RunTimers()

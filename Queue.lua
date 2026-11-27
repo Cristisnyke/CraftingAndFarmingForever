@@ -474,16 +474,17 @@ function Queue.RepickFavor()
 	if not goal then return false end
 	local mix = ns.Crates.FavorMix(goal.target)
 	if not mix then return false end
-	local same, picked = true, 0
-	for _, pick in ipairs(mix.crates) do
-		local _, want = WantedIndex("crate", pick.crate.id)
-		if not (want and want.favor == pick.count) then same = false end
-		picked = picked + 1
-	end
+	-- Unchanged: every crate of the mix queued for the goal in the same count, and no other goal crate left over.
+	local queued = {}
 	for _, want in ipairs(ns.db.wanted) do
-		if want.favor then picked = picked - 1 end
+		if want.favor then queued[want.id] = want.favor end
 	end
-	if same and picked == 0 then return false end
+	local same = true
+	for _, pick in ipairs(mix.crates) do
+		if queued[pick.crate.id] ~= pick.count then same = false end
+		queued[pick.crate.id] = nil
+	end
+	if same and next(queued) == nil then return false end
 	QueueMix(mix)
 	local texts = {}
 	for _, pick in ipairs(mix.crates) do
