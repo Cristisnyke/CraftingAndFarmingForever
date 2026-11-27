@@ -495,11 +495,10 @@ function Queue.RepickFavor()
 	return true
 end
 
--- Filling a crate casts its Stock Crate spell, whose ID is the crate's item ID plus this.
-local CRATE_SPELL_OFFSET = 998744
 ns.On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 	if unit ~= "player" or (issecretvalue and issecretvalue(spellID)) or type(spellID) ~= "number" then return end
-	if ns.db and ns.Crates.ByID(spellID - CRATE_SPELL_OFFSET) then WantedDone("crate", spellID - CRATE_SPELL_OFFSET) end
+	local crate = ns.db and ns.Crates.BySpell(spellID)
+	if crate then WantedDone("crate", crate.id) end
 end)
 
 ns.On("QUEST_TURNED_IN", function(questID)

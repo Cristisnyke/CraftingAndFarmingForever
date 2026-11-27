@@ -57,6 +57,10 @@ local byID = {}
 for _, crate in ipairs(Crates.list) do byID[crate.id] = crate end
 function Crates.ByID(crateID) return byID[crateID] end
 
+-- Filling a crate casts its Stock Crate spell, whose ID is the crate's item ID plus this.
+local SPELL_OFFSET = 998744
+function Crates.BySpell(spellID) return byID[spellID - SPELL_OFFSET] end
+
 -- The bundle to fill count of a crate with: one you already hold enough of, else the cheapest at today's prices,
 -- else the first on its label.
 function Crates.Fill(ctx, crate, count)
