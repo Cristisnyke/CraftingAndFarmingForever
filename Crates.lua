@@ -73,9 +73,7 @@ end
 
 -- How many crates the character holds in all, for the Crates tab's flair.
 function Crates.Held()
-	local held = 0
-	for _, crate in ipairs(Crates.list) do held = held + Crates.HeldCount(crate) end
-	return held
+	return ns.Stock.OwnAll(Crates.list)
 end
 
 -- The Merchant's Favor one crate pays.

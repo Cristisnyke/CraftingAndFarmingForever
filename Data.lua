@@ -332,6 +332,13 @@ function Stock.Own(itemID)
 	return C_Item.GetItemCount(itemID, true, false, true, false) or 0
 end
 
+-- Stock.Own summed over a list of entries with an item `id` (writs, crates).
+function Stock.OwnAll(entries)
+	local held = 0
+	for _, entry in ipairs(entries) do held = held + Stock.Own(entry.id) end
+	return held
+end
+
 -- The part of Stock.Own that's in the bank or reagent bank rather than the bags.
 function Stock.Bank(itemID)
 	local bagsOnly = C_Item.GetItemCount(itemID, false, false, false, false) or 0

@@ -198,9 +198,7 @@ end
 
 -- How many writs the character holds in all, for the Writs tab's flair.
 function Writs.Held()
-	local held = 0
-	for _, writ in ipairs(Writs.list) do held = held + Writs.HeldCount(writ) end
-	return held
+	return ns.Stock.OwnAll(Writs.list)
 end
 
 -- The writ's name without "Craftsman's Writ: ", for a writ whose item has no ID here.
