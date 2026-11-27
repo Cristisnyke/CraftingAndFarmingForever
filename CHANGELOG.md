@@ -5,6 +5,7 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - Queued writs are no longer a step: they sit at the end of the Queue tab under "Writs: hand in when you're there", the Next step bar leaves them out and hides once only writs you hold are left. They still come off the queue when you hand them in.
+- Writs tab: sorted by Zone, each zone gets a row with the combined cost, reputation and gold per reputation of its writs (cheapest zone first), and its + queues them all (#25).
 
 ## 1.40.0
 

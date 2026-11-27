@@ -3446,30 +3446,40 @@ do
 	ns.db.ui.writTier = nil
 	ns.UI.SortList("writs", "name")
 	check("sorted by name", ns.db.ui.writSort, "name")
-	-- By hand-in zone: A to Z, unknown zones last, the knife writ first in its zone (the only one priced).
+	-- By hand-in zone: a header per zone, each zone's writs together under it, the zone with a priced writ to buy
+	-- first (the knife writ's), unknown zone last.
 	ns.UI.SortList("writs", "zone")
-	local zones, ordered, unknownLast, knifeZone = {}, true, true, nil
+	local seen, together, current, headers, firstZone, lastZone = {}, true, nil, 0, nil, nil
 	for index = 2, #window.list do
-		local writ = window.list[index].row.writ
-		if writ.id == KNIFE_WRIT then knifeZone = writ.zone end
-		zones[#zones + 1] = writ.zone and writ.zone:lower() or false
-	end
-	for index = 2, #zones do
-		if zones[index - 1] == false and zones[index] then unknownLast = false end
-		if zones[index - 1] and zones[index] and zones[index - 1] > zones[index] then ordered = false end
-	end
-	check("writs sorted by zone", ordered, true)
-	check("writs with no zone last", unknownLast, true)
-	for index = 2, #window.list do
-		local writ = window.list[index].row.writ
-		if writ.zone == knifeZone then
-			check("priced writ first in its zone", writ.id, KNIFE_WRIT)
-			break
+		local data = window.list[index]
+		if data.kind == "writZone" then
+			headers = headers + 1
+			current = data.group.zone
+			if seen[current] then together = false end
+			seen[current] = true
+			firstZone = firstZone or data.group
+			lastZone = data.group
+		elseif (data.row.writ.zone or ns.Writs.NO_ZONE) ~= current then
+			together = false
 		end
 	end
+	check("writs grouped by zone", together, true)
+	check("zone headers", headers > 1, true)
+	check("zone not known last", lastZone.zone, ns.Writs.NO_ZONE)
+	check("zone with a priced writ first", firstZone.rows[1].writ.id, KNIFE_WRIT)
+	check("zone counts its priced writ", #firstZone.writs, 1)
+	local knifeZone = firstZone.zone
+	local before = ns.Queue.Count()
+	window.rows[2].plus.scripts.OnClick(window.rows[2].plus, "LeftButton")
+	RunTimers()
+	check("zone + queues its writs", ns.Queue.Count(), before + 1)
+	check("queued writ no longer counted", #window.list[2].group.writs, 0)
+	ns.Queue.Clear()
+	RunTimers()
 	check("zone heading shown", window.rows[1].sortHeadings.zone:IsShown() and true, true)
 	ns.UI.SortList("writs", "zone")
 	check("zone sort reverses", select(2, ns.UI.ListSort("writs")), false)
+	ns.UI.SortList("writs", "name") -- plain writ rows from here on
 	-- Zone filter: only the knife writ's zone, the menu counts each zone, All zones brings them back.
 	ns.db.ui.writAll = true
 	ns.UI.Refresh("writs")

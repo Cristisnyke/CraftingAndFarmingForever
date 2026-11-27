@@ -411,6 +411,41 @@ function Planner.Writ(ctx, writ)
 	return row
 end
 
+-- Writ rows (Planner.Writ's, plus held, queued and done) grouped by hand-in zone, for one trip per zone. A zone's
+-- writs counts the ones worth buying now: priced, not handed in today, not held, not queued. Their sums give the
+-- zone's reputation, net and gold per reputation. Zones cheapest per reputation first, ascending = false reverses
+-- that; zones with nothing to buy, then the unknown zone (noZone key), come last either way.
+function Planner.WritZones(rows, noZone, ascending)
+	local groups, byZone = {}, {}
+	for _, row in ipairs(rows) do
+		local key = row.writ.zone or noZone
+		local group = byZone[key]
+		if not group then
+			group = { zone = key, known = key ~= noZone, rows = {}, writs = {}, rep = 0, net = 0 }
+			byZone[key], groups[#groups + 1] = group, group
+		end
+		group.rows[#group.rows + 1] = row
+		group.guess = group.guess or row.writ.zoneGuess or nil
+		if row.net and not row.done and (row.held or 0) == 0 and (row.queued or 0) == 0 then
+			group.writs[#group.writs + 1] = row
+			group.rep, group.net = group.rep + row.rep, group.net + row.net
+		end
+	end
+	for _, group in ipairs(groups) do
+		if #group.writs > 0 then group.perRep = group.net < 0 and -group.net / group.rep or 0 end
+	end
+	table.sort(groups, function(a, b)
+		if a.known ~= b.known then return a.known end
+		if (a.perRep == nil) ~= (b.perRep == nil) then return a.perRep ~= nil end
+		if a.perRep and a.perRep ~= b.perRep then
+			if ascending == false then return a.perRep > b.perRep end
+			return a.perRep < b.perRep
+		end
+		return a.zone < b.zone
+	end)
+	return groups
+end
+
 -- Waylaid Crates: a tradable crate is filled with any one of its bundles of materials and handed in for Merchant's
 -- Favor and a little coin. By level (1 Apprentice to 4 Artisan), for crates of gathered materials and of crafted
 -- ones. Players reported Journeyman and Expert; Apprentice's coin and all of Artisan follow their pattern.

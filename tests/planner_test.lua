@@ -1826,6 +1826,28 @@ do
 	check("send: own material only as far as the AH lacks", send.bank[BOLT], 5)
 	check("send: tool kept", send.bags[BAR], nil)
 	check("send: units", send.units, 12)
+
+	-- Writs by zone: only priced writs not done, held or queued count toward a zone's trip.
+	local function W(zone, net, rep, extra)
+		local row = { writ = { zone = zone }, net = net, rep = rep or 100, held = 0, queued = 0 }
+		for k, v in pairs(extra or {}) do row[k] = v end
+		return row
+	end
+	local zones = Planner.WritZones({
+		W("Badlands", -300), W("Badlands", -100), W("Badlands", -500, 100, { done = true }),
+		W("Badlands", -900, 100, { held = 1 }), W("Swamp", -100), W("Swamp", 200, 50), W(nil, -1),
+		W("Winterspring", nil), W("Ashenvale", -50, 100, { queued = 1 }),
+	}, "?")
+	check("zones: cheapest per rep first", zones[1].zone, "Swamp")
+	check("zones: free trip", zones[1].perRep, 0)
+	check("zones: net sums", zones[1].net, 100)
+	check("zones: second", zones[2].zone, "Badlands")
+	check("zones: done/held left out", #zones[2].writs, 2)
+	check("zones: all rows kept", #zones[2].rows, 4)
+	check("zones: gold per rep", zones[2].perRep, 2)
+	check("zones: nothing to buy after, by name", zones[3].zone .. zones[4].zone, "AshenvaleWinterspring")
+	check("zones: unknown last", zones[5].zone, "?")
+	check("zones: descending", Planner.WritZones({ W("A", -100), W("B", -300) }, "?", false)[1].zone, "B")
 	check("send: nothing", Planner.SellerSend({ items = { [SHIRT] = { bags = 1 } }, reserved = { [SHIRT] = 1 } }), nil)
 	check("send: limit below zero", Planner.SellerSend({ items = { [BOLT] = { bags = 3 } }, reserved = {},
 		limit = function() return -4 end }), nil)

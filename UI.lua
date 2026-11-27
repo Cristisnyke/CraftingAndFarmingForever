@@ -1105,7 +1105,15 @@ local function BuildWritsList()
 		return a.order < b.order
 	end)
 	local list = {}
-	for _, item in ipairs(rows) do table.insert(list, { kind = "writ", row = item, selected = item.queued > 0 }) end
+	if key == "zone" then
+		-- Sorted by zone: a header per zone with what one trip there costs, its writs under it (already in order).
+		for _, group in ipairs(ns.Planner.WritZones(rows, ns.Writs.NO_ZONE, ascending)) do
+			table.insert(list, { kind = "writZone", group = group })
+			for _, item in ipairs(group.rows) do table.insert(list, { kind = "writ", row = item, selected = item.queued > 0 }) end
+		end
+	else
+		for _, item in ipairs(rows) do table.insert(list, { kind = "writ", row = item, selected = item.queued > 0 }) end
+	end
 	if #list > 0 then table.insert(list, 1, { kind = "header", text = "Item wanted", columns = "writs" }) end
 	return list
 end
@@ -1602,6 +1610,34 @@ local function ShowWritTooltip(row, item)
 	GameTooltip:Show()
 end
 
+-- A zone's header row (sorted by Zone): what one trip there for every writ worth buying costs.
+local function ShowWritZoneTooltip(row, group)
+	GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+	GameTooltip:SetText(group.known and group.zone or "Zone not known")
+	if group.guess then GameTooltip:AddLine("Some writs here are guesses from other writs, not confirmed.", 0.6, 0.8, 1, true) end
+	for _, item in ipairs(group.writs) do
+		local writ = item.writ
+		local name = (writ.item and ns.Items.Name(writ.item) or ns.Writs.Name(writ) or "...")
+			.. (writ.count > 1 and " x" .. writ.count or "")
+		GameTooltip:AddDoubleLine(name, ns.Money(item.net), 1, 1, 1, item.net < 0 and 1 or 0.33, item.net < 0 and 0.4 or 0.87,
+			item.net < 0 and 0.33 or 0.33)
+	end
+	if #group.writs == 0 then
+		GameTooltip:AddLine("Nothing to buy here: the writs have no price, or you hold, queued or handed them in today.",
+			1, 1, 1, true)
+	else
+		GameTooltip:AddDoubleLine("Reputation", tostring(group.rep), 1, 0.82, 0, 1, 1, 1)
+		if group.net < 0 then
+			GameTooltip:AddDoubleLine("You lose", ns.Money(-group.net), 1, 0.4, 0.33, 1, 0.4, 0.33)
+		else
+			GameTooltip:AddDoubleLine("You earn", ns.Money(group.net), 0.33, 0.87, 0.33, 0.33, 0.87, 0.33)
+		end
+		GameTooltip:AddLine("Counts writs with a price that you don't hold, haven't queued and haven't handed in today. "
+			.. "+ queues them all.", 0.6, 0.6, 0.6, true)
+	end
+	GameTooltip:Show()
+end
+
 -- "20 Iron Ore", for a crate's bundle.
 -- Writs and crates you hold: the row is tinted gold and starts with how many you have.
 local Held = {}
@@ -1677,8 +1713,9 @@ local COLUMN_TIPS = {
 		"Item: the item it wants, by the cheapest way. Blue means one of your characters crafts it.",
 		"Net: the coin pouch (an average) less the writ and the item. Red is gold you lose.",
 		"Per rep: gold lost for each reputation point. The list starts with the cheapest reputation.",
-		"Zone: where the writ is handed in. Sorted by it, the writs of one zone come together, so one trip does them "
-			.. "all (cheapest first within a zone). A ? is a guess from the other writs; unknown zones come last.",
+		"Zone: where the writ is handed in. Sorted by it, each zone gets a row with what one trip there costs (the "
+			.. "writs with a price you don't hold, haven't queued or handed in today) and a + that queues them all; the "
+			.. "cheapest zone per reputation first. A ? is a guess from the other writs; unknown zones come last.",
 		"Click Item wanted, Zone, Writ, Net or Per rep to sort by it; click again to reverse.",
 	},
 	profit = {
@@ -1744,6 +1781,8 @@ local function RowOnEnter(row)
 		RECIPE.ShowTooltip(row, data.row)
 	elseif data.kind == "writ" then
 		ShowWritTooltip(row, data.row)
+	elseif data.kind == "writZone" then
+		ShowWritZoneTooltip(row, data.group)
 	elseif data.kind == "crate" then
 		ShowCrateTooltip(row, data.row)
 	elseif data.kind == "how" or data.farm then
@@ -2016,6 +2055,8 @@ local PLUS_TIPS = {
 	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
 	writ = { "Queue this writ", "The queue's shopping list gets the writ and the item it wants, or the item's materials "
 		.. "when crafting it yourself is cheaper. Take it off again on the Queue tab." },
+	writZone = { "Queue this zone's writs", "One of each writ here with a price that you don't hold, haven't queued "
+		.. "and haven't handed in today, with what they need. Take them off again on the Queue tab." },
 	crate = { "Queue one crate", "Shift: five. The queue's shopping list gets the crate and its cheapest bundle of "
 		.. "materials. Take it off again on the Queue tab." },
 	want = { "Add one", "Shift: five. Or type the amount in the box." },
@@ -2281,6 +2322,8 @@ local function CreateRow(parent)
 			UI.Refresh("restock")
 		elseif data.kind == "writ" then
 			ns.Queue.Want("writ", data.row.writ.id, 1)
+		elseif data.kind == "writZone" then
+			for _, item in ipairs(data.group.writs) do ns.Queue.Want("writ", item.writ.id, 1) end
 		elseif data.kind == "crate" then
 			ns.Queue.Want("crate", data.row.crate.id, IsShiftKeyDown() and 5 or 1)
 		elseif data.kind == "want" then
@@ -3006,6 +3049,19 @@ local function SetRow(row, data)
 			or Color(COLOR_MUTED, "-"))
 		row.profit:SetText(item.perRep and (item.perRep > 0 and ns.Money(item.perRep) or Color(COLOR_PROFIT, "free"))
 			or Color(COLOR_MUTED, "-"))
+	elseif data.kind == "writZone" then
+		local group = data.group
+		row.icon:Hide()
+		local name = group.known and (group.zone .. (group.guess and "?" or "")) or "Zone not known"
+		local count = #group.writs
+		row.left:SetText(Color("ffffd100", name) .. "  " .. Color(COLOR_MUTED, count == 0 and "nothing to buy"
+			or ("%d writ%s, %d rep"):format(count, count == 1 and "" or "s", group.rep)))
+		PlaceRight(row, WritControls(row), false)
+		row.plus:SetShown(count > 0)
+		row.cost:SetText(count > 0 and Color(group.net < 0 and COLOR_LOSS or COLOR_PROFIT, ns.Money(group.net)) or "")
+		row.cost:Show()
+		row.profit:SetText(group.perRep and (group.perRep > 0 and ns.Money(group.perRep) or Color(COLOR_PROFIT, "free")) or "")
+		row.profit:Show()
 	elseif data.kind == "crate" then
 		local item, crate = data.row, data.row.crate
 		row.icon:SetTexture(ns.Items.Icon(crate.id) or 134400)
