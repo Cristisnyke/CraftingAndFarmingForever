@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.40.0
 
 - When your bags can't hold the whole queue, the Craft Next bar and the queue now show the time of this run and of all runs, not just the first run.
 - Refactoring and code optimization (UI).
