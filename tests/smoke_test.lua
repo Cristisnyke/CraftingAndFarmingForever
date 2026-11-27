@@ -3552,6 +3552,8 @@ do
 	local window = ns.UI.windows.crates
 	check("every crate listed under a heading", #window.list, 31)
 	check("crates heading sorts", window.list[1].columns, "crates")
+	check("crate name without its prefix", ns.Crates.Name(ns.Crates.ByID(ORE_CRATE)), "Journeyman Ore")
+	check("name without a prefix kept whole", ns.Items.ShortName(IRON), "Iron Ore")
 	local function Row(crateID)
 		for _, data in ipairs(window.list) do
 			if data.row and data.row.crate.id == crateID then return data end

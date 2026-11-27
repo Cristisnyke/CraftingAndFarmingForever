@@ -105,8 +105,7 @@ end
 
 -- The crate's name without "Waylaid Crate: ".
 function Crates.Name(crate)
-	local name = ns.Items.Name(crate.id)
-	return name and (name:match(":%s*(.+)$") or name) or nil
+	return ns.Items.ShortName(crate.id)
 end
 
 -- Every crate with its costs, for the level (nil = all). The second value is the row with the cheapest Merchant's

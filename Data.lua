@@ -41,6 +41,12 @@ function Items.Name(itemID)
 	return nil
 end
 
+-- The name after its "Kind: " prefix ("Waylaid Crate: Journeyman Ore" -> "Journeyman Ore"), the whole name without one.
+function Items.ShortName(itemID)
+	local name = Items.Name(itemID)
+	return name and (name:match(":%s*(.+)$") or name) or nil
+end
+
 function Items.Icon(itemID)
 	return C_Item.GetItemIconByID(itemID) or 134400 -- question mark icon only if the client has no icon at all
 end

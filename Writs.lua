@@ -205,8 +205,7 @@ end
 
 -- The writ's name without "Craftsman's Writ: ", for a writ whose item has no ID here.
 function Writs.Name(writ)
-	local name = ns.Items.Name(writ.id)
-	return name and (name:match(":%s*(.+)$") or name) or nil
+	return ns.Items.ShortName(writ.id)
 end
 
 -- Every writ with its costs, for the level (nil = all) and, with craftableOnly, only items a character can make.
