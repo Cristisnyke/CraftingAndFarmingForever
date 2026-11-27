@@ -3829,16 +3829,18 @@ end
 -- "this run 3:10 (45)  all runs 9:30 (135)".
 local function AllCraftsText(progress, onlyThis)
 	if not progress.allSeconds or progress.allCount == 0 then return nil end
+	-- "label 3:10 (45)": the time in white, the count muted.
+	local function TimeAndCount(label, seconds, count)
+		return ("%s %s %s"):format(label, Color("ffffffff", ns.Planner.FormatDuration(seconds)),
+			Color(COLOR_MUTED, ("(%d)"):format(count)))
+	end
 	if progress.totalSeconds then
-		local total = ("all runs %s %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.totalSeconds)),
-			Color(COLOR_MUTED, ("(%d)"):format(progress.totalCount)))
+		local total = TimeAndCount("all runs", progress.totalSeconds, progress.totalCount)
 		if onlyThis then return total end
-		return ("this run %s %s  %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.allSeconds)),
-			Color(COLOR_MUTED, ("(%d)"):format(progress.allCount)), total)
+		return TimeAndCount("this run", progress.allSeconds, progress.allCount) .. "  " .. total
 	end
 	if onlyThis then return Color(COLOR_MUTED, "nothing else queued") end
-	return ("all crafts %s %s"):format(Color("ffffffff", ns.Planner.FormatDuration(progress.allSeconds)),
-		Color(COLOR_MUTED, ("(%d)"):format(progress.allCount)))
+	return TimeAndCount("all crafts", progress.allSeconds, progress.allCount)
 end
 
 local function RenderCraftBar(bar)
