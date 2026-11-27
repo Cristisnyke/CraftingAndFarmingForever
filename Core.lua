@@ -75,6 +75,11 @@ function ns.Say(kind, text)
 	ns.Print(text)
 end
 
+-- For a button's run (Bank.Run, Vendor.Run, Seller.Run): says why it couldn't, when it says.
+function ns.SayWhyNot(ok, why)
+	if not ok and why then ns.Say("chatWarnings", why) end
+end
+
 ---------------------------------------------------------------------------
 -- Saved data
 ---------------------------------------------------------------------------

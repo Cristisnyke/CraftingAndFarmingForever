@@ -3810,6 +3810,16 @@ do
 	local bar = ns.UI.windows.next
 	check("vendor step: closed merchant, no button on another step", bar.vendoring, false)
 	check("vendor step: needs a merchant", select(2, ns.Vendor.Run()), "Talk to a vendor first.")
+	do -- a button's run says why it couldn't, and nothing when it could or has no reason
+		local said, realPrint = {}, ns.Print
+		ns.Print = function(text) said[#said + 1] = text end
+		ns.SayWhyNot(ns.Vendor.Run())
+		ns.SayWhyNot(true, "not this")
+		ns.SayWhyNot(false)
+		ns.Print = realPrint
+		check("why not: said once", #said, 1)
+		check("why not: the reason", said[1], "Talk to a vendor first.")
+	end
 	-- Walked away from the auction house and the mailbox earlier tests left open: only the merchant is here.
 	Fire("AUCTION_HOUSE_CLOSED")
 	Fire("MAIL_CLOSED")
