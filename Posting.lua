@@ -59,7 +59,11 @@ function Posting.Rows()
 				name = ns.Items.Name(itemID) or "",
 			})
 			local row, price = rows[#rows], ns.Prices.AH(itemID)
-			-- One sold at the last scanned price, after the AH cut, minus what one costs to craft.
+			-- One sold after the AH cut, minus what one costs to craft: at the live lowest once the selected item's
+			-- search has answered, so the row and the form agree, else at the last scanned price.
+			if live and live.itemID == itemID and not live.pending and live.lowest then
+				price, row.livePrice = live.lowest, true
+			end
 			row.unitProfit = price and row.unitCost and price * (1 - ns.AH_CUT) - row.unitCost or nil
 		end
 	end
@@ -144,7 +148,7 @@ local function FinishLookup(itemID, lowest, mine)
 	live.pending, live.waiting = false, false
 	local row = CurrentRow()
 	if row then ApplyLookup(row) end
-	UpdateForm()
+	ns.UI.Refresh("posting") -- the row's profit each moves to the live price
 end
 
 local IsEquipment = ns.Items.IsEquipment
@@ -511,7 +515,9 @@ function UpdateForm()
 		local text = "You get " .. ns.Money(received) .. " after the AH cut."
 		if row.unitCost then
 			local profit = received - row.unitCost * quantity
-			text = text .. "\nProfit: " .. Color(profit >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(profit))
+			local each = quantity > 1 and (" (%s each)"):format(ns.Money(profit / quantity)) or ""
+			text = text .. ("\nProfit for %d: "):format(quantity)
+				.. Color(profit >= 0 and COLOR_PROFIT or COLOR_LOSS, ns.Money(profit) .. each)
 		end
 		form.result:SetText(text)
 		form.post:SetText(("Post %d at %s each"):format(quantity, ns.Money(price)))

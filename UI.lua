@@ -1906,8 +1906,10 @@ local function RowOnEnter(row)
 		if data.row.unitProfit then
 			GameTooltip:AddLine(" ")
 			GameTooltip:AddDoubleLine("Profit each", ns.Money(data.row.unitProfit), 1, 1, 1, 1, 1, 1)
-			GameTooltip:AddLine("At the last scanned AH price after the 5% cut, minus what one costs to craft. Click it "
-				.. "for the profit at the live price.", 0.6, 0.6, 0.6, true)
+			GameTooltip:AddLine(data.row.livePrice
+				and "At the lowest price on the AH now, after the 5% cut, minus what one costs to craft."
+				or "At the last scanned AH price after the 5% cut, minus what one costs to craft. Click it "
+					.. "for the profit at the live price.", 0.6, 0.6, 0.6, true)
 		end
 		AddSalesLines(ns.Items.Name(data.row.itemID))
 		GameTooltip:Show()

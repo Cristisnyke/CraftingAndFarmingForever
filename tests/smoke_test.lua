@@ -2479,6 +2479,9 @@ do
 	-- Someone else sells at 500: posted at the same price, no undercut. Below break-even raises it instead.
 	listings[shirt] = { { buyoutAmount = 700, containsOwnerItem = false }, { buyoutAmount = 500, containsOwnerItem = false } }
 	Fire("ITEM_SEARCH_RESULTS_UPDATED", { itemID = shirt })
+	-- The row's profit each follows the live lowest once the search answers, so it agrees with the form (#26).
+	check("profit each at the live price", window.list[1].row.unitProfit, 500 * (1 - ns.AH_CUT) - window.list[1].row.unitCost)
+	check("row knows it's the live price", window.list[1].row.livePrice, true)
 	local posted = #posts
 	ns.Posting.PostSelected()
 	check("posted", #posts, posted + 1)
