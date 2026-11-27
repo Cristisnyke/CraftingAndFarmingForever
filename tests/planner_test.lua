@@ -1827,6 +1827,31 @@ do
 	check("send: tool kept", send.bags[BAR], nil)
 	check("send: units", send.units, 12)
 
+	-- Favor target: the cheapest crates for at least that much, each crate dearer down its listings. A: one at 6g then
+	-- 30g (each 300 then 2700 after its 2s ore fill and 5s coin); B: 8g a crate, 4s cloth (700 each, listings unread).
+	local CRATE_A, CRATE_B = 9001, 9002
+	local favorCrates = {
+		{ id = CRATE_A, tier = 2, made = false, bundles = { { item = ORE, count = 20 } } },
+		{ id = CRATE_B, tier = 2, made = false, bundles = { { item = CLOTH, count = 40 } } },
+	}
+	local favorCtx = Context({ ah = { [ORE] = 10, [CLOTH] = 10, [CRATE_A] = 600, [CRATE_B] = 800 },
+		depth = { [CRATE_A] = { { 600, 1 }, { 3000, 5 } } } })
+	local mix = Planner.FavorMix(favorCtx, favorCrates, 30)
+	check("favor: reaches the target", mix.favor, 30)
+	check("favor: cheapest mix cost", mix.cost, 300 + 1400)
+	check("favor: cheap listing first", mix.crates[1].crate.id .. "x" .. mix.crates[1].count, CRATE_A .. "x1")
+	check("favor: then the other crate", mix.crates[2].crate.id .. "x" .. mix.crates[2].count, CRATE_B .. "x2")
+	check("favor: unread listings are rough", mix.rough, true)
+	check("favor: per favor", mix.perFavor, 1700 / 30)
+	check("favor: rounds up to whole crates", Planner.FavorMix(favorCtx, favorCrates, 25).favor, 30)
+	-- Held crates cost only their fill.
+	local heldMix = Planner.FavorMix(favorCtx, favorCrates, 30, function(crate) return crate.id == CRATE_A and 2 or 0 end)
+	check("favor: held crates used", heldMix.crates[1].count, 3)
+	check("favor: held crates free", heldMix.cost, -300)
+	check("favor: held count", heldMix.crates[1].held, 2)
+	check("favor: nothing priced", Planner.FavorMix(Context({ ah = {} }), favorCrates, 30), nil)
+	check("favor: no target", Planner.FavorMix(favorCtx, favorCrates, 0), nil)
+
 	-- Writs by zone: only priced writs not done, held or queued count toward a zone's trip.
 	local function W(zone, net, rep, extra)
 		local row = { writ = { zone = zone }, net = net, rep = rep or 100, held = 0, queued = 0 }

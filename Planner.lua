@@ -483,6 +483,101 @@ function Planner.Crate(ctx, crate)
 	return row
 end
 
+-- What count of one crate costs in all, gold back from its coin taken off: the crates bought down their listings
+-- (ctx.ahDepth where read, else at the cheapest; the first `held` free), each filled with the bundle that's cheapest
+-- for that many (Planner.ItemCostFor, also down the listings). Nil when that many can't be priced. The second value
+-- says whether every auction house price in it came from listings read (false: some at the cheapest only).
+local function CrateBatchCost(ctx, crate, count, held, reward)
+	if count == 0 then return 0, true end
+	local read = true
+	local buy = math.max(0, count - held)
+	local crateCost = 0
+	if buy > 0 then
+		local ah = Priced(ctx.ahPrice(crate.id))
+		if not ah then return nil end
+		local depth = ctx.ahDepth and ctx.ahDepth(crate.id)
+		if depth then
+			crateCost = Planner.DepthCost(depth, 0, buy, nil, ah)
+		else
+			crateCost, read = ah * buy, false
+		end
+	end
+	local fill
+	for _, bundle in ipairs(crate.bundles) do
+		local cost, _, _, note = Planner.ItemCostFor(ctx, bundle.item, bundle.count * count)
+		if cost and (not fill or cost < fill.cost) then fill = { cost = cost, unread = note and next(note.unread) ~= nil } end
+	end
+	if not fill then return nil end
+	return crateCost + fill.cost - reward * count, read and not fill.unread
+end
+
+-- Planner.FavorMix: the cheapest set of crates that earns at least `target` Merchant's Favor. crates = the crate list
+-- (Crates.list), held(crate) = how many of it you hold (free; only the bundle to fill it costs). Each crate's cost
+-- rises with the count, down its listings and its materials', so this works out the cheapest count of each crate
+-- together (a knapsack over favor in steps of 5, every crate's favor being a multiple of it). Returns nil when no
+-- mix reaches the target, else { favor, cost (gold back from the coin taken off), perFavor, rough = some price is
+-- only the cheapest listing, crates = { { crate, count, held, tokens }, ... } cheapest per favor first }.
+Planner.FAVOR_STEP = 5
+function Planner.FavorMix(ctx, crates, target, held)
+	local step = Planner.FAVOR_STEP
+	local goal = math.ceil(math.max(0, target) / step)
+	if goal == 0 then return nil end
+	local INF = math.huge
+	local best = { [0] = 0 }
+	for j = 1, goal do best[j] = INF end
+	local choices = {}
+	for index, crate in ipairs(crates) do
+		local kind = crate.made and "made" or "gathered"
+		local tokens, reward = Planner.CRATE_TOKENS[kind][crate.tier], Planner.CRATE_COIN[kind][crate.tier]
+		local units = tokens / step
+		local have = held and held(crate) or 0
+		local costs, reads = { [0] = 0 }, {}
+		for count = 1, math.ceil(goal / units) do
+			local cost, read = CrateBatchCost(ctx, crate, count, have, reward)
+			if not cost then break end
+			costs[count], reads[count] = cost, read
+		end
+		if #costs > 0 then
+			-- pick: how many of this crate each favor state uses, from: the state it came from.
+			local nextBest, pick, from = {}, {}, {}
+			for j = 0, goal do nextBest[j], pick[j], from[j] = best[j], 0, j end
+			for j = 0, goal do
+				if best[j] < INF then
+					for count = 1, #costs do
+						local to = math.min(goal, j + count * units)
+						local cost = best[j] + costs[count]
+						if cost < nextBest[to] then nextBest[to], pick[to], from[to] = cost, count, j end
+					end
+				end
+			end
+			choices[#choices + 1] = { crate = crate, tokens = tokens, held = have, pick = pick, from = from,
+				costs = costs, reads = reads, index = index }
+			best = nextBest
+		end
+	end
+	if best[goal] == INF then return nil end
+	local mix = { cost = best[goal], favor = 0, rough = false, crates = {} }
+	local at = goal
+	for c = #choices, 1, -1 do
+		local choice = choices[c]
+		local count = choice.pick[at]
+		if count > 0 then
+			table.insert(mix.crates, { crate = choice.crate, count = count, held = math.min(count, choice.held),
+				tokens = choice.tokens, cost = choice.costs[count] })
+			mix.favor = mix.favor + count * choice.tokens
+			if not choice.reads[count] then mix.rough = true end
+			at = choice.from[at]
+		end
+	end
+	mix.perFavor = mix.cost > 0 and mix.cost / mix.favor or 0
+	table.sort(mix.crates, function(a, b)
+		local left, right = a.cost / (a.count * a.tokens), b.cost / (b.count * b.tokens)
+		if left ~= right then return left < right end
+		return a.crate.id < b.crate.id
+	end)
+	return mix
+end
+
 -- Chance of a skill point per craft, by the recipe's colour (the client's relativeDifficulty: 0 orange, 1 yellow,
 -- 2 green, 3 grey). Orange always gives one; yellow and green are estimates, since the real chance falls as skill rises
 -- and the client doesn't report it.

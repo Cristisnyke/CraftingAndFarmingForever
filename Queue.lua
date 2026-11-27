@@ -146,7 +146,7 @@ function PlanCheck.Begin()
 	if PlanCheck.before or ns.db.ui.farmMode or ns.Queue.Count() == 0 then return end
 	PlanCheck.id = (PlanCheck.id or 0) + 1
 	PlanCheck.before, PlanCheck.ended, PlanCheck.ending = PlanCheck.Shape(ns.plan), nil, nil
-	PlanCheck.trimmed = nil
+	PlanCheck.trimmed, PlanCheck.repicked = nil, nil
 end
 
 -- They're in: the plan is worked out again a moment later, when anything still arriving has arrived.
@@ -169,6 +169,10 @@ function PlanCheck.AfterBuild()
 	if not PlanCheck.trimmed then
 		PlanCheck.trimmed = true
 		if not ns.db.ui.farmMode and ns.Restock.TrimToListings() then return ns.RequestPlan() end
+	end
+	if not PlanCheck.repicked then
+		PlanCheck.repicked = true
+		if Queue.RepickFavor() then return ns.RequestPlan() end
 	end
 	local before = PlanCheck.before
 	PlanCheck.before, PlanCheck.ended, PlanCheck.ending = nil, nil, nil
@@ -330,6 +334,7 @@ end
 function Queue.Clear()
 	wipe(ns.db.queue)
 	wipe(ns.db.wanted)
+	ns.db.favorGoal = nil
 	ns.RequestPlan()
 end
 
@@ -380,7 +385,10 @@ function Queue.SetWanted(index, qty)
 	local want = ns.db.wanted[index]
 	if not want then return end
 	want.qty = math.max(0, math.floor(qty))
+	-- Taken below what a favor goal put there: the goal keeps only what's left of it.
+	if want.favor and want.qty < want.favor then want.favor = want.qty > 0 and want.qty or nil end
 	if want.qty == 0 then table.remove(ns.db.wanted, index) end
+	Queue.FavorGoalLeft()
 	ns.RequestPlan()
 end
 
@@ -389,10 +397,101 @@ function Queue.ChangeWanted(index, delta)
 	if want then Queue.SetWanted(index, want.qty + delta) end
 end
 
--- One done (a crate filled, a writ handed in): it comes off the queue by itself.
+-- One done (a crate filled, a writ handed in): it comes off the queue by itself. A crate filled for a favor goal
+-- takes its favor off the goal.
 local function WantedDone(kind, id)
-	local index = WantedIndex(kind, id)
-	if index then Queue.ChangeWanted(index, -1) end
+	local index, want = WantedIndex(kind, id)
+	if not index then return end
+	local goal = ns.db.favorGoal
+	if kind == "crate" and goal and want.favor then
+		local crate = ns.Crates.ByID(id)
+		goal.target = goal.target - ns.Crates.Favor(crate)
+		want.favor = want.favor > 1 and want.favor - 1 or nil
+		if goal.target <= 0 then ns.db.favorGoal = nil end
+	end
+	Queue.ChangeWanted(index, -1)
+end
+
+---------------------------------------------------------------------------
+-- Favor goal: crates queued to earn a typed amount of Merchant's Favor, the cheapest mix (Planner.FavorMix). Each
+-- crate entry it queued carries want.favor = how many of it are the goal's; a crate queued by hand on top keeps its
+-- own. After a listings check at the auction house the mix is picked again at what was read (Queue.RepickFavor).
+---------------------------------------------------------------------------
+
+-- Takes the goal's crates off the queue, leaving any queued by hand.
+local function DropFavorCrates()
+	for index = #ns.db.wanted, 1, -1 do
+		local want = ns.db.wanted[index]
+		if want.favor then
+			want.qty, want.favor = want.qty - want.favor, nil
+			if want.qty <= 0 then table.remove(ns.db.wanted, index) end
+		end
+	end
+end
+
+local function QueueMix(mix)
+	DropFavorCrates()
+	for _, pick in ipairs(mix.crates) do
+		local _, want = WantedIndex("crate", pick.crate.id)
+		if want then
+			want.qty = want.qty + pick.count
+		else
+			want = { kind = "crate", id = pick.crate.id, qty = pick.count }
+			table.insert(ns.db.wanted, want)
+		end
+		want.favor = pick.count
+	end
+end
+
+-- The goal is dropped once none of its crates are left on the queue.
+function Queue.FavorGoalLeft()
+	if not ns.db.favorGoal then return end
+	for _, want in ipairs(ns.db.wanted) do
+		if want.favor then return end
+	end
+	ns.db.favorGoal = nil
+end
+
+-- Queues the cheapest crates for target favor, in place of an earlier goal's. Returns the mix, nil when none reaches it.
+function Queue.SetFavorGoal(target)
+	local mix = ns.Crates.FavorMix(target)
+	if not mix then return nil end
+	QueueMix(mix)
+	ns.db.favorGoal = { target = target }
+	ns.RequestPlan()
+	return mix
+end
+
+function Queue.ClearFavorGoal()
+	DropFavorCrates()
+	ns.db.favorGoal = nil
+	ns.RequestPlan()
+end
+
+-- After a listings check: the goal's mix worked out again at the listings read. True when it changed the queue.
+function Queue.RepickFavor()
+	local goal = ns.db.favorGoal
+	if not goal then return false end
+	local mix = ns.Crates.FavorMix(goal.target)
+	if not mix then return false end
+	local same, picked = true, 0
+	for _, pick in ipairs(mix.crates) do
+		local _, want = WantedIndex("crate", pick.crate.id)
+		if not (want and want.favor == pick.count) then same = false end
+		picked = picked + 1
+	end
+	for _, want in ipairs(ns.db.wanted) do
+		if want.favor then picked = picked - 1 end
+	end
+	if same and picked == 0 then return false end
+	QueueMix(mix)
+	local texts = {}
+	for _, pick in ipairs(mix.crates) do
+		texts[#texts + 1] = ("%dx %s"):format(pick.count, ns.Crates.Name(pick.crate) or "?")
+	end
+	ns.Say("chatPlan", ("Favor goal picked again at what the crates and materials really cost: %s, %s for %d favor.")
+		:format(table.concat(texts, ", "), ns.Money(math.max(0, mix.cost)), mix.favor))
+	return true
 end
 
 -- Filling a crate casts its Stock Crate spell, whose ID is the crate's item ID plus this.

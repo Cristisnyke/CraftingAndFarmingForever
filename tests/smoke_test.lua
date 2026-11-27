@@ -3589,6 +3589,55 @@ do
 	ns.RequestPlan()
 	RunTimers()
 	check("unknown queued crate is dropped", ns.Queue.Count(), 0)
+	-- Favor goal: 40 favor is four ore crates (45s each) before two ingot crates (1g50s each).
+	ns.db.ui.favorTarget = 40
+	ns.UI.Refresh("crates")
+	do -- every crate and material priced: the solver stays quick enough for a keystroke
+		local saved = {}
+		for _, crate in ipairs(ns.Crates.list) do
+			for _, id in ipairs({ crate.id, crate.bundles[1].item, crate.bundles[#crate.bundles].item }) do
+				if saved[id] == nil then saved[id] = prices[id] or false end
+				prices[id] = prices[id] or (id % 97 + 1) * 37
+			end
+		end
+		local started = os.clock()
+		ns.Crates.FavorMix(1000)
+		check("favor mix quick for 1000 favor, every crate priced", os.clock() - started < 0.25, true)
+		for id, price in pairs(saved) do prices[id] = price or nil end
+	end
+	check("favor preview in the footer", window.hint.text:find("40 favor", 1, true) ~= nil, true)
+	check("favor preview mix", window.favorMix.crates[1].crate.id .. "x" .. window.favorMix.crates[1].count, ORE_CRATE .. "x4")
+	ns.Queue.Want("crate", ORE_CRATE, 1) -- one queued by hand stays through the goal
+	local mix = ns.Queue.SetFavorGoal(40)
+	RunTimers()
+	check("favor goal queued", ns.db.favorGoal and ns.db.favorGoal.target, 40)
+	check("favor goal crates on top of the hand-queued one", ns.Queue.WantedCount("crate", ORE_CRATE), 5)
+	check("favor goal favor reached", mix.favor, 40)
+	local items = ns.Crates.FavorItems()
+	check("favor check searches the crates", items[ORE_CRATE] and items[INGOT_CRATE], true)
+	check("favor check searches bought fills", items[IRON], true)
+	-- The listings show one ore crate at 20s, the rest at 2g: the goal turns into two ingot crates.
+	ns.db.depth[ORE_CRATE] = { { 2000, 1 }, { 20000, 10 }, at = time() }
+	check("favor repicked at the listings", ns.Queue.RepickFavor(), true)
+	RunTimers()
+	check("favor repick: hand-queued crate kept", ns.Queue.WantedCount("crate", ORE_CRATE), 1)
+	check("favor repick: ingot crates", ns.Queue.WantedCount("crate", INGOT_CRATE), 2)
+	check("favor repick: nothing more to change", ns.Queue.RepickFavor(), false)
+	-- Filling one takes its favor off the goal.
+	Fire("UNIT_SPELLCAST_SUCCEEDED", "player", nil, INGOT_CRATE + 998744)
+	RunTimers()
+	check("filled crate takes its favor off the goal", ns.db.favorGoal.target, 20)
+	ns.Queue.ClearFavorGoal()
+	RunTimers()
+	check("clear goal: hand-queued crate kept", ns.Queue.Count(), 1)
+	check("clear goal: goal gone", ns.db.favorGoal, nil)
+	-- Taking the goal's crates off by hand drops the goal.
+	ns.Queue.SetFavorGoal(40)
+	ns.Queue.Clear()
+	ns.Queue.FavorGoalLeft()
+	check("goal gone with its crates", ns.db.favorGoal, nil)
+	ns.db.depth[ORE_CRATE], ns.db.ui.favorTarget = nil, nil
+	RunTimers()
 	ns.db.ui.crateTier = 2
 	ns.UI.Refresh("crates")
 	check("journeyman crates only", #window.list, 8)

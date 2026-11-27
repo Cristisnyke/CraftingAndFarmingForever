@@ -2944,7 +2944,7 @@ local function SetRow(row, data)
 			local writ = ns.Writs.ByID(want.id)
 			note = writ.item and ("with " .. (ns.Items.Name(writ.item) or "...") .. (writ.count > 1 and " x" .. writ.count or ""))
 		elseif data.fill then
-			note = "fill with " .. BundleText(data.fill)
+			note = "fill with " .. BundleText(data.fill) .. (want.favor and ", favor goal" or "")
 		end
 		row.left:SetText(ItemLabel(want.id) .. (note and Color(COLOR_MUTED, "  " .. note) or ""))
 		PlaceRight(row, WantControls(row), true)
@@ -5138,13 +5138,88 @@ function CreateCratesPane()
 	hint:SetWordWrap(false)
 	window.hint = hint
 
+	-- Favor goal: type the Merchant's Favor you need, the hint line shows the cheapest crates for it, Queue it queues
+	-- them (Queue.SetFavorGoal). Clear takes a queued goal's crates off again.
+	local clear = HeaderButton(window.frame, "Clear", 52, function()
+		ns.Queue.ClearFavorGoal()
+		UI.Refresh("crates")
+	end)
+	clear:SetPoint("TOPRIGHT", -12, -PANE_ACTIONS_TOP)
+	local queueIt = HeaderButton(window.frame, "Queue it", 72, function()
+		local target = ns.db.ui.favorTarget
+		local mix = target and ns.Queue.SetFavorGoal(target)
+		if mix then
+			local crates = 0
+			for _, pick in ipairs(mix.crates) do crates = crates + pick.count end
+			ns.Say("chatPlan", ("Queued %d crates for %d Merchant's Favor."):format(crates, mix.favor))
+		end
+		UI.Refresh("crates")
+	end, true)
+	queueIt:SetPoint("RIGHT", clear, "LEFT", -4, 0)
+	local favorLabel = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	favorLabel:SetPoint("RIGHT", queueIt, "LEFT", -6, 0)
+	favorLabel:SetText("favor")
+	local box = SkinBox(CreateFrame("EditBox", nil, window.frame, "InputBoxTemplate"))
+	box:SetSize(44, 20)
+	box:SetPoint("RIGHT", favorLabel, "LEFT", -6, 0)
+	box:SetAutoFocus(false)
+	box:SetNumeric(true)
+	box:SetMaxLetters(4)
+	local needLabel = window.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	needLabel:SetPoint("RIGHT", box, "LEFT", -8, 0)
+	needLabel:SetText("Need")
+	box:SetScript("OnTextChanged", function(self, typed)
+		if not typed then return end
+		local target = tonumber(self:GetText())
+		ns.db.ui.favorTarget = target and target > 0 and target or nil
+		window.update()
+	end)
+	box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+	box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	box:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText("Merchant's Favor you need")
+		GameTooltip:AddLine("Type how much favor you want, e.g. 300. The line at the bottom shows the cheapest crates for "
+			.. "it: crates you hold first, then each crate counted down its auction house listings and its materials', "
+			.. "so a cheap crate with only one listing isn't counted as if there were ten. Queue it puts them on the "
+			.. "queue. At the auction house the listings are checked again and the crates picked again if a cheaper "
+			.. "mix turns up.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	box:SetScript("OnLeave", GameTooltip_Hide)
+	window.favorBox = box
+
 	window.update = function()
 		local tier = ns.db.ui.crateTier
 		for _, button in ipairs(window.tierButtons) do
 			if button.tier == tier then button:LockHighlight() else button:UnlockHighlight() end
 		end
+		local target = ns.db.ui.favorTarget
+		if not box:HasFocus() then box:SetText(target and tostring(target) or "") end
+		local goal = ns.db.favorGoal
+		clear:SetShown(goal ~= nil)
 		local best = window.list.best
-		if best then
+		-- Worked out again only when the target or the list (prices, stock) changed: it takes a moment.
+		if window.favorFor ~= target or window.favorList ~= window.list then
+			window.favorFor, window.favorList = target, window.list
+			window.favorMix = target and ns.Crates.FavorMix(target) or nil
+		end
+		local mix = window.favorMix
+		if goal and not target then
+			hint:SetText(Color("ff7fb8ff", ("Favor goal queued: %d still to earn."):format(goal.target)))
+		elseif target and mix then
+			local texts = {}
+			for _, pick in ipairs(mix.crates) do
+				texts[#texts + 1] = pick.count .. "x " .. (ns.Crates.Name(pick.crate) or "...")
+					.. (pick.held > 0 and Color(COLOR_PROFIT, (" (%d held)"):format(pick.held)) or "")
+			end
+			hint:SetText(("%d favor: %s  %s"):format(mix.favor,
+				Color(mix.cost > 0 and COLOR_LOSS or COLOR_PROFIT, ns.Money(math.abs(mix.cost)) .. (mix.cost > 0 and "" or " earned")),
+				Color(COLOR_MUTED, (mix.perFavor > 0 and ns.Money(mix.perFavor) .. " per favor" or "free")
+					.. (mix.rough and ", rough" or "") .. "   ")) .. table.concat(texts, ", "))
+		elseif target then
+			hint:SetText(Color(COLOR_WARN, "No crates with prices reach that favor: run a full scan at the auction house."))
+		elseif best then
 			hint:SetText(("Best buy: %s with %s, %s for each Merchant's Favor."):format(
 				Color(COLOR_PROFIT, ns.Crates.Name(best.crate) or "..."), BundleText(best.best),
 				best.perToken > 0 and ns.Money(best.perToken) or "nothing") .. Color(COLOR_MUTED, "  + queues a crate."))

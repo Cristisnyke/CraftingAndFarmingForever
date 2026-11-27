@@ -78,6 +78,31 @@ function Crates.Held()
 	return held
 end
 
+-- The Merchant's Favor one crate pays.
+function Crates.Favor(crate)
+	return ns.Planner.CRATE_TOKENS[crate.made and "made" or "gathered"][crate.tier]
+end
+
+-- The cheapest crates for target favor (Planner.FavorMix), crates you hold first. Nil when none reaches it.
+function Crates.FavorMix(target)
+	return ns.Planner.FavorMix(ns.NewContext(), Crates.list, target, Crates.HeldCount)
+end
+
+-- What the favor goal's listings check searches besides the queue's own buying: every crate with a price, and the
+-- cheapest bundle of each when it's bought at the auction house, so a better mix can be found.
+function Crates.FavorItems()
+	local ctx = ns.NewContext()
+	local items = {}
+	for _, crate in ipairs(Crates.list) do
+		local row = ns.Planner.Crate(ctx, crate)
+		if row.cratePrice then
+			items[crate.id] = true
+			if row.best and row.best.kind == "ah" then items[row.best.item] = true end
+		end
+	end
+	return items
+end
+
 -- The crate's name without "Waylaid Crate: ".
 function Crates.Name(crate)
 	local name = ns.Items.Name(crate.id)

@@ -329,6 +329,8 @@ function Depth.CheckWanted(again)
 	Add(ns.plan.buy)
 	-- Both sides of each buy-or-craft choice: the bars and the ore they're smelted from.
 	Add(ns.plan.compare or {})
+	-- A favor goal: the other crates and their materials too, so the mix can be picked again (Queue.RepickFavor).
+	if ns.db.favorGoal then Add(ns.Crates.FavorItems()) end
 	Depth.Check(items, again)
 end
 

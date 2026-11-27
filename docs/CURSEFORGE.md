@@ -92,6 +92,7 @@ It ranks every recipe your characters know by real profit at current auction hou
 - The Crates tab lists every Waylaid Crate with its auction house price, its cheapest bundle of materials, the Merchant's Favor it pays and the gold each Merchant's Favor costs you, cheapest first, with the **best buy** marked.
 - Covers the crates of gathered materials (ore, herbs, leather and so on) and of crafted ones (Fabrics, Ingots, Parts), Apprentice to Artisan. No profession needed to fill them.
 - Hover a crate to see every bundle that fills it, with its cost.
+- Need 300 favor? Type it in and the tab works out the cheapest mix of crates for it, down the auction house listings of the crates and their materials, crates you hold first. One click queues them, and at the auction house the mix is checked again against the real listings.
 - Holding crates? The tab turns gold with the count, and the ones you hold are tinted gold at the top of the list.
 - **+** puts a crate on your queue: the shopping list gets the crate and its cheapest bundle of materials, less what you hold. It comes off the queue when you fill it.
 
