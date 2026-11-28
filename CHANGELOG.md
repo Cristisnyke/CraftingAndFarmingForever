@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.42.0
 
 - Writs and Crates tabs: a − button beside + takes queued writs and crates off the queue again (on a zone heading, all of that zone's queued writs), no trip to the Queue tab needed.
 - Skill up: the chance of a skill point counts the Working Overtime legacy talent (4% per rank).

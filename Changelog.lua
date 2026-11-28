@@ -4,6 +4,11 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.42.0", lines = {
+		"- Writs and Crates tabs: a − button beside + takes queued writs and crates off the queue again (on a zone heading, all of that zone's queued writs), no trip to the Queue tab needed.",
+		"- Skill up: the chance of a skill point counts the Working Overtime legacy talent (4% per rank).",
+		"- Vendor prices the add-on knows before your first merchant visit take off your Bartering legacy talent (5% per rank); prices learned at merchants already have it.",
+	} },
 	{ version = "1.41.1", lines = {
 		"- Restocking: a row's profit each uses the live lowest price once the auction house answers, so it matches the panel, and the panel shows the profit for the whole amount and per item.",
 	} },
