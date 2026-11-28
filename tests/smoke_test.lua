@@ -5267,5 +5267,37 @@ do -- Writs and Crates tabs: held writs and crates are counted for the tab's fla
 	C_Item.GetItemCount = itemCount
 end
 
+-- Legacy talents: Working Overtime adds to the skill chance, Bartering comes off the seed vendor prices only.
+do
+	check("legacy: none without trees", ns.Legacy.VendorDiscount(), 0)
+	local spells = { [1225451] = "Working Overtime", [777001] = "Bartering" }
+	local nodes = { [11] = { spell = 1225451, rank = 5 }, [12] = { spell = 777001, rank = 2 } }
+	_G.C_Traits = {
+		GetConfigIDByTreeID = function(tree) return tree == 1 and 50 or nil end,
+		GetTreeNodes = function(tree) return tree == 1 and { 11, 12 } or {} end,
+		GetNodeInfo = function(_, id) return { currentRank = nodes[id].rank, activeEntry = { entryID = id } } end,
+		GetEntryInfo = function(_, id) return { definitionID = id } end,
+		GetDefinitionInfo = function(id) return { spellID = nodes[id].spell } end,
+	}
+	_G.Constants = _G.Constants or {}
+	_G.Constants.LegacyConsts = { LEGACY_TREE_PROFESSIONS_ID = 1, LEGACY_TREE_ADVENTURE_ID = 2, LEGACY_TREE_PROGRESSION_ID = 3 }
+	local spellName = C_Spell.GetSpellName
+	C_Spell.GetSpellName = function(id) return spells[id] end
+	check("legacy: cached until forgotten", ns.Legacy.VendorDiscount(), 0)
+	ns.Legacy.Forget()
+	local bonus, rank = ns.Legacy.SkillBonus()
+	check("legacy: Working Overtime rank", rank, 5)
+	check("legacy: Working Overtime bonus", math.floor(bonus * 100 + 0.5), 20)
+	check("legacy: Bartering 2/2 is 10%", ns.Legacy.VendorDiscount(), 0.1)
+	check("legacy: seed price discounted", ns.Prices.Vendor(2320), 9)
+	check("legacy: learned price as charged", ns.Prices.Vendor(3), 10)
+	check("legacy: diag", ns.Legacy.Diag(), "2 nodes, Working Overtime 5, Bartering 2")
+	FireNow("PLAYER_ENTERING_WORLD")
+	nodes[12].rank = 1
+	check("legacy: re-read after a zone change", ns.Legacy.VendorDiscount(), 0.05)
+	_G.C_Traits, _G.Constants.LegacyConsts, C_Spell.GetSpellName = nil, nil, spellName
+	ns.Legacy.Forget()
+end
+
 print(("%d checks, %d failures"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

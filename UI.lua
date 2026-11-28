@@ -286,6 +286,12 @@ local SKILL = {
 
 -- Tooltip line: how hard a craft is for the character making it (the profession window's colour).
 -- A levelling cost: white, or green with + when selling what the craft makes earns more than it costs.
+-- A row's chance of a skill point: exact for orange and grey, an estimate (~) for yellow and green.
+function SKILL.ChanceText(item)
+	if item.difficulty == 0 or item.difficulty == 3 or not item.chance then return SKILL.CHANCE_TEXT[item.difficulty] end
+	return ("~%d%%"):format(math.floor(item.chance * 100 + 0.5))
+end
+
 function SKILL.CostText(copper)
 	if copper < 0 then return Color(COLOR_PROFIT, "+" .. ns.Money(-copper)) end
 	return ns.Money(copper)
@@ -331,6 +337,7 @@ local function BuildSkillList()
 	end
 	-- What selling the results gets back: the vendor's price always, the auction house's when ticked.
 	local rows = ns.Planner.SkillUpRows(ns.NewContext(), entries, { sellPrice = ns.Items.SellPrice,
+		chanceBonus = ns.Legacy.SkillBonus(),
 		ahSellable = ns.db.ui.skillSellAH and ns.Items.CanSellOnAH or nil, ahShown = ns.Items.CanSellOnAH })
 	-- The planner's order (cheapest per skill point) is the default and the tie-break.
 	local key, ascending = UI.ListSort("skill")
@@ -1328,7 +1335,11 @@ local function ShowSkillTooltip(row, item)
 	GameTooltip:AddLine(" ")
 	local hex = SKILL.COLORS[item.difficulty]
 	GameTooltip:AddDoubleLine("Colour", Color(hex, SKILL.NAMES[item.difficulty]), 1, 1, 1, 1, 1, 1)
-	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL.CHANCE_TEXT[item.difficulty]), 1, 1, 1, 1, 1, 1)
+	GameTooltip:AddDoubleLine("Chance of a skill point", Color(hex, SKILL.ChanceText(item)), 1, 1, 1, 1, 1, 1)
+	local bonus, rank = ns.Legacy.SkillBonus()
+	if rank > 0 and item.difficulty ~= 0 then
+		GameTooltip:AddLine(("Counts Working Overtime %d/5 (+%d%%)."):format(rank, math.floor(bonus * 100 + 0.5)), 0.6, 0.6, 0.6, true)
+	end
 	if item.points > 1 then GameTooltip:AddDoubleLine("Skill points per craft", tostring(item.points), 1, 1, 1, 1, 1, 1) end
 	GameTooltip:AddDoubleLine("Materials per craft", item.cost and ns.Money(item.cost) or "no price", 1, 1, 1, 1, 1, 1)
 	-- Both resale prices, the one counted in white, the other grey with "not counted".
@@ -2918,7 +2929,7 @@ local function SetRow(row, data)
 		row.left:SetText(Color(hex, recipe and recipe.n or "?")
 			.. (item.points > 1 and Color(COLOR_MUTED, (" +%d per craft"):format(item.points)) or ""))
 		PlaceRight(row, SkillControls(row), true)
-		row.chance:SetText(Color(hex, SKILL.CHANCE_TEXT[item.difficulty]))
+		row.chance:SetText(Color(hex, SKILL.ChanceText(item)))
 		row.cost:SetText(item.net and SKILL.CostText(item.net) or Color(COLOR_MUTED, "no price"))
 		row.profit:SetText(item.perPoint and SKILL.CostText(item.perPoint) or Color(COLOR_MUTED, "?"))
 	elseif data.kind == "queue" then
@@ -5883,6 +5894,7 @@ local function Diagnostics()
 	Add("options off: " .. (#off > 0 and table.concat(off, ", ") or "none") .. "; own ad text: "
 		.. tostring(ns.db.ui.adText ~= nil) .. ", own quote text: " .. tostring(ns.db.ui.quoteText ~= nil))
 	Add(("price check: above %d%%"):format(ns.Queue.PriceCapPercent()))
+	Add("legacy talents: " .. ns.Legacy.Diag())
 	ns.db.lastDiag = lines
 end
 

@@ -910,6 +910,21 @@ do
 	check("no price goes last", unpriced[2].perPoint, nil)
 end
 
+-- Working Overtime: the bonus adds to yellow and green, never past 100%.
+do
+	local rows = Planner.SkillUpRows(Context(), {
+		{ recipeID = 100, difficulty = 1 }, -- bar 20, yellow 50% + 20% = 70%
+		{ recipeID = 200, difficulty = 2 }, -- bolt 20, green 25% + 20% = 45%
+		{ recipeID = 300, difficulty = 0 }, -- orange stays 100%
+	}, { chanceBonus = 0.2 })
+	local by = {}
+	for _, row in ipairs(rows) do by[row.recipeID] = row end
+	check("overtime: yellow chance", math.floor(by[100].chance * 100 + 0.5), 70)
+	check("overtime: green chance", math.floor(by[200].chance * 100 + 0.5), 45)
+	check("overtime: orange capped", by[300].chance, 1)
+	check("overtime: per point", math.floor(by[100].perPoint + 0.5), 29)
+end
+
 -- Levelling less what the results sell for: the vendor always, the auction house (after its cut) when ticked and more.
 do
 	local vendorSell = function(id) return ({ [BAR] = 4, [SHIRT] = 30 })[id] end

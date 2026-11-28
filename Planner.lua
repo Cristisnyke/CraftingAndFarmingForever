@@ -618,7 +618,8 @@ function Planner.Payback(price, net)
 	return math.ceil(price / net)
 end
 
--- Levelling: entries are { recipeID, difficulty, skillUps } for one character's recipes. Returns the ones that can
+-- Levelling: entries are { recipeID, difficulty, skillUps } for one character's recipes (opts.chanceBonus: added to
+-- each colour's chance, e.g. 0.2 for Working Overtime 5/5, at most 100%). Returns the ones that can
 -- still give skill, cheapest expected cost per skill point first: materials at market prices, less what selling the
 -- results gets back (Planner.Resale with opts). A craft that sells for more than its materials earns while levelling:
 -- net and perPoint below zero, first in the list. A recipe with a material that has no price goes last.
@@ -627,6 +628,7 @@ function Planner.SkillUpRows(ctx, entries, opts)
 	local rows = {}
 	for _, entry in ipairs(entries) do
 		local chance = Planner.SKILL_CHANCE[entry.difficulty]
+		if chance and opts and opts.chanceBonus then chance = math.min(1, chance + opts.chanceBonus) end
 		local recipe = ctx.recipes[entry.recipeID]
 		if chance and recipe then
 			local cost, parts = Planner.RecipeCost(ctx, entry.recipeID)

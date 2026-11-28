@@ -231,8 +231,13 @@ function Prices.NewRound()
 	if ns.UI then ns.UI.RefreshAll() end
 end
 
+-- Merchant prices Auctionator learned are what the merchant charged, Bartering already taken off. The seed prices
+-- are full prices, so this character's Bartering comes off them here.
 function Prices.Vendor(itemID)
-	return Auctionator.API.v1.GetVendorPriceByItemID(ADDON, itemID) or VENDOR_SEED[itemID]
+	local learned = Auctionator.API.v1.GetVendorPriceByItemID(ADDON, itemID)
+	if learned then return learned end
+	local seed = VENDOR_SEED[itemID]
+	return seed and seed * (1 - ns.Legacy.VendorDiscount())
 end
 
 -- Days since the item was last seen on the AH, nil if unknown.
@@ -1471,4 +1476,97 @@ function Recipes.Crafter(recipeID, preferred)
 		if Recipes.Knows(key, recipeID) and (not best or key < best) then best = key end
 	end
 	return best or preferred or me
+end
+
+---------------------------------------------------------------------------
+-- Legacy talents: ranks this character bought in Forever's Legacy trees (C_Traits), read when first asked and
+-- again after a zone change or a talent change.
+---------------------------------------------------------------------------
+
+local Legacy = {
+	OVERTIME = 1225451, -- Working Overtime: +4% chance of a skill point per rank, 5 ranks
+	OVERTIME_STEP = 0.04,
+	BARTERING = "Bartering", -- by name: its spell ID isn't known; 5% off vendor prices per rank, 2 ranks
+	BARTERING_STEP = 0.05,
+}
+ns.Legacy = Legacy
+
+local function SpellName(spellID)
+	if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(spellID) end
+	return GetSpellInfo and (GetSpellInfo(spellID))
+end
+
+local function LegacyTrees()
+	local consts = Constants and Constants.LegacyConsts
+	if consts then
+		return { consts.LEGACY_TREE_PROFESSIONS_ID, consts.LEGACY_TREE_ADVENTURE_ID, consts.LEGACY_TREE_PROGRESSION_ID }
+	end
+	local trees = {}
+	for _, tree in ipairs(_G.LegacyTreeData or {}) do trees[#trees + 1] = tree.treeID end
+	return trees
+end
+
+-- { bySpell = { [spellID] = rank }, byName = { [name] = rank }, nodes = n }, or nil without Legacy trees.
+function Legacy.Read()
+	if Legacy.cache ~= nil then return Legacy.cache or nil end
+	local traits = C_Traits
+	local found = false
+	if traits and traits.GetConfigIDByTreeID and traits.GetTreeNodes and traits.GetNodeInfo then
+		local result = { bySpell = {}, byName = {}, nodes = 0 }
+		for _, treeID in ipairs(LegacyTrees()) do
+			local configID = treeID and traits.GetConfigIDByTreeID(treeID)
+			for _, nodeID in ipairs(configID and traits.GetTreeNodes(treeID) or {}) do
+				local node = traits.GetNodeInfo(configID, nodeID)
+				local rank = node and (node.currentRank or node.ranksPurchased) or 0
+				local entry = node and node.activeEntry and traits.GetEntryInfo(configID, node.activeEntry.entryID)
+				local def = entry and entry.definitionID and traits.GetDefinitionInfo(entry.definitionID)
+				local spellID = def and (def.spellID or def.overriddenSpellID)
+				if spellID then
+					result.nodes = result.nodes + 1
+					result.bySpell[spellID] = rank
+					local name = SpellName(spellID)
+					if name then result.byName[name] = rank end
+				end
+			end
+			found = found or configID ~= nil
+		end
+		if found then Legacy.cache = result end
+	end
+	if not found then Legacy.cache = false end
+	return Legacy.cache or nil
+end
+
+function Legacy.Forget()
+	Legacy.cache = nil
+end
+
+local function LegacyRank(spellID, name)
+	local ranks = Legacy.Read()
+	if not ranks then return 0 end
+	return (spellID and ranks.bySpell[spellID]) or (name and ranks.byName[name]) or 0
+end
+
+-- Working Overtime's rank (0-5) and what it adds to the chance of a skill point.
+function Legacy.SkillBonus()
+	local rank = LegacyRank(Legacy.OVERTIME)
+	return rank * Legacy.OVERTIME_STEP, rank
+end
+
+-- Bartering's share off vendor prices (0.1 at 2/2) and its rank.
+function Legacy.VendorDiscount()
+	local rank = LegacyRank(nil, Legacy.BARTERING)
+	return math.min(rank * Legacy.BARTERING_STEP, 0.1), rank
+end
+
+function Legacy.Diag()
+	local ranks = Legacy.Read()
+	if not ranks then return "no Legacy trees" end
+	local _, overtime = Legacy.SkillBonus()
+	local _, barter = Legacy.VendorDiscount()
+	return ("%d nodes, Working Overtime %d, Bartering %d"):format(ranks.nodes, overtime, barter)
+end
+
+ns.On("PLAYER_ENTERING_WORLD", Legacy.Forget)
+if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid("TRAIT_CONFIG_UPDATED") then
+	ns.On("TRAIT_CONFIG_UPDATED", Legacy.Forget)
 end

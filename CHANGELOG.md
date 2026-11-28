@@ -5,6 +5,8 @@ Each version's section is the CurseForge changelog; `tools/release.sh` uploads i
 ## Unreleased
 
 - Writs and Crates tabs: a − button beside + takes queued writs and crates off the queue again (on a zone heading, all of that zone's queued writs), no trip to the Queue tab needed.
+- Skill up: the chance of a skill point counts the Working Overtime legacy talent (4% per rank).
+- Vendor prices the add-on knows before your first merchant visit take off your Bartering legacy talent (5% per rank); prices learned at merchants already have it.
 
 ## 1.41.1
 

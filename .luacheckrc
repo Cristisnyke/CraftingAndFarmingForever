@@ -15,7 +15,7 @@ read_globals = {
 	"GetMerchantItemInfo", "GetMerchantItemLink", "GetMerchantItemMaxStack", "GetMerchantNumItems", "GetProfessions", "GetProfessionInfo", "MerchantFrame",
 	"ATTACHMENTS_MAX_RECEIVE", "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT",
 	"AUCTION_SOLD_MAIL_SUBJECT", "AuctionHouseFrame", "Auctionator", "CANCEL", "C_AddOns", "C_AuctionHouse",
-	"C_Container", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
+	"C_Container", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "C_Traits", "C_EventUtils", "C_TradeSkillUI", "ChatEdit_GetLastTellTarget",
 	"ChatFrame1", "ClearCursor", "ChatFrameUtil", "ChatFrame_OpenChat", "CreateColor", "CreateFrame", "Enum", "GameTooltip",
 	"GameTooltip_Hide", "GetCVarBool", "GetCVar", "SetCVar", "PlaySound", "SOUNDKIT", "GetCurrentKeyBoardFocus", "GetCursorInfo", "GetChannelList", "GetCursorPosition", "GetInboxHeaderInfo",
 	"GetInboxInvoiceInfo", "GetInboxItem", "GetInboxNumItems", "GetMoney", "GetRealmName", "GetSpellInfo", "GetSpellBaseCooldown",
