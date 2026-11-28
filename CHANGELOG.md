@@ -2,7 +2,7 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
-## Unreleased
+## 1.43.0
 
 - Cooking profit counts the Master Chef legacy talent: 10% chance per rank of an extra item, so up to 1.5 made per craft at 5/5.
 

@@ -4,6 +4,9 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+	{ version = "1.43.0", lines = {
+		"- Cooking profit counts the Master Chef legacy talent: 10% chance per rank of an extra item, so up to 1.5 made per craft at 5/5.",
+	} },
 	{ version = "1.42.0", lines = {
 		"- Writs and Crates tabs: a − button beside + takes queued writs and crates off the queue again (on a zone heading, all of that zone's queued writs), no trip to the Queue tab needed.",
 		"- Skill up: the chance of a skill point counts the Working Overtime legacy talent (4% per rank).",
