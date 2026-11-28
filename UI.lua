@@ -1531,6 +1531,11 @@ local function ShowProfitTooltip(row, result)
 		local sale = result.saleUnit and (ns.Money(result.saleUnit * result.yield)) or "no price"
 		local lowered = result.atNormal
 		GameTooltip:AddDoubleLine(lowered and "Counted as selling for" or "Sells for", sale, 1, 1, 1, 1, 1, 1)
+		if result.extraYield and result.extraYield > 0 then
+			local _, rank = ns.Legacy.ExtraYield(ns.db.recipes[result.recipeID])
+			GameTooltip:AddLine(("Counts Master Chef %d/5: %s made per craft on average."):format(rank,
+				(("%.1f"):format(result.yield)):gsub("%.0$", "")), 0.6, 0.6, 0.6, true)
+		end
 		if lowered then
 			GameTooltip:AddDoubleLine("Listed on the AH for", ns.Money(result.listedUnit * result.yield), 1, 0.6, 0.2, 1, 0.6, 0.2)
 		end

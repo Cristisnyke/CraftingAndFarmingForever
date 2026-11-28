@@ -56,6 +56,21 @@ check("net", profit.net, 885)
 check("no sale price", Planner.Profit(Context({ ah = { [ORE] = 10, [CLOTH] = 10 } }), 300).net, nil)
 check("unpriced material", Planner.Profit(Context({ ah = { [SHIRT] = 1000, [BOLT] = 100 }, vendor = {} }), 300).net, nil)
 
+-- Master Chef: ctx.extraYield adds its share of an extra item per craft (sale 1000 x 1.5 less 5% = 1425, cost 65).
+do
+	local chef = Context()
+	chef.extraYield = function(recipe) return recipe.o == SHIRT and 0.5 or 0 end
+	local p = Planner.Profit(chef, 300)
+	check("master chef: yield", p.yield, 1.5)
+	check("master chef: share kept", p.extraYield, 0.5)
+	check("master chef: net", p.net, 1360)
+	-- A crafted material costs less per unit with the extra item: bolt 20 / 1.5.
+	chef = Context()
+	chef.extraYield = function(recipe) return recipe.o == BOLT and 0.5 or 0 end
+	local boltUnit = Planner.ItemCost(chef, BOLT)
+	check("master chef: material unit", math.floor(boltUnit * 100 + 0.5), 1333)
+end
+
 -- Multi-yield recipes divide cost by the average yield.
 local yieldCtx = Context({
 	recipes = { [1] = { o = BAR, qmin = 2, qmax = 4, r = { { 3, ORE } } } },

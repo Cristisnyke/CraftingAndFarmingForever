@@ -5270,11 +5270,11 @@ end
 -- Legacy talents: Working Overtime adds to the skill chance, Bartering comes off the seed vendor prices only.
 do
 	check("legacy: none without trees", ns.Legacy.VendorDiscount(), 0)
-	local spells = { [1225451] = "Working Overtime", [777001] = "Bartering" }
-	local nodes = { [11] = { spell = 1225451, rank = 5 }, [12] = { spell = 777001, rank = 2 } }
+	local spells = { [1225451] = "Working Overtime", [777001] = "Bartering", [777002] = "Master Chef" }
+	local nodes = { [11] = { spell = 1225451, rank = 5 }, [12] = { spell = 777001, rank = 2 }, [13] = { spell = 777002, rank = 3 } }
 	_G.C_Traits = {
 		GetConfigIDByTreeID = function(tree) return tree == 1 and 50 or nil end,
-		GetTreeNodes = function(tree) return tree == 1 and { 11, 12 } or {} end,
+		GetTreeNodes = function(tree) return tree == 1 and { 11, 12, 13 } or {} end,
 		GetNodeInfo = function(_, id) return { currentRank = nodes[id].rank, activeEntry = { entryID = id } } end,
 		GetEntryInfo = function(_, id) return { definitionID = id } end,
 		GetDefinitionInfo = function(id) return { spellID = nodes[id].spell } end,
@@ -5291,7 +5291,9 @@ do
 	check("legacy: Bartering 2/2 is 10%", ns.Legacy.VendorDiscount(), 0.1)
 	check("legacy: seed price discounted", ns.Prices.Vendor(2320), 9)
 	check("legacy: learned price as charged", ns.Prices.Vendor(3), 10)
-	check("legacy: diag", ns.Legacy.Diag(), "2 nodes, Working Overtime 5, Bartering 2")
+	check("legacy: Master Chef on cooking", math.floor(ns.Legacy.ExtraYield({ p = 185 }) * 100 + 0.5), 30)
+	check("legacy: Master Chef not on other recipes", ns.Legacy.ExtraYield({ p = 164 }), 0)
+	check("legacy: diag", ns.Legacy.Diag(), "3 nodes, Working Overtime 5, Bartering 2, Master Chef 3")
 	FireNow("PLAYER_ENTERING_WORLD")
 	nodes[12].rank = 1
 	check("legacy: re-read after a zone change", ns.Legacy.VendorDiscount(), 0.05)

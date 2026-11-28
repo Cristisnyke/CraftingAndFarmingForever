@@ -1488,6 +1488,9 @@ local Legacy = {
 	OVERTIME_STEP = 0.04,
 	BARTERING = "Bartering", -- by name: its spell ID isn't known; 5% off vendor prices per rank, 2 ranks
 	BARTERING_STEP = 0.05,
+	MASTER_CHEF = "Master Chef", -- by name: 10% chance per rank of one more item from a cooking recipe, 5 ranks
+	MASTER_CHEF_STEP = 0.1,
+	COOKING = 185,
 }
 ns.Legacy = Legacy
 
@@ -1558,12 +1561,20 @@ function Legacy.VendorDiscount()
 	return math.min(rank * Legacy.BARTERING_STEP, 0.1), rank
 end
 
+-- Master Chef's share of cooking crafts that make one more item (0.5 at 5/5) and its rank; 0 for other recipes.
+function Legacy.ExtraYield(recipe)
+	if not (recipe and recipe.p == Legacy.COOKING) then return 0, 0 end
+	local rank = LegacyRank(nil, Legacy.MASTER_CHEF)
+	return math.min(rank * Legacy.MASTER_CHEF_STEP, 0.5), rank
+end
+
 function Legacy.Diag()
 	local ranks = Legacy.Read()
 	if not ranks then return "no Legacy trees" end
 	local _, overtime = Legacy.SkillBonus()
 	local _, barter = Legacy.VendorDiscount()
-	return ("%d nodes, Working Overtime %d, Bartering %d"):format(ranks.nodes, overtime, barter)
+	local _, chef = Legacy.ExtraYield({ p = Legacy.COOKING })
+	return ("%d nodes, Working Overtime %d, Bartering %d, Master Chef %d"):format(ranks.nodes, overtime, barter, chef)
 end
 
 ns.On("PLAYER_ENTERING_WORLD", Legacy.Forget)

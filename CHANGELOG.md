@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Cooking profit counts the Master Chef legacy talent: 10% chance per rank of an extra item, so up to 1.5 made per craft at 5/5.
+
 ## 1.42.0
 
 - Writs and Crates tabs: a − button beside + takes queued writs and crates off the queue again (on a zone heading, all of that zone's queued writs), no trip to the Queue tab needed.

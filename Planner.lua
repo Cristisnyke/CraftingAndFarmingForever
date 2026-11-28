@@ -28,11 +28,14 @@ ns = ns or {}
 local Planner = {}
 ns.Planner = Planner
 
-local function AverageYield(recipe)
+-- Average items per craft, with ctx.extraYield(recipe) (optional: the share of crafts that make one more item,
+-- e.g. 0.5 for Master Chef 5/5 on cooking) on top.
+local function AverageYield(recipe, ctx)
 	local qmin = recipe.qmin or 1
 	local qmax = recipe.qmax or qmin
 	local avg = (qmin + qmax) / 2
-	return avg > 0 and avg or 1
+	local extra = ctx and ctx.extraYield and ctx.extraYield(recipe) or 0
+	return (avg > 0 and avg or 1) + extra
 end
 
 local function MinimumYield(recipe)
@@ -78,7 +81,7 @@ function Planner.ItemCost(ctx, itemID)
 			local recipe = ctx.recipes[candidate]
 			local total = recipe and Planner.RecipeCost(ctx, candidate)
 			if total then
-				local craftUnit = total / AverageYield(recipe)
+				local craftUnit = total / AverageYield(recipe, ctx)
 				if not unit or craftUnit < unit then
 					unit, kind, recipeID = craftUnit, "craft", candidate
 				end
@@ -167,7 +170,7 @@ function Planner.ItemCostFor(ctx, itemID, count)
 		elseif not Scarce(ctx, candidate, priced) then
 			local recipe = ctx.recipes[candidate]
 			if recipe then
-				local craftTotal, _, craftNote = Planner.RecipeCostFor(ctx, candidate, count / AverageYield(recipe))
+				local craftTotal, _, craftNote = Planner.RecipeCostFor(ctx, candidate, count / AverageYield(recipe, ctx))
 				if craftTotal and (not total or craftTotal < total) then
 					total, kind, recipeID, note = craftTotal, "craft", candidate, craftNote
 				end
@@ -220,7 +223,7 @@ function Planner.CraftCostFor(ctx, itemID, units)
 	local best
 	for _, recipeID in ipairs(ctx.known[itemID] or {}) do
 		local recipe = ctx.recipes[recipeID]
-		local total = recipe and Planner.RecipeCostFor(ctx, recipeID, units / AverageYield(recipe))
+		local total = recipe and Planner.RecipeCostFor(ctx, recipeID, units / AverageYield(recipe, ctx))
 		if total and (not best or total < best) then best = total end
 	end
 	return best
@@ -234,9 +237,10 @@ function Planner.Profit(ctx, recipeID, crafts)
 	local recipe = ctx.recipes[recipeID]
 	if not recipe or not recipe.o then return nil end
 	local cost, parts = Planner.RecipeCost(ctx, recipeID)
-	local yield = AverageYield(recipe)
+	local yield = AverageYield(recipe, ctx)
 	local saleUnit = Priced(ctx.ahPrice(recipe.o))
 	local result = { recipeID = recipeID, itemID = recipe.o, yield = yield, cost = cost, parts = parts, saleUnit = saleUnit }
+	result.extraYield = ctx.extraYield and ctx.extraYield(recipe) or nil
 	if crafts and crafts > 0 and ctx.ahDepth then
 		local total, batchParts, note = Planner.RecipeCostFor(ctx, recipeID, crafts)
 		result.batch, result.oneCost = crafts, cost
@@ -593,7 +597,7 @@ function Planner.Resale(ctx, recipeID, opts)
 	local recipe = ctx.recipes[recipeID]
 	if not (recipe and recipe.o) then return 0, nil end
 	opts = opts or {}
-	local yield = AverageYield(recipe)
+	local yield = AverageYield(recipe, ctx)
 	local back, kind = 0, nil
 	local sell = opts.sellPrice and Priced(opts.sellPrice(recipe.o))
 	local vendor = sell and sell * yield

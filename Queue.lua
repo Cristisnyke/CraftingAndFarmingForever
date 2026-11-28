@@ -57,6 +57,7 @@ local function NewContext()
 		priceCap = Queue.PriceCap(),
 		normalPrice = ns.Prices.Normal,
 		postage = ns.Seller.Postage,
+		extraYield = function(recipe) return (ns.Legacy.ExtraYield(recipe)) end,
 	})
 end
 ns.NewContext = NewContext

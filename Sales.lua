@@ -548,7 +548,8 @@ function Sales.NoteCraft(recipe)
 	end
 	local qmin = recipe.qmin or 1
 	local made = (qmin + (recipe.qmax or qmin)) / 2
-	Sales.AddCost(recipe.o, made > 0 and made or 1, total)
+	-- Master Chef's extra item on cooking counts on average, as in the profit.
+	Sales.AddCost(recipe.o, (made > 0 and made or 1) + ns.Legacy.ExtraYield(recipe), total)
 	if ns.UI then ns.UI.Refresh("sales") end
 end
 
