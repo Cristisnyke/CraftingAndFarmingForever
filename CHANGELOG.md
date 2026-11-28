@@ -2,6 +2,10 @@
 
 Each version's section is the CurseForge changelog; `tools/release.sh` uploads it. Add the next version's section before releasing.
 
+## Unreleased
+
+- Writs and Crates tabs: a − button beside + takes queued writs and crates off the queue again (on a zone heading, all of that zone's queued writs), no trip to the Queue tab needed.
+
 ## 1.41.1
 
 - Restocking: a row's profit each uses the live lowest price once the auction house answers, so it matches the panel, and the panel shows the profit for the whole amount and per item.

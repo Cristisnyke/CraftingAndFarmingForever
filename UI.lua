@@ -2056,16 +2056,19 @@ local PLUS_TIPS = {
 	queue = { "Add one craft", "Shift: ten. Or type the amount in the box." },
 	restock = { "Raise the goal by one", "Shift: ten. Or type the goal in the box." },
 	writ = { "Queue this writ", "The queue's shopping list gets the writ and the item it wants, or the item's materials "
-		.. "when crafting it yourself is cheaper. Take it off again on the Queue tab." },
+		.. "when crafting it yourself is cheaper. - takes it off again." },
 	writZone = { "Queue this zone's writs", "One of each writ here with a price that you don't hold, haven't queued "
-		.. "and haven't handed in today, with what they need. Take them off again on the Queue tab." },
+		.. "and haven't handed in today, with what they need. - takes this zone's queued writs off again." },
 	crate = { "Queue one crate", "Shift: five. The queue's shopping list gets the crate and its cheapest bundle of "
-		.. "materials. Take it off again on the Queue tab." },
+		.. "materials. - takes one off again." },
 	want = { "Add one", "Shift: five. Or type the amount in the box." },
 }
 local MINUS_TIPS = {
 	queue = { "Remove one craft", "Shift: ten, down to one. At one, - removes the entry." },
 	want = { "Remove one", "At one, - removes the entry." },
+	writ = { "Take it off the queue", "With what it needed." },
+	writZone = { "Take this zone's writs off the queue", "Every queued writ here, with what they needed." },
+	crate = { "Take one crate off the queue", "Shift: five." },
 	restock = { "Lower the goal by one", "Shift: ten. 0 skips the item." },
 }
 
@@ -2208,7 +2211,7 @@ end
 
 local function WritControls(row)
 	for _, region in ipairs({ row.profit, row.cost, row.colHave, row.colAH }) do region:SetWidth(COLUMN.WRIT) end
-	return { { row.plus, 2 }, { row.profit, 6 }, { row.cost, 6 }, { row.colHave, 6 }, { row.colAH, 6 } }
+	return { { row.plus, 2 }, { row.minus, 2 }, { row.profit, 6 }, { row.cost, 6 }, { row.colHave, 6 }, { row.colAH, 6 } }
 end
 
 local function IncomingControls(row)
@@ -2345,6 +2348,14 @@ local function CreateRow(parent)
 			if step > 0 then ns.Queue.Change(data.index, -step) end
 		elseif data.kind == "want" then
 			ns.Queue.ChangeWanted(data.index, -1)
+		elseif data.kind == "writ" then
+			ns.Queue.Unwant("writ", data.row.writ.id, data.row.queued)
+		elseif data.kind == "writZone" then
+			for _, item in ipairs(data.group.rows) do
+				if item.queued > 0 then ns.Queue.Unwant("writ", item.writ.id, item.queued) end
+			end
+		elseif data.kind == "crate" then
+			ns.Queue.Unwant("crate", data.row.crate.id, IsShiftKeyDown() and 5 or 1)
 		elseif data.kind == "restock" then
 			ns.Restock.SetGoal(data.row.itemID, data.row.goal - (IsShiftKeyDown() and 10 or 1))
 			UI.Refresh("restock")
@@ -3042,6 +3053,7 @@ local function SetRow(row, data)
 		row.left:SetText(Held.Text(item.held) .. label .. "  " .. (item.done and Color(COLOR_PROFIT, "done today") or Color(COLOR_MUTED, where))
 			.. (item.queued > 0 and Color("ff7fb8ff", "  queued") or ""))
 		PlaceRight(row, WritControls(row), true)
+		row.minus:SetShown(item.queued > 0)
 		row.colAH:SetText(item.writPrice and Color(item.haveWrit and COLOR_PROFIT or "ffffffff", ns.Money(item.writPrice))
 			or Color(item.haveWrit and COLOR_PROFIT or COLOR_MUTED, item.haveWrit and "have" or "no price"))
 		row.colHave:SetText(item.itemCost
@@ -3060,6 +3072,9 @@ local function SetRow(row, data)
 			or ("%d writ%s, %d rep"):format(count, count == 1 and "" or "s", group.rep)))
 		PlaceRight(row, WritControls(row), false)
 		row.plus:SetShown(count > 0)
+		local anyQueued = false
+		for _, item in ipairs(group.rows) do anyQueued = anyQueued or item.queued > 0 end
+		row.minus:SetShown(anyQueued)
 		row.cost:SetText(count > 0 and Color(group.net < 0 and COLOR_LOSS or COLOR_PROFIT, ns.Money(group.net)) or "")
 		row.cost:Show()
 		row.profit:SetText(group.perRep and (group.perRep > 0 and ns.Money(group.perRep) or Color(COLOR_PROFIT, "free")) or "")
@@ -3073,6 +3088,7 @@ local function SetRow(row, data)
 		row.left:SetText(Held.Text(item.held) .. label .. "  " .. (item.cheapest and Color(COLOR_PROFIT, "best buy: " .. note) or Color(COLOR_MUTED, note))
 			.. (item.queued > 0 and Color("ff7fb8ff", "  queued x" .. item.queued) or ""))
 		PlaceRight(row, WritControls(row), true)
+		row.minus:SetShown(item.queued > 0)
 		row.colAH:SetText(item.cratePrice and Color(item.haveCrate and COLOR_PROFIT or "ffffffff", ns.Money(item.cratePrice))
 			or Color(item.haveCrate and COLOR_PROFIT or COLOR_MUTED, item.haveCrate and "have" or "no price"))
 		row.colHave:SetText(item.fillCost

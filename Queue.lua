@@ -392,6 +392,12 @@ function Queue.SetWanted(index, qty)
 	ns.RequestPlan()
 end
 
+-- Takes queued writs or crates off by kind and item (the Writs and Crates tabs' -): never below 0.
+function Queue.Unwant(kind, id, qty)
+	local index, want = WantedIndex(kind, id)
+	if want then Queue.SetWanted(index, want.qty - math.max(1, math.floor(qty or 1))) end
+end
+
 function Queue.ChangeWanted(index, delta)
 	local want = ns.db.wanted[index]
 	if want then Queue.SetWanted(index, want.qty + delta) end

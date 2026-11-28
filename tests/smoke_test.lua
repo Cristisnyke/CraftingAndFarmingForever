@@ -3486,6 +3486,21 @@ do
 	RunTimers()
 	check("zone + queues its writs", ns.Queue.Count(), before + 1)
 	check("queued writ no longer counted", #window.list[2].group.writs, 0)
+	local function ZoneRow(zone) -- queuing sorts the zone further down: scroll to its row
+		for index, data in ipairs(window.list) do
+			if data.kind == "writZone" and data.group.zone == zone then
+				window.offset = index - 1
+				ns.UI.Refresh("writs")
+				return window.rows[index - window.offset]
+			end
+		end
+	end
+	check("zone - shown once a writ is queued", ZoneRow(knifeZone).minus:IsShown() and true, true)
+	ZoneRow(knifeZone).minus.scripts.OnClick(ZoneRow(knifeZone).minus)
+	RunTimers()
+	check("zone - takes its writs off", ns.Queue.WantedCount("writ", KNIFE_WRIT), 0)
+	check("zone - hidden with nothing queued", ZoneRow(knifeZone).minus:IsShown() and true, false)
+	window.offset = 0
 	ns.Queue.Clear()
 	RunTimers()
 	check("zone heading shown", window.rows[1].sortHeadings.zone:IsShown() and true, true)
@@ -3589,6 +3604,12 @@ do
 	ns.Queue.Want("crate", ORE_CRATE, 1)
 	RunTimers()
 	check("queued crates counted on the row", Row(ORE_CRATE).row.queued, 2)
+	ns.Queue.Unwant("crate", ORE_CRATE, 5)
+	check("- never goes below none", ns.Queue.WantedCount("crate", ORE_CRATE), 0)
+	ns.Queue.Unwant("crate", ORE_CRATE, 1)
+	check("- on a crate not queued does nothing", ns.Queue.Count(), 0)
+	ns.Queue.Want("crate", ORE_CRATE, 2)
+	RunTimers()
 	check("crates to buy", ns.plan.buy[ORE_CRATE], 2)
 	check("cheapest bundle to buy, for both", ns.plan.buy[IRON], 40)
 	check("the dearer bundle isn't bought", ns.plan.buy[SILVER], nil)
